@@ -1,0 +1,314 @@
+﻿<Page x:Class="MangaBinder.Binding.HomePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:local="clr-namespace:MangaBinder.Binding"
+      xmlns:binding="clr-namespace:MangaBinder.Binding"
+      mc:Ignorable="d"
+      d:DesignHeight="800" d:DesignWidth="1200"
+      Title="HomePage"
+      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+      ScrollViewer.CanContentScroll="False">
+
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <!-- タイトル表示専用 TextBox スタイル：TextBlock 寄りの見た目、選択可能 -->
+        <Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="CaretBrush" Value="Transparent" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="IsTabStop" Value="False" />
+        </Style>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════════════════════════════════════════ -->
+        <!-- 操作バー                                           -->
+        <!-- ══════════════════════════════════════════════════ -->
+        <Border Grid.Row="0"
+                Padding="12,8"
+                BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource ControlElevationBorderBrush}">
+            <WrapPanel Orientation="Horizontal" ItemHeight="32">
+
+                <!-- 検索欄 -->
+                <ui:TextBox
+                    Width="280"
+                    Margin="0,0,12,4"
+                    PlaceholderText="タイトル・作者・あらすじで検索"
+                    VerticalAlignment="Center" />
+
+                <!-- フィルタ -->
+                <ComboBox
+                    Width="160"
+                    Margin="0,0,12,4"
+                    SelectedIndex="0"
+                    VerticalAlignment="Center">
+                    <ComboBoxItem Content="すべて" />
+                    <ComboBoxItem Content="未製本" />
+                    <ComboBoxItem Content="製本済み" />
+                    <ComboBoxItem Content="完結" />
+                    <ComboBoxItem Content="全巻所持" />
+                    <ComboBoxItem Content="サムネイル未生成" />
+                    <ComboBoxItem Content="サムネイル失敗" />
+                </ComboBox>
+
+                <!-- 並び替え -->
+                <ComboBox
+                    Width="140"
+                    Margin="0,0,12,4"
+                    SelectedIndex="0"
+                    VerticalAlignment="Center">
+                    <ComboBoxItem Content="更新日順" />
+                    <ComboBoxItem Content="タイトル順" />
+                    <ComboBoxItem Content="巻数順" />
+                    <ComboBoxItem Content="製本状況順" />
+                </ComboBox>
+
+                <!-- 表示切替 -->
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4" VerticalAlignment="Center">
+                    <ui:Button
+                        Content="一覧"
+                        Margin="0,0,4,0"
+                        Appearance="Secondary" />
+                    <ui:Button
+                        Content="カード"
+                        Appearance="Secondary" />
+                </StackPanel>
+
+                <!-- 製本開始 -->
+                <ui:Button
+                    Content="製本開始"
+                    Margin="12,0,0,4"
+                    Appearance="Primary"
+                    Command="{Binding StartBindingCommand}" />
+
+            </WrapPanel>
+        </Border>
+
+        <!-- ══════════════════════════════════════════════════ -->
+        <!-- 作品一覧 ListView                                  -->
+        <!-- ══════════════════════════════════════════════════ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="4*" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+        <ListView
+            Grid.Column="1"
+            ItemsSource="{Binding Series}"
+            SelectionMode="Single"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch"
+            VirtualizingPanel.IsVirtualizing="True"
+            VirtualizingPanel.VirtualizationMode="Recycling"
+            VirtualizingPanel.ScrollUnit="Item"
+            ScrollViewer.CanContentScroll="True"
+            ScrollViewer.VerticalScrollBarVisibility="Auto"
+            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+            BorderThickness="0"
+            Background="Transparent"
+            local:ScrollViewerOffsetBehavior.BoundVerticalOffset="{Binding SavedSeriesListVerticalOffset.Value, Mode=TwoWay}">
+
+            <ListView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel
+                        IsVirtualizing="True"
+                        VirtualizationMode="Recycling" />
+                </ItemsPanelTemplate>
+            </ListView.ItemsPanel>
+
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0,0,0,2" />
+                </Style>
+            </ListView.ItemContainerStyle>
+
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <!-- 横長カード -->
+                    <Grid Height="220" Margin="8,4" HorizontalAlignment="Stretch">
+                        <Grid.ColumnDefinitions>
+                            <!-- CheckBox -->
+                            <ColumnDefinition Width="44" />
+                            <!-- サムネイル -->
+                            <ColumnDefinition Width="140" />
+                            <!-- 作品情報 -->
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 製本対象選択 CheckBox -->
+                        <CheckBox
+                            Grid.Column="0"
+                            IsChecked="{Binding IsSelected}"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Center" />
+
+                        <!-- サムネイル -->
+                        <Border
+                            Grid.Column="1"
+                            Width="140"
+                            Height="196"
+                            VerticalAlignment="Top"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            CornerRadius="4"
+                            ClipToBounds="True">
+                            <Image
+                                Source="{Binding Converter={binding:ThumbnailImageConverterExtension}}"
+                                Width="140"
+                                Height="196"
+                                Stretch="UniformToFill"
+                                RenderOptions.BitmapScalingMode="LowQuality" />
+                        </Border>
+
+                        <!-- 作品情報 -->
+                        <Grid
+                            Grid.Column="2"
+                            Margin="12,0,8,0"
+                            VerticalAlignment="Top">
+                            <Grid.RowDefinitions>
+                                <!-- Row0: タイトル -->
+                                <RowDefinition Height="Auto" />
+                                <!-- Row1: 巻数情報 -->
+                                <RowDefinition Height="Auto" />
+                                <!-- Row2: あらすじ -->
+                                <RowDefinition Height="Auto" />
+                                <!-- Row3: あらすじ出典 -->
+                                <RowDefinition Height="Auto" />
+                                <!-- Row4: 作者 -->
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- タイトル（コピー可能） -->
+                            <TextBox
+                                Grid.Row="0"
+                                Style="{StaticResource TitleReadOnlyTextBoxStyle}"
+                                Text="{Binding Title}"
+                                FontSize="16"
+                                FontWeight="SemiBold"
+                                Margin="0,0,0,4"
+                                MaxHeight="72"
+                                HorizontalAlignment="Stretch"
+                                TextWrapping="Wrap"
+                                Focusable="True"
+                                Cursor="IBeam" />
+
+                            <!-- 巻数情報 -->
+                            <Grid Grid.Row="1" Margin="0,0,0,8" VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <!-- 全巻数バッジ -->
+                                    <ColumnDefinition Width="Auto" />
+                                    <!-- 所持推定 -->
+                                    <ColumnDefinition Width="Auto" />
+                                    <!-- 製本済み -->
+                                    <ColumnDefinition Width="Auto" />
+                                    <!-- 余白 -->
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <!-- 全巻数バッジ -->
+                                <Border
+                                    Grid.Column="0"
+                                    Background="{Binding Converter={binding:SeriesStatusBadgeBrushConverterExtension}}"
+                                    CornerRadius="3"
+                                    Padding="6,2"
+                                    Margin="0,0,10,0"
+                                    VerticalAlignment="Center">
+                                    <TextBlock
+                                        Text="{Binding TotalVolumeText}"
+                                        FontSize="11"
+                                        FontWeight="SemiBold"
+                                        Foreground="White"
+                                        TextWrapping="NoWrap" />
+                                </Border>
+                                <!-- 所持推定 -->
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding OwnedEstimatedVolumeText}"
+                                    FontSize="11"
+                                    TextWrapping="NoWrap"
+                                    Margin="0,0,12,0"
+                                    VerticalAlignment="Center" />
+                                <!-- 製本済み -->
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Text="{Binding BoundEndVolumeText}"
+                                    FontSize="11"
+                                    TextWrapping="NoWrap"
+                                    VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- あらすじ -->
+                            <TextBlock
+                                Grid.Row="2"
+                                Text="{Binding Description}"
+                                FontSize="12"
+                                TextWrapping="Wrap"
+                                MaxHeight="88"
+                                TextTrimming="CharacterEllipsis"
+                                Opacity="0.85"
+                                Margin="0,0,0,6" />
+
+                            <!-- あらすじ出典 -->
+                            <StackPanel
+                                Grid.Row="3"
+                                Orientation="Horizontal"
+                                Margin="0,0,0,4"
+                                Visibility="{Binding HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock
+                                    Text="あらすじ出典："
+                                    FontSize="11"
+                                    Opacity="0.6"
+                                    VerticalAlignment="Center" />
+                                <TextBlock
+                                    Text="{Binding DescriptionSourceName}"
+                                    FontSize="11"
+                                    Opacity="0.6"
+                                    VerticalAlignment="Center" />
+                                <TextBlock
+                                    Text=" / "
+                                    FontSize="11"
+                                    Opacity="0.6"
+                                    VerticalAlignment="Center" />
+                                <TextBox
+                                    Style="{StaticResource TitleReadOnlyTextBoxStyle}"
+                                    Text="{Binding DescriptionSourceTitle}"
+                                    FontSize="11"
+                                    Opacity="0.6"
+                                    VerticalAlignment="Center"
+                                    Focusable="True"
+                                    Cursor="IBeam" />
+                            </StackPanel>
+
+                            <!-- 作者 -->
+                            <TextBlock
+                                Grid.Row="4"
+                                Text="{Binding Author}"
+                                FontSize="12"
+                                Opacity="0.7"
+                                TextWrapping="NoWrap"
+                                TextTrimming="CharacterEllipsis" />
+
+                        </Grid>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+
+        </ListView>
+        </Grid>
+
+    </Grid>
+</Page>

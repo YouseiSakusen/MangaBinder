@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/HalationGhost/">
+    <Project Path="HalationGhost.Utilities/HalationGhost.Utilities.csproj" />
+    <Project Path="HalationGhost.Wpf.Ui/HalationGhost.Wpf.Ui.csproj" />
+  </Folder>
+  <Folder Name="/UI/">
+    <Project Path="MangaBinder.Core/MangaBinder.Core.csproj" Id="08006477-29ac-4ee1-9e8d-e4dc43d8b87e" />
+    <Project Path="MangaBinder.Sandbox/MangaBinder.Sandbox.csproj" />
+    <Project Path="MangaBinder.Services/MangaBinder.Services.csproj" Id="312054fe-ee30-407d-a263-da5c2c73e3f4" />
+    <Project Path="MangaBinder.Shared.Services/MangaBinder.Shared.Services.csproj" Id="982b0977-bda5-419a-aa2f-fe8725a45b20" />
+    <Project Path="MangaBinder.Shared/MangaBinder.Shared.csproj" Id="e9202dfe-11ed-45e8-9be3-9ac71e2a8fb4" />
+    <Project Path="MangaBinder/MangaBinder.csproj" />
+  </Folder>
+  <Folder Name="/Worker/">
+    <Project Path="MangaBinder.Worker.Core/MangaBinder.Worker.Core.csproj" />
+    <Project Path="MangaBinder.Worker.Sandbox/MangaBinder.Worker.Sandbox.csproj" />
+    <Project Path="MangaBinder.Worker.Services/MangaBinder.Worker.Services.csproj" Id="df2db413-4fa2-4021-abfb-8be03b17207c" />
+    <Project Path="MangaBinder.Worker/MangaBinder.Worker.csproj" Id="30e7020f-5fb9-47aa-8a3f-fd5abf843161" />
+  </Folder>
+</Solution>

@@ -1,0 +1,158 @@
+﻿namespace MangaBinder.Bindings
+{
+	/// <summary>
+	/// アーカイブからの抽出結果の状態を表す列挙型です。
+	/// </summary>
+	public enum ExtractionStatus
+	{
+		/// <summary>抽出成功。</summary>
+		Success,
+
+		/// <summary>アーカイブ内に画像が一つも存在しない。</summary>
+		NoImageFound,
+
+		/// <summary>画像はないが、別の圧縮ファイルが含まれている状態。</summary>
+		NestedArchiveFound,
+
+		/// <summary>読み取り不可、または壊れたアーカイブ。</summary>
+		UnsupportedFormat,
+	}
+
+	/// <summary>
+	/// ファイルの種別を表す列挙型です。
+	/// </summary>
+	public enum FileType
+	{
+		/// <summary>画像ファイルです。</summary>
+		Image = 1,
+
+		/// <summary>アーカイブファイルです。</summary>
+		Archive = 2,
+
+		/// <summary>電子書籍ファイルです。</summary>
+		Epub = 3,
+	}
+
+	/// <summary>
+	/// サムネイル処理の状態を表す列挙型です。
+	/// </summary>
+	public enum ThumbnailStatus
+	{
+		/// <summary>未処理です。</summary>
+		None = 0,
+
+		/// <summary>処理が完了しました。</summary>
+		Completed = 1,
+
+		/// <summary>500MB リミットを超過したためスキップされました。</summary>
+		LimitExceeded = 2,
+
+		/// <summary>エラーが発生しました。</summary>
+		Failed = 3,
+
+		/// <summary>圧縮ファイル内に対応アーカイブファイルのみが含まれており、画像が取得できませんでした。</summary>
+		ArchiveInArchive = 4,
+	}
+}
+
+namespace MangaBinder.Jobs
+{
+	public enum JobStatus
+	{
+		/// <summary>待機中（実行を待っている状態）</summary>
+		Pending = 0,
+
+		/// <summary>実行中</summary>
+		Running = 1,
+
+		/// <summary>完了</summary>
+		Success = 2,
+
+		/// <summary>エラー終了</summary>
+		Error = 3,
+	}
+
+	public enum JobType
+	{
+		/// <summary>素材フォルダのスキャン（Materialロールのフォルダが対象）</summary>
+		MaterialScan = 0,
+
+		/// <summary>製本フォルダのスキャン（Binding / DefaultBindingロールのフォルダが対象）</summary>
+		BindingScan = 1,
+
+		/// <summary>大容量ファイルからのサムネイル作成</summary>
+		LargeThumbnailCreate = 2,
+
+		/// <summary>Google Books API を使用した書誌情報インポート</summary>
+		GoogleBooksImport = 3,
+	}
+
+	/// <summary>
+	/// ジョブスケジュールの実行サイクルを表す列挙型です。
+	/// </summary>
+	public enum JobScheduleType
+	{
+		/// <summary>毎日実行。</summary>
+		Daily = 0,
+
+		/// <summary>毎週実行。</summary>
+		Weekly = 1,
+
+		/// <summary>一定間隔で実行。</summary>
+		Interval = 2,
+
+		/// <summary>Worker 起動時に 1 回だけ実行。</summary>
+		Startup = 3,
+	}
+}
+
+namespace MangaBinder
+{
+	/// <summary>
+	/// Google Books インポートの状態を表す列挙型です。
+	/// </summary>
+	public enum GoogleBooksImportStatus
+	{
+		/// <summary>未インポートです。</summary>
+		NotImported = 0,
+
+		/// <summary>インポートが成功しました。</summary>
+		Success = 1,
+
+		/// <summary>書籍が見つかりませんでした。</summary>
+		NotFound = 2,
+
+		/// <summary>エラーが発生しました。</summary>
+		Failed = 9,
+	}
+
+	/// <summary>
+	/// あらすじの取得元種別を表す列挙型です。
+	/// </summary>
+	public enum DescriptionSource
+	{
+		/// <summary>取得元なし（未設定）。</summary>
+		None = 0,
+
+		/// <summary>Google Books API から取得。</summary>
+		GoogleBooks = 1,
+	}
+}
+
+namespace MangaBinder.Settings
+{
+	/// <summary>
+	/// フォルダの役割を表す列挙型です。
+	/// </summary>
+	public enum FolderRole
+	{
+		/// <summary>素材フォルダです。スキャン元の画像ファイルを格納します。</summary>
+		Material,
+
+		/// <summary>発刊フォルダです。出力された電子書籍ファイルを格納します。</summary>
+		Binding,
+
+		/// <summary>既定の発刊先フォルダです。発刊先が未指定の場合に使用されます。</summary>
+		DefaultBinding,
+	}
+}

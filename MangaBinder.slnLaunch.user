@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "新しいプロファイル",
+    "Projects": [
+      {
+        "Path": "MangaBinder.Worker\\MangaBinder.Worker.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "MangaBinder\\MangaBinder.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

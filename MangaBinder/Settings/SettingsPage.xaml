@@ -1,0 +1,178 @@
+﻿<Page x:Class="MangaBinder.Settings.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:local="clr-namespace:MangaBinder.Settings"
+      mc:Ignorable="d"
+      d:DesignHeight="700" d:DesignWidth="900"
+      Title="SettingsPage"
+      Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+
+    <ScrollViewer
+        VerticalScrollBarVisibility="Auto"
+        HorizontalScrollBarVisibility="Disabled">
+
+		<StackPanel
+			Margin="24,16,24,32">
+
+			<!-- ══════════════════════════════════════════════════ -->
+            <!-- A. スキャン対象フォルダの登録                     -->
+            <!-- ══════════════════════════════════════════════════ -->
+            <TextBlock
+                Text="スキャン対象フォルダの登録"
+                Style="{StaticResource SubtitleTextBlockStyle}"
+                Margin="0,0,0,6" />
+
+            <ui:Card Padding="12,10" Margin="0,0,0,4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <!-- 役割 -->
+                        <ColumnDefinition Width="Auto" />
+                        <!-- 表示名 -->
+                        <ColumnDefinition Width="*" MinWidth="160" />
+                        <!-- 追加 -->
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 役割 -->
+                    <ComboBox
+                        Grid.Column="0"
+                        Margin="0,0,8,0"
+                        MinWidth="180"
+                        VerticalAlignment="Center"
+                        SelectedIndex="{Binding NewFolderRoleIndex.Value}">
+                        <ComboBoxItem Content="素材" IsSelected="True" />
+						<ComboBoxItem Content="製本済（デフォルト）" />
+						<ComboBoxItem Content="製本済" />
+					</ComboBox>
+
+                    <!-- 表示名 -->
+                    <ui:TextBox
+                        Grid.Column="1"
+                        Margin="0,0,8,0"
+                        PlaceholderText="表示名を入力してください"
+                        Text="{Binding NewFolderDisplayName.Value, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <!-- 追加 -->
+                    <ui:Button
+                        Grid.Column="2"
+                        Content="追加"
+                        Appearance="Primary"
+                        Command="{Binding AddFolderCommand}" />
+
+                </Grid>
+            </ui:Card>
+
+            <!-- ══════════════════════════════════════════════════ -->
+            <!-- B. スキャン対象フォルダ一覧                       -->
+            <!-- ══════════════════════════════════════════════════ -->
+            <TextBlock
+                Text="スキャン対象フォルダ一覧"
+                Style="{StaticResource SubtitleTextBlockStyle}"
+                Margin="0,16,0,6" />
+
+            <ItemsControl
+                x:Name="ScanFolderList"
+                ItemsSource="{Binding ScanFolders}">
+
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <ui:Card Padding="10,8" Margin="0,0,0,6">
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!--
+                                    役割アイコン
+                                    RoleIconSymbol バインディング予約（SymbolRegular 型）
+                                    例: 素材=FolderOpen24 / 出荷=ArrowUpload24
+                                -->
+                                <ui:SymbolIcon
+                                    Grid.Column="0"
+                                    Symbol="{Binding RoleIconSymbol.Value, FallbackValue=FolderOpen24}"
+                                    FontSize="20"
+                                    VerticalAlignment="Center"
+                                    Margin="2,0,14,0" />
+
+                                <!-- 表示名・パス -->
+                                <StackPanel
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center">
+                                    <TextBlock
+                                        Text="{Binding DisplayName.Value}"
+                                        d:Text="原稿素材フォルダ"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                                        Margin="0,0,0,1" />
+                                    <TextBlock
+                                        Text="{Binding FolderPath.Value}"
+                                        d:Text="C:\Users\scan\materials"
+                                        FontSize="11"
+                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTip="{Binding FolderPath.Value}" />
+                                </StackPanel>
+
+                                <!-- 削除ボタン -->
+                                <ui:Button
+                                    Grid.Column="2"
+                                    Appearance="Secondary"
+                                    VerticalAlignment="Center"
+                                    ToolTip="削除"
+                                    Command="{Binding DataContext.DeleteFolderCommand,
+                                        RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}">
+                                    <ui:SymbolIcon Symbol="Delete24" />
+                                </ui:Button>
+
+                            </Grid>
+                        </ui:Card>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+
+            </ItemsControl>
+
+            <!-- ══════════════════════════════════════════════════ -->
+            <!-- C. 作業用一時フォルダ（中間）                     -->
+            <!-- ══════════════════════════════════════════════════ -->
+            <TextBlock
+                Text="作業用一時フォルダ（中間）"
+                Style="{StaticResource SubtitleTextBlockStyle}"
+                Margin="0,16,0,6" />
+
+            <ui:Card Padding="12,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:TextBox
+                        Grid.Column="0"
+                        PlaceholderText="作業用一時フォルダのパスを選択してください"
+                        Text="{Binding WorkFolderPath.Value}" />
+                    <ui:Button
+                        Grid.Column="1"
+                        Margin="8,0,0,0"
+                        Appearance="Secondary"
+                        Command="{Binding BrowseWorkFolderCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="FolderOpen24" Margin="0,0,6,0" />
+                            <TextBlock Text="参照" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ui:Button>
+                </Grid>
+            </ui:Card>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
