@@ -1,36 +1,137 @@
-# MangaBinder 📘⚙️
+# MangaBinder
 
-**MangaBinder** は、ローカルに散らばった自炊漫画の画像資産（ZIP, RAR, フォルダ混在）をスキャンし、ページ分割やリネーム、補正を経て、iPhone/iPad等のモバイル端末で読むのに最適な「一冊のZIP」へと組み上げる**デジタル製本工房**です。
+[日本語READMEはこちら](README.ja.md)
 
-> [!TIP]
-> 現在、準備中です。
+MangaBinder is a Windows desktop application focused on preparing scanned manga archives for comfortable smartphone reading.
+
+Unlike manga servers or streaming-oriented library managers, MangaBinder focuses on the *pre-reading workflow*:
+
+- Organizing raw manga archives
+- Reconstructing volume structures
+- Preparing smartphone-friendly ZIP outputs
+- Spread splitting and preprocessing
+- Handling problematic archive structures
+- Managing large personal manga collections
+
+The project is heavily inspired by real-world self-scanned manga workflows and long-term archive management.
+
+---
+
+## Current Status
+
+MangaBinder is currently under active development.
+
+Implemented / in-progress features include:
+
+- Manga library browsing
+- Thumbnail generation
+- Metadata-assisted browsing
+- Volume reconstruction workflow
+- Archive structure inspection
+- Spread split target selection
+- Spread splitting editor
+- ZIP export workflow
+- Background job processing
+- Google Books metadata integration
 
 ---
 
-## 🛠 コンセプト：デジタル製本工程
-本アプリでは、一連の作業を「製本」のメタファーで定義しています。
+## Philosophy
 
-1. **Materializing（素材化）**
-   - 膨大な蔵書フォルダをスキャンし、中身の構成をカタログ化。
-2. **Dismantling（解体）**
-   - バラバラな圧縮形式を再帰的に解凍し、画像単位まで展開。
-3. **Normalizing（規格化）**
-   - ファイル名の桁揃えや、見開き画像の自動解析・分割。
-4. **Binding & Shipping（製本と出荷）**
-   - 補正済みの画像をZIP化し、iCloud等の指定先へ一括転送。
+MangaBinder is designed around practical personal workflows rather than generic media-server management.
 
-## 🎨 UI/UX 方針 & 開発手法
-- **Windows 11 Fluent Design**: `WpfUi` を採用したモダンで清潔感のあるインターフェース。
-- **職人気質な操作感**: プログラムによる「異常検知（中間レポート）」と、職人（ユーザー）による「最終判断」の融合。
-- **AI-Driven Development**: 
-  - **設計・プロンプト構成**: Gemini (Google) との対話により、製本メタファーに基づいた仕様策定と最適化されたプロンプトを生成。
-  - **実装**: 構築されたプロンプトをベースに、**Claude 4.6 Sonnet** (Anthropic) へ実装の99%を「丸投げ」する想定。
+The goal is not to build another streaming platform, but to improve the process of:
 
-## 🚀 開発ロードマップ
-- [ ] アイコンおよびテーマカラーの決定
-- [ ] MainWindow のリビルド（AnimeListCommander 譲りの Generic Host / DI 構成）
-- [ ] 蔵書スキャン & SQLite キャッシュ基盤の実装
-- [ ] 再帰的解凍ロジックの実装
+1. Collecting manga archives
+2. Organizing inconsistent source materials
+3. Preparing readable outputs
+4. Managing large long-term manga libraries
+
+The application is especially optimized for Japanese manga collections and Japanese filename conventions.
 
 ---
-© 2026 YouseiSakusen
+
+## Supported Workflow
+
+MangaBinder is designed for workflows involving mixed archive formats such as:
+
+- RAR
+- ZIP
+- EPUB
+- Image folders
+
+The application reorganizes and prepares these materials into reader-friendly outputs.
+
+---
+
+## Features
+
+### Library Management
+
+Browse manga collections with thumbnails, metadata, summaries, and author information.
+
+### Archive Inspection
+
+Inspect complex archive structures before binding.
+
+Examples:
+
+- Nested archives
+- Mixed folder structures
+- Volume reconstruction issues
+- Unsupported files
+
+### Spread Splitting Workflow
+
+Select spread pages and configure split positions before export.
+
+### Metadata Support
+
+Google Books metadata can be used to improve browsing and discoverability.
+
+### Background Processing
+
+Long-running operations such as thumbnail generation are handled through background jobs.
+
+---
+
+## Technology Stack
+
+- .NET 10
+- WPF
+- WpfUi
+- SQLite
+- Dapper
+- ReactiveProperty / R3
+- SharpCompress
+
+---
+
+## Development Style
+
+The project is developed through a workflow combining:
+
+- Specification and architecture discussions with ChatGPT
+- Implementation support using GitHub Copilot
+
+The focus is on iterative UI-first development and practical usability.
+
+---
+
+## Screenshots
+
+(Screenshots will be added later.)
+
+---
+
+## Project Status
+
+This project is still experimental and under heavy development.
+
+UI layouts, workflows, and internal structures may change significantly.
+
+---
+
+## License
+
+Currently no license has been decided yet.
