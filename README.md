@@ -1,10 +1,14 @@
-# MangaBinder
+# 📚✂️ MangaBinder
 
 [日本語READMEはこちら](README.ja.md)
 
+> A Windows desktop application focused on preparing scanned manga archives for smartphone reading.
+
 MangaBinder is a Windows desktop application focused on preparing scanned manga archives for comfortable smartphone reading.
 
-Unlike manga servers or streaming-oriented library managers, MangaBinder focuses on the *pre-reading workflow*:
+Unlike manga servers or streaming-oriented library managers, MangaBinder focuses on the **pre-reading workflow**.
+
+Examples:
 
 - Organizing raw manga archives
 - Reconstructing volume structures
@@ -17,7 +21,7 @@ The project is heavily inspired by real-world self-scanned manga workflows and l
 
 ---
 
-## Current Status
+## ✨ Current Status
 
 MangaBinder is currently under active development.
 
@@ -36,7 +40,7 @@ Implemented / in-progress features include:
 
 ---
 
-## Philosophy
+## 🧩 Philosophy
 
 MangaBinder is designed around practical personal workflows rather than generic media-server management.
 
@@ -51,7 +55,7 @@ The application is especially optimized for Japanese manga collections and Japan
 
 ---
 
-## Supported Workflow
+## 📦 Supported Workflow
 
 MangaBinder is designed for workflows involving mixed archive formats such as:
 
@@ -64,13 +68,13 @@ The application reorganizes and prepares these materials into reader-friendly ou
 
 ---
 
-## Features
+## ✨ Features
 
-### Library Management
+### 📚 Library Management
 
 Browse manga collections with thumbnails, metadata, summaries, and author information.
 
-### Archive Inspection
+### 🔍 Archive Inspection
 
 Inspect complex archive structures before binding.
 
@@ -81,21 +85,21 @@ Examples:
 - Volume reconstruction issues
 - Unsupported files
 
-### Spread Splitting Workflow
+### ✂️ Spread Splitting Workflow
 
 Select spread pages and configure split positions before export.
 
-### Metadata Support
+### 🧠 Metadata Support
 
 Google Books metadata can be used to improve browsing and discoverability.
 
-### Background Processing
+### ⚙️ Background Processing
 
 Long-running operations such as thumbnail generation are handled through background jobs.
 
 ---
 
-## Technology Stack
+## 🛠 Technology Stack
 
 - .NET 10
 - WPF
@@ -107,7 +111,7 @@ Long-running operations such as thumbnail generation are handled through backgro
 
 ---
 
-## Development Style
+## 🤖 Development Style
 
 The project is developed through a workflow combining:
 
@@ -118,13 +122,13 @@ The focus is on iterative UI-first development and practical usability.
 
 ---
 
-## Screenshots
+## 🖼 Screenshots
 
-(Screenshots will be added later.)
+Screenshots will be added later.
 
 ---
 
-## Project Status
+## 🚧 Project Status
 
 This project is still experimental and under heavy development.
 
@@ -132,6 +136,6 @@ UI layouts, workflows, and internal structures may change significantly.
 
 ---
 
-## License
+## 📄 License
 
-Currently no license has been decided yet.
+This project is licensed under the Apache License 2.0.
