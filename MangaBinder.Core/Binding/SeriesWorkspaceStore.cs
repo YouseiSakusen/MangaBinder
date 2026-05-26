@@ -1,4 +1,5 @@
 using MangaBinder.Binding.Inspection;
+using MangaBinder.Binding.Prepress;
 using R3;
 
 namespace MangaBinder.Binding;
@@ -24,6 +25,9 @@ public class SeriesWorkspaceStore : IDisposable
 
     /// <summary>現在の Prepress 処理対象巻キー（WorkVolumeFolderPath）を取得します。</summary>
     public string? CurrentPrepressVolumeKey { get; private set; }
+
+    /// <summary>Prepress 巻単位の作業状態辞書を取得します。キーは WorkVolumeFolderPath です。</summary>
+    private Dictionary<string, PrepressVolumeWorkspace> PrepressWorkspaces { get; } = [];
 
     /// <summary>
     /// <see cref="SeriesWorkspaceStore"/> の新しいインスタンスを初期化します。
@@ -64,6 +68,31 @@ public class SeriesWorkspaceStore : IDisposable
 
         return this.PrepressVolumes.TryGetValue(this.CurrentPrepressVolumeKey, out var result)
             ? result
+            : null;
+    }
+
+    /// <summary>
+    /// 指定した巻の <see cref="PrepressVolumeWorkspace"/> を登録または上書きします。
+    /// </summary>
+    /// <param name="workspace">登録する作業状態。</param>
+    public void SetPrepressWorkspace(PrepressVolumeWorkspace workspace)
+    {
+        var key = workspace.VolumeInspectionResult.WorkVolumeFolderPath;
+        this.PrepressWorkspaces[key] = workspace;
+    }
+
+    /// <summary>
+    /// 現在の Prepress 処理対象巻の <see cref="PrepressVolumeWorkspace"/> を取得します。
+    /// 見つからない場合は <see langword="null"/> を返します。
+    /// </summary>
+    /// <returns>現在対象の <see cref="PrepressVolumeWorkspace"/>。未設定の場合は <see langword="null"/>。</returns>
+    public PrepressVolumeWorkspace? GetCurrentPrepressWorkspace()
+    {
+        if (this.CurrentPrepressVolumeKey is null)
+            return null;
+
+        return this.PrepressWorkspaces.TryGetValue(this.CurrentPrepressVolumeKey, out var workspace)
+            ? workspace
             : null;
     }
 

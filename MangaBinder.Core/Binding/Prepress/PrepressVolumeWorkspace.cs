@@ -1,0 +1,24 @@
+using MangaBinder.Binding.Inspection;
+
+namespace MangaBinder.Binding.Prepress;
+
+/// <summary>
+/// 巻単位の Prepress 作業状態を保持するクラスです。
+/// </summary>
+public class PrepressVolumeWorkspace
+{
+	/// <summary>巻の検査結果を取得します。</summary>
+	public VolumeInspectionResult VolumeInspectionResult { get; }
+
+	/// <summary>巻内の全画像アイテム一覧を取得します。</summary>
+	public List<PrepressImageItem> Images { get; } = [];
+
+	/// <summary>
+	/// <see cref="PrepressVolumeWorkspace"/> の新しいインスタンスを初期化します。
+	/// </summary>
+	/// <param name="volumeInspectionResult">対象巻の検査結果。</param>
+	public PrepressVolumeWorkspace(VolumeInspectionResult volumeInspectionResult)
+	{
+		this.VolumeInspectionResult = volumeInspectionResult;
+	}
+}

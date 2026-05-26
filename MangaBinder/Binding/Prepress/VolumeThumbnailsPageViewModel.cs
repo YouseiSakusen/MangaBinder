@@ -165,7 +165,24 @@ public class VolumeThumbnailsPageViewModel : IDisposable, IDataInitializable
 			.AddTo(ref this.disposableBag);
 		this.GoNextCommand.Subscribe(_ =>
 		{
-			// TODO: SpreadSplitterPage へ遷移
+			var volume = this.workspaceStore.GetCurrentPrepressVolume();
+			if (volume is null)
+				return;
+
+			// 全アイテムを PrepressImageItem に変換して Workspace へ保存
+			var workspace = new PrepressVolumeWorkspace(volume);
+			workspace.Images.AddRange(this.items.Select(i => new PrepressImageItem
+			{
+				FilePath = i.FilePath,
+				FileName = i.FileName,
+				IsSplitTarget = i.IsChecked.Value,
+				IsUnsupported = i.IsUnsupported,
+				HasError = i.HasError,
+				SpreadSplitInformation = new SpreadSplitInformation(),
+			}));
+			this.workspaceStore.SetPrepressWorkspace(workspace);
+
+			this.navigationService.Navigate(typeof(SpreadSplitterPage));
 		}).AddTo(ref this.disposableBag);
 
 		this.CheckAllCommand = new ReactiveCommand()

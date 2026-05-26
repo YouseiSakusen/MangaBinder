@@ -57,12 +57,14 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPageWithSingletonViewModel<VolumeSelectionPage, VolumeSelectionPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<SeriesInspectionPage, SeriesInspectionPageViewModel>();
 		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>();
+		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>();
 		services.AddSingleton<IContentDialogService, ContentDialogService>();
 		services.AddSingleton<VolumeFileNameNormalizer>();
 		services.AddSingleton<VolumeThumbnailImageProcessor>();
 		services.AddSingleton<VolumeThumbnailLoader>();
 		services.AddSingleton<ThumbnailImageLoader>();
 		services.AddSingleton<ThumbnailImageConverter>();
+		services.AddSingleton<SpreadSplitterImageLoader>();
 
 		services.AddSingleton<SeriesWorkspaceStore>();
 
