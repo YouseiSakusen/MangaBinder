@@ -1,3 +1,4 @@
+using MangaBinder.Binding.Inspection;
 using R3;
 
 namespace MangaBinder.Binding;
@@ -18,6 +19,12 @@ public class SeriesWorkspaceStore : IDisposable
     /// <summary>中間フォルダを再作成するかどうかを取得します。</summary>
     public BindableReactiveProperty<bool> RecreateWorkFolder { get; }
 
+    /// <summary>製本前処理（Prepress）対象巻の辞書を取得します。キーは WorkVolumeFolderPath です。</summary>
+    public Dictionary<string, VolumeInspectionResult> PrepressVolumes { get; } = [];
+
+    /// <summary>現在の Prepress 処理対象巻キー（WorkVolumeFolderPath）を取得します。</summary>
+    public string? CurrentPrepressVolumeKey { get; private set; }
+
     /// <summary>
     /// <see cref="SeriesWorkspaceStore"/> の新しいインスタンスを初期化します。
     /// </summary>
@@ -25,6 +32,39 @@ public class SeriesWorkspaceStore : IDisposable
     {
         this.RecreateWorkFolder = new BindableReactiveProperty<bool>(false)
             .AddTo(ref this.disposableBag);
+    }
+
+    /// <summary>
+    /// Prepress 対象巻を辞書に登録します。既に同キーが存在する場合は上書きします。
+    /// </summary>
+    /// <param name="result">登録する巻の検査結果。</param>
+    public void RegisterPrepressVolume(VolumeInspectionResult result)
+    {
+        this.PrepressVolumes[result.WorkVolumeFolderPath] = result;
+    }
+
+    /// <summary>
+    /// 現在の Prepress 処理対象巻を切り替えます。
+    /// </summary>
+    /// <param name="result">対象とする巻の検査結果。</param>
+    public void SetCurrentPrepressVolume(VolumeInspectionResult result)
+    {
+        this.RegisterPrepressVolume(result);
+        this.CurrentPrepressVolumeKey = result.WorkVolumeFolderPath;
+    }
+
+    /// <summary>
+    /// 現在の Prepress 処理対象巻を取得します。見つからない場合は <see langword="null"/> を返します。
+    /// </summary>
+    /// <returns>現在対象の <see cref="VolumeInspectionResult"/>。対象未設定の場合は <see langword="null"/>。</returns>
+    public VolumeInspectionResult? GetCurrentPrepressVolume()
+    {
+        if (this.CurrentPrepressVolumeKey is null)
+            return null;
+
+        return this.PrepressVolumes.TryGetValue(this.CurrentPrepressVolumeKey, out var result)
+            ? result
+            : null;
     }
 
     /// <inheritdoc/>

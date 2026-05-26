@@ -7,6 +7,7 @@
       xmlns:local="clr-namespace:MangaBinder.Binding"
       xmlns:core="clr-namespace:MangaBinder.Binding.Inspection;assembly=MangaBinder.Core"
       mc:Ignorable="d"
+      x:Name="ThisPage"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="製本前確認"
       ui:NavigationView.HeaderContent="製本前確認"
@@ -82,13 +83,28 @@
                             </TextBlock.Style>
                         </TextBlock>
                         <ui:Button
+                            x:Name="VolumeMenuButton"
                             Grid.Column="1"
                             Content="…"
                             FontSize="11"
                             Padding="6,1"
-                            Command="{Binding DataContext.LandscapeDetailCommand,
-                                RelativeSource={RelativeSource AncestorType=ListView}}"
-                            CommandParameter="{Binding}" />
+                            Tag="{Binding}"
+                            Click="VolumeMenuButton_Click">
+                            <ui:Button.Resources>
+                                <ContextMenu x:Key="VolumeContextMenu">
+                                    <MenuItem
+                                        Header="見開き分割"
+                                        Command="{Binding DataContext.OpenVolumeThumbnailsCommand,
+                                            Source={x:Reference ThisPage}}"
+                                        CommandParameter="{Binding PlacementTarget.Tag,
+                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                                        <MenuItem.Icon>
+                                            <ui:SymbolIcon Symbol="BookOpen24" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </ui:Button.Resources>
+                        </ui:Button>
                     </Grid>
 
                     <!-- Row2：ファイル形式混在（問題ありの場合のみ） -->

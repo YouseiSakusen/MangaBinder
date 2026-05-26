@@ -2,6 +2,7 @@ using System.Data.SQLite;
 using System.IO;
 using MangaBinder.Binding;
 using MangaBinder.Binding.Inspection;
+using MangaBinder.Binding.Prepress;
 using MangaBinder.Jobs;
 using MangaBinder.Settings;
 using Microsoft.Extensions.Configuration;
@@ -55,7 +56,11 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPageWithSingletonViewModel<HomePage, HomePageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<VolumeSelectionPage, VolumeSelectionPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<SeriesInspectionPage, SeriesInspectionPageViewModel>();
+		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>();
 		services.AddSingleton<IContentDialogService, ContentDialogService>();
+		services.AddSingleton<VolumeFileNameNormalizer>();
+		services.AddSingleton<VolumeThumbnailImageProcessor>();
+		services.AddSingleton<VolumeThumbnailLoader>();
 		services.AddSingleton<ThumbnailImageLoader>();
 		services.AddSingleton<ThumbnailImageConverter>();
 

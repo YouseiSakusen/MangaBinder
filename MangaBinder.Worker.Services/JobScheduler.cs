@@ -39,9 +39,6 @@ public class JobScheduler
         var scheduleRepository = scope.ServiceProvider.GetRequiredService<JobScheduleRepository>();
         var jobRepository      = scope.ServiceProvider.GetRequiredService<JobRepository>();
 
-        // Startup スケジュールの初期登録（未登録なら INSERT）
-        await scheduleRepository.EnsureStartupSchedulesAsync(ct);
-
         // Startup Job を起動中に 1 回だけ enqueue
         if (!this.startupEnqueued)
         {

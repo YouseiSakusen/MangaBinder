@@ -119,6 +119,10 @@ file class StubMaterialRepository : IFolderScannerRepository
     public ValueTask<MangaSeries> SaveBindingSeriesAsync(MangaSeries series, CancellationToken ct)
         => throw new NotImplementedException();
 
+    /// <summary>このテストでは常に false を返します。</summary>
+    public ValueTask<bool> HasLimitExceededAsync(CancellationToken ct)
+        => ValueTask.FromResult(false);
+
     /// <summary>サムネイル更新はこのテストでは記録しません。</summary>
     public ValueTask UpdateThumbnailAsync(long seriesId, string thumbnailFileName, ThumbnailStatus thumbnailStatus, CancellationToken ct)
         => ValueTask.CompletedTask;

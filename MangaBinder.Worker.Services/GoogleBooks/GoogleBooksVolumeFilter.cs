@@ -47,11 +47,10 @@ public class GoogleBooksVolumeFilter
 	/// <summary>
 	/// <see cref="GoogleBooksVolumeFilter"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="settings">Google Books API 設定。</param>
 	/// <param name="logger">ロガー。</param>
-	public GoogleBooksVolumeFilter(GoogleBooksSettings settings, ILogger<GoogleBooksVolumeFilter> logger)
+	public GoogleBooksVolumeFilter(ILogger<GoogleBooksVolumeFilter> logger)
 	{
-		this.excludeWords = settings.ExcludeWords;
+		this.excludeWords = [];
 		this.logger = logger;
 	}
 

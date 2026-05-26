@@ -28,16 +28,13 @@ public class GoogleBooksAgent
 	/// <see cref="GoogleBooksAgent"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="httpClient">HttpClient。</param>
-	/// <param name="settings">Google Books API 設定。</param>
 	/// <param name="logger">ロガー。</param>
 	public GoogleBooksAgent(
 		HttpClient httpClient,
-		GoogleBooksSettings settings,
 		ILogger<GoogleBooksAgent> logger)
 	{
 		this.httpClient = httpClient;
-		this.httpClient.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
-		this.settings = settings;
+		this.settings = null!;
 		this.logger = logger;
 	}
 

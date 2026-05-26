@@ -90,6 +90,10 @@ file class StubFolderRepository : IFolderScannerRepository
     public ValueTask UpdateThumbnailAsync(long seriesId, string thumbnailFileName, ThumbnailStatus thumbnailStatus, CancellationToken ct)
         => ValueTask.CompletedTask;
 
+    /// <summary>このテストでは常に false を返します。</summary>
+    public ValueTask<bool> HasLimitExceededAsync(CancellationToken ct)
+        => ValueTask.FromResult(false);
+
     /// <summary>
     /// 蓄積した <see cref="MangaSeries"/> リストをCSVファイルに書き出します。
     /// Sources 列には統合された全ファイルのフルパスをセミコロン連結で出力します。

@@ -61,8 +61,10 @@ public class GoogleBooksImportSandboxTest
 		quotaManager.ResetIfNeeded();
 
 		var httpClient     = new HttpClient();
-		var agent          = new GoogleBooksAgent(httpClient, settings, NullLogger<GoogleBooksAgent>.Instance);
-		var filter         = new GoogleBooksVolumeFilter(settings, NullLogger<GoogleBooksVolumeFilter>.Instance);
+		var agent          = new GoogleBooksAgent(httpClient, NullLogger<GoogleBooksAgent>.Instance);
+		agent.ApplySettings(settings);
+		var filter         = new GoogleBooksVolumeFilter(NullLogger<GoogleBooksVolumeFilter>.Instance);
+		filter.ApplySettings(settings);
 		var repository     = new GoogleBooksImportRepository(context);
 
 		// ─ 対象取得（StartSeriesId 以上、TargetCount 件） ─

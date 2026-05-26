@@ -11,7 +11,7 @@ namespace MangaBinder.Jobs.GoogleBooks;
 public class GoogleBooksImporter
 {
 	/// <summary>クォータ管理。</summary>
-	private GoogleBooksQuotaManager quotaManager;
+	private GoogleBooksQuotaManager quotaManager = null!;
 
 	/// <summary>リポジトリ。</summary>
 	private readonly IGoogleBooksImportRepository repository;
@@ -26,31 +26,25 @@ public class GoogleBooksImporter
 	private readonly ILogger<GoogleBooksImporter> logger;
 
 	/// <summary>Google Books API 設定。</summary>
-	private GoogleBooksSettings settings;
+	private GoogleBooksSettings settings = null!;
 
 	/// <summary>
 	/// <see cref="GoogleBooksImporter"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="quotaManager">クォータ管理。</param>
 	/// <param name="repository">リポジトリ。</param>
 	/// <param name="agent">Google Books API エージェント。</param>
 	/// <param name="filter">候補フィルタ。</param>
 	/// <param name="logger">ロガー。</param>
-	/// <param name="settings">Google Books API 設定。</param>
 	public GoogleBooksImporter(
-		GoogleBooksQuotaManager quotaManager,
 		IGoogleBooksImportRepository repository,
 		GoogleBooksAgent agent,
 		GoogleBooksVolumeFilter filter,
-		ILogger<GoogleBooksImporter> logger,
-		GoogleBooksSettings settings)
+		ILogger<GoogleBooksImporter> logger)
 	{
-		this.quotaManager = quotaManager;
 		this.repository = repository;
 		this.agent = agent;
 		this.filter = filter;
 		this.logger = logger;
-		this.settings = settings;
 	}
 
 	/// <summary>

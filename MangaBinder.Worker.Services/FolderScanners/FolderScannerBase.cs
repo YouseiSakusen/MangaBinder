@@ -60,6 +60,13 @@ public abstract class FolderScannerBase : IJob
 		var savedCount = await this.ScanAndSaveAsync(rootPaths, ct);
 
 		this.logger.ZLogInformation($"フォルダスキャン完了: {savedCount} 件保存");
+
+		if (await repository.HasLimitExceededAsync(ct))
+		{
+			this.logger.ZLogInformation($"サイズ超過によりスキップした作品が存在するため、巨大サムネイル作成ジョブをキューに登録します。");
+			var jobRepository = scope.ServiceProvider.GetRequiredService<JobRepository>();
+			await jobRepository.EnqueueAsync(JobType.LargeThumbnailCreate, skipThumbnailSizeLimit: true);
+		}
 	}
 
     /// <summary>

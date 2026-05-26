@@ -12,6 +12,8 @@
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <PackageReference Include="NetVips" Version="3.2.0" />
+    <PackageReference Include="NetVips.Native.win-x64" Version="8.18.2" />
     <PackageReference Include="SharpCompress" Version="0.48.1" />
     <PackageReference Include="System.Data.SQLite" Version="2.0.3" />
   </ItemGroup>

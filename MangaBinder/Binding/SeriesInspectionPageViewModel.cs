@@ -1,4 +1,5 @@
 using MangaBinder.Binding.Inspection;
+using MangaBinder.Binding.Prepress;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using R3;
@@ -84,6 +85,9 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>横長画像詳細コマンドを取得します（未実装）。</summary>
 	public ReactiveCommand<VolumeInspectionResult> LandscapeDetailCommand { get; }
 
+	/// <summary>見開き分割画面を開くコマンドを取得します。</summary>
+	public ReactiveCommand<VolumeInspectionResult> OpenVolumeThumbnailsCommand { get; }
+
 	/// <summary>
 	/// <see cref="SeriesInspectionPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -148,6 +152,14 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.LandscapeDetailCommand.Subscribe(_ =>
 		{
 			// TODO: 見開き分割画面遷移先を実装する
+		}).AddTo(ref this.disposableBag);
+
+		this.OpenVolumeThumbnailsCommand = new ReactiveCommand<VolumeInspectionResult>()
+			.AddTo(ref this.disposableBag);
+		this.OpenVolumeThumbnailsCommand.Subscribe(result =>
+		{
+			this.workspaceStore.SetCurrentPrepressVolume(result);
+			this.navigationService.NavigateWithHierarchy(typeof(VolumeThumbnailsPage));
 		}).AddTo(ref this.disposableBag);
 	}
 

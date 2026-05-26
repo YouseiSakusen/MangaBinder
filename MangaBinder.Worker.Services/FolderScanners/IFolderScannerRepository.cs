@@ -41,4 +41,11 @@ public interface IFolderScannerRepository
     /// <param name="thumbnailStatus">サムネイル処理状態。</param>
     /// <param name="ct">キャンセルトークン。</param>
     ValueTask UpdateThumbnailAsync(long seriesId, string thumbnailFileName, ThumbnailStatus thumbnailStatus, CancellationToken ct);
+
+    /// <summary>
+    /// <see cref="ThumbnailStatus.LimitExceeded"/> の作品が 1 件以上存在するかを返します。
+    /// </summary>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>1 件以上存在する場合は <c>true</c>。</returns>
+    ValueTask<bool> HasLimitExceededAsync(CancellationToken ct);
 }

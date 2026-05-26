@@ -61,6 +61,12 @@ public class GoogleBooksImportJob : IJob
 		this.quotaManager = qm;
 		qm.ResetIfNeeded();
 
+		if (!qm.CanCall)
+		{
+			this.logger.ZLogInformation($"Quota上限に達しているため Google Books インポートジョブを終了します。CallCount={qm.CallCount}");
+			return;
+		}
+
 		if (string.IsNullOrWhiteSpace(settings.ApiKey))
 		{
 			this.logger.ZLogInformation($"APIキーが設定されていないため Google Books API 呼び出しをスキップします。");
@@ -96,6 +102,12 @@ public class GoogleBooksImportJob : IJob
 			{
 				// ImportAsync 内で UpdateImportFailedAsync 済み。ここではログのみ記録して次へ進む。
 				this.logger.ZLogError(ex, $"インポートに失敗しました。次の作品へ進みます: {series.Title}");
+			}
+
+			if (!qm.CanCall)
+			{
+				this.logger.ZLogInformation($"Quota上限に達したためジョブを終了します。CallCount={qm.CallCount}");
+				break;
 			}
 		}
 

@@ -340,4 +340,15 @@ public class FolderScannerRepository : IFolderScannerRepository
             SeriesId = seriesId,
         });
     }
+
+    /// <inheritdoc/>
+    public async ValueTask<bool> HasLimitExceededAsync(CancellationToken ct)
+    {
+        const string sql = " SELECT COUNT(*) FROM MangaSeries WHERE ThumbnailStatus = :LimitExceeded; ";
+
+        using var conn = new SQLiteConnection(this.connectionString);
+        await conn.OpenAsync(ct);
+        var count = await conn.ExecuteScalarAsync<int>(sql, new { LimitExceeded = (int)ThumbnailStatus.LimitExceeded });
+        return count > 0;
+    }
 }

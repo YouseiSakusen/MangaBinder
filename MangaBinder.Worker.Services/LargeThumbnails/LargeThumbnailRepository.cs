@@ -62,7 +62,7 @@ public class LargeThumbnailRepository
 		seriesSql.AppendLine(" FROM ");
 		seriesSql.AppendLine(" 	MangaSeries ");
 		seriesSql.AppendLine(" WHERE ");
-		seriesSql.AppendLine(" 	ThumbnailStatus IN (:LimitExceeded, :Failed); ");
+		seriesSql.AppendLine(" 	ThumbnailStatus IN (:LimitExceeded, :Failed, :ArchiveInArchive); ");
 
 		var sourcesSql = new StringBuilder();
 		sourcesSql.AppendLine(" SELECT ");
@@ -80,6 +80,7 @@ public class LargeThumbnailRepository
 		{
 			LimitExceeded = (int)ThumbnailStatus.LimitExceeded,
 			Failed = (int)ThumbnailStatus.Failed,
+			ArchiveInArchive = (int)ThumbnailStatus.ArchiveInArchive,
 		})).ToList();
 
 		foreach (var series in seriesList)
