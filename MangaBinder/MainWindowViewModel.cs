@@ -92,10 +92,17 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		{
 			new NavigationViewItem
 			{
-				Content = "製本",
-				Icon = new SymbolIcon { Symbol = SymbolRegular.Library24 },
+				Content = "Home",
+				Icon = new SymbolIcon { Symbol = SymbolRegular.Home24 },
 				FontSize = 24,
 				TargetPageType = typeof(HomePage),
+			},
+			new NavigationViewItem
+			{
+				Content = "製本開始",
+				Icon = new SymbolIcon { Symbol = SymbolRegular.Library24 },
+				FontSize = 24,
+				TargetPageType = typeof(StartPage),
 			},
 			new NavigationViewItem
 			{

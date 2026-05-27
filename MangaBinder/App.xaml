@@ -14,6 +14,8 @@
         <ui:ThemesDictionary Theme="Light" />
         <ui:ControlsDictionary />
       </ResourceDictionary.MergedDictionaries>
+      <!-- MangaBinder アプリカラー：製本・本・クラフト感に合う落ち着いた茶系 -->
+      <SolidColorBrush x:Key="BindingAccentBrush" Color="#7B5235" />
     </ResourceDictionary>
   </Application.Resources>
 </Application>

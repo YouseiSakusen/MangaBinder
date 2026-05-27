@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<JobRepository>();
 		services.AddScoped<AppSettingsService>();
 		services.AddScoped<MangaRepository>();
+		services.AddScoped<BindingStartRepository>();
 
 		return services;
 	}
@@ -54,6 +55,7 @@ public static class ServiceCollectionExtensions
 	public static IServiceCollection AddPages(this IServiceCollection services)
 	{
 		services.AddNavigationPageWithSingletonViewModel<HomePage, HomePageViewModel>();
+		services.AddNavigationPageWithSingletonViewModel<StartPage, StartPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<VolumeSelectionPage, VolumeSelectionPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<SeriesInspectionPage, SeriesInspectionPageViewModel>();
 		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>();

@@ -6,6 +6,7 @@
 	  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
 	  xmlns:local="clr-namespace:MangaBinder.Binding.Prepress"
 	  xmlns:binding="clr-namespace:MangaBinder.Binding"
+	  xmlns:core="clr-namespace:MangaBinder.Binding.Prepress;assembly=MangaBinder.Core"
 	  mc:Ignorable="d"
 	  d:DesignHeight="800" d:DesignWidth="1200"
 	  Title="{Binding PageTitle.Value}"
@@ -218,6 +219,29 @@
 									<TextBlock Text="全選択" FontSize="13" />
 								</CheckBox.Content>
 							</CheckBox>
+						</Border>
+
+						<!-- ページ順選択 -->
+						<Border
+								Background="{DynamicResource ControlFillColorDefaultBrush}"
+								CornerRadius="6"
+								Padding="14,10"
+								Margin="16,0,0,0">
+							<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+								<TextBlock
+										Text="ページ順:"
+										FontSize="13"
+										VerticalAlignment="Center"
+										Margin="0,0,8,0" />
+								<ComboBox
+										SelectedValue="{Binding SelectedSpreadPageOrder.Value, Mode=TwoWay}"
+										SelectedValuePath="Tag"
+										VerticalAlignment="Center"
+										MinWidth="140">
+									<ComboBoxItem Content="右→左（日本漫画）" Tag="{x:Static core:SpreadPageOrder.RightToLeft}" />
+									<ComboBoxItem Content="左→右（左開き）"   Tag="{x:Static core:SpreadPageOrder.LeftToRight}" />
+								</ComboBox>
+							</StackPanel>
 						</Border>
 
 					</StackPanel>

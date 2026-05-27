@@ -76,6 +76,9 @@ public class VolumeThumbnailsPageViewModel : IDisposable, IDataInitializable
 	/// <summary>全選択状態（True=全チェック / False=全未チェック / null=一部チェック）を取得します。</summary>
 	public BindableReactiveProperty<bool?> SelectAllState { get; }
 
+	/// <summary>見開き分割後のページ順を取得または設定します。</summary>
+	public BindableReactiveProperty<SpreadPageOrder> SelectedSpreadPageOrder { get; }
+
 	/// <summary>全てチェックコマンドを取得します。</summary>
 	public ReactiveCommand CheckAllCommand { get; }
 
@@ -130,6 +133,8 @@ public class VolumeThumbnailsPageViewModel : IDisposable, IDataInitializable
 
 		this.SelectAllState = new BindableReactiveProperty<bool?>(false)
 			.AddTo(ref this.disposableBag);
+		this.SelectedSpreadPageOrder = new BindableReactiveProperty<SpreadPageOrder>(SpreadPageOrder.RightToLeft)
+			.AddTo(ref this.disposableBag);
 
 		// CheckBox の TwoWay バインドで true/false が書き込まれたとき一括操作
 		this.SelectAllState
@@ -180,6 +185,7 @@ public class VolumeThumbnailsPageViewModel : IDisposable, IDataInitializable
 				HasError = i.HasError,
 				SpreadSplitInformation = new SpreadSplitInformation(),
 			}));
+			workspace.SpreadPageOrder = this.SelectedSpreadPageOrder.Value;
 			this.workspaceStore.SetPrepressWorkspace(workspace);
 
 			this.navigationService.Navigate(typeof(SpreadSplitterPage));

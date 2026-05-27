@@ -60,6 +60,7 @@
                         </Style.Triggers>
                     </Style>
                 </Grid.Style>
+                <Grid.IsSharedSizeScope>True</Grid.IsSharedSizeScope>
                 <Grid.ColumnDefinitions>
                     <!-- 左：画像プレビュー領域 (2/3) -->
                     <ColumnDefinition Width="2*" />
@@ -68,10 +69,12 @@
                 </Grid.ColumnDefinitions>
 
             <!-- =============================== -->
-            <!-- 左カラム：画像プレビュー + 操作  -->
+            <!-- 左カラム：操作バー + 画像プレビュー + ナビ -->
             <!-- =============================== -->
             <Grid Grid.Column="0" Margin="0,0,12,0">
                 <Grid.RowDefinitions>
+                    <!-- 操作バー（現在画像カード + 分割対象） -->
+                    <RowDefinition Height="Auto" SharedSizeGroup="TopBar" />
                     <!-- 画像プレビュー -->
                     <RowDefinition Height="*" />
                     <!-- 倍率操作 -->
@@ -80,15 +83,76 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
+                <!-- 操作バー：VolumeThumbnailsPage の上部カード配置に準拠 -->
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左：現在画像カード（情報表示のみ） -->
+                    <Border
+                        Grid.Column="0"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="6"
+                        Padding="14,10">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon
+                                Symbol="BookOpen24"
+                                FontSize="48"
+                                Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                Margin="0,0,12,0"
+                                VerticalAlignment="Center" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock
+                                    Text="{Binding CurrentFileName.Value}"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    TextWrapping="NoWrap"
+                                    TextTrimming="CharacterEllipsis"
+                                    MaxWidth="400" />
+                                <TextBlock
+                                    Text="{Binding ImageSizeText.Value}"
+                                    FontSize="11"
+                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                    Margin="0,2,0,0" />
+                                <TextBlock
+                                    Text="{Binding SpreadPageOrderText.Value}"
+                                    FontSize="11"
+                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                    Margin="0,2,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 右：分割対象チェック -->
+                    <Border
+                        Grid.Column="2"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="6"
+                        Padding="4,2">
+                        <CheckBox
+                            IsChecked="{Binding IsSplitTarget.Value, Mode=TwoWay}"
+                            Padding="10,8"
+                            VerticalAlignment="Center">
+                            <TextBlock Text="分割対象" FontSize="13" />
+                        </CheckBox>
+                    </Border>
+                </Grid>
+
                 <!-- 画像プレビュー領域 -->
                 <Border
-                    Grid.Row="0"
+                    Grid.Row="1"
                     Background="{DynamicResource ControlFillColorDefaultBrush}"
                     CornerRadius="4"
                     ClipToBounds="True">
 
                     <!-- プレビューキャンバス -->
-                    <Grid>
+                    <Grid
+                        local:FrameworkElementObservedSizeBehavior.Observe="True"
+                        local:FrameworkElementObservedSizeBehavior.ObservedWidth="{Binding PreviewAreaWidth.Value, Mode=OneWayToSource}"
+                        local:FrameworkElementObservedSizeBehavior.ObservedHeight="{Binding PreviewAreaHeight.Value, Mode=OneWayToSource}">
                         <!-- プレースホルダー背景 -->
                         <Rectangle
                             Fill="{DynamicResource ControlFillColorSecondaryBrush}"
@@ -133,58 +197,55 @@
                             </TextBlock.Style>
                         </TextBlock>
 
-                        <!-- ===== ガイド線（見た目のみ） ===== -->
+                        <!-- ===== ガイド線（Canvas オーバーレイ） ===== -->
+                        <Canvas>
+                            <!-- 上トリムガイド -->
+                            <Rectangle
+                                Width="{Binding PreviewAreaWidth.Value}"
+                                Height="1"
+                                Fill="#8800AAFF"
+                                Canvas.Left="0"
+                                Canvas.Top="{Binding GuideTop.Value}" />
 
-                        <!-- 上トリムガイド -->
-                        <Rectangle
-                            x:Name="TopTrimGuide"
-                            Height="1"
-                            Fill="#4400AAFF"
-                            VerticalAlignment="Top"
-                            Margin="0,80,0,0"
-                            Cursor="SizeNS" />
+                            <!-- 下トリムガイド -->
+                            <Rectangle
+                                Width="{Binding PreviewAreaWidth.Value}"
+                                Height="1"
+                                Fill="#8800AAFF"
+                                Canvas.Left="0"
+                                Canvas.Top="{Binding GuideBottom.Value}" />
 
-                        <!-- 下トリムガイド -->
-                        <Rectangle
-                            x:Name="BottomTrimGuide"
-                            Height="1"
-                            Fill="#4400AAFF"
-                            VerticalAlignment="Bottom"
-                            Margin="0,0,0,80"
-                            Cursor="SizeNS" />
+                            <!-- 左トリムガイド -->
+                            <Rectangle
+                                Width="1"
+                                Height="{Binding PreviewAreaHeight.Value}"
+                                Fill="#8800AAFF"
+                                Canvas.Left="{Binding GuideLeft.Value}"
+                                Canvas.Top="0" />
 
-                        <!-- 左トリムガイド -->
-                        <Rectangle
-                            x:Name="LeftTrimGuide"
-                            Width="1"
-                            Fill="#4400AAFF"
-                            HorizontalAlignment="Left"
-                            Margin="80,0,0,0"
-                            Cursor="SizeWE" />
+                            <!-- 右トリムガイド -->
+                            <Rectangle
+                                Width="1"
+                                Height="{Binding PreviewAreaHeight.Value}"
+                                Fill="#8800AAFF"
+                                Canvas.Left="{Binding GuideRight.Value}"
+                                Canvas.Top="0" />
 
-                        <!-- 右トリムガイド -->
-                        <Rectangle
-                            x:Name="RightTrimGuide"
-                            Width="1"
-                            Fill="#4400AAFF"
-                            HorizontalAlignment="Right"
-                            Margin="0,0,80,0"
-                            Cursor="SizeWE" />
-
-                        <!-- 中央赤線（分割位置） -->
-                        <Rectangle
-                            x:Name="SplitCenterGuide"
-                            Width="2"
-                            Fill="#CCDD2020"
-                            HorizontalAlignment="Center"
-                            Cursor="SizeWE" />
+                            <!-- 中央赤線（トリム後有効領域の中央） -->
+                            <Rectangle
+                                Width="2"
+                                Height="{Binding PreviewAreaHeight.Value}"
+                                Fill="#CCDD2020"
+                                Canvas.Left="{Binding SplitCenter.Value}"
+                                Canvas.Top="0" />
+                        </Canvas>
 
                     </Grid>
                 </Border>
 
                 <!-- 倍率操作 -->
                 <Border
-                    Grid.Row="1"
+                    Grid.Row="2"
                     Padding="0,6,0,6">
                     <StackPanel
                         Orientation="Horizontal"
@@ -234,7 +295,7 @@
 
                 <!-- ページナビゲーション -->
                 <Border
-                    Grid.Row="2"
+                    Grid.Row="3"
                     Padding="0,4,0,0"
                     BorderThickness="0,1,0,0"
                     BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
@@ -283,35 +344,24 @@
             <!-- =============================== -->
             <!-- 右カラム：設定パネル             -->
             <!-- =============================== -->
-            <ScrollViewer
-                Grid.Column="1"
-                VerticalScrollBarVisibility="Auto"
-                HorizontalScrollBarVisibility="Disabled">
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <!-- 左の操作バー行と高さを揃えるスペーサー -->
+                    <RowDefinition Height="Auto" SharedSizeGroup="TopBar" />
+                    <!-- 設定パネル本体 -->
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Row0: スペーサー（左カラムの操作バーと高さ同期） -->
+                <Border Grid.Row="0" />
+
+                <!-- Row1: 設定パネル -->
+                <ScrollViewer
+                    Grid.Row="1"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
 
                 <StackPanel Margin="0,0,0,0">
-
-                    <!-- ファイル名 -->
-                    <ui:Card Margin="0,0,0,8">
-                        <StackPanel>
-                            <TextBlock
-                                Text="ファイル名"
-                                FontSize="11"
-                                Opacity="0.6"
-                                Margin="0,0,0,4" />
-                            <TextBlock
-                                Text="{Binding CurrentFileName.Value}"
-                                FontSize="13"
-                                TextWrapping="NoWrap"
-                                TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                    </ui:Card>
-
-                    <!-- 分割対象 -->
-                    <ui:Card Margin="0,0,0,8">
-                        <CheckBox
-                            Content="分割対象"
-                            IsChecked="{Binding IsSplitTarget.Value, Mode=TwoWay}" />
-                    </ui:Card>
 
                     <!-- 設定モード -->
                     <ui:Card Margin="0,0,0,8">
@@ -347,50 +397,30 @@
                     <ui:Card Margin="0,0,0,8">
                         <StackPanel>
                             <TextBlock
-                                Text="トリミング・分割設定"
+                                Text="トリミング"
                                 FontSize="11"
                                 Opacity="0.6"
                                 Margin="0,0,0,12" />
-
-                            <!-- 分割位置 -->
-                            <TextBlock Text="分割位置" Margin="0,0,0,4" />
-                            <Grid Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="80" />
-                                </Grid.ColumnDefinitions>
-                                <Slider
-                                    Grid.Column="0"
-                                    Minimum="0"
-                                    Maximum="100"
-                                    Value="{Binding SplitPosition.Value, Mode=TwoWay}"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,8,0" />
-                                <ui:NumberBox
-                                    Grid.Column="1"
-                                    Minimum="0"
-                                    Maximum="100"
-                                    Value="{Binding SplitPosition.Value, Mode=TwoWay}" />
-                            </Grid>
 
                             <!-- 左トリム -->
                             <TextBlock Text="左トリム" Margin="0,0,0,4" />
                             <Grid Margin="0,0,0,12">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="90" />
                                 </Grid.ColumnDefinitions>
                                 <Slider
                                     Grid.Column="0"
                                     Minimum="0"
                                     Maximum="500"
                                     Value="{Binding TrimLeft.Value, Mode=TwoWay}"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,8,0" />
+                                    VerticalAlignment="Center" />
                                 <ui:NumberBox
-                                    Grid.Column="1"
+                                    Grid.Column="2"
                                     Minimum="0"
                                     Maximum="500"
+                                    SpinButtonPlacementMode="Inline"
                                     Value="{Binding TrimLeft.Value, Mode=TwoWay}" />
                             </Grid>
 
@@ -398,20 +428,21 @@
                             <TextBlock Text="右トリム" Margin="0,0,0,4" />
                             <Grid Margin="0,0,0,12">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="90" />
                                 </Grid.ColumnDefinitions>
                                 <Slider
                                     Grid.Column="0"
                                     Minimum="0"
                                     Maximum="500"
                                     Value="{Binding TrimRight.Value, Mode=TwoWay}"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,8,0" />
+                                    VerticalAlignment="Center" />
                                 <ui:NumberBox
-                                    Grid.Column="1"
+                                    Grid.Column="2"
                                     Minimum="0"
                                     Maximum="500"
+                                    SpinButtonPlacementMode="Inline"
                                     Value="{Binding TrimRight.Value, Mode=TwoWay}" />
                             </Grid>
 
@@ -419,20 +450,21 @@
                             <TextBlock Text="上トリム" Margin="0,0,0,4" />
                             <Grid Margin="0,0,0,12">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="90" />
                                 </Grid.ColumnDefinitions>
                                 <Slider
                                     Grid.Column="0"
                                     Minimum="0"
                                     Maximum="500"
                                     Value="{Binding TrimTop.Value, Mode=TwoWay}"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,8,0" />
+                                    VerticalAlignment="Center" />
                                 <ui:NumberBox
-                                    Grid.Column="1"
+                                    Grid.Column="2"
                                     Minimum="0"
                                     Maximum="500"
+                                    SpinButtonPlacementMode="Inline"
                                     Value="{Binding TrimTop.Value, Mode=TwoWay}" />
                             </Grid>
 
@@ -440,20 +472,21 @@
                             <TextBlock Text="下トリム" Margin="0,0,0,4" />
                             <Grid Margin="0,0,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="90" />
                                 </Grid.ColumnDefinitions>
                                 <Slider
                                     Grid.Column="0"
                                     Minimum="0"
                                     Maximum="500"
                                     Value="{Binding TrimBottom.Value, Mode=TwoWay}"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,8,0" />
+                                    VerticalAlignment="Center" />
                                 <ui:NumberBox
-                                    Grid.Column="1"
+                                    Grid.Column="2"
                                     Minimum="0"
                                     Maximum="500"
+                                    SpinButtonPlacementMode="Inline"
                                     Value="{Binding TrimBottom.Value, Mode=TwoWay}" />
                             </Grid>
 
@@ -462,6 +495,8 @@
 
                 </StackPanel>
             </ScrollViewer>
+
+            </Grid><!-- /右カラム Grid -->
 
             </Grid><!-- /画像領域 Grid -->
 
