@@ -41,6 +41,7 @@
 			Grid.Row="1"
 			Padding="0"
 			MenuItemsSource="{Binding MenuItems}"
+			FooterMenuItemsSource="{Binding FooterMenuItems}"
 			PaneDisplayMode="LeftMinimal"
 			IsPaneToggleVisible="True"
 			IsPaneOpen="False"

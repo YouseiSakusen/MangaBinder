@@ -1,15 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using System.Windows.Controls.Primitives;
 
 namespace MangaBinder.Binding;
 
@@ -21,5 +12,22 @@ public partial class HomePage : Page
 	public HomePage()
 	{
 		InitializeComponent();
+	}
+
+	/// <summary>
+	/// タグ ToggleButton がチェックされた際に ViewModel へ対象作品を通知します。
+	/// </summary>
+	private void TagToggleButton_Checked(object sender, RoutedEventArgs e)
+	{
+		if (sender is not ToggleButton btn)
+			return;
+
+		if (btn.DataContext is not MangaSeries series)
+			return;
+
+		if (this.DataContext is not HomePageViewModel vm)
+			return;
+
+		vm.PrepareTagPopupCommand.Execute(series);
 	}
 }

@@ -6,6 +6,7 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:local="clr-namespace:MangaBinder.Binding"
       xmlns:binding="clr-namespace:MangaBinder.Binding"
+      xmlns:tags="clr-namespace:MangaBinder.Tags"
       mc:Ignorable="d"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="HomePage"
@@ -14,6 +15,8 @@
 
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <!-- ViewModel をポップアップ内（切断ツリー）から参照するためのプロキシ -->
+        <tags:BindingProxy x:Key="VmProxy" Data="{Binding}" />
         <!-- タイトル表示専用 TextBox スタイル：TextBlock 寄りの見た目、選択可能 -->
         <Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
             <Setter Property="Background" Value="Transparent" />
@@ -29,76 +32,90 @@
 
     <Grid>
         <Grid.RowDefinitions>
+            <!-- Row0: ヘッダー（タイトル・サマリカード） -->
             <RowDefinition Height="Auto" />
+            <!-- Row1: 作品一覧（高さ制約あり → 仮想化が有効） -->
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- ══════════════════════════════════════════════════ -->
-        <!-- 操作バー                                           -->
+        <!-- ヘッダー（サマリカード群）                         -->
         <!-- ══════════════════════════════════════════════════ -->
-        <Border Grid.Row="0"
-                Padding="12,8"
-                BorderThickness="0,0,0,1"
-                BorderBrush="{DynamicResource ControlElevationBorderBrush}">
-            <WrapPanel Orientation="Horizontal" ItemHeight="32">
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="4*" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
 
-                <!-- 検索欄 -->
-                <ui:TextBox
-                    Width="280"
-                    Margin="0,0,12,4"
-                    PlaceholderText="タイトル・作者・あらすじで検索"
-                    VerticalAlignment="Center" />
+            <!-- カード群（横並び） -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,8">
+                <StackPanel.Resources>
+                    <!-- 製本開始カードスタイル：有効時のみ Hover 表現あり -->
+                    <Style x:Key="StartBindingCardStyle" TargetType="Border">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="CornerRadius" Value="6" />
+                        <Setter Property="Padding" Value="14,10" />
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="Opacity" Value="1.0" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="BorderBrush" Value="Transparent" />
+                        <Style.Triggers>
+                            <!-- Hover: 背景色変化 + 境界線強調 -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                            </Trigger>
+                            <!-- 無効時: 控えめ表示・クリック不可 -->
+                            <DataTrigger Binding="{Binding CanStartBinding.Value}" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Resources>
 
-                <!-- フィルタ -->
-                <ComboBox
-                    Width="160"
-                    Margin="0,0,12,4"
-                    SelectedIndex="0"
-                    VerticalAlignment="Center">
-                    <ComboBoxItem Content="すべて" />
-                    <ComboBoxItem Content="未製本" />
-                    <ComboBoxItem Content="製本済み" />
-                    <ComboBoxItem Content="完結" />
-                    <ComboBoxItem Content="全巻所持" />
-                    <ComboBoxItem Content="サムネイル未生成" />
-                    <ComboBoxItem Content="サムネイル失敗" />
-                </ComboBox>
+                <!-- 登録作品数サマリカード（情報表示のみ） -->
+                <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="6" Padding="14,10"
+                        Margin="0,0,16,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="Home24" FontSize="48"
+                                       Foreground="{DynamicResource BindingAccentBrush}"
+                                       Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <StackPanel>
+                            <TextBlock FontSize="11" Margin="0,0,0,2"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">登録作品数</TextBlock>
+                            <TextBlock FontSize="16" FontWeight="SemiBold">
+                                <Run Text="{Binding Series.Count, Mode=OneWay, StringFormat={}{0:N0}}" /><Run>&#x20;件</Run>
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
 
-                <!-- 並び替え -->
-                <ComboBox
-                    Width="140"
-                    Margin="0,0,12,4"
-                    SelectedIndex="0"
-                    VerticalAlignment="Center">
-                    <ComboBoxItem Content="更新日順" />
-                    <ComboBoxItem Content="タイトル順" />
-                    <ComboBoxItem Content="巻数順" />
-                    <ComboBoxItem Content="製本状況順" />
-                </ComboBox>
+                <!-- 製本開始カード（操作可能） -->
+                <Border Style="{StaticResource StartBindingCardStyle}" Margin="340,0,0,0">
+                    <Border.InputBindings>
+                        <MouseBinding MouseAction="LeftClick" Command="{Binding StartBindingCommand}" />
+                    </Border.InputBindings>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="BookArrowClockwise24" FontSize="48"
+                                       Foreground="{DynamicResource BindingAccentBrush}"
+                                       Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <StackPanel>
+                            <TextBlock FontSize="11" Margin="0,0,0,2"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">製本開始</TextBlock>
+                            <TextBlock FontSize="16" FontWeight="SemiBold">製本を開始する</TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
 
-                <!-- 表示切替 -->
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,4" VerticalAlignment="Center">
-                    <ui:Button
-                        Content="一覧"
-                        Margin="0,0,4,0"
-                        Appearance="Secondary" />
-                    <ui:Button
-                        Content="カード"
-                        Appearance="Secondary" />
-                </StackPanel>
-
-                <!-- 製本開始 -->
-                <ui:Button
-                    Content="製本開始"
-                    Margin="12,0,0,4"
-                    Appearance="Primary"
-                    Command="{Binding StartBindingCommand}" />
-
-            </WrapPanel>
-        </Border>
+            </StackPanel>
+        </Grid>
 
         <!-- ══════════════════════════════════════════════════ -->
-        <!-- 作品一覧 ListView                                  -->
+        <!-- 作品一覧 ListView（Row1: 高さ制約あり）           -->
         <!-- ══════════════════════════════════════════════════ -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
@@ -120,7 +137,8 @@
             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
             BorderThickness="0"
             Background="Transparent"
-            local:ScrollViewerOffsetBehavior.BoundVerticalOffset="{Binding SavedSeriesListVerticalOffset.Value, Mode=TwoWay}">
+            local:ScrollViewerOffsetBehavior.BoundVerticalOffset="{Binding SavedSeriesListVerticalOffset.Value, Mode=TwoWay}"
+            local:CloseToggleOnScrollBehavior.IsEnabled="True">
 
             <ListView.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -179,35 +197,53 @@
                         <Grid
                             Grid.Column="2"
                             Margin="12,0,8,0"
-                            VerticalAlignment="Top">
+                            VerticalAlignment="Stretch">
                             <Grid.RowDefinitions>
-                                <!-- Row0: タイトル -->
+                                <!-- Row0: タイトル + 3点リーダ -->
                                 <RowDefinition Height="Auto" />
                                 <!-- Row1: 巻数情報 -->
                                 <RowDefinition Height="Auto" />
-                                <!-- Row2: あらすじ -->
-                                <RowDefinition Height="Auto" />
-                                <!-- Row3: あらすじ出典 -->
-                                <RowDefinition Height="Auto" />
-                                <!-- Row4: 作者 -->
+                                <!-- Row2: あらすじ（可変） -->
+                                <RowDefinition Height="*" />
+                                <!-- Row3: 作者名 + タグ表示領域 -->
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <!-- タイトル（コピー可能） -->
-                            <TextBox
-                                Grid.Row="0"
-                                Style="{StaticResource TitleReadOnlyTextBoxStyle}"
-                                Text="{Binding Title}"
-                                FontSize="16"
-                                FontWeight="SemiBold"
-                                Margin="0,0,0,4"
-                                MaxHeight="72"
-                                HorizontalAlignment="Stretch"
-                                TextWrapping="Wrap"
-                                Focusable="True"
-                                Cursor="IBeam" />
+                            <!-- Row0: タイトル + 3点リーダ -->
+                            <Grid Grid.Row="0" Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
 
-                            <!-- 巻数情報 -->
+                                <!-- タイトル（コピー可能） -->
+                                <TextBox
+                                    Grid.Column="0"
+                                    Style="{StaticResource TitleReadOnlyTextBoxStyle}"
+                                    Text="{Binding Title}"
+                                    FontSize="16"
+                                    FontWeight="SemiBold"
+                                    MaxHeight="72"
+                                    HorizontalAlignment="Stretch"
+                                    TextWrapping="Wrap"
+                                    Focusable="True"
+                                    Cursor="IBeam" />
+
+                                <!-- 3点リーダ -->
+                                <ui:Button
+                                    Grid.Column="1"
+                                    Appearance="Transparent"
+                                    Width="28"
+                                    Height="28"
+                                    Padding="0"
+                                    VerticalAlignment="Top"
+                                    ToolTip="操作メニュー"
+                                    IsEnabled="False">
+                                    <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />
+                                </ui:Button>
+                            </Grid>
+
+                            <!-- Row1: 巻数情報 -->
                             <Grid Grid.Row="1" Margin="0,0,0,8" VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
                                     <!-- 全巻数バッジ -->
@@ -251,56 +287,116 @@
                                     VerticalAlignment="Center" />
                             </Grid>
 
-                            <!-- あらすじ -->
-                            <TextBlock
-                                Grid.Row="2"
-                                Text="{Binding Description}"
-                                FontSize="12"
-                                TextWrapping="Wrap"
-                                MaxHeight="88"
-                                TextTrimming="CharacterEllipsis"
-                                Opacity="0.85"
-                                Margin="0,0,0,6" />
+                            <!-- Row2: あらすじ（可変高さ） -->
+                            <StackPanel Grid.Row="2" Margin="0,0,0,6">
+                                <!-- あらすじ本文 -->
+                                <TextBlock
+                                    Text="{Binding Description}"
+                                    FontSize="12"
+                                    TextWrapping="Wrap"
+                                    MaxHeight="80"
+                                    TextTrimming="CharacterEllipsis"
+                                    Opacity="0.85"
+                                    Margin="0,0,0,4" />
 
-                            <!-- あらすじ出典 -->
-                            <StackPanel
-                                Grid.Row="3"
-                                Orientation="Horizontal"
-                                Margin="0,0,0,4"
-                                Visibility="{Binding HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock
-                                    Text="あらすじ出典："
-                                    FontSize="11"
-                                    Opacity="0.6"
-                                    VerticalAlignment="Center" />
-                                <TextBlock
-                                    Text="{Binding DescriptionSourceName}"
-                                    FontSize="11"
-                                    Opacity="0.6"
-                                    VerticalAlignment="Center" />
-                                <TextBlock
-                                    Text=" / "
-                                    FontSize="11"
-                                    Opacity="0.6"
-                                    VerticalAlignment="Center" />
-                                <TextBox
-                                    Style="{StaticResource TitleReadOnlyTextBoxStyle}"
-                                    Text="{Binding DescriptionSourceTitle}"
-                                    FontSize="11"
-                                    Opacity="0.6"
-                                    VerticalAlignment="Center"
-                                    Focusable="True"
-                                    Cursor="IBeam" />
+                                <!-- あらすじ出典 -->
+                                <StackPanel
+                                    Orientation="Horizontal"
+                                    Visibility="{Binding HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock
+                                        Text="あらすじ出典："
+                                        FontSize="11"
+                                        Opacity="0.6"
+                                        VerticalAlignment="Center" />
+                                    <TextBlock
+                                        Text="{Binding DescriptionSourceName}"
+                                        FontSize="11"
+                                        Opacity="0.6"
+                                        VerticalAlignment="Center" />
+                                    <TextBlock
+                                        Text=" / "
+                                        FontSize="11"
+                                        Opacity="0.6"
+                                        VerticalAlignment="Center" />
+                                    <TextBox
+                                        Style="{StaticResource TitleReadOnlyTextBoxStyle}"
+                                        Text="{Binding DescriptionSourceTitle}"
+                                        FontSize="11"
+                                        Opacity="0.6"
+                                        VerticalAlignment="Center"
+                                        Focusable="True"
+                                        Cursor="IBeam" />
+                                </StackPanel>
                             </StackPanel>
 
-                            <!-- 作者 -->
-                            <TextBlock
-                                Grid.Row="4"
-                                Text="{Binding Author}"
-                                FontSize="12"
-                                Opacity="0.7"
-                                TextWrapping="NoWrap"
-                                TextTrimming="CharacterEllipsis" />
+                            <!-- Row3: 作者名 + タグ表示領域 -->
+                            <Grid Grid.Row="3" Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 作者名（補助情報・控えめ） -->
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Text="{Binding Author}"
+                                    FontSize="11"
+                                    Opacity="0.55"
+                                    TextWrapping="NoWrap"
+                                    TextTrimming="CharacterEllipsis"
+                                    VerticalAlignment="Center" />
+
+                                <!-- タグ表示領域（ToggleButton + Popup） -->
+                                <Grid Grid.Column="1">
+                                    <!-- ToggleButton: タグ表示 & ポップアップ開閉 -->
+                                    <ToggleButton
+                                        x:Name="TagToggleButton"
+                                        Padding="6,2"
+                                        FontSize="11"
+                                        Content="{Binding TagDisplayText}"
+                                        Cursor="Hand"
+                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                        BorderThickness="0"
+                                        Checked="TagToggleButton_Checked" />
+
+                                    <!-- Popup: タグ選択チェックボックス一覧 -->
+                                    <Popup
+                                        x:Name="TagPopup"
+                                        PlacementTarget="{Binding ElementName=TagToggleButton}"
+                                        Placement="Top"
+                                        IsOpen="{Binding IsChecked, ElementName=TagToggleButton, Mode=TwoWay}"
+                                        StaysOpen="False"
+                                        AllowsTransparency="True"
+                                        PopupAnimation="Fade">
+                                        <Border
+                                            Background="{DynamicResource ApplicationBackgroundBrush}"
+                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="8,6"
+                                            MinWidth="100"
+                                            MaxWidth="220"
+                                            MaxHeight="200">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl
+                                                    ItemsSource="{Binding Data.SelectableTagsForPopup, Source={StaticResource VmProxy}}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <CheckBox
+                                                                Content="{Binding Tag.Name}"
+                                                                IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                                                FontSize="12"
+                                                                Padding="4,1"
+                                                                Margin="0,1"
+                                                                MinHeight="0" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </Grid>
 
                         </Grid>
                     </Grid>

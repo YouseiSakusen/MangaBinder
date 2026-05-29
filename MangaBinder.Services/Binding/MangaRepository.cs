@@ -1,5 +1,6 @@
 using Dapper;
 using MangaBinder.Settings;
+using MangaBinder.Tags;
 using System.Data.SQLite;
 
 namespace MangaBinder.Binding;
@@ -69,13 +70,78 @@ public class MangaRepository
         var seriesList = (await connection.QueryAsync<MangaSeries>(seriesSql)).AsList();
         var sources = await connection.QueryAsync<MangaSource>(sourcesSql);
 
+        // MangaSeriesTags + MangaTags を一括取得（N+1禁止）
+        var seriesTags = await connection.QueryAsync<(long SeriesId, long TagId, string Name, int DisplayOrder, bool ShowOnSeriesCard)>(
+            "SELECT st.SeriesId, t.TagId, t.Name, t.DisplayOrder, t.ShowOnSeriesCard " +
+            "FROM MangaSeriesTags st " +
+            "INNER JOIN MangaTags t ON t.TagId = st.TagId " +
+            "ORDER BY st.SeriesId, t.DisplayOrder ASC, t.TagId ASC");
+
         var seriesDict = seriesList.ToDictionary(s => s.SeriesId);
+
         foreach (var source in sources)
         {
             if (seriesDict.TryGetValue(source.SeriesId, out var series))
                 series.Sources.Add(source);
         }
 
+        // メモリ上でタグを紐付け
+        foreach (var row in seriesTags)
+        {
+            if (!seriesDict.TryGetValue(row.SeriesId, out var series))
+                continue;
+
+            var tag = new MangaTag
+            {
+                TagId = row.TagId,
+                Name = row.Name,
+                DisplayOrder = row.DisplayOrder,
+                ShowOnSeriesCard = row.ShowOnSeriesCard,
+            };
+            series.Tags.Add(tag);
+        }
+
         return seriesList;
+    }
+
+    /// <summary>
+    /// 指定した作品一覧のタグを MangaSeriesTags テーブルへ保存します。
+    /// 各作品の既存レコードを DELETE してから series.Tags を INSERT します。
+    /// </summary>
+    /// <param name="seriesList">保存対象の作品一覧。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    public async ValueTask SaveSeriesTagsAsync(
+        IEnumerable<MangaSeries> seriesList,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            foreach (var series in seriesList)
+            {
+                await connection.ExecuteAsync(
+                    "DELETE FROM MangaSeriesTags WHERE SeriesId = @SeriesId",
+                    new { series.SeriesId },
+                    transaction);
+
+                foreach (var tag in series.Tags)
+                {
+                    await connection.ExecuteAsync(
+                        "INSERT INTO MangaSeriesTags (SeriesId, TagId) VALUES (@SeriesId, @TagId)",
+                        new { series.SeriesId, tag.TagId },
+                        transaction);
+                }
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
+        }
     }
 }

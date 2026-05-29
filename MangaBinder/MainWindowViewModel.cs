@@ -4,6 +4,7 @@ using System.Windows;
 using HalationGhost.Wpf.Ui.Navigation;
 using MangaBinder.Binding;
 using MangaBinder.Settings;
+using MangaBinder.Tags;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ObservableCollections;
@@ -56,6 +57,11 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	public NotifyCollectionChangedSynchronizedViewList<NavigationViewItem> MenuItems { get; }
 
 	/// <summary>
+	/// ナビゲーションフッターのアイテムコレクションです。
+	/// </summary>
+	public NotifyCollectionChangedSynchronizedViewList<NavigationViewItem> FooterMenuItems { get; }
+
+	/// <summary>
 	/// <see cref="MainWindowViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="logger">ロガー。</param>
@@ -99,17 +105,31 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 			},
 			new NavigationViewItem
 			{
-				Content = "製本開始",
+				Content = "タグ",
+				Icon = new SymbolIcon { Symbol = SymbolRegular.Tag24 },
+				FontSize = 24,
+				TargetPageType = typeof(TagPage),
+			},
+			new NavigationViewItem
+			{
+				Content = "製本",
 				Icon = new SymbolIcon { Symbol = SymbolRegular.Library24 },
 				FontSize = 24,
 				TargetPageType = typeof(StartPage),
 			},
+		}
+		.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+		.AddTo(ref this.disposableBag);
+
+		this.FooterMenuItems = new ObservableList<NavigationViewItem>
+		{
 			new NavigationViewItem
 			{
 				Content = "設定",
 				Icon = new SymbolIcon { Symbol = SymbolRegular.Wrench24 },
 				FontSize = 24,
 				TargetPageType = typeof(SettingsPage),
+				Margin = new Thickness(0, 0, 0, 16),
 			},
 		}
 		.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)

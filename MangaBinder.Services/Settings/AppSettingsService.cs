@@ -1,4 +1,5 @@
 using Dapper;
+using MangaBinder.Tags;
 using MangaBinder.Jobs;
 using System.Data.SQLite;
 using System.Text;
@@ -56,6 +57,7 @@ public class AppSettingsService
 		await this.loadAppSettingsAsync(connection);
 		await this.loadSourceFoldersAsync();
 		await this.loadSupportedExtensionsAsync();
+		await this.loadTagsAsync(connection);
 
 		this.appSettings.UpdateSnapshot();
 
@@ -77,6 +79,7 @@ public class AppSettingsService
 
 		using var transaction = connection.BeginTransaction();
 		await this.persistAppSettingsToDbAsync(connection, transaction);
+		await this.saveTagsAsync(connection, transaction);
 		transaction.Commit();
 
 		this.appSettings.UpdateSnapshot();
@@ -260,6 +263,144 @@ public class AppSettingsService
 	{
 		var extensions = await this.sharedSettingsRepository.GetSupportedFileExtensionsAsync();
 		this.appSettings.ReloadSupportedExtensions(extensions);
+	}
+
+	/// <summary>
+	/// MangaTags テーブルへ AppSettings.Tags の内容を差分保存します。
+	/// TagId &gt; 0 は UPDATE、TagId == 0 は INSERT、DB のみに存在する TagId は DELETE します。
+	/// </summary>
+	private async ValueTask saveTagsAsync(SQLiteConnection connection, SQLiteTransaction transaction)
+	{
+		// DB に現在存在する TagId 一覧を取得
+		var existingIds = (await connection.QueryAsync<long>(
+			"SELECT TagId FROM MangaTags;",
+			transaction: transaction)).ToHashSet();
+
+		var memoryTags = this.appSettings.Tags;
+
+		// 保存前に Name の重複チェック（同一 Name が複数存在する場合は保存不整合の可能性）
+		var duplicateNames = memoryTags
+			.GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+			.Where(g => g.Count() > 1)
+			.Select(g => g.Key)
+			.ToList();
+
+		if (duplicateNames.Count > 0)
+			throw new InvalidOperationException(
+				$"AppSettings.Tags に重複したタグ名が存在します: {string.Join(", ", duplicateNames)}");
+
+		// ─── 実行順: DELETE → UPDATE → INSERT ───────────────────────────
+		// DELETE を先に行うことで、削除タグ名と同名の新規タグを INSERT する際に
+		// UNIQUE 制約違反が発生しないようにする。
+
+		// DELETE: DB にあるが AppSettings.Tags に存在しない TagId
+		var memoryIds = memoryTags
+			.Where(t => t.TagId > 0)
+			.Select(t => t.TagId)
+			.ToHashSet();
+
+		var deleteIds = existingIds.Except(memoryIds).ToList();
+
+		if (deleteIds.Count > 0)
+		{
+			await connection.ExecuteAsync(
+				"DELETE FROM MangaTags WHERE TagId = :TagId;",
+				deleteIds.Select(id => new { TagId = id }).ToList(),
+				transaction);
+		}
+
+		// UPDATE: TagId > 0 の既存タグ
+		var updateSql = """
+			UPDATE MangaTags
+			SET
+				  Name             = :Name
+				, DisplayOrder     = :DisplayOrder
+				, ShowOnSeriesCard = :ShowOnSeriesCard
+			WHERE
+				TagId = :TagId;
+			""";
+
+		var updateRows = memoryTags
+			.Where(t => t.TagId > 0)
+			.Select(t => new
+			{
+				t.TagId,
+				t.Name,
+				t.DisplayOrder,
+				ShowOnSeriesCard = t.ShowOnSeriesCard ? 1 : 0,
+			})
+			.ToList();
+
+		if (updateRows.Count > 0)
+			await connection.ExecuteAsync(updateSql, updateRows, transaction);
+
+		// INSERT: TagId == 0 の新規タグ
+		var insertSql = """
+			INSERT INTO MangaTags (
+				  Name
+				, DisplayOrder
+				, ShowOnSeriesCard
+			) VALUES (
+				  :Name
+				, :DisplayOrder
+				, :ShowOnSeriesCard
+			);
+			""";
+
+		var insertRows = memoryTags
+			.Where(t => t.TagId == 0)
+			.Select(t => new
+			{
+				t.Name,
+				t.DisplayOrder,
+				ShowOnSeriesCard = t.ShowOnSeriesCard ? 1 : 0,
+			})
+			.ToList();
+
+		if (insertRows.Count > 0)
+			await connection.ExecuteAsync(insertSql, insertRows, transaction);
+	}
+
+	/// <summary>
+	/// MangaTags テーブルからタグ定義一覧を読み込み、AppSettings に反映します。
+	/// </summary>
+	private async ValueTask loadTagsAsync(SQLiteConnection connection)
+	{
+		const string sql = """
+			SELECT
+				  TagId
+				, Name
+				, DisplayOrder
+				, ShowOnSeriesCard
+			FROM
+				MangaTags
+			ORDER BY
+				  DisplayOrder
+				, Name;
+			""";
+
+		var rows = await connection.QueryAsync<MangaTagRow>(sql);
+
+		var tags = rows
+			.Select(r => new MangaTag
+			{
+				TagId = r.TagId,
+				Name = r.Name,
+				DisplayOrder = r.DisplayOrder,
+				ShowOnSeriesCard = r.ShowOnSeriesCard != 0,
+			})
+			.ToList();
+
+		this.appSettings.ReloadTags(tags);
+	}
+
+	/// <summary>Dapper マッピング用の MangaTags 行モデル。</summary>
+	private sealed class MangaTagRow
+	{
+		public long TagId { get; init; }
+		public string Name { get; init; } = string.Empty;
+		public int DisplayOrder { get; init; }
+		public int ShowOnSeriesCard { get; init; }
 	}
 }
 

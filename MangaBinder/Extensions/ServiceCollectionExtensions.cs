@@ -5,6 +5,7 @@ using MangaBinder.Binding.Inspection;
 using MangaBinder.Binding.Prepress;
 using MangaBinder.Jobs;
 using MangaBinder.Settings;
+using MangaBinder.Tags;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Wpf.Ui;
@@ -55,6 +56,10 @@ public static class ServiceCollectionExtensions
 	public static IServiceCollection AddPages(this IServiceCollection services)
 	{
 		services.AddNavigationPageWithSingletonViewModel<HomePage, HomePageViewModel>();
+		services.AddNavigationPage<TagPage, TagPageViewModel>();
+		services.AddScoped<TagRepository>();
+		services.AddScoped<TagEditor>();
+		services.AddScoped<SeriesTagDispatcher>();
 		services.AddNavigationPageWithSingletonViewModel<StartPage, StartPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<VolumeSelectionPage, VolumeSelectionPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<SeriesInspectionPage, SeriesInspectionPageViewModel>();
@@ -69,6 +74,7 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<SpreadSplitterImageLoader>();
 
 		services.AddSingleton<SeriesWorkspaceStore>();
+		services.AddSingleton<SeriesTagStore>();
 
 		services.AddScoped<IVolumeImageProcessor, VolumeImageProcessor>();
 		services.AddScoped<FolderVolumeExtractor>();
