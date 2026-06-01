@@ -1,4 +1,5 @@
 using Dapper;
+using MangaBinder.Jobs;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using System.Data.SQLite;
@@ -102,6 +103,52 @@ public class MangaRepository
         }
 
         return seriesList;
+    }
+
+    /// <summary>
+    /// Home 画面の表示状態を取得します。
+    /// </summary>
+    /// <returns>Home 画面の状態情報。</returns>
+    public async ValueTask<HomeStateInformation> GetHomeStateInformationAsync()
+    {
+        const string sql = """
+            SELECT
+                (SELECT COUNT(*) FROM MangaSeries)                                                      AS SeriesCount
+              , (SELECT COUNT(*) > 0 FROM SourceFolders WHERE Role = 0)                                 AS HasMaterialSourceFolder
+              , (SELECT COUNT(*) > 0 FROM JobQueue WHERE Type = @MaterialScan AND Status = @Success)     AS HasCompletedMaterialFolderScanJob
+            """;
+
+        using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+        await connection.OpenAsync();
+
+        var row = await connection.QuerySingleAsync(
+            sql,
+            new
+            {
+                MaterialScan = (int)JobType.MaterialScan,
+                Success      = (int)JobStatus.Success,
+            });
+
+        var seriesCount                    = (int)(long)row.SeriesCount;
+        var hasMaterialSourceFolder        = (long)row.HasMaterialSourceFolder != 0;
+        var hasCompletedMaterialFolderScan = (long)row.HasCompletedMaterialFolderScanJob != 0;
+
+        var kind = HomeEmptyStateKind.None;
+        if (seriesCount == 0)
+        {
+            if (!hasMaterialSourceFolder)
+                kind = HomeEmptyStateKind.MaterialFolderNotRegistered;
+            else if (hasCompletedMaterialFolderScan)
+                kind = HomeEmptyStateKind.MaterialFolderScanCompletedButNoSeries;
+        }
+
+        var info = new HomeStateInformation();
+        info.SeriesCount.Value                    = seriesCount;
+        info.HasMaterialSourceFolder.Value        = hasMaterialSourceFolder;
+        info.HasCompletedMaterialFolderScanJob.Value = hasCompletedMaterialFolderScan;
+        info.EmptyStateKind.Value                 = kind;
+
+        return info;
     }
 
     /// <summary>

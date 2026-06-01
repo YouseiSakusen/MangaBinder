@@ -128,6 +128,26 @@ public class MangaSeries : INotifyPropertyChanged
     /// <summary>作品の所在情報リストです。</summary>
     public List<MangaSource> Sources { get; } = new();
 
+    /// <summary>素材フォルダ（<see cref="FolderRole.Material"/>）の所在情報一覧を取得します。</summary>
+    public IReadOnlyList<MangaSource> MaterialSources
+        => this.Sources.Where(s => s.Role == Settings.FolderRole.Material).ToList();
+
+    /// <summary>素材フォルダが1件以上存在するかを示します。</summary>
+    public bool HasMaterialSources => this.Sources.Any(s => s.Role == Settings.FolderRole.Material);
+
+    /// <summary>素材フォルダが1件のみの場合、その <see cref="MangaSource"/> を取得します。2件以上の場合は <c>null</c> を返します。</summary>
+    public MangaSource? SingleMaterialSource
+    {
+        get
+        {
+            var materials = this.Sources.Where(s => s.Role == Settings.FolderRole.Material).ToList();
+            return materials.Count == 1 ? materials[0] : null;
+        }
+    }
+
+    /// <summary>素材フォルダが複数件存在するかを示します。</summary>
+    public bool HasMultipleMaterialSources => this.Sources.Count(s => s.Role == Settings.FolderRole.Material) > 1;
+
     /// <summary>全巻数テキストです。完結していない場合は "-" を返します。</summary>
     public string TotalVolumeText
     {

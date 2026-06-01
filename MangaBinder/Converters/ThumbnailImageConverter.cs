@@ -1,7 +1,8 @@
 using System.Globalization;
 using System.Windows.Data;
+using MangaBinder.Binding;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Converters;
 
 /// <summary>
 /// <see cref="MangaSeries"/> をサムネイル <see cref="System.Windows.Media.ImageSource"/> に変換する <see cref="IValueConverter"/> です。

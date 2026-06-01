@@ -7,6 +7,9 @@
       xmlns:local="clr-namespace:MangaBinder.Binding"
       xmlns:core="clr-namespace:MangaBinder.Binding;assembly=MangaBinder.Core"
       xmlns:dd="urn:gong-wpf-dragdrop"
+      xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
+      xmlns:converters="clr-namespace:MangaBinder.Converters"
+      xmlns:extensions="clr-namespace:MangaBinder.Extensions"
       mc:Ignorable="d"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="巻選択"
@@ -17,7 +20,7 @@
     <Page.Resources>
 
         <!-- NodeType ごとのアイコン文字 (Segoe UI Emoji) -->
-        <local:NodeTypeToIconConverter x:Key="NodeTypeToIconConverter" />
+        <converters:NodeTypeToIconConverter x:Key="NodeTypeToIconConverter" />
 
         <!-- TreeViewItem に IsExpanded をバインドするスタイル、行間を適度に広げる -->
         <Style TargetType="TreeViewItem">
@@ -184,7 +187,7 @@
                     CornerRadius="4"
                     ClipToBounds="True">
                     <Image
-                        Source="{Binding SelectedSeries.Value, Converter={local:ThumbnailImageConverterExtension}}"
+                        Source="{Binding SelectedSeries.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
                         Width="160"
                         Height="224"
                         Stretch="UniformToFill"
@@ -199,7 +202,7 @@
                     Margin="0,0,0,4">
                     <!-- 全巻数バッジ -->
                     <Border
-                        Background="{Binding SelectedSeries.Value, Converter={local:SeriesStatusBadgeBrushConverterExtension}}"
+                        Background="{Binding SelectedSeries.Value, Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
                         CornerRadius="3"
                         Padding="6,2"
                         Margin="0,0,8,4"
@@ -242,8 +245,8 @@
                     VirtualizingPanel.IsVirtualizing="False"
                     ScrollViewer.VerticalScrollBarVisibility="Auto"
                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                    local:TreeViewSelectedItemBehavior.SelectedItem="{Binding SelectedNode.Value, Mode=TwoWay}"
-                    local:TreeViewSpaceKeyBehavior.IsEnabled="True"
+                    behaviors:TreeViewSelectedItemBehavior.SelectedItem="{Binding SelectedNode.Value, Mode=TwoWay}"
+                    behaviors:TreeViewSpaceKeyBehavior.IsEnabled="True"
                     dd:DragDrop.IsDragSource="True"
                     dd:DragDrop.UseDefaultDragAdorner="True"
                     dd:DragDrop.UseDefaultEffectDataTemplate="True"

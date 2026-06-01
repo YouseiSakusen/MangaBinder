@@ -181,31 +181,27 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	}
 
 	/// <summary>
-	/// <see cref="currentViewModel"/> が <see cref="ISavable"/> を実装している場合、保存を実行してスナックバーで結果を通知します。
+	/// <see cref="currentViewModel"/> が <see cref="ISavable"/> を実装している場合、保存を実行します。
+	/// 失敗時のみスナックバーで通知します。
 	/// </summary>
 	private async ValueTask saveCurrentViewModelAsync()
 	{
 		if (this.currentViewModel is not ISavable savable)
 			return;
+					var result = await savable.SaveAsync();
+		if (result.IsSuccess)
+			return;
 
-		var result = await savable.SaveAsync();
 		var message = !string.IsNullOrEmpty(result.Message)
 			? result.Message
-			: (result.IsSuccess ? "保存しました" : "保存に失敗しました");
-		var icon = result.Appearance switch
-		{
-			ControlAppearance.Success => SymbolRegular.CheckmarkCircle24,
-			ControlAppearance.Caution => SymbolRegular.Warning24,
-			ControlAppearance.Danger => SymbolRegular.ErrorCircle24,
-			_ => SymbolRegular.Info24,
-		};
+			: "保存に失敗しました";
 
 		this.snackbarService.Show(
 			"設定保存",
 			message,
-			result.Appearance,
-			new SymbolIcon { Symbol = icon },
-			result.Appearance == ControlAppearance.Danger ? Timeout.InfiniteTimeSpan : TimeSpan.FromSeconds(3));
+			ControlAppearance.Danger,
+			new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
+			Timeout.InfiniteTimeSpan);
 	}
 
 	/// <summary>

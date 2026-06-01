@@ -1,6 +1,7 @@
 using System.Windows.Markup;
+using MangaBinder.Converters;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Extensions;
 
 /// <summary>
 /// <see cref="SeriesStatusBadgeBrushConverter"/> を XAML から直接使用するための <see cref="MarkupExtension"/> です。

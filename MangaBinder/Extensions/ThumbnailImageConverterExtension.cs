@@ -1,7 +1,8 @@
+using MangaBinder.Converters;
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Markup;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Extensions;
 
 /// <summary>
 /// DI コンテナから <see cref="ThumbnailImageConverter"/> を取得する <see cref="MarkupExtension"/> です。

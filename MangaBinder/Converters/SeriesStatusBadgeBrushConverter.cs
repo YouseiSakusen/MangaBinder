@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Converters;
 
 /// <summary>
 /// <see cref="MangaSeries"/> の完結状態・所持状況をバッジ背景色 <see cref="Brush"/> に変換する <see cref="IValueConverter"/> です。

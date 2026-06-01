@@ -1,4 +1,4 @@
-﻿<Page x:Class="MangaBinder.Binding.HomePage"
+﻿<Page x:Class="MangaBinder.HomePage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -7,6 +7,9 @@
       xmlns:local="clr-namespace:MangaBinder.Binding"
       xmlns:binding="clr-namespace:MangaBinder.Binding"
       xmlns:tags="clr-namespace:MangaBinder.Tags"
+      xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
+      xmlns:extensions="clr-namespace:MangaBinder.Extensions"
+      xmlns:converters="clr-namespace:MangaBinder.Converters"
       mc:Ignorable="d"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="HomePage"
@@ -15,6 +18,7 @@
 
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:HomeEmptyStateKindToVisibilityConverter x:Key="EmptyStateKindToVis" />
         <!-- ViewModel をポップアップ内（切断ツリー）から参照するためのプロキシ -->
         <tags:BindingProxy x:Key="VmProxy" Data="{Binding}" />
         <!-- タイトル表示専用 TextBox スタイル：TextBlock 寄りの見た目、選択可能 -->
@@ -27,6 +31,57 @@
             <Setter Property="CaretBrush" Value="Transparent" />
             <Setter Property="IsReadOnly" Value="True" />
             <Setter Property="IsTabStop" Value="False" />
+        </Style>
+        <!-- StartPage と統一した Empty State カードスタイル -->
+        <Style x:Key="EmptyStateCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="20,14" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!-- 設定を開くカードスタイル：常に有効、Hover 時に背景・枠線あり -->
+        <Style x:Key="SettingsActionCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!-- 製本開始カードスタイル：有効時のみ Hover 表現あり -->
+        <Style x:Key="StartBindingCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Opacity" Value="1.0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Style.Triggers>
+                <!-- Hover: 背景色変化 + 境界線強調 -->
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                </Trigger>
+                <!-- 無効時: 控えめ表示・クリック不可 -->
+                <DataTrigger Binding="{Binding CanStartBinding.Value}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </Page.Resources>
 
@@ -50,31 +105,6 @@
 
             <!-- カード群（横並び） -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,8">
-                <StackPanel.Resources>
-                    <!-- 製本開始カードスタイル：有効時のみ Hover 表現あり -->
-                    <Style x:Key="StartBindingCardStyle" TargetType="Border">
-                        <Setter Property="Background" Value="Transparent" />
-                        <Setter Property="CornerRadius" Value="6" />
-                        <Setter Property="Padding" Value="14,10" />
-                        <Setter Property="Cursor" Value="Hand" />
-                        <Setter Property="Opacity" Value="1.0" />
-                        <Setter Property="BorderThickness" Value="0" />
-                        <Setter Property="BorderBrush" Value="Transparent" />
-                        <Style.Triggers>
-                            <!-- Hover: 背景色変化 + 境界線強調 -->
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                                <Setter Property="BorderThickness" Value="1" />
-                                <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-                            </Trigger>
-                            <!-- 無効時: 控えめ表示・クリック不可 -->
-                            <DataTrigger Binding="{Binding CanStartBinding.Value}" Value="False">
-                                <Setter Property="Opacity" Value="0.45" />
-                                <Setter Property="Cursor" Value="Arrow" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </StackPanel.Resources>
 
                 <!-- 登録作品数サマリカード（情報表示のみ） -->
                 <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
@@ -88,7 +118,7 @@
                             <TextBlock FontSize="11" Margin="0,0,0,2"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}">登録作品数</TextBlock>
                             <TextBlock FontSize="16" FontWeight="SemiBold">
-                                <Run Text="{Binding Series.Count, Mode=OneWay, StringFormat={}{0:N0}}" /><Run>&#x20;件</Run>
+                                <Run Text="{Binding HomeStateInformation.SeriesCount.Value, Mode=OneWay, StringFormat={}{0:N0}}" /><Run>&#x20;件</Run>
                             </TextBlock>
                         </StackPanel>
                     </StackPanel>
@@ -123,8 +153,52 @@
                 <ColumnDefinition Width="4*" />
                 <ColumnDefinition Width="1*" />
             </Grid.ColumnDefinitions>
+
+            <!-- 検索カード（モック）：作品一覧右余白に配置 -->
+            <ui:Card Grid.Column="2"
+                     VerticalAlignment="Top"
+                     Margin="8,0,8,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- ヘッダー行 -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <ui:SymbolIcon Symbol="Search24" FontSize="20"
+                                       Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock FontSize="13" FontWeight="SemiBold"
+                                   VerticalAlignment="Center">タイトルジャンプ</TextBlock>
+                    </StackPanel>
+
+                    <!-- 説明文 -->
+                    <TextBlock Grid.Row="1"
+                               FontSize="11" TextWrapping="Wrap" Opacity="0.6"
+                               Margin="0,0,0,10">タイトルの一部を入力して、最初に一致した作品へ移動します</TextBlock>
+
+                    <!-- テキストボックス -->
+                    <ui:TextBox Grid.Row="2"
+                                PlaceholderText="タイトルを入力"
+                                InputMethod.PreferredImeState="On"
+                                Margin="0,0,0,8" />
+
+                    <!-- ジャンプボタン（右寄せ・Primary風） -->
+                    <ui:Button Grid.Row="3"
+                               Content="ジャンプ"
+                               Appearance="Primary"
+                               HorizontalAlignment="Right"
+                               MinWidth="80" />
+                </Grid>
+            </ui:Card>
+
         <ListView
             Grid.Column="1"
+            Visibility="{Binding HomeStateInformation.EmptyStateKind.Value, Mode=OneWay,
+                         Converter={StaticResource EmptyStateKindToVis},
+                         ConverterParameter=None}"
             ItemsSource="{Binding Series}"
             SelectionMode="Single"
             HorizontalAlignment="Stretch"
@@ -137,8 +211,8 @@
             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
             BorderThickness="0"
             Background="Transparent"
-            local:ScrollViewerOffsetBehavior.BoundVerticalOffset="{Binding SavedSeriesListVerticalOffset.Value, Mode=TwoWay}"
-            local:CloseToggleOnScrollBehavior.IsEnabled="True">
+            behaviors:ScrollViewerOffsetBehavior.BoundVerticalOffset="{Binding SavedSeriesListVerticalOffset.Value, Mode=TwoWay}"
+            behaviors:CloseToggleOnScrollBehavior.IsEnabled="True">
 
             <ListView.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -186,7 +260,7 @@
                             CornerRadius="4"
                             ClipToBounds="True">
                             <Image
-                                Source="{Binding Converter={binding:ThumbnailImageConverterExtension}}"
+                                Source="{Binding Converter={extensions:ThumbnailImageConverterExtension}}"
                                 Width="140"
                                 Height="196"
                                 Stretch="UniformToFill"
@@ -238,7 +312,75 @@
                                     Padding="0"
                                     VerticalAlignment="Top"
                                     ToolTip="操作メニュー"
-                                    IsEnabled="False">
+                                    behaviors:OpenContextMenuOnClickBehavior.IsEnabled="True">
+                                    <ui:Button.ContextMenu>
+                                        <ContextMenu>
+                                            <!-- 素材フォルダを開く（1件） -->
+                                            <MenuItem
+                                                Header="素材フォルダを開く"
+                                                Visibility="{Binding PlacementTarget.DataContext.HasMaterialSources,
+                                                             RelativeSource={RelativeSource AncestorType=ContextMenu},
+                                                             Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                IsEnabled="{Binding PlacementTarget.DataContext.HasMaterialSources,
+                                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                Command="{Binding Data.OpenMaterialFolderCommand, Source={StaticResource VmProxy}}"
+                                                CommandParameter="{Binding PlacementTarget.DataContext.SingleMaterialSource,
+                                                                   RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                                                <MenuItem.Style>
+                                                    <Style TargetType="MenuItem">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.HasMultipleMaterialSources,
+                                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </MenuItem.Style>
+                                            </MenuItem>
+                                            <!-- 素材フォルダを開く（0件・グレーアウト） -->
+                                            <MenuItem
+                                                Header="素材フォルダを開く"
+                                                IsEnabled="False">
+                                                <MenuItem.Style>
+                                                    <Style TargetType="MenuItem">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.HasMaterialSources,
+                                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </MenuItem.Style>
+                                            </MenuItem>
+                                            <!-- 素材フォルダ（複数件・サブメニュー） -->
+                                            <MenuItem Header="素材フォルダ">
+                                                <MenuItem.Style>
+                                                    <Style TargetType="MenuItem">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.HasMultipleMaterialSources,
+                                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </MenuItem.Style>
+                                                <MenuItem.ItemsSource>
+                                                    <Binding Path="PlacementTarget.DataContext.MaterialSources"
+                                                             RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
+                                                </MenuItem.ItemsSource>
+                                                <MenuItem.ItemContainerStyle>
+                                                    <Style TargetType="MenuItem">
+                                                        <Setter Property="Header" Value="{Binding Converter={extensions:MaterialSourceDisplayNameConverterExtension}}" />
+                                                        <Setter Property="Command" Value="{Binding Data.OpenMaterialFolderCommand, Source={StaticResource VmProxy}}" />
+                                                        <Setter Property="CommandParameter" Value="{Binding}" />
+                                                    </Style>
+                                                </MenuItem.ItemContainerStyle>
+                                            </MenuItem>
+                                        </ContextMenu>
+                                    </ui:Button.ContextMenu>
                                     <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />
                                 </ui:Button>
                             </Grid>
@@ -258,7 +400,7 @@
                                 <!-- 全巻数バッジ -->
                                 <Border
                                     Grid.Column="0"
-                                    Background="{Binding Converter={binding:SeriesStatusBadgeBrushConverterExtension}}"
+                                    Background="{Binding Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
                                     CornerRadius="3"
                                     Padding="6,2"
                                     Margin="0,0,10,0"
@@ -357,7 +499,8 @@
                                         Cursor="Hand"
                                         Background="{DynamicResource ControlFillColorDefaultBrush}"
                                         BorderThickness="0"
-                                        Checked="TagToggleButton_Checked" />
+                                        Command="{Binding DataContext.PrepareTagPopupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                        CommandParameter="{Binding}" />
 
                                     <!-- Popup: タグ選択チェックボックス一覧 -->
                                     <Popup
@@ -404,6 +547,67 @@
             </ListView.ItemTemplate>
 
         </ListView>
+
+            <!-- Empty State 1: 素材フォルダ未登録 -->
+            <Grid Grid.Column="1"
+                  Visibility="{Binding HomeStateInformation.EmptyStateKind.Value, Mode=OneWay,
+                               Converter={StaticResource EmptyStateKindToVis},
+                               ConverterParameter=MaterialFolderNotRegistered}">
+                <StackPanel VerticalAlignment="Top" Width="320" Margin="140,50,0,0" HorizontalAlignment="Left">
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10">作品がまだ登録されていません</TextBlock>
+                    <TextBlock FontSize="13" TextWrapping="Wrap" Opacity="0.7" Margin="0,0,0,28">
+                        <Run>まずは設定画面で素材フォルダを登録してください。</Run>
+                        <LineBreak />
+                        <Run>登録後、バックグラウンドで素材フォルダをスキャンし、作品一覧を作成します。</Run>
+                    </TextBlock>
+                    <Border Style="{StaticResource SettingsActionCardStyle}" MinWidth="230" Width="230" HorizontalAlignment="Left">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick" Command="{Binding NavigateToSettingsCommand}" />
+                        </Border.InputBindings>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Settings24" FontSize="48"
+                                           Foreground="{DynamicResource BindingAccentBrush}"
+                                           Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <StackPanel>
+                                <TextBlock FontSize="11" Margin="0,0,0,2"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}">設定</TextBlock>
+                                <TextBlock FontSize="16" FontWeight="SemiBold">設定を開く</TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <!-- Empty State 2: スキャン完了済みだが作品なし -->
+            <Grid Grid.Column="1"
+                  Visibility="{Binding HomeStateInformation.EmptyStateKind.Value, Mode=OneWay,
+                               Converter={StaticResource EmptyStateKindToVis},
+                               ConverterParameter=MaterialFolderScanCompletedButNoSeries}">
+                <StackPanel VerticalAlignment="Top" Width="280" Margin="140,50,0,0" HorizontalAlignment="Left">
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10">作品が見つかりませんでした</TextBlock>
+                    <TextBlock FontSize="13" TextWrapping="Wrap" Opacity="0.7" Margin="0,0,0,28">
+                        <Run>素材フォルダは登録されていますが、作品が登録されていません。</Run>
+                        <LineBreak />
+                        <Run>フォルダ名・ファイル名が MangaBinder の命名ルールに合っていない可能性があります。</Run>
+                    </TextBlock>
+                    <Border Style="{StaticResource SettingsActionCardStyle}" MinWidth="230" Width="230" HorizontalAlignment="Left">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick" Command="{Binding NavigateToSettingsCommand}" />
+                        </Border.InputBindings>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Settings24" FontSize="48"
+                                           Foreground="{DynamicResource BindingAccentBrush}"
+                                           Margin="0,0,12,0" VerticalAlignment="Center" />
+                            <StackPanel>
+                                <TextBlock FontSize="11" Margin="0,0,0,2"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}">設定</TextBlock>
+                                <TextBlock FontSize="16" FontWeight="SemiBold">設定を開く</TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
         </Grid>
 
     </Grid>

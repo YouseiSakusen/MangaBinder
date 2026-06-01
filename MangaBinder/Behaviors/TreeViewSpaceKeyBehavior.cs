@@ -1,9 +1,10 @@
+using MangaBinder.Binding;
 using R3;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Behaviors;
 
 /// <summary>
 /// TreeView の PreviewKeyDown を購読し、Space キーで選択中ノードのチェックを切り替える添付ビヘイビアです。

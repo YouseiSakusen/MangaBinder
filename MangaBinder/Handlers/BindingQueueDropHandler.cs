@@ -1,7 +1,8 @@
 using GongSolutions.Wpf.DragDrop;
+using MangaBinder.Binding;
 using ObservableCollections;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Handlers;
 
 /// <summary>
 /// 製本キュー ListView 内の D&amp;D 並び替えを処理する DropHandler です。

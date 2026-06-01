@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Converters;
 
 /// <summary>
 /// コレクションが空でない場合に <see cref="Visibility.Visible"/> を返すコンバーターです。

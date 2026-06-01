@@ -1,7 +1,8 @@
 using GongSolutions.Wpf.DragDrop;
+using MangaBinder.Binding;
 using System.Windows;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Handlers;
 
 /// <summary>
 /// 素材 TreeView からのドラッグ操作を処理する DragHandler です。

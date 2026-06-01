@@ -4,7 +4,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Behaviors;
 
 /// <summary>
 /// ListView にアタッチし、スクロール発生時に開いているタグ Popup 用 ToggleButton を閉じる添付ビヘイビアです。

@@ -7,6 +7,7 @@ using R3;
 using System.Diagnostics;
 using System.IO;
 using Wpf.Ui;
+using MangaBinder.Handlers;
 
 namespace MangaBinder.Binding;
 

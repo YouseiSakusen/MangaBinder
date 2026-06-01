@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using MangaBinder.Tags;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder;
 
 /// <summary>
 /// タグ付けポップアップで使用するタグ選択項目です。

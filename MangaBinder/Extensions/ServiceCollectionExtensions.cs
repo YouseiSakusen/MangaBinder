@@ -3,6 +3,7 @@ using System.IO;
 using MangaBinder.Binding;
 using MangaBinder.Binding.Inspection;
 using MangaBinder.Binding.Prepress;
+using MangaBinder.Converters;
 using MangaBinder.Jobs;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
@@ -75,6 +76,7 @@ public static class ServiceCollectionExtensions
 
 		services.AddSingleton<SeriesWorkspaceStore>();
 		services.AddSingleton<SeriesTagStore>();
+		services.AddSingleton<MaterialSourceDisplayNameConverter>();
 
 		services.AddScoped<IVolumeImageProcessor, VolumeImageProcessor>();
 		services.AddScoped<FolderVolumeExtractor>();

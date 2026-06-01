@@ -1,6 +1,7 @@
 using GongSolutions.Wpf.DragDrop;
+using MangaBinder.Binding;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Handlers;
 
 /// <summary>
 /// 製本キュー除外用 Drop 領域の DropHandler です。

@@ -6,6 +6,7 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:local="clr-namespace:MangaBinder.Binding"
       xmlns:core="clr-namespace:MangaBinder.Binding.Inspection;assembly=MangaBinder.Core"
+      xmlns:extensions="clr-namespace:MangaBinder.Extensions"
       mc:Ignorable="d"
       x:Name="ThisPage"
       d:DesignHeight="800" d:DesignWidth="1200"
@@ -230,7 +231,7 @@
                     CornerRadius="4"
                     ClipToBounds="True">
                     <Image
-                        Source="{Binding SelectedSeries.Value, Converter={local:ThumbnailImageConverterExtension}}"
+                        Source="{Binding SelectedSeries.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
                         Width="160"
                         Height="224"
                         Stretch="UniformToFill"
@@ -254,7 +255,7 @@
                     HorizontalAlignment="Center"
                     Orientation="Horizontal">
                     <Border
-                        Background="{Binding SelectedSeries.Value, Converter={local:SeriesStatusBadgeBrushConverterExtension}}"
+                        Background="{Binding SelectedSeries.Value, Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
                         CornerRadius="3"
                         Padding="5,2"
                         Margin="0,0,6,4"

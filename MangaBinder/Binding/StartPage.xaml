@@ -6,6 +6,7 @@
 	  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
 	  xmlns:local="clr-namespace:MangaBinder.Binding"
 	  xmlns:binding="clr-namespace:MangaBinder.Binding"
+	  xmlns:extensions="clr-namespace:MangaBinder.Extensions"
 	  mc:Ignorable="d"
 	  d:DesignHeight="800" d:DesignWidth="1200"
 	  Title="製本開始"
@@ -116,7 +117,7 @@
 								<Border Grid.Column="0" Width="140" Height="196" VerticalAlignment="Top"
 										Background="{DynamicResource ControlFillColorDefaultBrush}"
 										CornerRadius="4" ClipToBounds="True">
-									<Image Source="{Binding Series, Converter={binding:ThumbnailImageConverterExtension}}"
+									<Image Source="{Binding Series, Converter={extensions:ThumbnailImageConverterExtension}}"
 										   Width="140" Height="196" Stretch="UniformToFill"
 										   RenderOptions.BitmapScalingMode="LowQuality" />
 								</Border>
@@ -147,7 +148,7 @@
 											<ColumnDefinition Width="*" />
 										</Grid.ColumnDefinitions>
 										<Border Grid.Column="0"
-												Background="{Binding Series, Converter={binding:SeriesStatusBadgeBrushConverterExtension}}"
+												Background="{Binding Series, Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
 												CornerRadius="3" Padding="6,2" Margin="0,0,10,0" VerticalAlignment="Center">
 											<TextBlock Text="{Binding Series.TotalVolumeText}"
 													   FontSize="11" FontWeight="SemiBold" Foreground="White" TextWrapping="NoWrap" />

@@ -4,7 +4,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Behaviors;
 
 /// <summary>
 /// ListView 等の内部 ScrollViewer の VerticalOffset を ViewModel にバインドする添付ビヘイビアです。

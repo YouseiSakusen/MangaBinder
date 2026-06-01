@@ -1,8 +1,7 @@
-using MangaBinder.Binding;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder.Behaviors;
 
 /// <summary>
 /// TreeView の SelectedItem を ViewModel へ双方向バインドするための添付ビヘイビアです。

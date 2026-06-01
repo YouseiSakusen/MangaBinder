@@ -1,6 +1,6 @@
 using MangaBinder.Tags;
 
-namespace MangaBinder.Binding;
+namespace MangaBinder;
 
 /// <summary>
 /// 作品へのタグ付け・タグ外し操作を担う Scoped サービスです。

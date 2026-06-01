@@ -1,4 +1,4 @@
-namespace MangaBinder.Binding;
+namespace MangaBinder;
 
 /// <summary>
 /// タグ変更された <see cref="MangaSeries"/> を保持する Singleton ストアです。
