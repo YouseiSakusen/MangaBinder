@@ -1,4 +1,5 @@
 using Dapper;
+using MangaBinder.Bindings;
 using MangaBinder.Settings;
 using System.Data.SQLite;
 using System.Text;
@@ -8,16 +9,16 @@ namespace MangaBinder.Binding;
 /// <summary>
 /// BindingQueue に登録済みの作品一覧を取得する Repository クラスです。
 /// </summary>
-public class BindingStartRepository
+public class BindingQueueRepository
 {
 	/// <summary>アプリケーション設定。</summary>
 	private readonly AppSettings appSettings;
 
 	/// <summary>
-	/// <see cref="BindingStartRepository"/> の新しいインスタンスを初期化します。
+	/// <see cref="BindingQueueRepository"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="appSettings">アプリケーション設定。</param>
-	public BindingStartRepository(AppSettings appSettings)
+	public BindingQueueRepository(AppSettings appSettings)
 	{
 		this.appSettings = appSettings;
 	}
@@ -25,8 +26,8 @@ public class BindingStartRepository
 	/// <summary>
 	/// BindingQueue に登録済みの作品一覧を取得します。
 	/// </summary>
-	/// <returns>AddedAt 昇順で並んだ <see cref="BindingStartSeries"/> の読み取り専用リスト。</returns>
-	public async ValueTask<IReadOnlyList<BindingStartSeries>> GetQueuedSeriesAsync()
+	/// <returns>AddedAt 昇順で並んだ <see cref="BindingSeries"/> の読み取り専用リスト。</returns>
+	public async ValueTask<IReadOnlyList<BindingSeries>> GetQueuedSeriesAsync()
 	{
 		var joinSql = new StringBuilder();
 		joinSql.AppendLine(" SELECT ");
@@ -84,9 +85,9 @@ public class BindingStartRepository
 		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
 		await connection.OpenAsync();
 
-		var results = (await connection.QueryAsync<BindingQueueRow, MangaSeries, BindingStartSeries>(
+		var results = (await connection.QueryAsync<BindingQueueRow, MangaSeries, BindingSeries>(
 			joinSql.ToString(),
-			(queue, series) => new BindingStartSeries
+			(queue, series) => new BindingSeries
 			{
 				Series = series,
 				Status = (BindingStartStatus)queue.Status,
@@ -111,6 +112,55 @@ public class BindingStartRepository
 		}
 
 		return results;
+	}
+
+	/// <summary>
+	/// BindingQueue の内容を全件保存します。
+	/// </summary>
+	/// <param name="items">保存対象の作品一覧。</param>
+	public async ValueTask SaveAsync(IEnumerable<BindingSeries> items)
+	{
+		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+		await connection.OpenAsync();
+		using var transaction = connection.BeginTransaction();
+
+		try
+		{
+			await connection.ExecuteAsync("DELETE FROM BindingQueue;", transaction: transaction);
+
+			const string insertSql = """
+				INSERT INTO BindingQueue (
+					SeriesId,
+					Status,
+					CurrentStep,
+					AddedAt,
+					UpdatedAt
+				) VALUES (
+					:SeriesId,
+					:Status,
+					:CurrentStep,
+					:AddedAt,
+					:UpdatedAt
+				);
+				""";
+
+			var insertRows = items.Select(item => new
+			{
+				SeriesId = item.Series.SeriesId,
+				Status = (int)item.Status,
+				CurrentStep = item.CurrentStep,
+				AddedAt = item.AddedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+				UpdatedAt = item.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+			});
+
+			await connection.ExecuteAsync(insertSql, insertRows, transaction);
+			transaction.Commit();
+		}
+		catch
+		{
+			transaction.Rollback();
+			throw;
+		}
 	}
 
 	/// <summary>

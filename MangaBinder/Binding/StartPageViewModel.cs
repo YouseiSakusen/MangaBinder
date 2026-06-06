@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using R3;
 using Wpf.Ui;
@@ -10,36 +9,36 @@ namespace MangaBinder.Binding;
 /// </summary>
 public class StartPageViewModel : IDisposable, IDataInitializable
 {
-	/// <summary>スコープファクトリー。</summary>
-	private readonly IServiceScopeFactory serviceScopeFactory;
-
 	/// <summary>ナビゲーションサービス。</summary>
 	private readonly INavigationService navigationService;
+
+	/// <summary>製本開始状態 Dispatcher。</summary>
+	private readonly BindingQueueDispatcher bindingQueueDispatcher;
 
 	private DisposableBag disposableBag;
 
 	/// <summary>内部保持する BindingStartSeries コレクション。</summary>
-	private readonly ObservableList<BindingStartSeries> series;
+	private readonly ObservableList<BindingSeries> series;
 
 	/// <summary>
 	/// ListView にバインドする BindingStartSeries の一覧を取得します。
 	/// </summary>
-	public NotifyCollectionChangedSynchronizedViewList<BindingStartSeries> Series { get; }
+	public NotifyCollectionChangedSynchronizedViewList<BindingSeries> Series { get; }
 
 	/// <summary>
 	/// BindingQueue 登録件数を取得します。
 	/// </summary>
-	public ReadOnlyReactiveProperty<int> SelectedSeriesCount { get; }
+	public BindableReactiveProperty<int> SelectedSeriesCount { get; }
 
 	/// <summary>
 	/// BindingQueue が空かどうかを取得します。
 	/// </summary>
-	public ReadOnlyReactiveProperty<bool> IsEmpty { get; }
+	public BindableReactiveProperty<bool> IsEmpty { get; }
 
 	/// <summary>
 	/// BindingQueue に1件以上登録されているかどうかを取得します。
 	/// </summary>
-	public ReadOnlyReactiveProperty<bool> IsNotEmpty { get; }
+	public BindableReactiveProperty<bool> IsNotEmpty { get; }
 
 	/// <summary>HomePage へ遷移するコマンドです。</summary>
 	public ReactiveCommand<Unit> NavigateToHomeCommand { get; }
@@ -47,32 +46,25 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>
 	/// <see cref="StartPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
-	public StartPageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService)
+	public StartPageViewModel(INavigationService navigationService, BindingQueueDispatcher bindingQueueDispatcher)
 	{
-		this.serviceScopeFactory = serviceScopeFactory;
 		this.navigationService = navigationService;
+		this.bindingQueueDispatcher = bindingQueueDispatcher;
 
-		this.series = new ObservableList<BindingStartSeries>();
+		this.series = new ObservableList<BindingSeries>();
 
 		this.Series = this.series
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
-		this.SelectedSeriesCount = this.series
-			.ObserveCountChanged(notifyCurrentCount: true)
-			.ToReadOnlyReactiveProperty(this.series.Count)
+		this.SelectedSeriesCount = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
-		this.IsEmpty = this.SelectedSeriesCount
-			.Select(c => c == 0)
-			.ToReadOnlyReactiveProperty(true)
+		this.IsEmpty = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
 
-		this.IsNotEmpty = this.SelectedSeriesCount
-			.Select(c => c > 0)
-			.ToReadOnlyReactiveProperty(false)
+		this.IsNotEmpty = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
 		this.NavigateToHomeCommand = new ReactiveCommand<Unit>()
@@ -81,15 +73,20 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask InitializeDataAsync()
+	public ValueTask InitializeDataAsync()
 	{
 		this.series.Clear();
+		this.series.AddRange(this.bindingQueueDispatcher.GetAll());
+		this.updateState();
+		return ValueTask.CompletedTask;
+	}
 
-		using var scope = this.serviceScopeFactory.CreateScope();
-		var repository = scope.ServiceProvider.GetRequiredService<BindingStartRepository>();
-
-		var result = await repository.GetQueuedSeriesAsync();
-		this.series.AddRange(result);
+	private void updateState()
+	{
+		var count = this.series.Count;
+		this.SelectedSeriesCount.Value = count;
+		this.IsEmpty.Value = count == 0;
+		this.IsNotEmpty.Value = count > 0;
 	}
 
 	/// <inheritdoc/>

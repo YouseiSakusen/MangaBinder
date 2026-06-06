@@ -1,9 +1,11 @@
+using MangaBinder.Bindings;
+
 namespace MangaBinder.Binding;
 
 /// <summary>
 /// StartPage で使用する製本開始キュー付き作品エンティティです。
 /// </summary>
-public sealed class BindingStartSeries
+public sealed class BindingSeries
 {
 	/// <summary>漫画作品情報。</summary>
 	public MangaSeries Series { get; init; } = default!;

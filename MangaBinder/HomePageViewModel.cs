@@ -1,5 +1,6 @@
 using HalationGhost.Wpf.Ui.Navigation;
 using MangaBinder.Binding;
+using MangaBinder.Bindings;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +37,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <summary>スナックバーサービス。</summary>
     private readonly ISnackbarService snackbarService;
 
+    /// <summary>製本開始状態 Dispatcher。</summary>
+    private readonly BindingQueueDispatcher bindingQueueDispatcher;
+
     private DisposableBag disposableBag;
 
     /// <summary>内部保持する MangaSeries コレクション。</summary>
@@ -50,13 +54,13 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// 製本開始ボタンの有効状態を取得します。
     /// Series 内で IsSelected == true の作品が1件以上ある時 true を返します。
     /// </summary>
-    public ReactiveProperty<bool> CanStartBinding { get; }
+    public BindableReactiveProperty<bool> CanStartBinding { get; }
 
     /// <summary>製本開始コマンドです。</summary>
     public ReactiveCommand<Unit> StartBindingCommand { get; }
 
     /// <summary>選択作品数を取得します。</summary>
-    public ReactiveProperty<int> SelectedCount { get; }
+    public BindableReactiveProperty<int> SelectedCount { get; }
 
     /// <summary>Home 画面の表示状態を取得します。</summary>
     public HomeStateInformation HomeStateInformation { get; } = new();
@@ -90,7 +94,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <param name="serviceScopeFactory">スコープファクトリー。</param>
     /// <param name="navigationService">ナビゲーションサービス。</param>
     /// <param name="workspaceStore">作品選択状態ストア。</param>
-    public HomePageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, ISnackbarService snackbarService)
+    public HomePageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, ISnackbarService snackbarService, BindingQueueDispatcher bindingQueueDispatcher)
     {
         this.serviceScopeFactory = serviceScopeFactory;
         this.navigationService = navigationService;
@@ -98,6 +102,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.seriesTagStore = seriesTagStore;
         this.appSettings = appSettings;
         this.snackbarService = snackbarService;
+        this.bindingQueueDispatcher = bindingQueueDispatcher;
 
         this.series = new ObservableList<MangaSeries>();
 
@@ -105,21 +110,21 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
             .ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
             .AddTo(ref this.disposableBag);
 
-        // CanStartBinding: 選択状態の変化を手動で更新する ReactiveProperty
-        var canStartBinding = new ReactiveProperty<bool>(false)
+        // CanStartBinding: 選択状態の変化を手動で更新する BindableReactiveProperty
+        var canStartBinding = new BindableReactiveProperty<bool>(false)
             .AddTo(ref this.disposableBag);
 
-        var selectedCount = new ReactiveProperty<int>(0)
+        var selectedCount = new BindableReactiveProperty<int>(0)
             .AddTo(ref this.disposableBag);
         this.SelectedCount = selectedCount;
 
         // コレクション変化時に全要素の PropertyChanged を再購読する
         this.series.CollectionChanged += (in NotifyCollectionChangedEventArgs<MangaSeries> _) =>
         {
-            this.resubscribeIsSelected(canStartBinding, selectedCount);
+            this.resubscribeIsSelected();
             var count = this.series.Count(s => s.IsSelected);
-            canStartBinding.Value = count > 0;
-            selectedCount.Value = count;
+            this.CanStartBinding.Value = count > 0;
+            this.SelectedCount.Value = count;
         };
 
         this.CanStartBinding = canStartBinding;
@@ -218,21 +223,27 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <summary>
     /// series の各要素の IsSelected 変化を再購読します。
     /// </summary>
-    private void resubscribeIsSelected(ReactiveProperty<bool> canStartBinding, ReactiveProperty<int> selectedCount)
+    private void resubscribeIsSelected()
     {
         this.isSelectedSubscriptions.Clear();
         foreach (var s in this.series)
         {
+            var captured = s;
             Observable.FromEvent<System.ComponentModel.PropertyChangedEventHandler, System.ComponentModel.PropertyChangedEventArgs>(
                 h => (sender, e) => h(e),
-                h => s.PropertyChanged += h,
-                h => s.PropertyChanged -= h)
+                h => captured.PropertyChanged += h,
+                h => captured.PropertyChanged -= h)
                 .Where(e => e.PropertyName == nameof(MangaSeries.IsSelected))
                 .Subscribe(_ =>
                 {
+                    if (captured.IsSelected)
+                        this.bindingQueueDispatcher.Add(new BindingSeries { Series = captured, Status = BindingStartStatus.Configuring, AddedAt = DateTime.Now, UpdatedAt = DateTime.Now });
+                    else
+                        this.bindingQueueDispatcher.Remove(captured.SeriesId);
+
                     var count = this.series.Count(x => x.IsSelected);
-                    canStartBinding.Value = count > 0;
-                    selectedCount.Value = count;
+                    this.CanStartBinding.Value = count > 0;
+                    this.SelectedCount.Value = count;
                 })
                 .AddTo(this.isSelectedSubscriptions);
         }
@@ -241,22 +252,37 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <inheritdoc/>
     public async ValueTask InitializeDataAsync()
     {
-        this.series.Clear();
+        // 初回のみ DB から取得して Store へ反映する
+        if (this.series.Count == 0)
+        {
+            using var scope = this.serviceScopeFactory.CreateScope();
+            var mangaRepository = scope.ServiceProvider.GetRequiredService<MangaRepository>();
+            var bindingStartRepository = scope.ServiceProvider.GetRequiredService<BindingQueueRepository>();
 
-        using var scope = this.serviceScopeFactory.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<MangaRepository>();
+            var queuedSeries = await bindingStartRepository.GetQueuedSeriesAsync();
+            this.bindingQueueDispatcher.ReplaceAll(queuedSeries);
 
-        var result = await repository.GetAllSeriesAsync();
-        this.series.AddRange(result);
+            var result = await mangaRepository.GetAllSeriesAsync();
+            this.series.AddRange(result);
+        }
 
+        // 毎回: Store の状態を元に IsSelected を復元する
+        foreach (var s in this.series)
+            s.IsSelected = this.bindingQueueDispatcher.Contains(s.SeriesId);
+
+        // 毎回: タグ再同期
         this.refreshSeriesTagsFromAppSettings();
 
-        this.resubscribeIsSelected(this.CanStartBinding, this.SelectedCount);
+        // 毎回: 購読再設定・ボタン状態更新
+        this.resubscribeIsSelected();
         var count = this.series.Count(s => s.IsSelected);
         this.CanStartBinding.Value = count > 0;
         this.SelectedCount.Value = count;
 
-        var homeState = await repository.GetHomeStateInformationAsync();
+        // 毎回: HomeState 更新
+        using var stateScope = this.serviceScopeFactory.CreateScope();
+        var stateRepository = stateScope.ServiceProvider.GetRequiredService<MangaRepository>();
+        var homeState = await stateRepository.GetHomeStateInformationAsync();
         this.HomeStateInformation.SeriesCount.Value                       = homeState.SeriesCount.Value;
         this.HomeStateInformation.HasMaterialSourceFolder.Value           = homeState.HasMaterialSourceFolder.Value;
         this.HomeStateInformation.HasCompletedMaterialFolderScanJob.Value = homeState.HasCompletedMaterialFolderScanJob.Value;

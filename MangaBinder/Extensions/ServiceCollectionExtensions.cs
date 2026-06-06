@@ -44,7 +44,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<JobRepository>();
 		services.AddScoped<AppSettingsService>();
 		services.AddScoped<MangaRepository>();
-		services.AddScoped<BindingStartRepository>();
+		services.AddScoped<BindingQueueRepository>();
 
 		return services;
 	}
@@ -76,6 +76,9 @@ public static class ServiceCollectionExtensions
 
 		services.AddSingleton<SeriesWorkspaceStore>();
 		services.AddSingleton<SeriesTagStore>();
+		services.AddSingleton<BindingQueueStore>();
+		services.AddSingleton<BindingStoreRepository>();
+		services.AddSingleton<BindingQueueDispatcher>();
 		services.AddSingleton<MaterialSourceDisplayNameConverter>();
 
 		services.AddScoped<IVolumeImageProcessor, VolumeImageProcessor>();

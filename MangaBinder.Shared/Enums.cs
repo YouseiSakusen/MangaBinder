@@ -53,10 +53,34 @@
 		/// <summary>圧縮ファイル内に対応アーカイブファイルのみが含まれており、画像が取得できませんでした。</summary>
 		ArchiveInArchive = 4,
 	}
+
+	/// <summary>
+	/// 製本開始キューの進行状態を表す列挙型です。
+	/// </summary>
+	public enum BindingStartStatus
+	{
+		/// <summary>未設定。</summary>
+		None = 0,
+
+		/// <summary>設定中。</summary>
+		Configuring = 1,
+
+		/// <summary>実行待ち。</summary>
+		Ready = 2,
+
+		/// <summary>処理中。</summary>
+		Processing = 3,
+
+		/// <summary>エラー。</summary>
+		Error = 4,
+	}
 }
 
 namespace MangaBinder.Jobs
 {
+	/// <summary>
+	/// ジョブの実行状態を表す列挙型です。
+	/// </summary>
 	public enum JobStatus
 	{
 		/// <summary>待機中（実行を待っている状態）</summary>
@@ -72,6 +96,9 @@ namespace MangaBinder.Jobs
 		Error = 3,
 	}
 
+	/// <summary>
+	/// ジョブの種別を表す列挙型です。
+	/// </summary>
 	public enum JobType
 	{
 		/// <summary>素材フォルダのスキャン（Materialロールのフォルダが対象）</summary>

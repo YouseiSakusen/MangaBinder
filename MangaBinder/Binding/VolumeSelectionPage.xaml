@@ -22,6 +22,12 @@
         <!-- NodeType ごとのアイコン文字 (Segoe UI Emoji) -->
         <converters:NodeTypeToIconConverter x:Key="NodeTypeToIconConverter" />
 
+        <!-- NodeType ごとの SymbolIcon Symbol 名 -->
+        <converters:NodeTypeToSymbolConverter x:Key="NodeTypeToSymbolConverter" />
+
+        <!-- NodeType ごとのアイコン色 -->
+        <converters:NodeTypeToColorConverter x:Key="NodeTypeToColorConverter" />
+
         <!-- TreeViewItem に IsExpanded をバインドするスタイル、行間を適度に広げる -->
         <Style TargetType="TreeViewItem">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded.Value, Mode=TwoWay}" />
@@ -57,10 +63,10 @@
                     </ContextMenu>
                 </StackPanel.ContextMenu>
                 <!-- アイコン -->
-                <TextBlock
-                    Text="{Binding NodeType, Converter={StaticResource NodeTypeToIconConverter}}"
-                    FontFamily="Segoe UI Emoji"
-                    FontSize="14"
+                <ui:SymbolIcon
+                    Symbol="{Binding NodeType, Converter={StaticResource NodeTypeToSymbolConverter}}"
+                    FontSize="16"
+                    Foreground="{Binding NodeType, Converter={StaticResource NodeTypeToColorConverter}}"
                     VerticalAlignment="Center"
                     Margin="0,0,5,0" />
                 <!-- チェックボックス (Archive / 選択不可ノードは非表示) -->
@@ -114,20 +120,47 @@
 	<Grid Margin="16,4,16,16">
 		<Grid.RowDefinitions>
 			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
 			<RowDefinition Height="*" />
 			<RowDefinition Height="Auto" />
 		</Grid.RowDefinitions>
 
-        <!-- ── Row0：作品タイトル（「巻選択」は BreadcrumbBar で表示） ── -->
-        <TextBlock
-            Grid.Row="0"
-            Text="{Binding SeriesTitle.Value}"
-            FontSize="15"
-            Opacity="0.7"
-            Margin="0,0,0,16" />
+		<!-- ── Row0：作品タイトル（「巻選択」は BreadcrumbBar で表示） ── -->
+		<TextBlock
+			Grid.Row="0"
+			Text="{Binding SeriesTitle.Value}"
+			FontSize="15"
+			Opacity="0.7"
+			Margin="0,0,0,12" />
 
-        <!-- ── Row1：左右本体 ── -->
-        <Grid Grid.Row="1">
+		<!-- ── Row1：アイキャッチカード ── -->
+		<Grid Grid.Row="1" Margin="0,0,0,16">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="1*" />
+				<ColumnDefinition Width="4*" />
+				<ColumnDefinition Width="1*" />
+			</Grid.ColumnDefinitions>
+
+			<StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,0">
+				<ui:Card Padding="14,10">
+					<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+						<ui:SymbolIcon Symbol="CheckboxArrowRight24"  FontSize="48"
+									   Foreground="{DynamicResource BindingAccentBrush}"
+									   Margin="0,0,12,0" VerticalAlignment="Center" />
+						<StackPanel>
+							<TextBlock FontSize="11" Margin="0,0,0,2"
+									   Foreground="{DynamicResource TextFillColorSecondaryBrush}">素材数</TextBlock>
+							<TextBlock FontSize="16" FontWeight="SemiBold">
+								<Run Text="{Binding RootNodes.Count, Mode=OneWay}" /><Run>&#x20;件</Run>
+							</TextBlock>
+						</StackPanel>
+					</StackPanel>
+				</ui:Card>
+			</StackPanel>
+		</Grid>
+
+        <!-- ── Row2：左右本体 ── -->
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <!-- 左：作品情報 -->
                 <ColumnDefinition Width="250" />
@@ -142,93 +175,95 @@
             <!-- ══════════════════════════════════ -->
             <!-- 左パネル：作品情報カード           -->
             <!-- ══════════════════════════════════ -->
-            <Grid Grid.Column="0" VerticalAlignment="Top">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+            <ui:Card Grid.Column="0" VerticalAlignment="Top" Padding="12,14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                <!-- 解析中サマリ（IsLoading=true の時のみ表示、完了後は消える） -->
-                <Border
-                    Grid.Row="0"
-                    Margin="0,0,0,12"
-                    Padding="8,6"
-                    CornerRadius="4"
-                    Background="{DynamicResource ControlFillColorDefaultBrush}">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsLoading.Value}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <StackPanel>
-                        <!-- 素材サマリ -->
-                        <TextBlock
-                            Text="{Binding MaterialSummaryText.Value}"
-                            FontSize="11"
-                            LineHeight="18"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    </StackPanel>
-                </Border>
+                    <!-- 解析中サマリ（IsLoading=true の時のみ表示、完了後は消える） -->
+                    <Border
+                        Grid.Row="0"
+                        Margin="0,0,0,12"
+                        Padding="8,6"
+                        CornerRadius="4"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLoading.Value}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <!-- 素材サマリ -->
+                            <TextBlock
+                                Text="{Binding MaterialSummaryText.Value}"
+                                FontSize="11"
+                                LineHeight="18"
+                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
 
-                <!-- サムネイル（中央寄せ） -->
-                <Border
-                    Grid.Row="1"
-                    Width="160"
-                    Height="224"
-                    HorizontalAlignment="Center"
-                    Margin="0,0,0,10"
-                    Background="{DynamicResource ControlFillColorDefaultBrush}"
-                    CornerRadius="4"
-                    ClipToBounds="True">
-                    <Image
-                        Source="{Binding SelectedSeries.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
+                    <!-- サムネイル（中央寄せ） -->
+                    <Border
+                        Grid.Row="1"
                         Width="160"
                         Height="224"
-                        Stretch="UniformToFill"
-                        RenderOptions.BitmapScalingMode="HighQuality" />
-                </Border>
-
-                <!-- 巻数情報（中央寄せ） -->
-                <WrapPanel
-                    Grid.Row="2"
-                    HorizontalAlignment="Center"
-                    Orientation="Horizontal"
-                    Margin="0,0,0,4">
-                    <!-- 全巻数バッジ -->
-                    <Border
-                        Background="{Binding SelectedSeries.Value, Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
-                        CornerRadius="3"
-                        Padding="6,2"
-                        Margin="0,0,8,4"
-                        VerticalAlignment="Center">
-                        <TextBlock
-                            Text="{Binding SelectedSeries.Value.TotalVolumeText}"
-                            FontSize="11"
-                            FontWeight="SemiBold"
-                            Foreground="White"
-                            TextWrapping="NoWrap" />
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,10"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="4"
+                        ClipToBounds="True">
+                        <Image
+                            Source="{Binding SelectedSeries.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
+                            Width="160"
+                            Height="224"
+                            Stretch="UniformToFill"
+                            RenderOptions.BitmapScalingMode="HighQuality" />
                     </Border>
-                    <!-- 所持推定 -->
-                    <TextBlock
-                        Text="{Binding SelectedSeries.Value.OwnedEstimatedVolumeText}"
-                        FontSize="11"
-                        Margin="0,0,8,4"
-                        VerticalAlignment="Center" />
-                    <!-- 製本済み -->
-                    <TextBlock
-                        Text="{Binding SelectedSeries.Value.BoundEndVolumeText}"
-                        FontSize="11"
-                        Margin="0,0,0,4"
-                        VerticalAlignment="Center" />
-                </WrapPanel>
 
-            </Grid>
+                    <!-- 巻数情報（中央寄せ） -->
+                    <WrapPanel
+                        Grid.Row="2"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal"
+                        Margin="0,0,0,4">
+                        <!-- 全巻数バッジ -->
+                        <Border
+                            Background="{Binding SelectedSeries.Value, Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
+                            CornerRadius="3"
+                            Padding="6,2"
+                            Margin="0,0,8,4"
+                            VerticalAlignment="Center">
+                            <TextBlock
+                                Text="{Binding SelectedSeries.Value.TotalVolumeText}"
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Foreground="White"
+                                TextWrapping="NoWrap" />
+                        </Border>
+                        <!-- 所持推定 -->
+                        <TextBlock
+                            Text="{Binding SelectedSeries.Value.OwnedEstimatedVolumeText}"
+                            FontSize="11"
+                            Margin="0,0,8,4"
+                            VerticalAlignment="Center" />
+                        <!-- 製本済み -->
+                        <TextBlock
+                            Text="{Binding SelectedSeries.Value.BoundEndVolumeText}"
+                            FontSize="11"
+                            Margin="0,0,0,4"
+                            VerticalAlignment="Center" />
+                    </WrapPanel>
+
+                </Grid>
+            </ui:Card>
 
             <!-- ══════════════════════════════ -->
             <!-- 中央：素材ツリー               -->
@@ -514,13 +549,13 @@
 
         </Grid>
 
-        <!-- ── Row2：フッター ── -->
+        <!-- ── Row3：フッター ── -->
         <Border
-            Grid.Row="2"
-            Padding="0,10,0,0"
+            Grid.Row="3"
+            Padding="0,12,0,0"
             BorderThickness="0,1,0,0"
             BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
-            <Grid>
+            <Grid Margin="0,10,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -530,18 +565,32 @@
                 <!-- 左：戻るボタン -->
                 <ui:Button
                     Grid.Column="0"
-                    Content="戻る"
-                    Command="{Binding GoBackCommand}"
-                    VerticalAlignment="Center" />
+                    Height="48"
+                    MinWidth="140"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Left"
+                    Command="{Binding GoBackCommand}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <ui:SymbolIcon Symbol="ChevronLeft16" FontSize="18" Margin="0,0,6,0" />
+                        <TextBlock Text="戻る" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ui:Button>
 
                 <!-- 右：次へボタン -->
                 <ui:Button
                     Grid.Column="2"
-                    Content="次へ"
-                    Appearance="Primary"
+                    Height="48"
+                    MinWidth="140"
                     VerticalAlignment="Center"
+                    HorizontalAlignment="Right"
+                    Appearance="Primary"
                     IsEnabled="{Binding CanGoNext.Value}"
-                    Command="{Binding GoNextCommand}" />
+                    Command="{Binding GoNextCommand}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock Text="次へ" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <ui:SymbolIcon Symbol="ChevronRight16" FontSize="18" />
+                    </StackPanel>
+                </ui:Button>
             </Grid>
         </Border>
 

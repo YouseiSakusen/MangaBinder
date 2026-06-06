@@ -1,4 +1,5 @@
-﻿using Wpf.Ui;
+﻿using MangaBinder.Binding;
+using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
 

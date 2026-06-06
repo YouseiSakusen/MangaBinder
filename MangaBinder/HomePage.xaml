@@ -60,30 +60,7 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <!-- 製本開始カードスタイル：有効時のみ Hover 表現あり -->
-        <Style x:Key="StartBindingCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="14,10" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Opacity" Value="1.0" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Style.Triggers>
-                <!-- Hover: 背景色変化 + 境界線強調 -->
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                    <Setter Property="BorderThickness" Value="1" />
-                    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-                </Trigger>
-                <!-- 無効時: 控えめ表示・クリック不可 -->
-                <DataTrigger Binding="{Binding CanStartBinding.Value}" Value="False">
-                    <Setter Property="Opacity" Value="0.45" />
-                    <Setter Property="Cursor" Value="Arrow" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-    </Page.Resources>
+        </Page.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -107,9 +84,7 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,8">
 
                 <!-- 登録作品数サマリカード（情報表示のみ） -->
-                <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
-                        CornerRadius="6" Padding="14,10"
-                        Margin="0,0,16,0">
+                <ui:Card Margin="0,0,16,0" Padding="14,10">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <ui:SymbolIcon Symbol="Home24" FontSize="48"
                                        Foreground="{DynamicResource BindingAccentBrush}"
@@ -122,24 +97,47 @@
                             </TextBlock>
                         </StackPanel>
                     </StackPanel>
-                </Border>
+                </ui:Card>
 
                 <!-- 製本開始カード（操作可能） -->
-                <Border Style="{StaticResource StartBindingCardStyle}" Margin="340,0,0,0">
-                    <Border.InputBindings>
-                        <MouseBinding MouseAction="LeftClick" Command="{Binding StartBindingCommand}" />
-                    </Border.InputBindings>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <ui:SymbolIcon Symbol="BookArrowClockwise24" FontSize="48"
-                                       Foreground="{DynamicResource BindingAccentBrush}"
-                                       Margin="0,0,12,0" VerticalAlignment="Center" />
-                        <StackPanel>
-                            <TextBlock FontSize="11" Margin="0,0,0,2"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">製本開始</TextBlock>
-                            <TextBlock FontSize="16" FontWeight="SemiBold">製本を開始する</TextBlock>
+                <ui:Card Margin="340,0,0,0" Padding="0">
+                    <Button Command="{Binding StartBindingCommand}"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="14,10"
+                            Cursor="Hand">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="BookArrowClockwise24" FontSize="48"
+                                           Margin="0,0,12,0" VerticalAlignment="Center">
+                                <ui:SymbolIcon.Style>
+                                    <Style TargetType="ui:SymbolIcon">
+                                        <Setter Property="Foreground" Value="{DynamicResource BindingAccentBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanStartBinding.Value}" Value="False">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:SymbolIcon.Style>
+                            </ui:SymbolIcon>
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Opacity" Value="1.0" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CanStartBinding.Value}" Value="False">
+                                                <Setter Property="Opacity" Value="0.4" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock FontSize="11" Margin="0,0,0,2"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}">製本開始</TextBlock>
+                                <TextBlock FontSize="16" FontWeight="SemiBold">製本を開始する</TextBlock>
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </Border>
+                    </Button>
+                </ui:Card>
 
             </StackPanel>
         </Grid>
@@ -312,6 +310,10 @@
                                     Padding="0"
                                     VerticalAlignment="Top"
                                     ToolTip="操作メニュー"
+                                    Background="Transparent"
+                                    BorderBrush="Transparent"
+                                    MouseOverBackground="{DynamicResource ControlFillColorSecondaryBrush}"
+                                    MouseOverBorderBrush="Transparent"
                                     behaviors:OpenContextMenuOnClickBehavior.IsEnabled="True">
                                     <ui:Button.ContextMenu>
                                         <ContextMenu>

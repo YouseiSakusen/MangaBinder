@@ -173,9 +173,13 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	{
 		await this.saveCurrentViewModelAsync();
 
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var bindingStoreRepository = scope.ServiceProvider.GetRequiredService<BindingStoreRepository>();
+		var bindingQueueRepository = scope.ServiceProvider.GetRequiredService<BindingQueueRepository>();
+		await bindingQueueRepository.SaveAsync(bindingStoreRepository.GetAll());
+
 		// 作品一覧のスクロール位置を AppSettings へ反映してDB保存する
 		this.appSettings.SeriesListVerticalOffset.Value = this.homePageViewModel.SavedSeriesListVerticalOffset.Value;
-		using var scope = this.serviceScopeFactory.CreateScope();
 		var appSettingsService = scope.ServiceProvider.GetRequiredService<AppSettingsService>();
 		await appSettingsService.SaveAppSettingsAsync();
 	}
