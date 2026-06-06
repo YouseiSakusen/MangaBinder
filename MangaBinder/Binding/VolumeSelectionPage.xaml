@@ -28,6 +28,9 @@
         <!-- NodeType ごとのアイコン色 -->
         <converters:NodeTypeToColorConverter x:Key="NodeTypeToColorConverter" />
 
+        <!-- NodeType ごとの Filled 属性（実フォルダ vs 圧縮内フォルダを区別） -->
+        <converters:NodeTypeToFilledConverter x:Key="NodeTypeToFilledConverter" />
+
         <!-- TreeViewItem に IsExpanded をバインドするスタイル、行間を適度に広げる -->
         <Style TargetType="TreeViewItem">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded.Value, Mode=TwoWay}" />
@@ -65,6 +68,7 @@
                 <!-- アイコン -->
                 <ui:SymbolIcon
                     Symbol="{Binding NodeType, Converter={StaticResource NodeTypeToSymbolConverter}}"
+                    Filled="{Binding ., Converter={StaticResource NodeTypeToFilledConverter}}"
                     FontSize="16"
                     Foreground="{Binding NodeType, Converter={StaticResource NodeTypeToColorConverter}}"
                     VerticalAlignment="Center"
@@ -183,36 +187,9 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!-- 解析中サマリ（IsLoading=true の時のみ表示、完了後は消える） -->
-                    <Border
-                        Grid.Row="0"
-                        Margin="0,0,0,12"
-                        Padding="8,6"
-                        CornerRadius="4"
-                        Background="{DynamicResource ControlFillColorDefaultBrush}">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsLoading.Value}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <StackPanel>
-                            <!-- 素材サマリ -->
-                            <TextBlock
-                                Text="{Binding MaterialSummaryText.Value}"
-                                FontSize="11"
-                                LineHeight="18"
-                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
-                    </Border>
-
                     <!-- サムネイル（中央寄せ） -->
                     <Border
-                        Grid.Row="1"
+                        Grid.Row="0"
                         Width="160"
                         Height="224"
                         HorizontalAlignment="Center"
@@ -230,7 +207,7 @@
 
                     <!-- 巻数情報（中央寄せ） -->
                     <WrapPanel
-                        Grid.Row="2"
+                        Grid.Row="1"
                         HorizontalAlignment="Center"
                         Orientation="Horizontal"
                         Margin="0,0,0,4">
@@ -262,6 +239,82 @@
                             VerticalAlignment="Center" />
                     </WrapPanel>
 
+                    <!-- 素材内訳（解析完了後も表示） -->
+                    <Border
+                        Grid.Row="2"
+                        Margin="0,10,0,0"
+                        Padding="6,6"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="4">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- フォルダ：第1行 -->
+                            <ui:SymbolIcon
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                Symbol="Folder24"
+                                Filled="True"
+                                FontSize="14"
+                                Foreground="#C58A00"
+                                Margin="0,0,4,0"
+                                VerticalAlignment="Center" />
+                            <TextBlock
+                                Grid.Row="0"
+                                Grid.Column="1"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                VerticalAlignment="Center"
+                                Text="{Binding MaterialFolderCountText.Value, Mode=OneWay}" />
+
+                            <!-- 圧縮ファイル：第2行 -->
+                            <ui:SymbolIcon
+                                Grid.Row="1"
+                                Grid.Column="0"
+                                Symbol="Archive24"
+                                Filled="True"
+                                FontSize="14"
+                                Foreground="#6E87A8"
+                                Margin="0,2,4,0"
+                                VerticalAlignment="Center" />
+                            <TextBlock
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                VerticalAlignment="Center"
+                                Margin="0,2,0,0"
+                                Text="{Binding MaterialArchiveCountText.Value, Mode=OneWay}" />
+
+                            <!-- EPUB：第3行 -->
+                            <ui:SymbolIcon
+                                Grid.Row="2"
+                                Grid.Column="0"
+                                Symbol="Book24"
+                                Filled="True"
+                                FontSize="14"
+                                Foreground="#2E9F55"
+                                Margin="0,2,4,0"
+                                VerticalAlignment="Center" />
+                            <TextBlock
+                                Grid.Row="2"
+                                Grid.Column="1"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                VerticalAlignment="Center"
+                                Margin="0,2,0,0"
+                                Text="{Binding MaterialEpubCountText.Value, Mode=OneWay}" />
+                        </Grid>
+                    </Border>
+
                 </Grid>
             </ui:Card>
 
@@ -276,12 +329,13 @@
                     ItemTemplate="{StaticResource NodeTemplate}"
                     Background="Transparent"
                     BorderThickness="0"
-                    Padding="0,0,24,0"
+                    Padding="0,0,40,0"
                     VirtualizingPanel.IsVirtualizing="False"
                     ScrollViewer.VerticalScrollBarVisibility="Auto"
                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
                     behaviors:TreeViewSelectedItemBehavior.SelectedItem="{Binding SelectedNode.Value, Mode=TwoWay}"
                     behaviors:TreeViewSpaceKeyBehavior.IsEnabled="True"
+                    behaviors:TreeViewNodeClickToggleCheckBehavior.IsEnabled="True"
                     dd:DragDrop.IsDragSource="True"
                     dd:DragDrop.UseDefaultDragAdorner="True"
                     dd:DragDrop.UseDefaultEffectDataTemplate="True"
@@ -428,7 +482,8 @@
                         dd:DragDrop.IsDropTarget="True"
                         dd:DragDrop.DropHandler="{Binding DropHandler}"
                         dd:DragDrop.UseDefaultDragAdorner="True"
-                        dd:DragDrop.UseDefaultEffectDataTemplate="True">
+                        dd:DragDrop.UseDefaultEffectDataTemplate="True"
+                        behaviors:ListViewVolumeNumberTabNavigationBehavior.IsEnabled="True">
                         <ListView.InputBindings>
                             <KeyBinding Key="Delete" Command="{Binding RemoveSelectedQueueItemCommand}" />
                         </ListView.InputBindings>

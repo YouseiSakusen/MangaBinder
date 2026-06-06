@@ -143,6 +143,8 @@ public sealed partial class VolumeNumberExtractor
 		(RegexTitleSpaceNumberBeforeParen(), "TitleSpaceNumberBeforeParen"),
 		// タイトル末尾に数字が直結: 「斯く戦えり１」→「斯く戦えり1」(FormKC後)
 		(RegexTitleAttachedTrailingNumber(), "TitleAttachedTrailingNumber"),
+		// 末尾「数字 + 英字サフィックス」: Gran Familia_02s → 2 / Title 05w → 5
+		(RegexTrailingNumberWithSuffix(), "TrailingNumberWithSuffix"),
 		// 先頭が数字のみ: "01" "1" "1.5" など
 		(RegexLeadingNumber(), "数字のみ"),
 	];
@@ -259,6 +261,15 @@ public sealed partial class VolumeNumberExtractor
 	/// </summary>
 	[GeneratedRegex(@"(?<=[^\d\s])(?<num>\d+(?:[._]\d+)?)$")]
 	private static partial Regex RegexTitleAttachedTrailingNumber();
+
+	/// <summary>
+	/// 末尾「数字 + 英字サフィックス」パターン。
+	/// 例: Gran Familia_02s → 2 / Title 05w → 5 / v07s → 7
+	/// 数字の直後に英字のみが続き文字列末尾に到達するパターンを対象とします。
+	/// 英字サフィックスの意味は解釈しません。
+	/// </summary>
+	[GeneratedRegex(@"(?<num>\d+(?:[._]\d+)?)(?=[A-Za-z]+$)")]
+	private static partial Regex RegexTrailingNumberWithSuffix();
 
 	[GeneratedRegex(@"^(?<num>\d+(?:[._]\d+)?)")]
 	private static partial Regex RegexLeadingNumber();

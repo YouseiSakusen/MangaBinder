@@ -7,7 +7,8 @@ namespace MangaBinder.Converters;
 
 /// <summary>
 /// <see cref="MaterialVolumeNodeType"/> をアイコン色（ブラシ）に変換するコンバーターです。
-/// フォルダ系は黄/橙系、圧縮ファイル系は青/紫系で色分けされます。
+/// 実フォルダ / EPUB は主役として濃い色、圧縮ファイル内フォルダは見やすい色、
+/// 圧縮ファイル本体は控えめな色で表現します。
 /// </summary>
 [ValueConversion(typeof(MaterialVolumeNodeType), typeof(Brush))]
 public class NodeTypeToColorConverter : IValueConverter
@@ -20,13 +21,15 @@ public class NodeTypeToColorConverter : IValueConverter
 
 		return nodeType switch
 		{
-			// フォルダ系：黄/橙系（ライトテーマに馴染む控えめな色）
-			MaterialVolumeNodeType.Root => new SolidColorBrush(Color.FromRgb(0xD4, 0xA5, 0x2A)), // 黄土色
-			MaterialVolumeNodeType.Folder => new SolidColorBrush(Color.FromRgb(0xE8, 0xB8, 0x3D)), // 明るい黄色
+			// 実フォルダ：主役、濃い黄土色
+			MaterialVolumeNodeType.Root => new SolidColorBrush(Color.FromRgb(0xC5, 0x8A, 0x00)), // #C58A00
+			// 圧縮ファイル内フォルダ：選択対象、黄土色系
+			MaterialVolumeNodeType.Folder => new SolidColorBrush(Color.FromRgb(0xB8, 0x86, 0x0B)), // #B8860B
 
-			// 圧縮ファイル系：青/紫系（ライトテーマに馴染む控えめな色）
-			MaterialVolumeNodeType.Archive => new SolidColorBrush(Color.FromRgb(0x2E, 0x8B, 0xBF)), // スチールブルー
-			MaterialVolumeNodeType.Epub => new SolidColorBrush(Color.FromRgb(0x5B, 0x7C, 0xB8)), // 紫青
+			// 圧縮ファイル本体：コンテナ、控えめな青灰色
+			MaterialVolumeNodeType.Archive => new SolidColorBrush(Color.FromRgb(0x6E, 0x87, 0xA8)), // #6E87A8
+			// EPUB：主役、緑系
+			MaterialVolumeNodeType.Epub => new SolidColorBrush(Color.FromRgb(0x2E, 0x9F, 0x55)), // #2E9F55
 
 			_ => Brushes.Gray,
 		};

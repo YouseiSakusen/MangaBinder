@@ -19,7 +19,7 @@ public class NodeTypeToSymbolConverter : IValueConverter
 				MaterialVolumeNodeType.Root => "Folder24",
 				MaterialVolumeNodeType.Folder => "FolderOpen24",
 				MaterialVolumeNodeType.Archive => "Archive24",
-				MaterialVolumeNodeType.Epub => "Box24",
+				MaterialVolumeNodeType.Epub => "Book24",
 				_ => "Folder24",
 			}
 			: "Folder24";

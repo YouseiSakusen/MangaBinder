@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.IO;
 using Wpf.Ui;
 using MangaBinder.Handlers;
+using Wpf.Ui.Controls;
 
 namespace MangaBinder.Binding;
 
@@ -47,6 +48,15 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
 
     /// <summary>素材サマリ文字列を取得します。</summary>
     public BindableReactiveProperty<string> MaterialSummaryText { get; }
+
+    /// <summary>素材内訳：フォルダ数を取得します。</summary>
+    public BindableReactiveProperty<string> MaterialFolderCountText { get; }
+
+    /// <summary>素材内訳：圧縮ファイル数とサイズを取得します。</summary>
+    public BindableReactiveProperty<string> MaterialArchiveCountText { get; }
+
+    /// <summary>素材内訳：EPUB数を取得します。</summary>
+    public BindableReactiveProperty<string> MaterialEpubCountText { get; }
 
     /// <summary>選択中の巻サマリ文字列を取得します。</summary>
     public BindableReactiveProperty<string> SelectedVolumeSummaryText { get; }
@@ -127,6 +137,12 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             .AddTo(ref this.disposableBag);
         this.MaterialSummaryText = new BindableReactiveProperty<string>(string.Empty)
             .AddTo(ref this.disposableBag);
+        this.MaterialFolderCountText = new BindableReactiveProperty<string>(string.Empty)
+            .AddTo(ref this.disposableBag);
+        this.MaterialArchiveCountText = new BindableReactiveProperty<string>(string.Empty)
+            .AddTo(ref this.disposableBag);
+        this.MaterialEpubCountText = new BindableReactiveProperty<string>(string.Empty)
+            .AddTo(ref this.disposableBag);
 
         this.SelectedVolumeSummaryText = new BindableReactiveProperty<string>(string.Empty)
             .AddTo(ref this.disposableBag);
@@ -182,6 +198,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         this.rootNodes.Clear();
         this.bindingQueueItems.Clear();
         this.MaterialSummaryText.Value = string.Empty;
+        this.MaterialFolderCountText.Value = string.Empty;
+        this.MaterialArchiveCountText.Value = string.Empty;
+        this.MaterialEpubCountText.Value = string.Empty;
         this.SelectedVolumeSummaryText.Value = string.Empty;
         this.CanGoNext.Value = false;
         this.hasManualOrder = false;
@@ -207,7 +226,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         try
         {
             // ── 軽量サマリ走査（archive を開かない）──
-            this.MaterialSummaryText.Value = await Task.Run(() =>
+            await Task.Run(() =>
             {
                 int folderCount = 0;
                 int archiveCount = 0;
@@ -239,13 +258,20 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
                     }
                 }
 
-                var sizeText = archiveTotalBytes == 0
+                // 個別プロパティを設定
+                this.MaterialFolderCountText.Value = $"フォルダ：{folderCount}";
+
+                var archiveSizeText = archiveTotalBytes == 0
                     ? string.Empty
                     : archiveTotalBytes >= 1024L * 1024 * 1024
                         ? $"（{archiveTotalBytes / (1024.0 * 1024 * 1024):F1} GB）"
                         : $"（{archiveTotalBytes / (1024.0 * 1024):F1} MB）";
+                this.MaterialArchiveCountText.Value = $"圧縮ファイル：{archiveCount}{archiveSizeText}";
 
-                return $"フォルダ：{folderCount}件\n圧縮ファイル：{archiveCount}件{sizeText}\nEPUB：{epubCount}件";
+                this.MaterialEpubCountText.Value = $"EPUB：{epubCount}";
+
+                // MaterialSummaryText は互換性のため保持
+                this.MaterialSummaryText.Value = $"フォルダ：{folderCount}\n圧縮ファイル：{archiveCount}{archiveSizeText}\nEPUB：{epubCount}";
             });
 
             // ── 本解析（バックグラウンド）──
@@ -434,7 +460,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         {
             var result = await this.showWarningDialogAsync(
                 "抜け巻があります。\nこのまま続行しますか？");
-            if (result != Wpf.Ui.Controls.ContentDialogResult.Primary)
+            if (result != ContentDialogResult.Primary)
                 return;
         }
 
@@ -468,7 +494,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     /// </summary>
     private async Task showErrorDialogAsync(string message)
     {
-        var dialog = new Wpf.Ui.Controls.ContentDialog
+        var dialog = new ContentDialog
         {
             Title = "エラー",
             Content = message,
@@ -480,9 +506,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     /// <summary>
     /// 確認警告用 ContentDialog を表示します。
     /// </summary>
-    private async Task<Wpf.Ui.Controls.ContentDialogResult> showWarningDialogAsync(string message)
+    private async Task<ContentDialogResult> showWarningDialogAsync(string message)
     {
-        var dialog = new Wpf.Ui.Controls.ContentDialog
+        var dialog = new ContentDialog
         {
             Title = "確認",
             Content = message,

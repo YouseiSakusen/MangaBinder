@@ -72,9 +72,14 @@
 		</Grid>
 
 		<Grid Grid.Row="1">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="1*" />
+				<ColumnDefinition Width="4*" />
+				<ColumnDefinition Width="1*" />
+			</Grid.ColumnDefinitions>
 
-			<!-- 作品一覧 ListView（1件以上のとき表示） -->
-			<Grid Visibility="{Binding IsNotEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
+			<!-- 作品一覧または Empty State -->
+			<Grid Grid.Column="1">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="1*" />
 					<ColumnDefinition Width="4*" />
@@ -256,7 +261,9 @@
 											   HorizontalAlignment="Center"
 											   Background="Transparent"
 											   BorderBrush="Transparent"
-											   ToolTip="詳細を表示">
+											   ToolTip="製本開始"
+											   Command="{Binding DataContext.NavigateToVolumeSelectionCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=Page}}"
+											   CommandParameter="{Binding}">
 										<TextBlock Text="▶"
 												   FontSize="12"
 												   Opacity="0.6"
@@ -275,7 +282,8 @@
 			</Grid>
 
 			<!-- Empty State（0件のとき表示） -->
-			<Grid Visibility="{Binding IsEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
+			<Grid Visibility="{Binding IsEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}"
+				  Grid.Column="1">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="1*" />
 					<ColumnDefinition Width="4*" />
@@ -309,7 +317,29 @@
 
 				</StackPanel>
 			</Grid>
+			<!-- 関連操作カード（右下） -->
+			<ui:Card Grid.Column="2"
+					 HorizontalAlignment="Right"
+					 VerticalAlignment="Bottom"
+					 Margin="0,0,16,16"
+					 Padding="12,10"
+					 Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+					 Width="130">
+				<StackPanel Orientation="Vertical" MinWidth="100">
+					<TextBlock Text="関連操作"
+					FontSize="10"
+					Margin="0,0,0,6"
+					Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+					<ui:HyperlinkButton Content="製本待ちをクリア"
+							FontSize="12"
+							Padding="0"
+							Margin="0"
+							Command="{Binding ClearBindingQueueCommand}" />
+				</StackPanel>
+			</ui:Card>
 
 		</Grid>
-	</Grid>
+
+</Grid>
 </Page>

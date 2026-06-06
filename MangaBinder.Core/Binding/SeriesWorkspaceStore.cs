@@ -14,6 +14,9 @@ public class SeriesWorkspaceStore : IDisposable
     /// <summary>現在選択中の作品一覧を取得します。</summary>
     public List<MangaSeries> SelectedSeries { get; } = [];
 
+    /// <summary>製本工程で現在処理対象とする単一作品を取得します。</summary>
+    public MangaSeries? BindingTarget { get; private set; }
+
     /// <summary>VolumeSelectionPage で確定した巻の一覧を取得します。</summary>
     public List<BindingSourceVolume> SelectedMaterialVolumes { get; } = [];
 
@@ -36,6 +39,23 @@ public class SeriesWorkspaceStore : IDisposable
     {
         this.RecreateWorkFolder = new BindableReactiveProperty<bool>(false)
             .AddTo(ref this.disposableBag);
+    }
+
+    /// <summary>
+    /// 製本対象作品を設定します。
+    /// </summary>
+    /// <param name="series">製本対象作品。</param>
+    public void SetBindingTarget(MangaSeries series)
+    {
+        this.BindingTarget = series;
+    }
+
+    /// <summary>
+    /// 製本対象作品をクリアします。
+    /// </summary>
+    public void ClearBindingTarget()
+    {
+        this.BindingTarget = null;
     }
 
     /// <summary>
