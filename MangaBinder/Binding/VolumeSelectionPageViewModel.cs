@@ -9,6 +9,7 @@ using System.IO;
 using Wpf.Ui;
 using MangaBinder.Handlers;
 using Wpf.Ui.Controls;
+using MangaBinder.Helpers;
 
 namespace MangaBinder.Binding;
 
@@ -426,7 +427,8 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         // ① ワークフォルダ未設定 / 不存在
         if (!this.appSettings.HasValidWorkFolder)
         {
-            await this.showErrorDialogAsync(
+            await ContentDialogHelper.ShowErrorAsync(
+                this.contentDialogService,
                 "ワークフォルダが設定されていないか、存在しません。\n設定画面で確認してください。");
             return;
         }
@@ -434,14 +436,18 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         // ② 製本対象0件
         if (this.bindingQueueItems.Count == 0)
         {
-            await this.showErrorDialogAsync("製本対象が選択されていません。");
+            await ContentDialogHelper.ShowErrorAsync(
+                this.contentDialogService,
+                "製本対象が選択されていません。");
             return;
         }
 
         // ② 巻番号未入力
         if (this.bindingQueueItems.Any(q => q.VolumeNumber.Value is null))
         {
-            await this.showErrorDialogAsync("巻番号が未入力の項目があります。");
+            await ContentDialogHelper.ShowErrorAsync(
+                this.contentDialogService,
+                "巻番号が未入力の項目があります。");
             return;
         }
 
@@ -449,7 +455,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         var numbers = this.bindingQueueItems.Select(q => q.VolumeNumber.Value!.Value).ToList();
         if (numbers.Count != numbers.Distinct().Count())
         {
-            await this.showErrorDialogAsync("巻番号が重複しています。");
+            await ContentDialogHelper.ShowErrorAsync(
+                this.contentDialogService,
+                "巻番号が重複しています。");
             return;
         }
 
@@ -458,9 +466,12 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         var hasMissing = sorted.Zip(sorted.Skip(1), (a, b) => b - a).Any(diff => diff > 1);
         if (hasMissing)
         {
-            var result = await this.showWarningDialogAsync(
-                "抜け巻があります。\nこのまま続行しますか？");
-            if (result != ContentDialogResult.Primary)
+            var confirmed = await ContentDialogHelper.ShowConfirmAsync(
+                this.contentDialogService,
+                "確認",
+                "抜け巻があります。\nこのまま続行しますか？",
+                "続行");
+            if (!confirmed)
                 return;
         }
 
@@ -487,35 +498,6 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         }
 
         this.navigationService.NavigateWithHierarchy(typeof(SeriesInspectionPage));
-    }
-
-    /// <summary>
-    /// ブロックエラー用 ContentDialog を表示します。
-    /// </summary>
-    private async Task showErrorDialogAsync(string message)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = "エラー",
-            Content = message,
-            CloseButtonText = "OK",
-        };
-        await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
-    }
-
-    /// <summary>
-    /// 確認警告用 ContentDialog を表示します。
-    /// </summary>
-    private async Task<ContentDialogResult> showWarningDialogAsync(string message)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = "確認",
-            Content = message,
-            PrimaryButtonText = "続行",
-            SecondaryButtonText = "戻る",
-        };
-        return await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
     }
 
     /// <summary>

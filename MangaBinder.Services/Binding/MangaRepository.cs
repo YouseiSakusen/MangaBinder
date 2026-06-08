@@ -39,6 +39,7 @@ public class MangaRepository
                  , Description
                  , SeriesCompleted
                  , IsOwnedCompleted
+                 , IsSourceMissing
                  , StartVolume
                  , EndVolume
                  , BoundEndVolume

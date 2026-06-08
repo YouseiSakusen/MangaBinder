@@ -32,6 +32,9 @@ public class MangaSeries : INotifyPropertyChanged
     /// <summary>素材フォルダ名から判定される全巻所持フラグです。</summary>
     public bool IsOwnedCompleted { get; init; }
 
+    /// <summary>素材フォルダが見つからなくなった作品として扱うかどうかを示します。</summary>
+    public bool IsSourceMissing { get; set; }
+
     /// <summary>開始巻です。</summary>
     public int StartVolume { get; init; }
 

@@ -68,8 +68,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         try
         {
             seriesId = await this.UpsertMaterialSeriesAsync(conn, tx, series);
-            await this.DeleteSourcesByRoleAsync(conn, tx, seriesId, new[] { (int)FolderRole.Material });
-            await this.InsertSourcesAsync(conn, tx, seriesId, series.Sources);
+            await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Material });
             tx.Commit();
         }
         catch
@@ -97,8 +96,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         try
         {
             seriesId = await this.UpsertBindingSeriesAsync(conn, tx, series);
-            await this.DeleteSourcesByRoleAsync(conn, tx, seriesId, new[] { (int)FolderRole.Binding, (int)FolderRole.DefaultBinding });
-            await this.InsertSourcesAsync(conn, tx, seriesId, series.Sources);
+            await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Binding, (int)FolderRole.DefaultBinding });
             tx.Commit();
         }
         catch
@@ -123,6 +121,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, ShortTitle ");
         sql.AppendLine(" 	, SeriesCompleted ");
         sql.AppendLine(" 	, IsOwnedCompleted ");
+        sql.AppendLine(" 	, IsSourceMissing ");
         sql.AppendLine(" 	, StartVolume ");
         sql.AppendLine(" 	, EndVolume ");
         sql.AppendLine(" 	, OwnedMaxVolume ");
@@ -133,6 +132,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, :ShortTitle ");
         sql.AppendLine(" 	, :SeriesCompleted ");
         sql.AppendLine(" 	, :IsOwnedCompleted ");
+        sql.AppendLine(" 	, 0 ");
         sql.AppendLine(" 	, :StartVolume ");
         sql.AppendLine(" 	, :EndVolume ");
         sql.AppendLine(" 	, :OwnedMaxVolume ");
@@ -146,6 +146,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, ShortTitle        = excluded.ShortTitle ");
         sql.AppendLine(" 	, SeriesCompleted   = excluded.SeriesCompleted ");
         sql.AppendLine(" 	, IsOwnedCompleted  = excluded.IsOwnedCompleted ");
+        sql.AppendLine(" 	, IsSourceMissing   = 0 ");
         sql.AppendLine(" 	, StartVolume       = excluded.StartVolume ");
         sql.AppendLine(" 	, EndVolume         = excluded.EndVolume ");
         sql.AppendLine(" 	, OwnedMaxVolume    = excluded.OwnedMaxVolume ");
@@ -266,6 +267,86 @@ public class FolderScannerRepository : IFolderScannerRepository
     }
 
     /// <summary>
+    /// MangaSources を差分同期します。
+    /// 既存の MangaSources と スキャン結果を比較し、追加・削除を実施します。
+    /// SourceId を維持するため、DELETE/INSERT ではなく差分同期で対応します。
+    /// </summary>
+    /// <param name="conn">DB接続。</param>
+    /// <param name="tx">トランザクション。</param>
+    /// <param name="seriesId">対象の作品ID。</param>
+    /// <param name="newSources">スキャン結果の Sources。</param>
+    /// <param name="roles">対象とする役割（Material等）。</param>
+    private async ValueTask SyncSourcesAsync(SQLiteConnection conn, SQLiteTransaction tx, long seriesId, List<MangaSource> newSources, int[] roles)
+    {
+        // DB から既存の MangaSources を取得
+        var sql = new StringBuilder();
+        sql.AppendLine(" SELECT ");
+        sql.AppendLine(" 	  SourceId ");
+        sql.AppendLine(" 	, SeriesId ");
+        sql.AppendLine(" 	, Path ");
+        sql.AppendLine(" 	, Role ");
+        sql.AppendLine(" FROM MangaSources ");
+        sql.AppendLine(" WHERE ");
+        sql.AppendLine(" 	SeriesId = :SeriesId ");
+        sql.AppendLine(" 	AND Role IN :Roles; ");
+
+        var existingSourceRows = (await conn.QueryAsync(
+            sql.ToString(),
+            new { SeriesId = seriesId, Roles = roles },
+            tx)).ToList();
+
+        // 既存 Sources を (SeriesId, Role, Path) で Dictionary 化
+        // Value には SourceId の情報を保持
+        var existingDict = new Dictionary<(long, int, string), long>();
+        foreach (var row in existingSourceRows)
+        {
+            var sourceId = (long)row.SourceId;
+            var existingSeriesId = (long)row.SeriesId;
+            var existingRole = (int)row.Role;
+            var existingPath = (string)row.Path;
+            existingDict.Add((existingSeriesId, existingRole, existingPath), sourceId);
+        }
+
+        // スキャン結果を走査
+        foreach (var newSource in newSources)
+        {
+            var key = (seriesId, (int)newSource.Role, newSource.Path);
+            if (existingDict.ContainsKey(key))
+            {
+                // 既存 → Dictionary から除去（削除対象外）
+                existingDict.Remove(key);
+            }
+            else
+            {
+                // 新規 → INSERT
+                var insertSql = new StringBuilder();
+                insertSql.AppendLine(" INSERT INTO MangaSources ( ");
+                insertSql.AppendLine(" 	  SeriesId ");
+                insertSql.AppendLine(" 	, Path ");
+                insertSql.AppendLine(" 	, Role ");
+                insertSql.AppendLine(" ) VALUES ( ");
+                insertSql.AppendLine(" 	  :SeriesId ");
+                insertSql.AppendLine(" 	, :Path ");
+                insertSql.AppendLine(" 	, :Role ");
+                insertSql.AppendLine(" ); ");
+
+                await conn.ExecuteAsync(insertSql.ToString(), new { SeriesId = seriesId, newSource.Path, newSource.Role }, tx);
+            }
+        }
+
+        // Dictionary に残った要素 → DELETE
+        if (existingDict.Count > 0)
+        {
+            var sourceIdsToDelete = existingDict.Values.ToList();
+            var deleteSql = new StringBuilder();
+            deleteSql.AppendLine(" DELETE FROM MangaSources ");
+            deleteSql.AppendLine(" WHERE SourceId IN :SourceIds; ");
+
+            await conn.ExecuteAsync(deleteSql.ToString(), new { SourceIds = sourceIdsToDelete }, tx);
+        }
+    }
+
+    /// <summary>
     /// 指定された SeriesId に対応する MangaSeries と MangaSources を取得します。
     /// 保存後のDB最新状態を再構築するために使用します。
     /// </summary>
@@ -283,6 +364,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         seriesSql.AppendLine(" 	, Description ");
         seriesSql.AppendLine(" 	, SeriesCompleted ");
         seriesSql.AppendLine(" 	, IsOwnedCompleted ");
+        seriesSql.AppendLine(" 	, IsSourceMissing ");
         seriesSql.AppendLine(" 	, StartVolume ");
         seriesSql.AppendLine(" 	, EndVolume ");
         seriesSql.AppendLine(" 	, BoundEndVolume ");

@@ -1,3 +1,4 @@
+using System.IO;
 using MangaBinder;
 using MangaBinder.Jobs.Contexts;
 using MangaBinder.Settings;
@@ -63,6 +64,7 @@ public class MaterialFolderScanner : FolderScannerBase
 
     /// <summary>
     /// ルートパスを走査し、各項目をパースして即座に保存します。
+    /// DriveInfo.IsReady == false の場合はスキップし、Warning ログを出力します。
     /// </summary>
     /// <param name="rootPaths">スキャン対象のルートフォルダパス一覧。</param>
     /// <param name="ct">キャンセルトークン。</param>
@@ -74,6 +76,14 @@ public class MaterialFolderScanner : FolderScannerBase
 
         foreach (var rootPath in rootPaths)
         {
+            // ドライブの準備状態を確認
+            var drive = new DriveInfo(rootPath);
+            if (!drive.IsReady)
+            {
+                this.logger.ZLogWarning($"素材ルートを利用できないためスキップ: {rootPath}");
+                continue;
+            }
+
             this.logger.ZLogInformation($"ルートパス走査: {rootPath}");
 
             foreach (var item in this.GetScanItems(rootPath))

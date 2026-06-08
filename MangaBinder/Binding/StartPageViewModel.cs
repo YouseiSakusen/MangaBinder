@@ -2,6 +2,7 @@ using ObservableCollections;
 using R3;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
+using MangaBinder.Helpers;
 
 namespace MangaBinder.Binding;
 
@@ -137,29 +138,18 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// </summary>
 	private async void executeClearBindingQueueAsync()
 	{
-		var result = await this.showConfirmationDialogAsync();
-		if (result != ContentDialogResult.Primary)
+		var confirmed = await ContentDialogHelper.ShowConfirmAsync(
+			this.contentDialogService,
+			"製本待ちをクリア",
+			"製本待ちの作品をすべてクリアしますか？",
+			"クリア");
+		if (!confirmed)
 			return;
 
 		// 全件削除
 		this.bindingQueueDispatcher.ReplaceAll(new List<BindingSeries>());
 		this.series.Clear();
 		this.updateState();
-	}
-
-	/// <summary>
-	/// 製本待ち一覧クリアの確認ダイアログを表示します。
-	/// </summary>
-	private async Task<ContentDialogResult> showConfirmationDialogAsync()
-	{
-		var dialog = new ContentDialog
-		{
-			Title = "確認",
-			Content = "製本待ちの作品をすべてクリアしますか？",
-			PrimaryButtonText = "クリア",
-			SecondaryButtonText = "戻る",
-		};
-		return await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
 	}
 
 	/// <inheritdoc/>
