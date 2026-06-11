@@ -74,6 +74,24 @@
 		/// <summary>エラー。</summary>
 		Error = 4,
 	}
+
+	/// <summary>
+	/// 素材フォルダ解析の結果ステータスを表す列挙型です。
+	/// </summary>
+	public enum MaterialFolderStatus
+	{
+		/// <summary>成功。</summary>
+		Success = 0,
+
+		/// <summary>Material ロールの所在情報が存在しない。</summary>
+		NoMaterialSource = 1,
+
+		/// <summary>所在パスが見つからない。</summary>
+		MaterialSourceNotFound = 2,
+
+		/// <summary>ドライブの準備ができていない。</summary>
+		DriveNotReady = 3,
+	}
 }
 
 namespace MangaBinder.Jobs
@@ -112,6 +130,9 @@ namespace MangaBinder.Jobs
 
 		/// <summary>Google Books API を使用した書誌情報インポート</summary>
 		GoogleBooksImport = 3,
+
+		/// <summary>アーカイブ内部構造スキャン（素材フォルダ内のアーカイブをスキャン）</summary>
+		MaterialArchiveScan = 4,
 	}
 
 	/// <summary>

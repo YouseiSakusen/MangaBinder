@@ -1,8 +1,9 @@
 using System.Data.SQLite;
 using System.IO;
-using MangaBinder.Binding;
-using MangaBinder.Binding.Inspection;
-using MangaBinder.Binding.Prepress;
+using MangaBinder.Bindings;
+using MangaBinder.Bindings.Inspection;
+using MangaBinder.Bindings.Prepress;
+using MangaBinder.Bindings;
 using MangaBinder.Converters;
 using MangaBinder.Jobs;
 using MangaBinder.Settings;
@@ -90,6 +91,8 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<WorkFolderBuilder>();
 		services.AddScoped<BindingVolumeTextFormatter>();
 		services.AddScoped<BindingZipFileNameFormatter>();
+		services.AddScoped<MaterialArchiveExtractor>();
+		services.AddScoped<SeriesMaterialFolderLoader>();
 
 		return services;
 	}

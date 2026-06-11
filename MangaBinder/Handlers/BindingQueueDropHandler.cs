@@ -1,5 +1,6 @@
 using GongSolutions.Wpf.DragDrop;
-using MangaBinder.Binding;
+using MangaBinder.Bindings;
+using MangaBinder.Bindings;
 using ObservableCollections;
 
 namespace MangaBinder.Handlers;
@@ -110,8 +111,8 @@ public sealed class BindingQueueDropHandler : DefaultDropHandler
 		if (dropInfo.Data is not MaterialVolumeNode node)
 			return false;
 
-		return node.NodeType != MaterialVolumeNodeType.Root
-			&& node.NodeType != MaterialVolumeNodeType.Archive
+		return node.NodeType != MaterialItemType.Root
+			&& node.NodeType != MaterialItemType.Archive
 			&& node.CanCheck.Value;
 	}
 }

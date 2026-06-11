@@ -1,25 +1,26 @@
 using System.Globalization;
 using System.Windows.Data;
-using MangaBinder.Binding;
+using MangaBinder.Bindings;
+using MangaBinder.Bindings;
 
 namespace MangaBinder.Converters;
 
 /// <summary>
-/// <see cref="MaterialVolumeNodeType"/> を Wpf.Ui SymbolIcon の Symbol 名に変換するコンバーターです。
+/// <see cref="MaterialItemType"/> を Wpf.Ui SymbolIcon の Symbol 名に変換するコンバーターです。
 /// </summary>
-[ValueConversion(typeof(MaterialVolumeNodeType), typeof(string))]
+[ValueConversion(typeof(MaterialItemType), typeof(string))]
 public class NodeTypeToSymbolConverter : IValueConverter
 {
 	/// <inheritdoc/>
 	public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
 	{
-		return value is MaterialVolumeNodeType nodeType
+		return value is MaterialItemType nodeType
 			? nodeType switch
 			{
-				MaterialVolumeNodeType.Root => "Folder24",
-				MaterialVolumeNodeType.Folder => "FolderOpen24",
-				MaterialVolumeNodeType.Archive => "Archive24",
-				MaterialVolumeNodeType.Epub => "Book24",
+				MaterialItemType.Root => "Folder24",
+				MaterialItemType.Folder => "FolderOpen24",
+				MaterialItemType.Archive => "Archive24",
+				MaterialItemType.Epub => "Book24",
 				_ => "Folder24",
 			}
 			: "Folder24";

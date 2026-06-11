@@ -5,19 +5,19 @@
     <Compile Update="HomePage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Binding\Prepress\SpreadSplitterPage.xaml.cs">
+    <Compile Update="Bindings\Prepress\SpreadSplitterPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Binding\Prepress\VolumeThumbnailsPage.xaml.cs">
+    <Compile Update="Bindings\Prepress\VolumeThumbnailsPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Binding\SeriesInspectionPage.xaml.cs">
+    <Compile Update="Bindings\SeriesInspectionPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Binding\StartPage.xaml.cs">
+    <Compile Update="Bindings\StartPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Binding\VolumeSelectionPage.xaml.cs">
+    <Compile Update="Bindings\VolumeSelectionPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Settings\SettingsPage.xaml.cs">

@@ -66,8 +66,10 @@ public class LargeThumbnailRepository
 
 		var sourcesSql = new StringBuilder();
 		sourcesSql.AppendLine(" SELECT ");
-		sourcesSql.AppendLine(" 	  Role ");
+		sourcesSql.AppendLine(" 	  SourceId ");
+		sourcesSql.AppendLine(" 	, SeriesId ");
 		sourcesSql.AppendLine(" 	, Path ");
+		sourcesSql.AppendLine(" 	, Role ");
 		sourcesSql.AppendLine(" FROM ");
 		sourcesSql.AppendLine(" 	MangaSources ");
 		sourcesSql.AppendLine(" WHERE ");

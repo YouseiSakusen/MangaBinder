@@ -1,5 +1,5 @@
 using HalationGhost.Wpf.Ui.Navigation;
-using MangaBinder.Binding;
+using MangaBinder.Bindings;
 using MangaBinder.Bindings;
 using MangaBinder.Settings;
 using MangaBinder.Tags;

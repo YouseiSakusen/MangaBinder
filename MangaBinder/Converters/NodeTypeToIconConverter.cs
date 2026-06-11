@@ -1,25 +1,26 @@
 using System.Globalization;
 using System.Windows.Data;
-using MangaBinder.Binding;
+using MangaBinder.Bindings;
+using MangaBinder.Bindings;
 
 namespace MangaBinder.Converters;
 
 /// <summary>
-/// <see cref="MaterialVolumeNodeType"/> を表示用アイコン文字列に変換するコンバーターです。
+/// <see cref="MaterialItemType"/> を表示用アイコン文字列に変換するコンバーターです。
 /// </summary>
-[ValueConversion(typeof(MaterialVolumeNodeType), typeof(string))]
+[ValueConversion(typeof(MaterialItemType), typeof(string))]
 public class NodeTypeToIconConverter : IValueConverter
 {
     /// <inheritdoc/>
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is MaterialVolumeNodeType nodeType
+        return value is MaterialItemType nodeType
             ? nodeType switch
             {
-                MaterialVolumeNodeType.Root => "📁",
-                MaterialVolumeNodeType.Folder => "📂",
-                MaterialVolumeNodeType.Archive => "📦",
-                MaterialVolumeNodeType.Epub => "📖",
+                MaterialItemType.Root => "📁",
+                MaterialItemType.Folder => "📂",
+                MaterialItemType.Archive => "📦",
+                MaterialItemType.Epub => "📖",
                 _ => "📄",
             }
             : "📄";

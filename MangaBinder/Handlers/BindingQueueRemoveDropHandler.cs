@@ -1,5 +1,5 @@
 using GongSolutions.Wpf.DragDrop;
-using MangaBinder.Binding;
+using MangaBinder.Bindings;
 
 namespace MangaBinder.Handlers;
 

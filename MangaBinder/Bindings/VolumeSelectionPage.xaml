@@ -1,0 +1,654 @@
+﻿<Page x:Class="MangaBinder.Bindings.VolumeSelectionPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:local="clr-namespace:MangaBinder.Bindings"
+      xmlns:core="clr-namespace:MangaBinder.Bindings;assembly=MangaBinder.Core"
+      xmlns:shared="clr-namespace:MangaBinder.Bindings;assembly=MangaBinder.Shared"
+      xmlns:dd="urn:gong-wpf-dragdrop"
+      xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
+      xmlns:converters="clr-namespace:MangaBinder.Converters"
+      xmlns:extensions="clr-namespace:MangaBinder.Extensions"
+      mc:Ignorable="d"
+      d:DesignHeight="800" d:DesignWidth="1200"
+      Title="巻選択"
+      ui:NavigationView.HeaderContent="巻選択"
+      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+      ScrollViewer.CanContentScroll="False">
+
+    <Page.Resources>
+
+        <!-- NodeType ごとのアイコン文字 (Segoe UI Emoji) -->
+        <converters:NodeTypeToIconConverter x:Key="NodeTypeToIconConverter" />
+
+        <!-- NodeType ごとの SymbolIcon Symbol 名 -->
+        <converters:NodeTypeToSymbolConverter x:Key="NodeTypeToSymbolConverter" />
+
+        <!-- NodeType ごとのアイコン色 -->
+        <converters:NodeTypeToColorConverter x:Key="NodeTypeToColorConverter" />
+
+        <!-- NodeType ごとの Filled 属性（実フォルダ vs 圧縮内フォルダを区別） -->
+        <converters:NodeTypeToFilledConverter x:Key="NodeTypeToFilledConverter" />
+
+        <!-- TreeViewItem に IsExpanded をバインドするスタイル、行間を適度に広げる -->
+        <Style TargetType="TreeViewItem">
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded.Value, Mode=TwoWay}" />
+            <Setter Property="Padding" Value="4,3" />
+			<Setter Property="MinHeight" Value="26" />
+			<Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+
+        <!-- ノード表示テンプレート -->
+        <HierarchicalDataTemplate x:Key="NodeTemplate"
+                                  DataType="{x:Type core:MaterialVolumeNode}"
+                                  ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
+                <!-- 右クリックメニュー：選択不可ノードを一時的に選択可能にする -->
+                <StackPanel.ContextMenu>
+                    <ContextMenu>
+                        <ContextMenu.Style>
+                            <Style TargetType="ContextMenu">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PlacementTarget.DataContext.CanCheck.Value,
+                                                                    RelativeSource={RelativeSource Self}}"
+                                                 Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContextMenu.Style>
+                        <MenuItem
+                            Header="選択可能にする"
+                            Command="{Binding PlacementTarget.DataContext.EnableSelectionOverrideCommand,
+                                              RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    </ContextMenu>
+                </StackPanel.ContextMenu>
+                <!-- アイコン -->
+                <ui:SymbolIcon
+                    Symbol="{Binding NodeType, Converter={StaticResource NodeTypeToSymbolConverter}}"
+                    Filled="{Binding ., Converter={StaticResource NodeTypeToFilledConverter}}"
+                    FontSize="16"
+                    Foreground="{Binding NodeType, Converter={StaticResource NodeTypeToColorConverter}}"
+                    VerticalAlignment="Center"
+                    Margin="0,0,5,0" />
+                <!-- チェックボックス (Archive / 選択不可ノードは非表示) -->
+                <CheckBox
+                    IsChecked="{Binding IsChecked.Value, Mode=TwoWay}"
+                    Focusable="False"
+                    IsTabStop="False"
+                    VerticalAlignment="Center"
+                    Margin="0,0,6,0">
+                    <CheckBox.Style>
+                        <Style TargetType="CheckBox">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CanCheck.Value}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </CheckBox.Style>
+                </CheckBox>
+                <!-- ノード名 -->
+                <TextBlock
+                    Text="{Binding Name.Value}"
+                    VerticalAlignment="Center" />
+                <!-- Archive のみサイズ表示 -->
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Margin="6,0,0,0"
+                    FontSize="11"
+                    Opacity="0.65">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NodeType}" Value="{x:Static shared:MaterialItemType.Archive}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                    <Run Text="（" /><Run Text="{Binding FileSizeText}" /><Run Text="）" />
+                </TextBlock>
+            </StackPanel>
+        </HierarchicalDataTemplate>
+
+    </Page.Resources>
+
+	<!-- ══════════════════════════════════════════════════════════════════ -->
+	<!-- 外枠 Grid：Row0=ページ全体ヘッダー、Row1=左右本体                  -->
+	<!-- HeaderContent = BreadcrumbBar に「巻選択」を表示するための添付プロパティ -->
+	<!-- ══════════════════════════════════════════════════════════════════ -->
+	<Grid Margin="16,4,16,16">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="*" />
+			<RowDefinition Height="Auto" />
+		</Grid.RowDefinitions>
+
+		<!-- ── Row0：作品タイトル（「巻選択」は BreadcrumbBar で表示） ── -->
+		<TextBlock
+			Grid.Row="0"
+			Text="{Binding SeriesTitle.Value}"
+			FontSize="15"
+			Opacity="0.7"
+			Margin="0,0,0,12" />
+
+		<!-- ── Row1：アイキャッチカード ── -->
+		<Grid Grid.Row="1" Margin="0,0,0,16">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="1*" />
+				<ColumnDefinition Width="4*" />
+				<ColumnDefinition Width="1*" />
+			</Grid.ColumnDefinitions>
+
+			<StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,0">
+				<ui:Card Padding="14,10">
+					<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+						<ui:SymbolIcon Symbol="CheckboxArrowRight24"  FontSize="48"
+									   Foreground="{DynamicResource BindingAccentBrush}"
+									   Margin="0,0,12,0" VerticalAlignment="Center" />
+						<StackPanel>
+							<TextBlock FontSize="11" Margin="0,0,0,2"
+									   Foreground="{DynamicResource TextFillColorSecondaryBrush}">素材数</TextBlock>
+							<TextBlock FontSize="16" FontWeight="SemiBold">
+								<Run Text="{Binding RootNodes.Count, Mode=OneWay}" /><Run>&#x20;件</Run>
+							</TextBlock>
+						</StackPanel>
+					</StackPanel>
+				</ui:Card>
+			</StackPanel>
+		</Grid>
+
+        <!-- ── Row2：左右本体 ── -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <!-- 左：作品情報 -->
+                <ColumnDefinition Width="250" />
+                <!-- 中央：素材 TreeView -->
+                <ColumnDefinition Width="3*" />
+                <!-- Splitter -->
+                <ColumnDefinition Width="Auto" />
+                <!-- 右：製本キュー -->
+                <ColumnDefinition Width="2*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ══════════════════════════════════ -->
+            <!-- 左パネル：作品情報カード           -->
+            <!-- ══════════════════════════════════ -->
+            <ui:Card Grid.Column="0" VerticalAlignment="Top" Padding="12,14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- サムネイル（中央寄せ） -->
+                    <Border
+                        Grid.Row="0"
+                        Width="160"
+                        Height="224"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,10"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="4"
+                        ClipToBounds="True">
+                        <Image
+                            Source="{Binding SelectedSeries.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
+                            Width="160"
+                            Height="224"
+                            Stretch="UniformToFill"
+                            RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+
+                    <!-- 巻数情報（中央寄せ） -->
+                    <WrapPanel
+                        Grid.Row="1"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal"
+                        Margin="0,0,0,4">
+                        <!-- 全巻数バッジ -->
+                        <Border
+                            Background="{Binding SelectedSeries.Value, Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
+                            CornerRadius="3"
+                            Padding="6,2"
+                            Margin="0,0,8,4"
+                            VerticalAlignment="Center">
+                            <TextBlock
+                                Text="{Binding SelectedSeries.Value.TotalVolumeText}"
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Foreground="White"
+                                TextWrapping="NoWrap" />
+                        </Border>
+                        <!-- 所持推定 -->
+                        <TextBlock
+                            Text="{Binding SelectedSeries.Value.OwnedEstimatedVolumeText}"
+                            FontSize="11"
+                            Margin="0,0,8,4"
+                            VerticalAlignment="Center" />
+                        <!-- 製本済み -->
+                        <TextBlock
+                            Text="{Binding SelectedSeries.Value.BoundEndVolumeText}"
+                            FontSize="11"
+                            Margin="0,0,0,4"
+                            VerticalAlignment="Center" />
+                    </WrapPanel>
+
+                    <!-- 素材内訳（解析完了後も表示） -->
+                    <Border
+                        Grid.Row="2"
+                        Margin="0,10,0,0"
+                        Padding="6,6"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="4">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- フォルダ：第1行 -->
+                            <ui:SymbolIcon
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                Symbol="Folder24"
+                                Filled="True"
+                                FontSize="14"
+                                Foreground="#C58A00"
+                                Margin="0,0,4,0"
+                                VerticalAlignment="Center" />
+                            <TextBlock
+                                Grid.Row="0"
+                                Grid.Column="1"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                VerticalAlignment="Center"
+                                Text="{Binding MaterialFolderCountText.Value, Mode=OneWay}" />
+
+                            <!-- 圧縮ファイル：第2行 -->
+                            <ui:SymbolIcon
+                                Grid.Row="1"
+                                Grid.Column="0"
+                                Symbol="Archive24"
+                                Filled="True"
+                                FontSize="14"
+                                Foreground="#6E87A8"
+                                Margin="0,2,4,0"
+                                VerticalAlignment="Center" />
+                            <TextBlock
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                VerticalAlignment="Center"
+                                Margin="0,2,0,0"
+                                Text="{Binding MaterialArchiveCountText.Value, Mode=OneWay}" />
+
+                            <!-- EPUB：第3行 -->
+                            <ui:SymbolIcon
+                                Grid.Row="2"
+                                Grid.Column="0"
+                                Symbol="Book24"
+                                Filled="True"
+                                FontSize="14"
+                                Foreground="#2E9F55"
+                                Margin="0,2,4,0"
+                                VerticalAlignment="Center" />
+                            <TextBlock
+                                Grid.Row="2"
+                                Grid.Column="1"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                VerticalAlignment="Center"
+                                Margin="0,2,0,0"
+                                Text="{Binding MaterialEpubCountText.Value, Mode=OneWay}" />
+                        </Grid>
+                    </Border>
+
+                </Grid>
+            </ui:Card>
+
+            <!-- ══════════════════════════════ -->
+            <!-- 中央：素材ツリー               -->
+            <!-- ══════════════════════════════ -->
+            <Grid Grid.Column="1">
+
+                <!-- TreeView 内蔵 ScrollViewer を使用（外側 ScrollViewer は不要） -->
+                <TreeView
+                    ItemsSource="{Binding RootNodes}"
+                    ItemTemplate="{StaticResource NodeTemplate}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Padding="0,0,40,0"
+                    VirtualizingPanel.IsVirtualizing="False"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    behaviors:TreeViewSelectedItemBehavior.SelectedItem="{Binding SelectedNode.Value, Mode=TwoWay}"
+                    behaviors:TreeViewSpaceKeyBehavior.IsEnabled="True"
+                    behaviors:TreeViewNodeClickToggleCheckBehavior.IsEnabled="True"
+                    dd:DragDrop.IsDragSource="True"
+                    dd:DragDrop.UseDefaultDragAdorner="True"
+                    dd:DragDrop.UseDefaultEffectDataTemplate="True"
+                    dd:DragDrop.DragHandler="{Binding TreeViewDragHandler}" />
+
+                <!-- ProgressRing オーバーレイ：IsLoading=true の時のみ TreeView 中央に表示 -->
+                <StackPanel
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Panel.ZIndex="10">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLoading.Value}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <ui:ProgressRing
+                        IsIndeterminate="True"
+                        Width="48"
+                        Height="48"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,12" />
+                    <TextBlock
+                        Text="{Binding LoadingMessage.Value}"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        HorizontalAlignment="Center"
+                        TextAlignment="Center"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+            </Grid>
+
+            <!-- GridSplitter -->
+            <GridSplitter
+                Grid.Column="2"
+                Width="5"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Background="{DynamicResource DividerStrokeColorDefaultBrush}"
+                ShowsPreview="True" />
+
+            <!-- ══════════════════════════════ -->
+            <!-- 右：製本キュー                 -->
+            <!-- ══════════════════════════════ -->
+            <Border
+                Grid.Column="3"
+                Margin="12,0,0,0"
+                Padding="8"
+                CornerRadius="4"
+                Background="Transparent">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- ヘッダー行 -->
+                    <Grid Grid.Row="0" Margin="0,0,0,4">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="50" />
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="74" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 新規製本 / 再製本 状態表示 -->
+                        <StackPanel Grid.Row="0" Grid.ColumnSpan="4"
+                                    Orientation="Horizontal"
+                                    Margin="0,0,0,6">
+                            <!-- 新規製本ラベル（中間フォルダなし） -->
+                            <TextBlock
+                                Text="🆕 新規製本"
+                                FontSize="12"
+                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasExistingWorkFolder.Value}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <!-- 再作成チェックボックス（中間フォルダあり） -->
+                            <CheckBox
+                                Content="中間フォルダを再作成"
+                                IsChecked="{Binding RecreateWorkFolder.Value, Mode=TwoWay}"
+                                FontSize="12"
+                                VerticalAlignment="Center"
+                                ToolTipService.ShowOnDisabled="False">
+                                <CheckBox.ToolTip>
+                                    <ToolTip Content="前回の製本済み中間フォルダを削除して、素材から再生成します。" />
+                                </CheckBox.ToolTip>
+                                <CheckBox.Style>
+                                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasExistingWorkFolder.Value}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </CheckBox.Style>
+                            </CheckBox>
+                        </StackPanel>
+
+                        <!-- カラムヘッダー行 -->
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="巻"
+                            FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                            TextAlignment="Right" Padding="0,0,4,0" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text=""
+                            FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                            HorizontalAlignment="Center" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="ファイル数"
+                            FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                            TextAlignment="Right" Padding="0,0,4,0" />
+                        <TextBlock Grid.Row="1" Grid.Column="3" Text="名前"
+                            FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                            Padding="4,0,0,0" />
+                    </Grid>
+
+                    <!-- 製本キュー ListView -->
+                    <ListView
+                        Grid.Row="1"
+                        ItemsSource="{Binding BindingQueueItems}"
+                        SelectedItem="{Binding SelectedBindingQueueItem.Value, Mode=TwoWay}"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                        dd:DragDrop.IsDragSource="True"
+                        dd:DragDrop.IsDropTarget="True"
+                        dd:DragDrop.DropHandler="{Binding DropHandler}"
+                        dd:DragDrop.UseDefaultDragAdorner="True"
+                        dd:DragDrop.UseDefaultEffectDataTemplate="True"
+                        behaviors:ListViewVolumeNumberTabNavigationBehavior.IsEnabled="True">
+                        <ListView.InputBindings>
+                            <KeyBinding Key="Delete" Command="{Binding RemoveSelectedQueueItemCommand}" />
+                        </ListView.InputBindings>
+                        <ListView.Resources>
+                            <!-- ListViewItem スタイル -->
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="MinHeight" Value="26" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListViewItem">
+                                            <Border
+                                                x:Name="Bd"
+                                                Background="Transparent"
+                                                BorderThickness="0,0,0,1"
+                                                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                Padding="0,2">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListView.Resources>
+                        <!-- 行テンプレート -->
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50" />
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="74" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <!-- 巻番号（編集可能） -->
+                                    <TextBox
+                                        Grid.Column="0"
+                                        Text="{Binding VolumeNumber.Value, TargetNullValue='?', StringFormat={}{0:0.#}, UpdateSourceTrigger=LostFocus}"
+                                        BorderThickness="0"
+                                        Background="Transparent"
+                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                        TextAlignment="Right"
+                                        Padding="0,0,4,0"
+                                        FontSize="12"
+                                        VerticalAlignment="Center" />
+                                    <!-- 種別アイコン -->
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{Binding SourceNode.NodeType, Converter={StaticResource NodeTypeToIconConverter}}"
+                                        FontFamily="Segoe UI Emoji"
+                                        FontSize="13"
+                                        ToolTip="{Binding SourceTypeText}"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" />
+                                    <!-- ファイル数 -->
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Text="{Binding FileCountText}"
+                                        TextAlignment="Right"
+                                        Padding="0,0,4,0"
+                                        FontSize="12"
+                                        VerticalAlignment="Center"
+                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <!-- 名前 -->
+                                    <TextBlock
+                                        Grid.Column="3"
+                                        Text="{Binding DisplayName}"
+                                        FontSize="12"
+                                        Padding="4,0,0,0"
+                                        TextTrimming="CharacterEllipsis"
+                                        VerticalAlignment="Center"
+                                        ToolTip="{Binding DisplayName}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- 除外 Drop 領域 -->
+                    <Border
+                        Grid.Row="2"
+                        Margin="0,6,0,0"
+                        Padding="8,6"
+                        CornerRadius="4"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        dd:DragDrop.IsDropTarget="True"
+                        dd:DragDrop.DropHandler="{Binding RemoveDropHandler}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <Trigger Property="dd:DragDrop.IsDropTarget" Value="True">
+                                        <Setter Property="Opacity" Value="0.6" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock
+                            Text="🗑 ここへドラッグして除外"
+                            FontSize="11"
+                            HorizontalAlignment="Center"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </Border>
+
+                </Grid>
+            </Border>
+
+        </Grid>
+
+        <!-- ── Row3：フッター ── -->
+        <Border
+            Grid.Row="3"
+            Padding="0,12,0,0"
+            BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
+            <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 左：戻るボタン -->
+                <ui:Button
+                    Grid.Column="0"
+                    Height="48"
+                    MinWidth="140"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Left"
+                    Command="{Binding GoBackCommand}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <ui:SymbolIcon Symbol="ChevronLeft16" FontSize="18" Margin="0,0,6,0" />
+                        <TextBlock Text="戻る" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ui:Button>
+
+                <!-- 右：次へボタン -->
+                <ui:Button
+                    Grid.Column="2"
+                    Height="48"
+                    MinWidth="140"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Right"
+                    Appearance="Primary"
+                    IsEnabled="{Binding CanGoNext.Value}"
+                    Command="{Binding GoNextCommand}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock Text="次へ" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <ui:SymbolIcon Symbol="ChevronRight16" FontSize="18" />
+                    </StackPanel>
+                </ui:Button>
+            </Grid>
+        </Border>
+
+    </Grid>
+</Page>

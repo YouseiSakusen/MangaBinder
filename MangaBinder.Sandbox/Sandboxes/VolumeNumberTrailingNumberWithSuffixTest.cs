@@ -1,4 +1,4 @@
-using MangaBinder.Binding.Inspection;
+using MangaBinder.Bindings.Inspection;
 
 namespace MangaBinder.Sandbox.Sandboxes;
 

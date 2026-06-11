@@ -7,6 +7,7 @@ using MangaBinder.Jobs.Extensions;
 using MangaBinder.Jobs.FolderScanners;
 using MangaBinder.Jobs.GoogleBooks;
 using MangaBinder.Jobs.LargeThumbnails;
+using MangaBinder.Jobs.MaterialArchives;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -24,6 +25,8 @@ builder.Services.AddScoped<JobRepository>();
 builder.Services.AddScoped<JobScheduleRepository>();
 builder.Services.AddSingleton<JobScheduler>();
 builder.Services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();
+builder.Services.AddScoped<MaterialArchiveExtractor>();
+builder.Services.AddScoped<SeriesMaterialFolderLoader>();
 
 builder.Logging.AddZLoggerConsole(configureZLogger);
 builder.Logging.AddZLoggerRollingFile(options =>
@@ -39,6 +42,7 @@ builder.Services.AddKeyedScoped<IThumbnailExtractor, EpubThumbnailExtractor>(Fil
 builder.Services.AddScoped<SeriesExtractorFactory>();
 builder.Services.AddScoped<ThumbnailCreator>();
 builder.Services.AddScoped<LargeThumbnailRepository>();
+builder.Services.AddScoped<MaterialArchiveScanRepository>();
 builder.Services.AddKeyedScoped<IJob, MaterialFolderScanner>(JobType.MaterialScan);
 builder.Services.AddKeyedScoped<IJob, BindingFolderScanner>(JobType.BindingScan);
 builder.Services.AddKeyedScoped<IJob, LargeThumbnailCreateJob>(JobType.LargeThumbnailCreate);
@@ -52,6 +56,7 @@ builder.Services.AddScoped(sp =>
     return new SharedSettingsRepository(context.ConnectionString);
 });
 builder.Services.AddKeyedScoped<IJob, GoogleBooksImportJob>(JobType.GoogleBooksImport);
+builder.Services.AddKeyedScoped<IJob, MaterialArchiveScanJob>(JobType.MaterialArchiveScan);
 builder.Services.AddHostedService<JobWatcher>();
 
 var host = builder.Build();

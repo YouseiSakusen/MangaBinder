@@ -1,5 +1,6 @@
 using GongSolutions.Wpf.DragDrop;
-using MangaBinder.Binding;
+using MangaBinder.Bindings;
+using MangaBinder.Bindings;
 using System.Windows;
 
 namespace MangaBinder.Handlers;
@@ -38,7 +39,7 @@ public sealed class MaterialVolumeNodeDragHandler : DefaultDragHandler
 	}
 
 	private static bool isValidDragTarget(MaterialVolumeNode node)
-		=> node.NodeType != MaterialVolumeNodeType.Root
-		&& node.NodeType != MaterialVolumeNodeType.Archive
+		=> node.NodeType != MaterialItemType.Root
+		&& node.NodeType != MaterialItemType.Archive
 		&& node.CanCheck.Value;
 }

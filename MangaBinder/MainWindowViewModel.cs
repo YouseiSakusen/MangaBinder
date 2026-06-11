@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Windows;
 using HalationGhost.Wpf.Ui.Navigation;
-using MangaBinder.Binding;
+using MangaBinder.Bindings;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using Microsoft.Extensions.DependencyInjection;

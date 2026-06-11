@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
-using MangaBinder.Binding;
+using MangaBinder.Bindings;
+using MangaBinder.Bindings;
 
 namespace MangaBinder.Converters;
 
@@ -20,16 +21,16 @@ public class NodeTypeToFilledConverter : IValueConverter
 		return node.NodeType switch
 		{
 			// Root は常に Filled = true（実フォルダルート）
-			MaterialVolumeNodeType.Root => true,
+			MaterialItemType.Root => true,
 
 			// Folder の場合、ArchiveEntryPrefix で判別
 			// null = 実フォルダ → Filled = true
 			// not null = 圧縮ファイル内フォルダ → Filled = false
-			MaterialVolumeNodeType.Folder => node.ArchiveEntryPrefix == null,
+			MaterialItemType.Folder => node.ArchiveEntryPrefix == null,
 
 			// Archive / Epub は Filled = true（実体を持つもの）
-			MaterialVolumeNodeType.Archive => true,
-			MaterialVolumeNodeType.Epub => true,
+			MaterialItemType.Archive => true,
+			MaterialItemType.Epub => true,
 
 			_ => false,
 		};

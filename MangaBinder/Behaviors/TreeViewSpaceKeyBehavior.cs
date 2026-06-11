@@ -1,4 +1,4 @@
-using MangaBinder.Binding;
+using MangaBinder.Bindings;
 using R3;
 using System.Windows;
 using System.Windows.Controls;

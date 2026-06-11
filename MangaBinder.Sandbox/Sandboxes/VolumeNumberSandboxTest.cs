@@ -1,5 +1,5 @@
 using System.Text;
-using MangaBinder.Binding.Inspection;
+using MangaBinder.Bindings.Inspection;
 
 namespace MangaBinder.Sandboxes;
 
