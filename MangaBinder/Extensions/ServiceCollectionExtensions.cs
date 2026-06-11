@@ -3,7 +3,6 @@ using System.IO;
 using MangaBinder.Bindings;
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
-using MangaBinder.Bindings;
 using MangaBinder.Converters;
 using MangaBinder.Jobs;
 using MangaBinder.Settings;
@@ -92,6 +91,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<BindingVolumeTextFormatter>();
 		services.AddScoped<BindingZipFileNameFormatter>();
 		services.AddScoped<MaterialArchiveExtractor>();
+		services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<AppSettings>().ConnectionString));
 		services.AddScoped<SeriesMaterialFolderLoader>();
 
 		return services;

@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
 using MangaBinder.Bindings;
-using MangaBinder.Bindings;
 
 namespace MangaBinder.Converters;
 

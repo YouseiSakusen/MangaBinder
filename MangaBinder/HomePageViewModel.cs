@@ -1,8 +1,6 @@
 using HalationGhost.Wpf.Ui.Navigation;
 using MangaBinder.Bindings;
-using MangaBinder.Bindings;
 using MangaBinder.Settings;
-using MangaBinder.Tags;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using R3;

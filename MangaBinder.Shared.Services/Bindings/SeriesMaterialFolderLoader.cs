@@ -9,13 +9,19 @@ public class SeriesMaterialFolderLoader
 {
 	private readonly MaterialArchiveExtractor archiveExtractor;
 
+	private readonly MaterialArchiveRepository archiveRepository;
+
 	/// <summary>
 	/// <see cref="SeriesMaterialFolderLoader"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="archiveExtractor">Archive 内部構造を解析するサービス。</param>
-	public SeriesMaterialFolderLoader(MaterialArchiveExtractor archiveExtractor)
+	/// <param name="archiveRepository">Archive キャッシュを管理するリポジトリ。</param>
+	public SeriesMaterialFolderLoader(
+		MaterialArchiveExtractor archiveExtractor,
+		MaterialArchiveRepository archiveRepository)
 	{
 		this.archiveExtractor = archiveExtractor ?? throw new ArgumentNullException(nameof(archiveExtractor));
+		this.archiveRepository = archiveRepository ?? throw new ArgumentNullException(nameof(archiveRepository));
 	}
 
 	/// <summary>
@@ -66,16 +72,19 @@ public class SeriesMaterialFolderLoader
 		// 正常系: 素材ツリーを生成（バックグラウンドで実行）
 		return new ValueTask<MaterialFolderResult>(
 			Task.Run(
-				async () => await this.BuildMaterialTreeAsync(materialPath, cancellationToken),
+				async () => await this.BuildMaterialTreeAsync(materialPath, series.SeriesId, materialSource.SourceId, cancellationToken),
 				cancellationToken));
 	}
 
 	/// <summary>
 	/// 素材フォルダツリーを構築します。
 	/// </summary>
-	private async Task<MaterialFolderResult> BuildMaterialTreeAsync(string materialPath, CancellationToken cancellationToken)
+	private async Task<MaterialFolderResult> BuildMaterialTreeAsync(string materialPath, long seriesId, long sourceId, CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
+
+		// Archiveキャッシュを事前取得
+		var archiveCache = await this.archiveRepository.GetArchivesBySourceIdAsync(sourceId, cancellationToken);
 
 		// Root ノード相当の MaterialItem を生成
 		var rootItem = new MaterialItem
@@ -87,7 +96,7 @@ public class SeriesMaterialFolderLoader
 		};
 
 		// フォルダ直下を走査して子を追加
-		await this.PopulateFolderAsync(rootItem, materialPath, cancellationToken);
+		await this.PopulateFolderAsync(rootItem, materialPath, archiveCache, seriesId, sourceId, cancellationToken);
 
 		return new MaterialFolderResult
 		{
@@ -100,7 +109,13 @@ public class SeriesMaterialFolderLoader
 	/// <summary>
 	/// フォルダを走査して子 MaterialItem を生成し、親に追加します。
 	/// </summary>
-	private async Task PopulateFolderAsync(MaterialItem parentItem, string folderPath, CancellationToken cancellationToken)
+	private async Task PopulateFolderAsync(
+		MaterialItem parentItem,
+		string folderPath,
+		Dictionary<string, MaterialArchiveRepository.ArchiveCacheInfo> archiveCache,
+		long seriesId,
+		long sourceId,
+		CancellationToken cancellationToken)
 	{
 		if (!Directory.Exists(folderPath))
 			return;
@@ -124,7 +139,7 @@ public class SeriesMaterialFolderLoader
 			};
 
 			// 再帰的にサブフォルダを走査
-			await this.PopulateFolderAsync(folderItem, dir, cancellationToken);
+			await this.PopulateFolderAsync(folderItem, dir, archiveCache, seriesId, sourceId, cancellationToken);
 			parentItem.Children.Add(folderItem);
 		}
 
@@ -154,7 +169,7 @@ public class SeriesMaterialFolderLoader
 				};
 
 				// Archive 内部構造を解析して子を追加
-				await this.PopulateArchiveAsync(archiveItem, file, cancellationToken);
+				await this.PopulateArchiveAsync(archiveItem, file, archiveCache, seriesId, sourceId, cancellationToken);
 				parentItem.Children.Add(archiveItem);
 			}
 			else if (fileType == FileType.Epub)
@@ -174,12 +189,32 @@ public class SeriesMaterialFolderLoader
 
 	/// <summary>
 	/// Archive ファイル内部のフォルダ構造を解析して、親 MaterialItem に子を追加します。
+	/// キャッシュが一致する場合はDBから復元し、不一致の場合は解析→保存します。
 	/// </summary>
-	private async Task PopulateArchiveAsync(MaterialItem archiveItem, string archivePath, CancellationToken cancellationToken)
+	private async Task PopulateArchiveAsync(
+		MaterialItem archiveItem,
+		string archivePath,
+		Dictionary<string, MaterialArchiveRepository.ArchiveCacheInfo> archiveCache,
+		long seriesId,
+		long sourceId,
+		CancellationToken cancellationToken)
 	{
 		try
 		{
-			// Archive を抽出
+			// キャッシュ一致確認
+			if (archiveCache.TryGetValue(archivePath, out var cacheInfo))
+			{
+				var fileInfo = new FileInfo(archivePath);
+				if (fileInfo.Length == cacheInfo.FileSize &&
+					fileInfo.LastWriteTime == cacheInfo.LastWriteTime)
+				{
+					// キャッシュ一致 → DBから復元
+					await this.restoreArchiveFromCacheAsync(archiveItem, cacheInfo, archivePath, cancellationToken);
+					return;
+				}
+			}
+
+			// キャッシュなし・不一致 → Archive を解析
 			var archiveFile = await this.archiveExtractor.ExtractAsync(archivePath, cancellationToken);
 
 			// ArchiveFolderItem ツリーを MaterialItem ツリーに変換
@@ -188,11 +223,71 @@ public class SeriesMaterialFolderLoader
 				var materialFolderItem = this.ConvertArchiveFolderToMaterialItem(folderItem, archivePath);
 				archiveItem.Children.Add(materialFolderItem);
 			}
+
+			// DBに保存
+			await this.archiveRepository.SaveArchiveAsync(seriesId, sourceId, archiveFile, cancellationToken);
 		}
 		catch
 		{
 			// Archive 解析エラーは無視（既存の MaterialFolderSeriesExtractor と同様）
 		}
+	}
+
+	/// <summary>
+	/// DBキャッシュから Archive の MaterialItem ツリーを復元します。
+	/// </summary>
+	private async ValueTask restoreArchiveFromCacheAsync(
+		MaterialItem archiveItem,
+		MaterialArchiveRepository.ArchiveCacheInfo cacheInfo,
+		string archivePath,
+		CancellationToken cancellationToken)
+	{
+		// EntryPath が null/empty のルートエントリは存在しないので、
+		// cacheInfo.Entries から直接、ParentEntryPath が null のものをルートとして扱う
+		var rootEntries = cacheInfo.Entries.Where(e => string.IsNullOrEmpty(e.ParentEntryPath)).ToList();
+
+		foreach (var entry in rootEntries)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			var materialItem = this.restoreArchiveEntryToMaterialItem(entry, cacheInfo.Entries, archivePath);
+			archiveItem.Children.Add(materialItem);
+		}
+
+		await ValueTask.CompletedTask;
+	}
+
+	/// <summary>
+	/// ArchiveEntry キャッシュから MaterialItem を復元します（再帰的）。
+	/// </summary>
+	private MaterialItem restoreArchiveEntryToMaterialItem(
+		MaterialArchiveRepository.ArchiveEntryCacheInfo entry,
+		List<MaterialArchiveRepository.ArchiveEntryCacheInfo> allEntries,
+		string archivePath)
+	{
+		var displayName = GetArchiveEntryName(entry.EntryPath);
+
+		var item = new MaterialItem
+		{
+			ItemType = MaterialItemType.Folder,
+			Name = displayName,
+			FullPath = $"{archivePath}/{entry.EntryPath}",
+			FileCount = entry.FileCount,
+			SourcePath = archivePath,
+			ArchiveEntryPrefix = entry.EntryPath,
+			IsSelectableByDefault = entry.IsSelectable,
+			SelectionDisabledReason = entry.SelectionDisabledReason,
+		};
+
+		// 子エントリを再帰的に復元
+		var childEntries = allEntries.Where(e => e.ParentEntryPath == entry.EntryPath).ToList();
+		foreach (var childEntry in childEntries)
+		{
+			var childItem = this.restoreArchiveEntryToMaterialItem(childEntry, allEntries, archivePath);
+			item.Children.Add(childItem);
+		}
+
+		return item;
 	}
 
 	/// <summary>

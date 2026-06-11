@@ -26,6 +26,7 @@ builder.Services.AddScoped<JobScheduleRepository>();
 builder.Services.AddSingleton<JobScheduler>();
 builder.Services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();
 builder.Services.AddScoped<MaterialArchiveExtractor>();
+builder.Services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<WorkerContext>().ConnectionString));
 builder.Services.AddScoped<SeriesMaterialFolderLoader>();
 
 builder.Logging.AddZLoggerConsole(configureZLogger);

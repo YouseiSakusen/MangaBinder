@@ -51,49 +51,51 @@ public class MaterialArchiveScanJob : IJob
 			return;
 		}
 
-		foreach (var series in allSeries)
-		{
-			ct.ThrowIfCancellationRequested();
-
-			this.logger.ZLogInformation($"アーカイブ構造スキャン開始: {series.Title}");
-			try
+		// Series 単位で並列実行（MaxDegreeOfParallelism = 2）
+		await Parallel.ForEachAsync(
+			allSeries,
+			new ParallelOptions { MaxDegreeOfParallelism = 2, CancellationToken = ct },
+			async (series, token) =>
 			{
-				// 素材フォルダを読み込む
-				var result = await this.materialFolderLoader.GetMaterialsAsync(series, ct);
-
-				// 読み込み結果を確認
-				switch (result.Status)
+				this.logger.ZLogInformation($"アーカイブ構造スキャン開始: {series.Title}");
+				try
 				{
-					case MaterialFolderStatus.Success:
-						this.logger.ZLogInformation($"アーカイブ構造スキャン完了: {series.Title}");
-						break;
+					// 素材フォルダを読み込む
+					var result = await this.materialFolderLoader.GetMaterialsAsync(series, token);
 
-					case MaterialFolderStatus.NoMaterialSource:
-						this.logger.ZLogDebug($"素材ソースなし: {series.Title}");
-						break;
+					// 読み込み結果を確認
+					switch (result.Status)
+					{
+						case MaterialFolderStatus.Success:
+							this.logger.ZLogInformation($"アーカイブ構造スキャン完了: {series.Title}");
+							break;
 
-					case MaterialFolderStatus.MaterialSourceNotFound:
-						this.logger.ZLogWarning($"素材フォルダが見つかりません: {series.Title} Path={result.TargetPath}");
-						break;
+						case MaterialFolderStatus.NoMaterialSource:
+							this.logger.ZLogDebug($"素材ソースなし: {series.Title}");
+							break;
 
-					case MaterialFolderStatus.DriveNotReady:
-						this.logger.ZLogWarning($"ドライブが接続されていません: {series.Title} Path={result.TargetPath}");
-						break;
+						case MaterialFolderStatus.MaterialSourceNotFound:
+							this.logger.ZLogWarning($"素材フォルダが見つかりません: {series.Title} Path={result.TargetPath}");
+							break;
 
-					default:
-						this.logger.ZLogWarning($"不明なステータス: {series.Title} Status={result.Status}");
-						break;
+						case MaterialFolderStatus.DriveNotReady:
+							this.logger.ZLogWarning($"ドライブが接続されていません: {series.Title} Path={result.TargetPath}");
+							break;
+
+						default:
+							this.logger.ZLogWarning($"不明なステータス: {series.Title} Status={result.Status}");
+							break;
+					}
 				}
-			}
-			catch (OperationCanceledException)
-			{
-				throw;
-			}
-			catch (Exception ex)
-			{
-				this.logger.ZLogError(ex, $"アーカイブ構造スキャンに失敗しました。スキップして次へ進みます: {series.Title}");
-			}
-		}
+				catch (OperationCanceledException)
+				{
+					throw;
+				}
+				catch (Exception ex)
+				{
+					this.logger.ZLogError(ex, $"アーカイブ構造スキャンに失敗しました。スキップして次へ進みます: {series.Title}");
+				}
+			});
 
 		this.logger.ZLogInformation($"アーカイブ内部構造スキャンジョブが完了しました。");
 	}
