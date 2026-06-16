@@ -46,6 +46,7 @@ public class GoogleBooksImportRepository : IGoogleBooksImportRepository
 		sql.AppendLine(" 	, GoogleBooksImportMessage ");
 		sql.AppendLine(" 	, DescriptionSource ");
 		sql.AppendLine(" 	, DescriptionSourceTitle ");
+		sql.AppendLine(" 	, HasNestedArchive ");
 		sql.AppendLine(" FROM ");
 		sql.AppendLine(" 	MangaSeries ");
 		sql.AppendLine(" WHERE ");

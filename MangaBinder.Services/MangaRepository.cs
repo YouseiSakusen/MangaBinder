@@ -4,7 +4,7 @@ using MangaBinder.Settings;
 using MangaBinder.Tags;
 using System.Data.SQLite;
 
-namespace MangaBinder.Bindings;
+namespace MangaBinder;
 
 /// <summary>
 /// <see cref="MangaSeries"/> の取得を担う Repository クラスです。
@@ -53,6 +53,7 @@ public class MangaRepository
                  , GoogleBooksImportMessage
                  , DescriptionSource
                  , DescriptionSourceTitle
+                 , HasNestedArchive
             FROM MangaSeries
             ORDER BY NormalizedTitleInternal
             """;

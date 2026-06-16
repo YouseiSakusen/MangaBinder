@@ -11,6 +11,7 @@ using MangaBinder.Jobs.MaterialArchives;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using ZLogger;
 using ZLogger.Providers;
 
@@ -22,6 +23,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddMangaWorkerContext();
 builder.Services.AddScoped<IFolderScannerRepository, FolderScannerRepository>();
 builder.Services.AddScoped<JobRepository>();
+builder.Services.AddScoped<JobQueueService>();
 builder.Services.AddScoped<JobScheduleRepository>();
 builder.Services.AddSingleton<JobScheduler>();
 builder.Services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();
@@ -29,6 +31,7 @@ builder.Services.AddScoped<MaterialArchiveExtractor>();
 builder.Services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<WorkerContext>().ConnectionString));
 builder.Services.AddScoped<SeriesMaterialFolderLoader>();
 
+builder.Logging.ClearProviders();
 builder.Logging.AddZLoggerConsole(configureZLogger);
 builder.Logging.AddZLoggerRollingFile(options =>
 {
@@ -61,6 +64,14 @@ builder.Services.AddKeyedScoped<IJob, MaterialArchiveScanJob>(JobType.MaterialAr
 builder.Services.AddHostedService<JobWatcher>();
 
 var host = builder.Build();
+
+// JobQueue 初期化（Worker 起動時に 1 回実行）
+using (var scope = host.Services.CreateScope())
+{
+    var jobQueueService = scope.ServiceProvider.GetRequiredService<JobQueueService>();
+    await jobQueueService.InitializeAsync();
+}
+
 host.Run();
 
 static void configureZLogger(ZLoggerOptions options) =>

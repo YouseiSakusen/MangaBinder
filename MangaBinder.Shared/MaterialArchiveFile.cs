@@ -26,5 +26,10 @@ public class MaterialArchiveFile
 	/// </summary>
 	public List<ArchiveFolderItem> Folders { get; } = [];
 
+	/// <summary>
+	/// このアーカイブ内に、MangaBinder が対応する圧縮ファイルが1件以上含まれているかどうかを示します。
+	/// </summary>
+	public bool IsNestedArchive { get; init; }
+
 	// TODO: 将来的に素材ツリー情報を保持する予定です。
 }

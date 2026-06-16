@@ -379,6 +379,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         seriesSql.AppendLine(" 	, GoogleBooksImportMessage ");
         seriesSql.AppendLine(" 	, DescriptionSource ");
         seriesSql.AppendLine(" 	, DescriptionSourceTitle ");
+        seriesSql.AppendLine(" 	, HasNestedArchive ");
         seriesSql.AppendLine(" FROM ");
         seriesSql.AppendLine(" 	MangaSeries ");
         seriesSql.AppendLine(" WHERE ");

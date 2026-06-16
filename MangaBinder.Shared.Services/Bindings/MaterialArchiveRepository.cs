@@ -40,6 +40,9 @@ public class MaterialArchiveRepository
 
 		/// <summary>最後の更新日時。</summary>
 		public DateTime LastWriteTime { get; init; }
+
+		/// <summary>Nested Archive フラグ（0/1）。</summary>
+		public int IsNestedArchive { get; init; }
 	}
 
 	/// <summary>
@@ -74,7 +77,7 @@ public class MaterialArchiveRepository
 	/// </summary>
 	/// <param name="sourceId">SourceId。</param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
-	/// <returns>ArchivePath をキーとした辞書。値は MaterialArchiveId, FileSize, LastWriteTime, Entries を含む。</returns>
+	/// <returns>ArchivePath をキーとした辞書。値は MaterialArchiveId, FileSize, LastWriteTime, IsNestedArchive, Entries を含む。</returns>
 	public async ValueTask<Dictionary<string, ArchiveCacheInfo>> GetArchivesBySourceIdAsync(
 		long sourceId,
 		CancellationToken cancellationToken)
@@ -86,6 +89,7 @@ public class MaterialArchiveRepository
 		archivesSql.AppendLine(" 	, ArchivePath ");
 		archivesSql.AppendLine(" 	, FileSize ");
 		archivesSql.AppendLine(" 	, LastWriteTime ");
+		archivesSql.AppendLine(" 	, IsNestedArchive ");
 		archivesSql.AppendLine(" FROM ");
 		archivesSql.AppendLine(" 	MaterialArchives ");
 		archivesSql.AppendLine(" WHERE ");
@@ -128,6 +132,7 @@ public class MaterialArchiveRepository
 				ArchivePath = archive.ArchivePath,
 				FileSize = archive.FileSize,
 				LastWriteTime = archive.LastWriteTime,
+				IsNestedArchive = archive.IsNestedArchive != 0,
 				Entries = entries.Select(e => new ArchiveEntryCacheInfo
 				{
 					EntryPath = e.EntryPath,
@@ -175,12 +180,14 @@ public class MaterialArchiveRepository
 			insertArchiveSql.AppendLine(" 	, ArchivePath ");
 			insertArchiveSql.AppendLine(" 	, FileSize ");
 			insertArchiveSql.AppendLine(" 	, LastWriteTime ");
+			insertArchiveSql.AppendLine(" 	, IsNestedArchive ");
 			insertArchiveSql.AppendLine(" ) VALUES ( ");
 			insertArchiveSql.AppendLine(" 	  :SeriesId ");
 			insertArchiveSql.AppendLine(" 	, :SourceId ");
 			insertArchiveSql.AppendLine(" 	, :ArchivePath ");
 			insertArchiveSql.AppendLine(" 	, :FileSize ");
 			insertArchiveSql.AppendLine(" 	, :LastWriteTime ");
+			insertArchiveSql.AppendLine(" 	, :IsNestedArchive ");
 			insertArchiveSql.AppendLine(" ) ");
 			insertArchiveSql.AppendLine(" RETURNING MaterialArchiveId; ");
 
@@ -193,6 +200,7 @@ public class MaterialArchiveRepository
 					ArchivePath = archiveFile.ArchivePath,
 					FileSize = archiveFile.FileSize,
 					LastWriteTime = archiveFile.LastWriteTime,
+					IsNestedArchive = archiveFile.IsNestedArchive ? 1 : 0,
 				},
 				transaction);
 
@@ -347,8 +355,35 @@ public class MaterialArchiveRepository
 		/// <summary>最後の更新日時。</summary>
 		public DateTime LastWriteTime { get; set; }
 
+		/// <summary>Nested Archive フラグ。</summary>
+		public bool IsNestedArchive { get; set; }
+
 		/// <summary>キャッシュ内エントリ一覧。</summary>
 		public List<ArchiveEntryCacheInfo> Entries { get; set; } = [];
+	}
+
+	/// <summary>
+	/// 作品の HasNestedArchive を更新します。
+	/// </summary>
+	/// <param name="series">更新対象の作品。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	public async Task UpdateMangaSeriesAsync(MangaSeries series, CancellationToken cancellationToken)
+	{
+		var updateSql = new StringBuilder();
+		updateSql.AppendLine(" UPDATE MangaSeries ");
+		updateSql.AppendLine(" SET HasNestedArchive = :HasNestedArchive ");
+		updateSql.AppendLine(" WHERE SeriesId = :SeriesId ");
+
+		using var connection = new SQLiteConnection(this.connectionString);
+		await connection.OpenAsync(cancellationToken);
+
+		await connection.ExecuteAsync(
+			updateSql.ToString(),
+			new
+			{
+				HasNestedArchive = series.HasNestedArchive ? 1 : 0,
+				SeriesId = series.SeriesId,
+			});
 	}
 
 	/// <summary>

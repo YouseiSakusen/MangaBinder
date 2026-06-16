@@ -201,6 +201,9 @@ public class MangaSeries : INotifyPropertyChanged
     public bool HasDescriptionSource
         => this.DescriptionSource != DescriptionSource.None
            && !string.IsNullOrEmpty(this.DescriptionSourceTitle);
+
+    /// <summary>Nested Archive の有無を示します。内部判定用プロパティです。</summary>
+    public bool HasNestedArchive { get; set; }
 }
 
 

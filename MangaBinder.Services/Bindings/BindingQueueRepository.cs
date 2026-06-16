@@ -22,95 +22,26 @@ public class BindingQueueRepository
 		this.appSettings = appSettings;
 	}
 
-	/// <summary>
-	/// BindingQueue に登録済みの作品一覧を取得します。
-	/// </summary>
-	/// <returns>AddedAt 昇順で並んだ <see cref="BindingSeries"/> の読み取り専用リスト。</returns>
-	public async ValueTask<IReadOnlyList<BindingSeries>> GetQueuedSeriesAsync()
-	{
-		var joinSql = new StringBuilder();
-		joinSql.AppendLine(" SELECT ");
-		joinSql.AppendLine(" 	  q.Id ");
-		joinSql.AppendLine(" 	, q.SeriesId ");
-		joinSql.AppendLine(" 	, q.Status ");
-		joinSql.AppendLine(" 	, q.CurrentStep ");
-		joinSql.AppendLine(" 	, q.AddedAt ");
-		joinSql.AppendLine(" 	, q.UpdatedAt ");
-		joinSql.AppendLine(" 	, s.SeriesId AS SplitSeriesId ");
-		joinSql.AppendLine(" 	, s.SeriesId ");
-		joinSql.AppendLine(" 	, s.NormalizedTitleInternal ");
-		joinSql.AppendLine(" 	, s.Title ");
-		joinSql.AppendLine(" 	, s.ShortTitle ");
-		joinSql.AppendLine(" 	, s.ThumbnailFileName ");
-		joinSql.AppendLine(" 	, s.Author ");
-		joinSql.AppendLine(" 	, s.Description ");
-		joinSql.AppendLine(" 	, s.SeriesCompleted ");
-		joinSql.AppendLine(" 	, s.IsOwnedCompleted ");
-		joinSql.AppendLine(" 	, s.StartVolume ");
-		joinSql.AppendLine(" 	, s.EndVolume ");
-		joinSql.AppendLine(" 	, s.BoundEndVolume ");
-		joinSql.AppendLine(" 	, s.OwnedMaxVolume ");
-		joinSql.AppendLine(" 	, s.NormalizedTitleExternal ");
-		joinSql.AppendLine(" 	, s.UpdatedAt ");
-		joinSql.AppendLine(" 	, s.ThumbnailStatus ");
-		joinSql.AppendLine(" 	, s.Publisher ");
-		joinSql.AppendLine(" 	, s.GoogleBooksImportStatus ");
-		joinSql.AppendLine(" 	, s.GoogleBooksImportedAt ");
-		joinSql.AppendLine(" 	, s.GoogleBooksImportMessage ");
-		joinSql.AppendLine(" 	, s.DescriptionSource ");
-		joinSql.AppendLine(" 	, s.DescriptionSourceTitle ");
-		joinSql.AppendLine(" FROM ");
-		joinSql.AppendLine(" 	BindingQueue q ");
-		joinSql.AppendLine(" INNER JOIN MangaSeries s ON ");
-		joinSql.AppendLine(" 	s.SeriesId = q.SeriesId ");
-		joinSql.AppendLine(" ORDER BY ");
-		joinSql.AppendLine(" 	q.AddedAt ASC; ");
 
-		var sourcesSql = new StringBuilder();
-		sourcesSql.AppendLine(" SELECT ");
-		sourcesSql.AppendLine(" 	  SourceId ");
-		sourcesSql.AppendLine(" 	, SeriesId ");
-		sourcesSql.AppendLine(" 	, Path ");
-		sourcesSql.AppendLine(" 	, Role ");
-		sourcesSql.AppendLine(" FROM ");
-		sourcesSql.AppendLine(" 	MangaSources ");
-		sourcesSql.AppendLine(" WHERE ");
-		sourcesSql.AppendLine(" 	SeriesId IN @SeriesIds ");
-		sourcesSql.AppendLine(" ORDER BY ");
-		sourcesSql.AppendLine(" 	  SeriesId ");
-		sourcesSql.AppendLine(" 	, Role ");
-		sourcesSql.AppendLine(" 	, Path; ");
+
+	/// <summary>
+	/// BindingQueue に登録済みの SeriesId を取得します。
+	/// </summary>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	/// <returns>AddedAt 昇順で並んだ SeriesId のリスト。</returns>
+	public async ValueTask<List<long>> GetQueuedSeriesIdsAsync(CancellationToken cancellationToken = default)
+	{
+		const string sql = """
+			SELECT SeriesId
+			FROM BindingQueue
+			ORDER BY AddedAt ASC
+			""";
 
 		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
-		await connection.OpenAsync();
+		await connection.OpenAsync(cancellationToken);
+		var seriesIds = await connection.QueryAsync<long>(sql);
 
-		var results = (await connection.QueryAsync<BindingQueueRow, MangaSeries, BindingSeries>(
-			joinSql.ToString(),
-			(queue, series) => new BindingSeries
-			{
-				Series = series,
-				Status = (BindingStartStatus)queue.Status,
-				CurrentStep = queue.CurrentStep,
-				AddedAt = DateTime.Parse(queue.AddedAt),
-				UpdatedAt = DateTime.Parse(queue.UpdatedAt),
-			},
-			splitOn: "SplitSeriesId"
-		)).AsList();
-
-		if (results.Count == 0)
-			return [];
-
-		var seriesIds = results.Select(r => r.Series.SeriesId).ToArray();
-		var sources = await connection.QueryAsync<MangaSource>(sourcesSql.ToString(), new { SeriesIds = seriesIds });
-
-		var seriesDict = results.ToDictionary(r => r.Series.SeriesId, r => r.Series);
-		foreach (var source in sources)
-		{
-			if (seriesDict.TryGetValue(source.SeriesId, out var series))
-				series.Sources.Add(source);
-		}
-
-		return results;
+		return seriesIds.ToList();
 	}
 
 	/// <summary>

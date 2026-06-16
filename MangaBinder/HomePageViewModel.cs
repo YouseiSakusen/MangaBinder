@@ -38,6 +38,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <summary>製本開始状態 Dispatcher。</summary>
     private readonly BindingQueueDispatcher bindingQueueDispatcher;
 
+    /// <summary>MangaSeries 読み込みマネージャー。</summary>
+    private readonly MangaSeriesManager mangaSeriesManager;
+
     private DisposableBag disposableBag;
 
     /// <summary>内部保持する MangaSeries コレクション。</summary>
@@ -92,7 +95,12 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <param name="serviceScopeFactory">スコープファクトリー。</param>
     /// <param name="navigationService">ナビゲーションサービス。</param>
     /// <param name="workspaceStore">作品選択状態ストア。</param>
-    public HomePageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, ISnackbarService snackbarService, BindingQueueDispatcher bindingQueueDispatcher)
+    /// <param name="appSettings">アプリケーション設定。</param>
+    /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
+    /// <param name="snackbarService">スナックバーサービス。</param>
+    /// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
+    /// <param name="mangaSeriesManager">MangaSeries 読み込みマネージャー。</param>
+    public HomePageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, ISnackbarService snackbarService, BindingQueueDispatcher bindingQueueDispatcher, MangaSeriesManager mangaSeriesManager)
     {
         this.serviceScopeFactory = serviceScopeFactory;
         this.navigationService = navigationService;
@@ -101,6 +109,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.appSettings = appSettings;
         this.snackbarService = snackbarService;
         this.bindingQueueDispatcher = bindingQueueDispatcher;
+        this.mangaSeriesManager = mangaSeriesManager;
 
         this.series = new ObservableList<MangaSeries>();
 
@@ -253,14 +262,8 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         // 初回のみ DB から取得して Store へ反映する
         if (this.series.Count == 0)
         {
-            using var scope = this.serviceScopeFactory.CreateScope();
-            var mangaRepository = scope.ServiceProvider.GetRequiredService<MangaRepository>();
-            var bindingStartRepository = scope.ServiceProvider.GetRequiredService<BindingQueueRepository>();
-
-            var queuedSeries = await bindingStartRepository.GetQueuedSeriesAsync();
-            this.bindingQueueDispatcher.ReplaceAll(queuedSeries);
-
-            var result = await mangaRepository.GetAllSeriesAsync();
+            var result = await this.mangaSeriesManager.GetAllSeriesAsync();
+            this.series.Clear();
             this.series.AddRange(result);
         }
 

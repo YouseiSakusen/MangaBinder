@@ -42,6 +42,7 @@ public class MaterialArchiveScanRepository
 		sql.AppendLine(" 	  s.SeriesId ");
 		sql.AppendLine(" 	, s.NormalizedTitleInternal ");
 		sql.AppendLine(" 	, s.Title ");
+		sql.AppendLine(" 	, s.HasNestedArchive ");
 		sql.AppendLine(" 	, ms.SourceId ");
 		sql.AppendLine(" 	, ms.SeriesId ");
 		sql.AppendLine(" 	, ms.Path ");

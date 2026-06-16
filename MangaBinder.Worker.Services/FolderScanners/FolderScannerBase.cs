@@ -50,7 +50,7 @@ public abstract class FolderScannerBase : IJob
 	/// リポジトリからルートパスを取得し、走査・保存フローを派生クラスに委譲します。
 	/// </summary>
 	/// <param name="ct">キャンセルトークン。</param>
-	public async ValueTask ExecuteAsync(CancellationToken ct)
+	public virtual async ValueTask ExecuteAsync(CancellationToken ct)
 	{
 		this.logger.ZLogInformation($"フォルダスキャン開始: Role={this.role}");
 
@@ -60,13 +60,6 @@ public abstract class FolderScannerBase : IJob
 		var savedCount = await this.ScanAndSaveAsync(rootPaths, ct);
 
 		this.logger.ZLogInformation($"フォルダスキャン完了: {savedCount} 件保存");
-
-		if (await repository.HasLimitExceededAsync(ct))
-		{
-			this.logger.ZLogInformation($"サイズ超過によりスキップした作品が存在するため、巨大サムネイル作成ジョブをキューに登録します。");
-			var jobRepository = scope.ServiceProvider.GetRequiredService<JobRepository>();
-			await jobRepository.EnqueueAsync(JobType.LargeThumbnailCreate, skipThumbnailSizeLimit: true);
-		}
 	}
 
     /// <summary>

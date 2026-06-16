@@ -61,6 +61,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<TagRepository>();
 		services.AddScoped<TagEditor>();
 		services.AddScoped<SeriesTagDispatcher>();
+		services.AddScoped<MangaSeriesManager>();
 		services.AddNavigationPageWithSingletonViewModel<StartPage, StartPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<VolumeSelectionPage, VolumeSelectionPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<SeriesInspectionPage, SeriesInspectionPageViewModel>();

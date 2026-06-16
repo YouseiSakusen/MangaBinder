@@ -44,49 +44,32 @@
 			<RowDefinition Height="Auto" />
 			<RowDefinition Height="*" />
 		</Grid.RowDefinitions>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="1*" />
+			<ColumnDefinition Width="4*" />
+			<ColumnDefinition Width="1*" />
+		</Grid.ColumnDefinitions>
 
 		<!-- サマリカード（常時表示） -->
-		<Grid Grid.Row="0">
-			<Grid.ColumnDefinitions>
-				<ColumnDefinition Width="1*" />
-				<ColumnDefinition Width="4*" />
-				<ColumnDefinition Width="1*" />
-			</Grid.ColumnDefinitions>
-
-			<StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,8">
-				<ui:Card Padding="14,10">
-					<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-						<ui:SymbolIcon Symbol="Library24" FontSize="48"
-									   Foreground="{DynamicResource BindingAccentBrush}"
-									   Margin="0,0,12,0" VerticalAlignment="Center" />
-						<StackPanel>
-							<TextBlock FontSize="11" Margin="0,0,0,2"
-									   Foreground="{DynamicResource TextFillColorSecondaryBrush}">選択作品数</TextBlock>
-							<TextBlock FontSize="16" FontWeight="SemiBold">
-								<Run Text="{Binding SelectedSeriesCount.Value, Mode=OneWay}" /><Run>&#x20;作品</Run>
-							</TextBlock>
-						</StackPanel>
+		<StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,8">
+			<ui:Card Padding="14,10">
+				<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+					<ui:SymbolIcon Symbol="Library24" FontSize="48"
+								   Foreground="{DynamicResource BindingAccentBrush}"
+								   Margin="0,0,12,0" VerticalAlignment="Center" />
+					<StackPanel>
+						<TextBlock FontSize="11" Margin="0,0,0,2"
+								   Foreground="{DynamicResource TextFillColorSecondaryBrush}">選択作品数</TextBlock>
+						<TextBlock FontSize="16" FontWeight="SemiBold">
+							<Run Text="{Binding SelectedSeriesCount.Value, Mode=OneWay}" /><Run>&#x20;作品</Run>
+						</TextBlock>
 					</StackPanel>
-				</ui:Card>
-			</StackPanel>
-		</Grid>
+				</StackPanel>
+			</ui:Card>
+		</StackPanel>
 
-		<Grid Grid.Row="1">
-			<Grid.ColumnDefinitions>
-				<ColumnDefinition Width="1*" />
-				<ColumnDefinition Width="4*" />
-				<ColumnDefinition Width="1*" />
-			</Grid.ColumnDefinitions>
-
-			<!-- 作品一覧または Empty State -->
-			<Grid Grid.Column="1">
-				<Grid.ColumnDefinitions>
-					<ColumnDefinition Width="1*" />
-					<ColumnDefinition Width="4*" />
-					<ColumnDefinition Width="1*" />
-				</Grid.ColumnDefinitions>
-
-				<ListView Grid.Column="1"
+		<!-- 作品一覧または Empty State -->
+		<ListView Grid.Row="1" Grid.Column="1"
 						  ItemsSource="{Binding Series}"
 						  SelectionMode="Single"
 						  HorizontalAlignment="Stretch"
@@ -133,13 +116,15 @@
 
 								<Grid Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Stretch">
 									<Grid.RowDefinitions>
-										<!-- Row0: タイトル + 3点リーダ -->
+										<!-- Row0: タイトル -->
 										<RowDefinition Height="Auto" />
 										<!-- Row1: 巻数情報 -->
 										<RowDefinition Height="Auto" />
-										<!-- Row2: あらすじ（可変） -->
+										<!-- Row2: あらすじボタン -->
+										<RowDefinition Height="Auto" />
+										<!-- Row3: 将来の状態表示・警告表示用の空き領域 -->
 										<RowDefinition Height="*" />
-										<!-- Row3: 作者名 + タグ表示 -->
+										<!-- Row4: 作者名 + タグ表示 -->
 										<RowDefinition Height="Auto" />
 									</Grid.RowDefinitions>
 
@@ -180,26 +165,51 @@
 												   FontSize="11" TextWrapping="NoWrap" VerticalAlignment="Center" />
 									</Grid>
 
-									<!-- Row2: あらすじ（可変高さ） -->
-									<StackPanel Grid.Row="2" Margin="0,0,0,6">
-										<TextBlock Text="{Binding Series.Description}"
-												   FontSize="12" TextWrapping="Wrap" MaxHeight="80"
-												   TextTrimming="CharacterEllipsis" Opacity="0.85" Margin="0,0,0,4" />
-
-										<StackPanel Orientation="Horizontal"
-													Visibility="{Binding Series.HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}">
-											<TextBlock FontSize="11" Opacity="0.6" VerticalAlignment="Center">あらすじ出典：</TextBlock>
-											<TextBlock Text="{Binding Series.DescriptionSourceName}" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
-											<TextBlock FontSize="11" Opacity="0.6" VerticalAlignment="Center">&#x20;/&#x20;</TextBlock>
-											<TextBox Style="{StaticResource TitleReadOnlyTextBoxStyle}"
-													 Text="{Binding Series.DescriptionSourceTitle}"
-													 FontSize="11" Opacity="0.6" VerticalAlignment="Center"
-													 Focusable="True" Cursor="IBeam" />
+									<!-- Row2: あらすじボタン -->
+									<ui:Button Grid.Row="2" 
+											   Appearance="Transparent"
+											   HorizontalAlignment="Left"
+											   Margin="0,0,0,8"
+											   Padding="4,2"
+											   IsEnabled="{Binding HasSynopsis}"
+											   behaviors:ShowFlyoutOnClickBehavior.Flyout="{Binding ElementName=SynopsisFlyout}">
+										<StackPanel Orientation="Horizontal">
+											<ui:SymbolIcon Symbol="DocumentText24" FontSize="16" Margin="0,0,6,0" />
+											<TextBlock FontSize="12" Text="あらすじ" VerticalAlignment="Center" />
 										</StackPanel>
-									</StackPanel>
+									</ui:Button>
 
-									<!-- Row3: 作者名 + タグ表示 -->
-									<Grid Grid.Row="3" Margin="0,0,0,0">
+									<!-- あらすじ Flyout - Grid 内に配置 -->
+									<ui:Flyout Grid.Row="2" x:Name="SynopsisFlyout" Placement="Right"  Margin="50, 0, 0, 0">
+										<StackPanel MaxWidth="550" Margin="0">
+											<!-- タイトル -->
+											<TextBlock Text="{Binding Series.Title}" 
+													   FontSize="14" FontWeight="SemiBold"
+													   TextWrapping="Wrap" Margin="0,0,0,12" />
+
+											<!-- あらすじ本文 -->
+											<ScrollViewer MaxHeight="300" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,0,0,12">
+												<TextBlock Text="{Binding Series.Description}"
+														   FontSize="12" TextWrapping="Wrap"
+														   Opacity="0.85" />
+											</ScrollViewer>
+
+											<!-- あらすじ出典 -->
+											<StackPanel Orientation="Horizontal"
+														Visibility="{Binding Series.HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}"
+														Margin="0,0,0,0">
+												<TextBlock FontSize="11" Opacity="0.6" VerticalAlignment="Center">出典：</TextBlock>
+												<TextBlock Text="{Binding Series.DescriptionSourceName}" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
+												<TextBlock FontSize="11" Opacity="0.6" VerticalAlignment="Center">&#x20;/&#x20;</TextBlock>
+												<TextBox Style="{StaticResource TitleReadOnlyTextBoxStyle}"
+														 Text="{Binding Series.DescriptionSourceTitle}"
+														 FontSize="11" Opacity="0.6" VerticalAlignment="Center"
+														 Focusable="True" Cursor="IBeam" />
+											</StackPanel>
+										</StackPanel>
+									</ui:Flyout>
+									<!-- Row4: 作者名 + タグ表示 -->
+									<Grid Grid.Row="4" Margin="0,0,0,0">
 										<Grid.ColumnDefinitions>
 											<ColumnDefinition Width="Auto" />
 											<ColumnDefinition Width="*" />
@@ -212,7 +222,7 @@
 												   VerticalAlignment="Center" Margin="0,0,16,0" />
 
 										<!-- タグ表示（読み取り専用） -->
-										<TextBlock Grid.Column="1" Text="{Binding Series.TagDisplayText}"
+										<TextBlock Grid.Column="1" Text="{Binding TagDisplayText}"
 												   FontSize="11" Opacity="0.7"
 												   VerticalAlignment="Center"
 												   HorizontalAlignment="Right"
@@ -221,18 +231,18 @@
 								</Grid>
 
 								<!-- 右端操作列 -->
-								<Grid Grid.Column="2" Margin="0,0,4,0" VerticalAlignment="Stretch">
-									<Grid.RowDefinitions>
-										<!-- 上段：3点リーダーボタン -->
-										<RowDefinition Height="28" />
-										<!-- 中段：ナビゲーション（可変） -->
-										<RowDefinition Height="*" />
-										<!-- 下段：余白（上段と同じ高さ） -->
-										<RowDefinition Height="28" />
-									</Grid.RowDefinitions>
+						<Grid Grid.Column="2" Margin="0,0,4,0" VerticalAlignment="Stretch">
+							<Grid.RowDefinitions>
+								<!-- 上段：3点リーダーボタン -->
+								<RowDefinition Height="28" />
+								<!-- 中段：ナビゲーション（可変） -->
+								<RowDefinition Height="*" />
+								<!-- 下段：余白（上段と同じ高さ） -->
+								<RowDefinition Height="28" />
+							</Grid.RowDefinitions>
 
-									<!-- 3点リーダボタン -->
-									<ui:Button Grid.Row="0"
+							<!-- 3点リーダボタン -->
+							<ui:Button Grid.Row="0"
 											   Appearance="Transparent"
 											   Width="28" Height="28"
 											   Padding="0"
@@ -244,16 +254,16 @@
 											   MouseOverBackground="{DynamicResource ControlFillColorSecondaryBrush}"
 											   MouseOverBorderBrush="Transparent"
 											   behaviors:OpenContextMenuOnClickBehavior.IsEnabled="True">
-										<ui:Button.ContextMenu>
-											<ContextMenu>
-												<!-- 今後の「素材フォルダを開く」「削除」等用 -->
-											</ContextMenu>
-										</ui:Button.ContextMenu>
-										<ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />
-									</ui:Button>
+								<ui:Button.ContextMenu>
+									<ContextMenu>
+										<!-- 今後の「素材フォルダを開く」「削除」等用 -->
+									</ContextMenu>
+								</ui:Button.ContextMenu>
+								<ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />
+							</ui:Button>
 
-									<!-- ナビゲーション表示（中段） -->
-									<ui:Button Grid.Row="1"
+							<!-- ナビゲーション表示（中段） -->
+							<ui:Button Grid.Row="1"
 											   Appearance="Transparent"
 											   Width="28" Height="28"
 											   Padding="0"
@@ -264,82 +274,73 @@
 											   ToolTip="製本開始"
 											   Command="{Binding DataContext.NavigateToVolumeSelectionCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=Page}}"
 											   CommandParameter="{Binding}">
-										<TextBlock Text="▶"
+								<TextBlock Text="▶"
 												   FontSize="12"
 												   Opacity="0.6"
 												   VerticalAlignment="Center"
 												   HorizontalAlignment="Center"
 												   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-									</ui:Button>
+							</ui:Button>
 
-									<!-- 下段：余白 -->
-									<!-- (empty) -->
-								</Grid>
-							</Grid>
+							<!-- 下段：余白 -->
+							<!-- (empty) -->
+						</Grid>
+					</Grid>
 						</DataTemplate>
 					</ListView.ItemTemplate>
-				</ListView>
-			</Grid>
+						</ListView>
 
-			<!-- Empty State（0件のとき表示） -->
-			<Grid Visibility="{Binding IsEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}"
-				  Grid.Column="1">
-				<Grid.ColumnDefinitions>
-					<ColumnDefinition Width="1*" />
-					<ColumnDefinition Width="4*" />
-					<ColumnDefinition Width="1*" />
-				</Grid.ColumnDefinitions>
+						<!-- Empty State（0件のとき表示） -->
+						<StackPanel Grid.Row="1" Grid.Column="1"
+									Visibility="{Binding IsEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}"
+									VerticalAlignment="Top" Margin="68,50,0,0">
 
-				<StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="68,50,0,0">
+							<TextBlock FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10">製本する作品が選択されていません</TextBlock>
 
-					<TextBlock FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10">製本する作品が選択されていません</TextBlock>
+							<TextBlock FontSize="13" TextWrapping="Wrap" Opacity="0.7" Margin="0,0,0,28">
+								<Run>Home 画面で作品を選択して「製本開始」を押すと、</Run>
+								<LineBreak />
+								<Run>ここに製本対象の作品が表示されます。</Run>
+							</TextBlock>
 
-					<TextBlock FontSize="13" TextWrapping="Wrap" Opacity="0.7" Margin="0,0,0,28">
-						<Run>Home 画面で作品を選択して「製本開始」を押すと、</Run>
-						<LineBreak />
-						<Run>ここに製本対象の作品が表示されます。</Run>
-					</TextBlock>
+							<ui:Card HorizontalAlignment="Left" Padding="0">
+								<Button Command="{Binding NavigateToHomeCommand}"
+										Background="Transparent"
+										BorderThickness="0"
+										Padding="14,10"
+										Cursor="Hand">
+									<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+										<ui:SymbolIcon Symbol="Home24" FontSize="32"
+													   Foreground="{DynamicResource BindingAccentBrush}"
+													   Margin="0,0,14,0" VerticalAlignment="Center" />
+										<TextBlock FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center">Home に戻る</TextBlock>
+									</StackPanel>
+								</Button>
+							</ui:Card>
 
-					<ui:Card HorizontalAlignment="Left" Padding="0">
-						<Button Command="{Binding NavigateToHomeCommand}"
-								Background="Transparent"
-								BorderThickness="0"
-								Padding="14,10"
-								Cursor="Hand">
-							<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-								<ui:SymbolIcon Symbol="Home24" FontSize="32"
-											   Foreground="{DynamicResource BindingAccentBrush}"
-											   Margin="0,0,14,0" VerticalAlignment="Center" />
-								<TextBlock FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center">Home に戻る</TextBlock>
+						</StackPanel>
+
+						<!-- 関連操作カード（右下） -->
+						<ui:Card Grid.Row="1" Grid.Column="2"
+								 HorizontalAlignment="Right"
+								 VerticalAlignment="Bottom"
+								 Margin="0,0,16,16"
+								 Padding="12,10"
+								 Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+								 Width="130">
+							<StackPanel Orientation="Vertical" MinWidth="100">
+								<TextBlock Text="関連操作"
+								FontSize="10"
+								Margin="0,0,0,6"
+								Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+								<ui:HyperlinkButton Content="製本待ちをクリア"
+										FontSize="12"
+										Padding="0"
+										Margin="0"
+										Command="{Binding ClearBindingQueueCommand}" />
 							</StackPanel>
-						</Button>
-					</ui:Card>
+						</ui:Card>
 
-				</StackPanel>
-			</Grid>
-			<!-- 関連操作カード（右下） -->
-			<ui:Card Grid.Column="2"
-					 HorizontalAlignment="Right"
-					 VerticalAlignment="Bottom"
-					 Margin="0,0,16,16"
-					 Padding="12,10"
-					 Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
-					 Width="130">
-				<StackPanel Orientation="Vertical" MinWidth="100">
-					<TextBlock Text="関連操作"
-					FontSize="10"
-					Margin="0,0,0,6"
-					Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
-					<ui:HyperlinkButton Content="製本待ちをクリア"
-							FontSize="12"
-							Padding="0"
-							Margin="0"
-							Command="{Binding ClearBindingQueueCommand}" />
-				</StackPanel>
-			</ui:Card>
-
-		</Grid>
-
-</Grid>
-</Page>
+				</Grid>
+				</Page>

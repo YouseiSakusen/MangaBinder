@@ -123,5 +123,40 @@ public class MaterialFolderScanner : FolderScannerBase
     /// <returns>DB上でマージ済みの最新 <see cref="MangaSeries"/>。</returns>
     protected override ValueTask<MangaSeries> SaveResultsAsync(MangaSeries series, IFolderScannerRepository repository, CancellationToken ct)
         => repository.SaveMaterialSeriesAsync(series, ct);
+
+    /// <summary>
+    /// 素材フォルダスキャンを実行し、完了後に後続ジョブを自動投入します。
+    /// 基本的なスキャン処理を実行した後、以下の後続ジョブを順序投入します：
+    /// 1. <see cref="JobType.LargeThumbnailCreate"/> - 巨大サムネイル作成（サイズ超過判定時）
+    /// 2. <see cref="JobType.MaterialArchiveScan"/> - アーカイブキャッシュ作成
+    /// 後続ジョブの投入時には既存の重複チェック処理を利用し、Pending/Running 状態のジョブが存在する場合はスキップします。
+    /// </summary>
+    /// <param name="ct">キャンセルトークン。</param>
+    public override async ValueTask ExecuteAsync(CancellationToken ct)
+    {
+        // 基本的なスキャン処理を実行
+        await base.ExecuteAsync(ct);
+
+        // 素材スキャン完了後、後続ジョブを自動投入
+        this.logger.ZLogInformation($"素材フォルダスキャンが完了しました。後続ジョブの投入を準備します。");
+
+        using var scope = this.scopeFactory.CreateScope();
+
+        var repository = scope.ServiceProvider.GetRequiredService<IFolderScannerRepository>();
+        var jobRepository = scope.ServiceProvider.GetRequiredService<JobRepository>();
+
+        // 巨大サムネイル作成ジョブを投入（条件付き）
+        if (await repository.HasLimitExceededAsync(ct))
+        {
+            this.logger.ZLogInformation($"サイズ超過によりスキップした作品が存在するため、巨大サムネイル作成ジョブをキューに登録します。");
+            await jobRepository.EnqueueAsync(JobType.LargeThumbnailCreate, skipThumbnailSizeLimit: true);
+        }
+
+        // アーカイブキャッシュ作成ジョブを投入
+        this.logger.ZLogInformation($"アーカイブキャッシュ作成ジョブをキューに登録します。");
+        await jobRepository.EnqueueAsync(JobType.MaterialArchiveScan, skipThumbnailSizeLimit: false);
+
+        this.logger.ZLogInformation($"素材フォルダスキャン完了処理が終了しました。");
+    }
 }
 

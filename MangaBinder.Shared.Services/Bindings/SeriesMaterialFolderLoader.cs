@@ -72,7 +72,19 @@ public class SeriesMaterialFolderLoader
 		// 正常系: 素材ツリーを生成（バックグラウンドで実行）
 		return new ValueTask<MaterialFolderResult>(
 			Task.Run(
-				async () => await this.BuildMaterialTreeAsync(materialPath, series.SeriesId, materialSource.SourceId, cancellationToken),
+				async () =>
+				{
+					var result = await this.BuildMaterialTreeAsync(materialPath, series.SeriesId, materialSource.SourceId, cancellationToken);
+
+					// HasNestedArchive を更新・保存
+					if (result.Status == MaterialFolderStatus.Success)
+					{
+						series.HasNestedArchive = result.HasNestedArchive;
+						await this.archiveRepository.UpdateMangaSeriesAsync(series, cancellationToken);
+					}
+
+					return result;
+				},
 				cancellationToken));
 	}
 
@@ -98,11 +110,15 @@ public class SeriesMaterialFolderLoader
 		// フォルダ直下を走査して子を追加
 		await this.PopulateFolderAsync(rootItem, materialPath, archiveCache, seriesId, sourceId, cancellationToken);
 
+		// Nested Archive の集約判定：archiveCache 内に IsNestedArchive = true がある場合、HasNestedArchive を true に設定
+		var hasNestedArchive = archiveCache.Values.Any(c => c.IsNestedArchive);
+
 		return new MaterialFolderResult
 		{
 			Status = MaterialFolderStatus.Success,
 			TargetPath = materialPath,
 			Materials = [rootItem],
+			HasNestedArchive = hasNestedArchive,
 		};
 	}
 
@@ -190,6 +206,8 @@ public class SeriesMaterialFolderLoader
 	/// <summary>
 	/// Archive ファイル内部のフォルダ構造を解析して、親 MaterialItem に子を追加します。
 	/// キャッシュが一致する場合はDBから復元し、不一致の場合は解析→保存します。
+	/// IsNestedArchive = false かつ MaterialArchiveEntries = 0件 の既存キャッシュは再スキャンします。
+	/// 再スキャン結果はメモリ上の archiveCache にも反映されます。
 	/// </summary>
 	private async Task PopulateArchiveAsync(
 		MaterialItem archiveItem,
@@ -208,13 +226,22 @@ public class SeriesMaterialFolderLoader
 				if (fileInfo.Length == cacheInfo.FileSize &&
 					fileInfo.LastWriteTime == cacheInfo.LastWriteTime)
 				{
-					// キャッシュ一致 → DBから復元
-					await this.restoreArchiveFromCacheAsync(archiveItem, cacheInfo, archivePath, cancellationToken);
-					return;
+					// キャッシュサイズ・更新日時が一致している場合
+					// IsNestedArchive = false かつ MaterialArchiveEntries = 0件 の場合は、旧キャッシュまたは未判定キャッシュのため再スキャン
+					if (cacheInfo.IsNestedArchive == false && cacheInfo.Entries.Count == 0)
+					{
+						// 再スキャンが必要
+					}
+					else
+					{
+						// キャッシュ一致 → DBから復元
+						await this.restoreArchiveFromCacheAsync(archiveItem, cacheInfo, archivePath, cancellationToken);
+						return;
+					}
 				}
 			}
 
-			// キャッシュなし・不一致 → Archive を解析
+			// キャッシュなし・不一致・または再スキャン必要 → Archive を解析
 			var archiveFile = await this.archiveExtractor.ExtractAsync(archivePath, cancellationToken);
 
 			// ArchiveFolderItem ツリーを MaterialItem ツリーに変換
@@ -226,6 +253,18 @@ public class SeriesMaterialFolderLoader
 
 			// DBに保存
 			await this.archiveRepository.SaveArchiveAsync(seriesId, sourceId, archiveFile, cancellationToken);
+
+			// メモリ上の archiveCache を更新（再スキャン結果を即時反映）
+			var entryCache = this.ConvertFoldersToEntryCacheInfos(archiveFile.Folders);
+			archiveCache[archivePath] = new MaterialArchiveRepository.ArchiveCacheInfo
+			{
+				MaterialArchiveId = cacheInfo?.MaterialArchiveId ?? 0,
+				ArchivePath = archiveFile.ArchivePath,
+				FileSize = archiveFile.FileSize,
+				LastWriteTime = archiveFile.LastWriteTime,
+				IsNestedArchive = archiveFile.IsNestedArchive,
+				Entries = entryCache,
+			};
 		}
 		catch
 		{
@@ -364,5 +403,34 @@ public class SeriesMaterialFolderLoader
 		{
 			return 0;
 		}
+	}
+
+	/// <summary>
+	/// ArchiveFolderItem リストから ArchiveEntryCacheInfo リストへ変換します（再帰的）。
+	/// </summary>
+	private List<MaterialArchiveRepository.ArchiveEntryCacheInfo> ConvertFoldersToEntryCacheInfos(
+		List<ArchiveFolderItem> folders)
+	{
+		var result = new List<MaterialArchiveRepository.ArchiveEntryCacheInfo>();
+
+		foreach (var folder in folders)
+		{
+			// フォルダエントリをキャッシュエントリに変換
+			var entryCache = new MaterialArchiveRepository.ArchiveEntryCacheInfo
+			{
+				EntryPath = folder.EntryPath,
+				ParentEntryPath = string.IsNullOrEmpty(folder.ParentEntryPath) ? null : folder.ParentEntryPath,
+				FileCount = folder.FileCount,
+				IsSelectable = folder.IsSelectable,
+				SelectionDisabledReason = string.IsNullOrEmpty(folder.SelectionDisabledReason) ? string.Empty : folder.SelectionDisabledReason,
+			};
+			result.Add(entryCache);
+
+			// 子フォルダを再帰的に変換
+			var childEntries = this.ConvertFoldersToEntryCacheInfos(folder.Children);
+			result.AddRange(childEntries);
+		}
+
+		return result;
 	}
 }

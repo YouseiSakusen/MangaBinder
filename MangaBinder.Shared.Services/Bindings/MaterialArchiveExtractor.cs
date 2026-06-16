@@ -35,11 +35,28 @@ public class MaterialArchiveExtractor
 		cancellationToken.ThrowIfCancellationRequested();
 
 		var fileInfo = new FileInfo(archivePath);
+		bool isNestedArchive = false;
+
+		try
+		{
+			using var archive = ArchiveFactory.OpenArchive(fileInfo);
+			// Nested Archive 判定：アーカイブ内に対応圧縮ファイルが1件以上あるかチェック
+			var entries = archive.Entries.ToList();
+			isNestedArchive = entries
+				.Where(e => !e.IsDirectory && e.Key != null)
+				.Any(e => SupportedExtensionHelper.IsArchive(Path.GetExtension(e.Key!)));
+		}
+		catch
+		{
+			// アーカイブが開けない場合は isNestedArchive は false のままにする
+		}
+
 		var result = new MaterialArchiveFile
 		{
 			ArchivePath = archivePath,
 			FileSize = fileInfo.Length,
 			LastWriteTime = fileInfo.LastWriteTime,
+			IsNestedArchive = isNestedArchive,
 		};
 
 		try

@@ -19,4 +19,15 @@ public sealed class BindingSeries
 
 	/// <summary>最終更新日時。</summary>
 	public DateTime UpdatedAt { get; init; }
+
+	/// <summary>あらすじが存在するかどうかを示します。</summary>
+	public bool HasSynopsis
+		=> !string.IsNullOrWhiteSpace(this.Series.Description);
+
+	/// <summary>
+	/// StartPage 用のタグ表示テキストを取得します。
+	/// タグが未設定の場合は「🏷 タグ無し」を表示し、設定済みの場合は Series.TagDisplayText を返します。
+	/// </summary>
+	public string TagDisplayText
+		=> this.Series.Tags.Count == 0 ? "🏷 タグ無し" : this.Series.TagDisplayText;
 }
