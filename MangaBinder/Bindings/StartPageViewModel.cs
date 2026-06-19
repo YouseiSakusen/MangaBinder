@@ -2,6 +2,7 @@ using ObservableCollections;
 using R3;
 using Wpf.Ui;
 using MangaBinder.Helpers;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MangaBinder.Bindings;
 
@@ -10,6 +11,9 @@ namespace MangaBinder.Bindings;
 /// </summary>
 public class StartPageViewModel : IDisposable, IDataInitializable
 {
+	/// <summary>スコープファクトリー。</summary>
+	private readonly IServiceScopeFactory serviceScopeFactory;
+
 	/// <summary>ナビゲーションサービス。</summary>
 	private readonly INavigationService navigationService;
 
@@ -57,12 +61,21 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	public ReactiveCommand ClearBindingQueueCommand { get; }
 
 	/// <summary>
+	/// 素材フォルダを開くコマンドです。<see cref="MangaSource"/> をパラメータとして受け取ります。
+	/// </summary>
+	public ReactiveCommand<MangaSource> OpenMaterialFolderCommand { get; }
+
+	/// <summary>
 	/// <see cref="StartPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
+	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
-	public StartPageViewModel(INavigationService navigationService, IContentDialogService contentDialogService, BindingQueueDispatcher bindingQueueDispatcher, SeriesWorkspaceStore workspaceStore)
+	/// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
+	/// <param name="workspaceStore">製本ワークスペース ストア。</param>
+	public StartPageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, IContentDialogService contentDialogService, BindingQueueDispatcher bindingQueueDispatcher, SeriesWorkspaceStore workspaceStore)
 	{
+		this.serviceScopeFactory = serviceScopeFactory;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
 		this.bindingQueueDispatcher = bindingQueueDispatcher;
@@ -94,6 +107,13 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.ClearBindingQueueCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
 		this.ClearBindingQueueCommand.Subscribe(_ => this.executeClearBindingQueueAsync());
+
+		this.OpenMaterialFolderCommand = new ReactiveCommand<MangaSource>()
+			.AddTo(ref this.disposableBag);
+		this.OpenMaterialFolderCommand.Subscribe(source =>
+		{
+			_ = this.openMaterialFolderAsync(source);
+		});
 	}
 
 	/// <inheritdoc/>
@@ -149,6 +169,17 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.bindingQueueDispatcher.ReplaceAll(new List<BindingSeries>());
 		this.series.Clear();
 		this.updateState();
+	}
+
+	/// <summary>
+	/// 素材フォルダを開きます。
+	/// </summary>
+	/// <param name="source">開くフォルダの情報。</param>
+	private async Task openMaterialFolderAsync(MangaSource source)
+	{
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var opener = scope.ServiceProvider.GetRequiredService<MaterialFolderOpener>();
+		await opener.OpenAsync(source);
 	}
 
 	/// <inheritdoc/>

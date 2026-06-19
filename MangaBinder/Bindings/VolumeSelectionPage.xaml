@@ -141,9 +141,9 @@
 		<!-- ── Row1：アイキャッチカード ── -->
 		<Grid Grid.Row="1" Margin="0,0,0,16">
 			<Grid.ColumnDefinitions>
-				<ColumnDefinition Width="1*" />
-				<ColumnDefinition Width="4*" />
-				<ColumnDefinition Width="1*" />
+				<ColumnDefinition Width="250" />
+				<ColumnDefinition Width="2*" />
+				<ColumnDefinition Width="3*" />
 			</Grid.ColumnDefinitions>
 
 			<StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,0">
@@ -156,15 +156,67 @@
 							<TextBlock FontSize="11" Margin="0,0,0,2"
 									   Foreground="{DynamicResource TextFillColorSecondaryBrush}">素材数</TextBlock>
 							<TextBlock FontSize="16" FontWeight="SemiBold">
-								<Run Text="{Binding RootNodes.Count, Mode=OneWay}" /><Run>&#x20;件</Run>
+								<Run Text="{Binding MaterialCountText.Value, Mode=OneWay}" />
 							</TextBlock>
 						</StackPanel>
 					</StackPanel>
 				</ui:Card>
 			</StackPanel>
+
+			<!-- 右上：製本設定カード群（縦並び） -->
+			<StackPanel Orientation="Horizontal"  Grid.Column="2" VerticalAlignment="Top">
+				<!-- Card 1：画像の展開 -->
+				<ui:Card Padding="12,12" Margin="0,0,50,8">
+					<StackPanel>
+						<TextBlock
+							Text="素材展開先一時フォルダへの展開"
+							FontSize="12"
+							FontWeight="SemiBold"
+							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+							Margin="0,0,0,6" />
+						<ComboBox
+							ItemsSource="{Binding ImageExpansionOptions}"
+							SelectedIndex="{Binding ImageExpansionMethod.Value, Mode=TwoWay}"
+							IsEnabled="{Binding HasExistingWorkFolder.Value}"
+							Width="340">
+						</ComboBox>
+					</StackPanel>
+				</ui:Card>
+
+				<!-- Card 2：巻フォルダ名 -->
+				<ui:Card Padding="10,8">
+					<StackPanel>
+						<TextBlock
+							Text="巻フォルダ名"
+							FontSize="12"
+							FontWeight="SemiBold"
+							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+							Margin="0,0,0,6" />
+						<ComboBox
+							ItemsSource="{Binding VolumeFolderDigitOptions}"
+							SelectedValuePath="Digits"
+							SelectedValue="{Binding VolumeFolderDigits.Value, Mode=TwoWay}"
+							Width="240">
+							<ComboBox.ItemTemplate>
+								<DataTemplate>
+									<StackPanel Orientation="Horizontal">
+										<TextBlock
+											Text="{Binding Label}"
+											Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+										<TextBlock
+											Text="{Binding ExampleText}"
+											Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+											Margin="4,0,0,0" />
+									</StackPanel>
+								</DataTemplate>
+							</ComboBox.ItemTemplate>
+						</ComboBox>
+					</StackPanel>
+				</ui:Card>
+			</StackPanel>
 		</Grid>
 
-        <!-- ── Row2：左右本体 ── -->
+		<!-- ── Row2：左右本体 ── -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <!-- 左：作品情報 -->
@@ -384,12 +436,12 @@
                 ShowsPreview="True" />
 
             <!-- ══════════════════════════════ -->
-            <!-- 右：製本キュー                 -->
+            <!-- 右：選択巻リスト               -->
             <!-- ══════════════════════════════ -->
             <Border
                 Grid.Column="3"
                 Margin="12,0,0,0"
-                Padding="8"
+                Padding="0, 0, 8, 8"
                 CornerRadius="4"
                 Background="Transparent">
                 <Grid>
@@ -433,27 +485,6 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                            <!-- 再作成チェックボックス（中間フォルダあり） -->
-                            <CheckBox
-                                Content="中間フォルダを再作成"
-                                IsChecked="{Binding RecreateWorkFolder.Value, Mode=TwoWay}"
-                                FontSize="12"
-                                VerticalAlignment="Center"
-                                ToolTipService.ShowOnDisabled="False">
-                                <CheckBox.ToolTip>
-                                    <ToolTip Content="前回の製本済み中間フォルダを削除して、素材から再生成します。" />
-                                </CheckBox.ToolTip>
-                                <CheckBox.Style>
-                                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasExistingWorkFolder.Value}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </CheckBox.Style>
-                            </CheckBox>
                         </StackPanel>
 
                         <!-- カラムヘッダー行 -->
@@ -533,6 +564,8 @@
                                     <!-- 巻番号（編集可能） -->
                                     <TextBox
                                         Grid.Column="0"
+                                        Width="42"
+                                        HorizontalAlignment="Right"
                                         Text="{Binding VolumeNumber.Value, TargetNullValue='?', StringFormat={}{0:0.#}, UpdateSourceTrigger=LostFocus}"
                                         BorderThickness="0"
                                         Background="Transparent"

@@ -55,6 +55,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     /// <summary>素材サマリ文字列を取得します。</summary>
     public BindableReactiveProperty<string> MaterialSummaryText { get; }
 
+    /// <summary>アイキャッチカード用の素材数を取得します。</summary>
+    public BindableReactiveProperty<string> MaterialCountText { get; }
+
     /// <summary>素材内訳：フォルダ数を取得します。</summary>
     public BindableReactiveProperty<string> MaterialFolderCountText { get; }
 
@@ -75,6 +78,18 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
 
     /// <summary>中間フォルダを再作成するかどうかを取得します。</summary>
     public BindableReactiveProperty<bool> RecreateWorkFolder => this.workspaceStore.RecreateWorkFolder;
+
+    /// <summary>素材展開方法の選択値を取得します（0=新規作成、1=既存を使用）。</summary>
+    public BindableReactiveProperty<int> ImageExpansionMethod { get; }
+
+    /// <summary>素材展開方法のオプション一覧を取得します。</summary>
+    public List<string> ImageExpansionOptions { get; }
+
+    /// <summary>巻フォルダ名の桁数を取得します（1, 2, 3 など）。</summary>
+    public BindableReactiveProperty<int> VolumeFolderDigits { get; }
+
+    /// <summary>巻フォルダ名の桁数選択肢一覧を取得します。</summary>
+    public List<VolumeFolderDigitOption> VolumeFolderDigitOptions { get; }
 
     /// <summary>次工程へ進むコマンドを取得します。</summary>
     public ReactiveCommand GoNextCommand { get; }
@@ -156,6 +171,8 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             .AddTo(ref this.disposableBag);
         this.MaterialSummaryText = new BindableReactiveProperty<string>(string.Empty)
             .AddTo(ref this.disposableBag);
+        this.MaterialCountText = new BindableReactiveProperty<string>("0 件")
+            .AddTo(ref this.disposableBag);
         this.MaterialFolderCountText = new BindableReactiveProperty<string>(string.Empty)
             .AddTo(ref this.disposableBag);
         this.MaterialArchiveCountText = new BindableReactiveProperty<string>(string.Empty)
@@ -170,6 +187,25 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
 
         this.HasExistingWorkFolder = new BindableReactiveProperty<bool>(false)
             .AddTo(ref this.disposableBag);
+
+        this.ImageExpansionMethod = new BindableReactiveProperty<int>(0)
+            .AddTo(ref this.disposableBag);
+
+        this.ImageExpansionOptions = new List<string>
+        {
+            "作品フォルダを新規作成する（既存フォルダ削除）",
+            "既存の画像を使用する"
+        };
+
+        this.VolumeFolderDigits = new BindableReactiveProperty<int>(2)
+            .AddTo(ref this.disposableBag);
+
+        this.VolumeFolderDigitOptions = new List<VolumeFolderDigitOption>
+        {
+            new VolumeFolderDigitOption(1, "1桁", "（例：1巻）"),
+            new VolumeFolderDigitOption(2, "2桁", "（例：01巻）"),
+            new VolumeFolderDigitOption(3, "3桁", "（例：001巻）"),
+        };
 
         this.GoNextCommand = new ReactiveCommand()
             .AddTo(ref this.disposableBag);
@@ -205,6 +241,14 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             .ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
             .AddTo(ref this.disposableBag);
 
+        // 素材展開方法の選択変更を監視し、RecreateWorkFolder を更新
+        this.ImageExpansionMethod.Subscribe(selectedIndex =>
+        {
+            // 0 = 新規作成（RecreateWorkFolder = true）
+            // 1 = 既存を使用（RecreateWorkFolder = false）
+            this.workspaceStore.RecreateWorkFolder.Value = selectedIndex == 0;
+        }).AddTo(ref this.disposableBag);
+
         this.DropHandler = new BindingQueueDropHandler(this.bindingQueueItems, this.notifyManualOrderSet);
     }
 
@@ -234,6 +278,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         this.SelectedSeries.Value = series;
 
         this.updateWorkFolderState();
+        this.updateVolumeFolderDigits();
 
         // ローディング開始
         this.IsLoading.Value = true;
@@ -269,7 +314,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
                         driveMessage,
                         ControlAppearance.Caution,
                         new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-                        TimeSpan.FromSeconds(6));
+                        TimeSpan.MaxValue);
                     return;
 
                 case MaterialFolderStatus.NoMaterialSource:
@@ -279,8 +324,28 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
                         "素材フォルダが存在しません。",
                         ControlAppearance.Danger,
                         new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
-                        TimeSpan.FromSeconds(6));
+                        TimeSpan.MaxValue);
                     return;
+            }
+
+            // NestedArchive 判定：圧縮ファイルの中に圧縮ファイルが含まれている場合
+            if (result.HasNestedArchive)
+            {
+                // TreeView 構築をスキップ
+                this.rootNodes.Clear();
+                this.CanGoNext.Value = false;
+
+                // Snackbar の本文を組み立て
+                var snackbarBody = this.buildNestedArchiveWarningMessage(result.NestedArchiveFileNames);
+
+                // Snackbar で警告を表示
+                this.snackbarService.Show(
+                    "製本できない素材が含まれています",
+                    snackbarBody,
+                    ControlAppearance.Danger,
+                    new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+                    TimeSpan.MaxValue);
+                return;
             }
 
             // ── サマリ集計（Materials ツリーから）──
@@ -376,6 +441,10 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             }
         }
 
+        // アイキャッチカード用の素材数を設定
+        var materialCount = folderCount + archiveCount + epubCount;
+        this.MaterialCountText.Value = $"{materialCount} 件";
+
         this.MaterialFolderCountText.Value = $"フォルダ：{folderCount}";
 
         var archiveSizeText = archiveTotalBytes == 0
@@ -468,42 +537,63 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         this.bindingQueueItems.Insert(index, item);
     }
 
-    /// <summary>
-    /// 作品中間フォルダの存在状態を更新します。
-    /// </summary>
-    private void updateWorkFolderState()
-    {
-        var series = this.SelectedSeries.Value;
+	/// <summary>
+	/// 作品中間フォルダの存在状態を更新します。
+	/// </summary>
+	private void updateWorkFolderState()
+	{
+		var series = this.SelectedSeries.Value;
 
 		if (series is null || !this.appSettings.HasValidWorkFolder)
-        {
-            this.HasExistingWorkFolder.Value = false;
-            this.RecreateWorkFolder.Value = false;
-            return;
-        }
+		{
+			this.HasExistingWorkFolder.Value = false;
+			this.RecreateWorkFolder.Value = false;
+			this.ImageExpansionMethod.Value = 0;
+			return;
+		}
 
-        var seriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(series.Title);
-        var exists = Directory.Exists(seriesFolderPath);
+		var seriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(series.Title);
+		var exists = Directory.Exists(seriesFolderPath);
 
-        Debug.WriteLine("===== WorkFolderState =====");
-        Debug.WriteLine($"SeriesTitle       : [{series.Title}]");
-        Debug.WriteLine($"SeriesTitleLength : [{series.Title.Length}]");
-        Debug.WriteLine($"WorkFolderPath    : [{this.appSettings.WorkFolderPath.Value}]");
-        Debug.WriteLine($"SeriesFolderPath  : [{seriesFolderPath}]");
-        Debug.WriteLine($"Path.GetFullPath  : [{Path.GetFullPath(seriesFolderPath)}]");
-        Debug.WriteLine($"Directory.Exists  : [{exists}]");
-        Debug.WriteLine($"HasValidWorkFolder: [{this.appSettings.HasValidWorkFolder}]");
+		Debug.WriteLine("===== WorkFolderState =====");
+		Debug.WriteLine($"SeriesTitle       : [{series.Title}]");
+		Debug.WriteLine($"SeriesTitleLength : [{series.Title.Length}]");
+		Debug.WriteLine($"WorkFolderPath    : [{this.appSettings.WorkFolderPath.Value}]");
+		Debug.WriteLine($"SeriesFolderPath  : [{seriesFolderPath}]");
+		Debug.WriteLine($"Path.GetFullPath  : [{Path.GetFullPath(seriesFolderPath)}]");
+		Debug.WriteLine($"Directory.Exists  : [{exists}]");
+		Debug.WriteLine($"HasValidWorkFolder: [{this.appSettings.HasValidWorkFolder}]");
 
-        this.HasExistingWorkFolder.Value = exists;
+		this.HasExistingWorkFolder.Value = exists;
 
-        if (!exists)
-            this.RecreateWorkFolder.Value = false;
-    }
+		// フォルダが存在しない場合
+		if (!exists)
+		{
+			this.RecreateWorkFolder.Value = false;
+			this.ImageExpansionMethod.Value = 0; // 新規作成固定
+		}
+	}
 
-    /// <summary>
-    /// CanGoNext を更新します。
-    /// </summary>
-    private void updateCanGoNext()
+	/// <summary>
+	/// 巻フォルダ名の桁数を更新します。
+	/// </summary>
+	private void updateVolumeFolderDigits()
+	{
+		var series = this.SelectedSeries.Value;
+		if (series is null)
+		{
+			this.VolumeFolderDigits.Value = 2; // デフォルト値
+			return;
+		}
+
+		// Math.Max(2, MaxVolumeDigits) で初期値を決定
+		this.VolumeFolderDigits.Value = Math.Max(2, series.MaxVolumeDigits);
+	}
+
+	/// <summary>
+	/// CanGoNext を更新します。
+	/// </summary>
+	private void updateCanGoNext()
         => this.CanGoNext.Value = this.bindingQueueItems.Count > 0;
 
     /// <summary>
@@ -563,6 +653,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         }
 
         // 遷移処理
+        // 巻フォルダ名の桁数を Workspace へ保存
+        this.workspaceStore.VolumeFolderDigits = this.VolumeFolderDigits.Value;
+
         this.workspaceStore.SelectedMaterialVolumes.Clear();
         foreach (var item in this.bindingQueueItems)
         {
@@ -580,7 +673,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
                 SourcePath = node.SourcePath,
                 ArchiveEntryPrefix = node.ArchiveEntryPrefix,
                 FullPath = node.FullPath.Value,
-                OutputVolumeFolderName = this.appSettings.CreateWorkVolumeFolderName(volumeNumber),
+                OutputVolumeFolderName = this.appSettings.CreateWorkVolumeFolderName(
+                    volumeNumber,
+                    this.workspaceStore.VolumeFolderDigits),
             });
         }
 
@@ -619,4 +714,22 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     {
         // TODO: 前画面への遷移処理を実装する
     }
+
+    /// <summary>
+    /// NestedArchive 警告メッセージを構築します。
+    /// ファイル名がある場合は名前を含め、ない場合は汎用メッセージを返します。
+    /// </summary>
+    private string buildNestedArchiveWarningMessage(IReadOnlyList<string> fileNames)
+    {
+        if (fileNames.Count == 0)
+        {
+            // ファイル名が取得できない場合は汎用メッセージ
+            return "圧縮ファイル内に圧縮ファイルが含まれているファイルが存在します。対象のファイルを手作業で解凍してください。";
+        }
+
+        // ファイル名を含めたメッセージを構築
+        var fileNameList = string.Join("\n", fileNames);
+        return $"以下の圧縮ファイル内に、圧縮ファイルが含まれています。\n\n{fileNameList}\n\n上記のファイルを手作業で展開してください。";
+    }
 }
+

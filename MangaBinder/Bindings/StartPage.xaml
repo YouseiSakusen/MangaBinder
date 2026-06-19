@@ -8,6 +8,7 @@
 	  xmlns:binding="clr-namespace:MangaBinder.Bindings"
 	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
 	  xmlns:extensions="clr-namespace:MangaBinder.Extensions"
+	  xmlns:tags="clr-namespace:MangaBinder.Tags"
 	  mc:Ignorable="d"
 	  d:DesignHeight="800" d:DesignWidth="1200"
 	  Title="製本開始"
@@ -15,6 +16,7 @@
 	  ScrollViewer.CanContentScroll="False">
 
 	<Page.Resources>
+		<tags:BindingProxy x:Key="VmProxy" Data="{Binding}" />
 		<BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 		<Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
 			<Setter Property="Background" Value="Transparent" />
@@ -208,6 +210,38 @@
 											</StackPanel>
 										</StackPanel>
 									</ui:Flyout>
+
+									<!-- Row3: NestedArchive警告表示 -->
+									<Border Grid.Row="3" 
+											Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+											BorderBrush="{DynamicResource SystemFillColorCautionBrush}"
+											Opacity="0.6"
+											BorderThickness="1"
+											CornerRadius="4"
+											Padding="12,8"
+											Margin="0,8,0,8"
+											VerticalAlignment="Top">
+										<Border.Style>
+											<Style TargetType="Border">
+												<Setter Property="Visibility" Value="Collapsed" />
+												<Style.Triggers>
+													<DataTrigger Binding="{Binding Series.HasNestedArchive}" Value="True">
+														<Setter Property="Visibility" Value="Visible" />
+													</DataTrigger>
+												</Style.Triggers>
+											</Style>
+										</Border.Style>
+										<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+											<ui:SymbolIcon Symbol="Warning24" FontSize="16" Margin="0,0,8,0"
+														   Foreground="{DynamicResource SystemFillColorCautionBrush}"
+														   VerticalAlignment="Center" />
+											<TextBlock Text="圧縮ファイルの中に圧縮ファイルが含まれているファイルが存在する可能性があります"
+													   FontSize="11" TextWrapping="Wrap"
+													   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+													   VerticalAlignment="Center" />
+										</StackPanel>
+									</Border>
+
 									<!-- Row4: 作者名 + タグ表示 -->
 									<Grid Grid.Row="4" Margin="0,0,0,0">
 										<Grid.ColumnDefinitions>
@@ -256,7 +290,70 @@
 											   behaviors:OpenContextMenuOnClickBehavior.IsEnabled="True">
 								<ui:Button.ContextMenu>
 									<ContextMenu>
-										<!-- 今後の「素材フォルダを開く」「削除」等用 -->
+										<!-- 素材フォルダを開く（1件） -->
+										<MenuItem
+											Header="素材フォルダを開く"
+											Visibility="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
+														 RelativeSource={RelativeSource AncestorType=ContextMenu},
+														 Converter={StaticResource BooleanToVisibilityConverter}}"
+											IsEnabled="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
+														RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+											Command="{Binding Data.OpenMaterialFolderCommand, Source={StaticResource VmProxy}}"
+											CommandParameter="{Binding PlacementTarget.DataContext.Series.SingleMaterialSource,
+																   RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+											<MenuItem.Style>
+												<Style TargetType="MenuItem">
+													<Setter Property="Visibility" Value="Visible" />
+													<Style.Triggers>
+														<DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMultipleMaterialSources,
+																	 RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
+															<Setter Property="Visibility" Value="Collapsed" />
+														</DataTrigger>
+													</Style.Triggers>
+												</Style>
+											</MenuItem.Style>
+										</MenuItem>
+										<!-- 素材フォルダを開く（0件・グレーアウト） -->
+										<MenuItem
+											Header="素材フォルダを開く"
+											IsEnabled="False">
+											<MenuItem.Style>
+												<Style TargetType="MenuItem">
+													<Setter Property="Visibility" Value="Collapsed" />
+													<Style.Triggers>
+														<DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
+																	 RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="False">
+															<Setter Property="Visibility" Value="Visible" />
+														</DataTrigger>
+													</Style.Triggers>
+												</Style>
+											</MenuItem.Style>
+										</MenuItem>
+										<!-- 素材フォルダ（複数件・サブメニュー） -->
+										<MenuItem Header="素材フォルダ">
+											<MenuItem.Style>
+												<Style TargetType="MenuItem">
+													<Setter Property="Visibility" Value="Collapsed" />
+													<Style.Triggers>
+														<DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMultipleMaterialSources,
+																	 RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
+															<Setter Property="Visibility" Value="Visible" />
+														</DataTrigger>
+													</Style.Triggers>
+												</Style>
+											</MenuItem.Style>
+											<MenuItem.ItemsSource>
+												<Binding Path="PlacementTarget.DataContext.Series.MaterialSources"
+														 RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
+											</MenuItem.ItemsSource>
+											<MenuItem.ItemContainerStyle>
+												<Style TargetType="MenuItem">
+													<Setter Property="Header" Value="{Binding Converter={extensions:MaterialSourceDisplayNameConverterExtension}}" />
+													<Setter Property="Command" Value="{Binding Data.OpenMaterialFolderCommand, Source={StaticResource VmProxy}}" />
+													<Setter Property="CommandParameter" Value="{Binding}" />
+												</Style>
+											</MenuItem.ItemContainerStyle>
+										</MenuItem>
 									</ContextMenu>
 								</ui:Button.ContextMenu>
 								<ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />

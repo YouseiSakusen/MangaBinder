@@ -35,6 +35,9 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>選択巻数サマリ文字列を取得します。</summary>
 	public BindableReactiveProperty<string> VolumeSummaryText { get; }
 
+	/// <summary>アイキャッチカード用の選択巻数テキスト（「9巻」形式）を取得します。</summary>
+	public BindableReactiveProperty<string> SelectedVolumeCountText { get; }
+
 	/// <summary>ListView にバインドする検査結果一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<VolumeInspectionResult> InspectionResults { get; }
 
@@ -108,6 +111,8 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			.AddTo(ref this.disposableBag);
 		this.VolumeSummaryText = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
+		this.SelectedVolumeCountText = new BindableReactiveProperty<string>(string.Empty)
+			.AddTo(ref this.disposableBag);
 		this.IsLoading = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
@@ -168,9 +173,7 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	{
 		this.inspectionResults.Clear();
 
-		var series = this.workspaceStore.SelectedSeries.Count > 0
-			? this.workspaceStore.SelectedSeries[0]
-			: null;
+		var series = this.workspaceStore.BindingTarget;
 		this.SelectedSeries.Value = series;
 		this.SeriesTitle.Value = series?.Title ?? string.Empty;
 		this.ZipTitle.Value = series?.Title ?? string.Empty;
@@ -178,6 +181,10 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 		this.ExistingZipExists.Value = true;
 		this.VolumeSummaryText.Value = string.Empty;
+
+		// アイキャッチカード用の選択巻数テキストを更新
+		var selectedVolumeCount = this.workspaceStore.SelectedMaterialVolumes.Count;
+		this.SelectedVolumeCountText.Value = $"{selectedVolumeCount}巻";
 
 		if (series is null || this.workspaceStore.SelectedMaterialVolumes.Count == 0)
 		{

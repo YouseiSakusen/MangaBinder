@@ -70,6 +70,9 @@ public class MaterialArchiveRepository
 
 		/// <summary>選択不可の理由。</summary>
 		public string? SelectionDisabledReason { get; init; }
+
+		/// <summary>アーカイブファイルが存在するかどうか（0/1）。</summary>
+		public int HasArchiveFile { get; init; }
 	}
 
 	/// <summary>
@@ -104,6 +107,7 @@ public class MaterialArchiveRepository
 		entriesSql.AppendLine(" 	, FileCount ");
 		entriesSql.AppendLine(" 	, IsSelectable ");
 		entriesSql.AppendLine(" 	, SelectionDisabledReason ");
+		entriesSql.AppendLine(" 	, HasArchiveFile ");
 		entriesSql.AppendLine(" FROM ");
 		entriesSql.AppendLine(" 	MaterialArchiveEntries ");
 		entriesSql.AppendLine(" WHERE ");
@@ -126,6 +130,16 @@ public class MaterialArchiveRepository
 				entriesSql.ToString(),
 				new { MaterialArchiveId = archive.MaterialArchiveId });
 
+			var entryList = entries.Select(e => new ArchiveEntryCacheInfo
+			{
+				EntryPath = e.EntryPath,
+				ParentEntryPath = e.ParentEntryPath,
+				FileCount = e.FileCount,
+				IsSelectable = e.IsSelectable != 0,
+				SelectionDisabledReason = e.SelectionDisabledReason ?? string.Empty,
+				HasArchiveFile = e.HasArchiveFile != 0,
+			}).ToList();
+
 			var cacheInfo = new ArchiveCacheInfo
 			{
 				MaterialArchiveId = archive.MaterialArchiveId,
@@ -133,14 +147,8 @@ public class MaterialArchiveRepository
 				FileSize = archive.FileSize,
 				LastWriteTime = archive.LastWriteTime,
 				IsNestedArchive = archive.IsNestedArchive != 0,
-				Entries = entries.Select(e => new ArchiveEntryCacheInfo
-				{
-					EntryPath = e.EntryPath,
-					ParentEntryPath = e.ParentEntryPath,
-					FileCount = e.FileCount,
-					IsSelectable = e.IsSelectable != 0,
-					SelectionDisabledReason = e.SelectionDisabledReason ?? string.Empty,
-				}).ToList(),
+				HasArchiveFile = entryList.Any(e => e.HasArchiveFile),
+				Entries = entryList,
 			};
 
 			result[archive.ArchivePath] = cacheInfo;
@@ -307,6 +315,7 @@ public class MaterialArchiveRepository
 		insertEntrySql.AppendLine(" 	, FileCount ");
 		insertEntrySql.AppendLine(" 	, IsSelectable ");
 		insertEntrySql.AppendLine(" 	, SelectionDisabledReason ");
+		insertEntrySql.AppendLine(" 	, HasArchiveFile ");
 		insertEntrySql.AppendLine(" ) VALUES ( ");
 		insertEntrySql.AppendLine(" 	  :MaterialArchiveId ");
 		insertEntrySql.AppendLine(" 	, :EntryPath ");
@@ -314,6 +323,7 @@ public class MaterialArchiveRepository
 		insertEntrySql.AppendLine(" 	, :FileCount ");
 		insertEntrySql.AppendLine(" 	, :IsSelectable ");
 		insertEntrySql.AppendLine(" 	, :SelectionDisabledReason ");
+		insertEntrySql.AppendLine(" 	, :HasArchiveFile ");
 		insertEntrySql.AppendLine(" ); ");
 
 		foreach (var folder in folders)
@@ -330,6 +340,7 @@ public class MaterialArchiveRepository
 					FileCount = folder.FileCount,
 					IsSelectable = folder.IsSelectable ? 1 : 0,
 					SelectionDisabledReason = string.IsNullOrEmpty(folder.SelectionDisabledReason) ? null : folder.SelectionDisabledReason,
+					HasArchiveFile = folder.HasArchiveFile ? 1 : 0,
 				},
 				transaction);
 
@@ -357,6 +368,9 @@ public class MaterialArchiveRepository
 
 		/// <summary>Nested Archive フラグ。</summary>
 		public bool IsNestedArchive { get; set; }
+
+		/// <summary>アーカイブファイルが存在するかどうか。</summary>
+		public bool HasArchiveFile { get; set; }
 
 		/// <summary>キャッシュ内エントリ一覧。</summary>
 		public List<ArchiveEntryCacheInfo> Entries { get; set; } = [];
@@ -405,5 +419,8 @@ public class MaterialArchiveRepository
 
 		/// <summary>選択不可の理由。</summary>
 		public string SelectionDisabledReason { get; set; } = string.Empty;
+
+		/// <summary>アーカイブファイルが存在するかどうか。</summary>
+		public bool HasArchiveFile { get; set; }
 	}
 }

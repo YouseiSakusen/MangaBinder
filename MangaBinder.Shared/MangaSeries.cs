@@ -202,6 +202,16 @@ public class MangaSeries : INotifyPropertyChanged
         => this.DescriptionSource != DescriptionSource.None
            && !string.IsNullOrEmpty(this.DescriptionSourceTitle);
 
+    /// <summary>この作品の最大巻数を表現するために必要な桁数を取得します。</summary>
+    public int MaxVolumeDigits
+    {
+        get
+        {
+            int maxVolume = this.SeriesCompleted ? this.EndVolume : this.OwnedMaxVolume;
+            return maxVolume <= 0 ? 1 : maxVolume.ToString().Length;
+        }
+    }
+
     /// <summary>Nested Archive の有無を示します。内部判定用プロパティです。</summary>
     public bool HasNestedArchive { get; set; }
 }

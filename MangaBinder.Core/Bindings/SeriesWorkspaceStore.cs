@@ -23,6 +23,9 @@ public class SeriesWorkspaceStore : IDisposable
     /// <summary>中間フォルダを再作成するかどうかを取得します。</summary>
     public BindableReactiveProperty<bool> RecreateWorkFolder { get; }
 
+    /// <summary>巻フォルダ名の桁数を取得または設定します。</summary>
+    public int VolumeFolderDigits { get; set; } = 2;
+
     /// <summary>製本前処理（Prepress）対象巻の辞書を取得します。キーは WorkVolumeFolderPath です。</summary>
     public Dictionary<string, VolumeInspectionResult> PrepressVolumes { get; } = [];
 

@@ -36,6 +36,11 @@ public class ArchiveFolderItem
 	public string SelectionDisabledReason { get; init; } = string.Empty;
 
 	/// <summary>
+	/// このフォルダ配下にアーカイブファイルが存在するかどうかを取得または設定します。
+	/// </summary>
+	public bool HasArchiveFile { get; init; }
+
+	/// <summary>
 	/// 子フォルダ一覧を取得します。
 	/// </summary>
 	public List<ArchiveFolderItem> Children { get; } = [];

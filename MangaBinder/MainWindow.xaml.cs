@@ -1,14 +1,18 @@
-﻿using MangaBinder.Bindings;
+﻿using System;
+using System.IO;
+using MangaBinder.Bindings;
+using Microsoft.Extensions.Configuration;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
+using HalationGhost.Wpf.Ui;
 
 namespace MangaBinder;
 
 /// <summary>
 /// メインウィンドウのコードビハインドです。
 /// </summary>
-public partial class MainWindow : FluentWindow, INavigationWindow
+public partial class MainWindow : ElfWindow, INavigationWindow
 {
 	/// <summary>
 	/// <see cref="MainWindow"/> の新しいインスタンスを初期化します。
@@ -18,13 +22,25 @@ public partial class MainWindow : FluentWindow, INavigationWindow
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
+	/// <param name="configuration">設定。</param>
 	public MainWindow(
 		MainWindowViewModel viewModel,
 		INavigationViewPageProvider navigationViewPageProvider,
 		INavigationService navigationService,
 		ISnackbarService snackbarService,
-		IContentDialogService contentDialogService)
+		IContentDialogService contentDialogService,
+		IConfiguration configuration)
 	{
+		// ウィンドウ位置・サイズ保存機能の設定
+		var fileName = configuration["WindowPlacement:FileName"] ?? "window-placement.json";
+		var directory = Path.Combine(
+			Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+			"HalationGhost",
+			"MangaBinder");
+		Directory.CreateDirectory(directory);
+		var filePath = Path.Combine(directory, fileName);
+		this.ConfigureWindowPlacement(filePath);
+
 		this.DataContext = viewModel;
 		this.InitializeComponent();
 		this.SetPageService(navigationViewPageProvider);

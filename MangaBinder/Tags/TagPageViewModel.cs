@@ -159,7 +159,7 @@ public class TagPageViewModel : IDisposable
 				message,
 				ControlAppearance.Caution,
 				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-				TimeSpan.FromSeconds(3));
+				TimeSpan.MaxValue);
 
 			return;
 		}
@@ -221,7 +221,7 @@ public class TagPageViewModel : IDisposable
 				message,
 				ControlAppearance.Caution,
 				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-				TimeSpan.FromSeconds(3));
+				TimeSpan.MaxValue);
 
 			return;
 		}

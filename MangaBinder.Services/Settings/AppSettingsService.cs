@@ -127,7 +127,6 @@ public class AppSettingsService
 		sql.AppendLine(" 	, BindingConvertImagesToDefaultFormat = :BindingConvertImagesToDefaultFormat ");
 		sql.AppendLine(" 	, WorkVolumeFolderNamePrefix    = :WorkVolumeFolderNamePrefix ");
 		sql.AppendLine(" 	, WorkVolumeFolderNameSuffix    = :WorkVolumeFolderNameSuffix ");
-		sql.AppendLine(" 	, WorkVolumeFolderNumberDigits  = :WorkVolumeFolderNumberDigits ");
 		sql.AppendLine(" 	, SeriesListVerticalOffset      = :SeriesListVerticalOffset; ");
 
 		var param = new
@@ -141,7 +140,6 @@ public class AppSettingsService
 			BindingConvertImagesToDefaultFormat = this.appSettings.BindingConvertImagesToDefaultFormat.Value ? 1 : 0,
 			WorkVolumeFolderNamePrefix = this.appSettings.WorkVolumeFolderNamePrefix.Value,
 			WorkVolumeFolderNameSuffix = this.appSettings.WorkVolumeFolderNameSuffix.Value,
-			WorkVolumeFolderNumberDigits = this.appSettings.WorkVolumeFolderNumberDigits.Value,
 			SeriesListVerticalOffset = this.appSettings.SeriesListVerticalOffset.Value,
 		};
 		await connection.ExecuteAsync(sql.ToString(), param, transaction);
@@ -193,7 +191,6 @@ public class AppSettingsService
 		sql.AppendLine(" 	, BindingConvertImagesToDefaultFormat ");
 		sql.AppendLine(" 	, WorkVolumeFolderNamePrefix ");
 		sql.AppendLine(" 	, WorkVolumeFolderNameSuffix ");
-		sql.AppendLine(" 	, WorkVolumeFolderNumberDigits ");
 		sql.AppendLine(" 	, SeriesListVerticalOffset ");
 		sql.AppendLine(" 	, BindingZipAuthorLeftBracket ");
 		sql.AppendLine(" 	, BindingZipAuthorRightBracket ");
@@ -223,19 +220,18 @@ public class AppSettingsService
 			this.appSettings.BindingConvertImagesToDefaultFormat.Value = !reader.IsDBNull(6) && reader.GetInt32(6) != 0;
 			this.appSettings.WorkVolumeFolderNamePrefix.Value = reader.IsDBNull(7) ? string.Empty : reader.GetString(7);
 			this.appSettings.WorkVolumeFolderNameSuffix.Value = reader.IsDBNull(8) ? "巻" : reader.GetString(8);
-			this.appSettings.WorkVolumeFolderNumberDigits.Value = reader.IsDBNull(9) ? 2 : reader.GetInt32(9);
-			this.appSettings.SeriesListVerticalOffset.Value = reader.IsDBNull(10) ? 0.0 : reader.GetDouble(10);
-			this.appSettings.BindingZipAuthorLeftBracket.Value = reader.IsDBNull(11) ? "[" : reader.GetString(11);
-			this.appSettings.BindingZipAuthorRightBracket.Value = reader.IsDBNull(12) ? "]" : reader.GetString(12);
-			this.appSettings.BindingZipNameSeparator.Value = reader.IsDBNull(13) ? " " : reader.GetString(13);
-			this.appSettings.BindingZipNormalVolumePrefix.Value = reader.IsDBNull(14) ? "第" : reader.GetString(14);
-			this.appSettings.BindingZipNormalVolumeSeparator.Value = reader.IsDBNull(15) ? "-" : reader.GetString(15);
-			this.appSettings.BindingZipNormalVolumeSuffix.Value = reader.IsDBNull(16) ? "巻" : reader.GetString(16);
-			this.appSettings.BindingZipCompleteVolumePrefix.Value = reader.IsDBNull(17) ? "全" : reader.GetString(17);
-			this.appSettings.BindingZipCompleteVolumeSuffix.Value = reader.IsDBNull(18) ? "巻" : reader.GetString(18);
-			this.appSettings.BindingZipPartialCompleteVolumePrefix.Value = reader.IsDBNull(19) ? "第" : reader.GetString(19);
-			this.appSettings.BindingZipPartialCompleteVolumeSeparator.Value = reader.IsDBNull(20) ? "-全" : reader.GetString(20);
-			this.appSettings.BindingZipPartialCompleteVolumeSuffix.Value = reader.IsDBNull(21) ? "巻" : reader.GetString(21);
+			this.appSettings.SeriesListVerticalOffset.Value = reader.IsDBNull(9) ? 0.0 : reader.GetDouble(9);
+			this.appSettings.BindingZipAuthorLeftBracket.Value = reader.IsDBNull(10) ? "[" : reader.GetString(10);
+			this.appSettings.BindingZipAuthorRightBracket.Value = reader.IsDBNull(11) ? "]" : reader.GetString(11);
+			this.appSettings.BindingZipNameSeparator.Value = reader.IsDBNull(12) ? " " : reader.GetString(12);
+			this.appSettings.BindingZipNormalVolumePrefix.Value = reader.IsDBNull(13) ? "第" : reader.GetString(13);
+			this.appSettings.BindingZipNormalVolumeSeparator.Value = reader.IsDBNull(14) ? "-" : reader.GetString(14);
+			this.appSettings.BindingZipNormalVolumeSuffix.Value = reader.IsDBNull(15) ? "巻" : reader.GetString(15);
+			this.appSettings.BindingZipCompleteVolumePrefix.Value = reader.IsDBNull(16) ? "全" : reader.GetString(16);
+			this.appSettings.BindingZipCompleteVolumeSuffix.Value = reader.IsDBNull(17) ? "巻" : reader.GetString(17);
+			this.appSettings.BindingZipPartialCompleteVolumePrefix.Value = reader.IsDBNull(18) ? "第" : reader.GetString(18);
+			this.appSettings.BindingZipPartialCompleteVolumeSeparator.Value = reader.IsDBNull(19) ? "-全" : reader.GetString(19);
+			this.appSettings.BindingZipPartialCompleteVolumeSuffix.Value = reader.IsDBNull(20) ? "巻" : reader.GetString(20);
 		}
 	}
 

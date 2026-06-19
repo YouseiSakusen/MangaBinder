@@ -107,6 +107,7 @@ public class MaterialArchiveExtractor
 					var selectable = this.evaluateFolderSelectability(key);
 					var reason = selectable ? string.Empty : this.buildDisabledReason(parts[i], key);
 					var fileCount = this.countArchiveFolderImages(key, entries);
+					var hasArchiveFile = this.countArchiveFiles(key, entries) > 0;
 
 					node = new ArchiveFolderItem
 					{
@@ -115,6 +116,7 @@ public class MaterialArchiveExtractor
 						FileCount = fileCount,
 						IsSelectable = selectable,
 						SelectionDisabledReason = reason,
+						HasArchiveFile = hasArchiveFile,
 					};
 
 					nodeMap[key] = node;
@@ -126,7 +128,6 @@ public class MaterialArchiveExtractor
 					}
 				}
 
-				// 次のレベルがあれば、現在のノードの Children に追加
 				if (i + 1 < parts.Length)
 				{
 					var nextKey = string.Join("/", parts.Take(i + 2));
@@ -135,6 +136,7 @@ public class MaterialArchiveExtractor
 						var selectable = this.evaluateFolderSelectability(nextKey);
 						var reason = selectable ? string.Empty : this.buildDisabledReason(parts[i + 1], nextKey);
 						var fileCount = this.countArchiveFolderImages(nextKey, entries);
+						var hasArchiveFile = this.countArchiveFiles(nextKey, entries) > 0;
 
 						nextNode = new ArchiveFolderItem
 						{
@@ -143,6 +145,7 @@ public class MaterialArchiveExtractor
 							FileCount = fileCount,
 							IsSelectable = selectable,
 							SelectionDisabledReason = reason,
+							HasArchiveFile = hasArchiveFile,
 						};
 						nodeMap[nextKey] = nextNode;
 					}
@@ -173,6 +176,24 @@ public class MaterialArchiveExtractor
 				var key = e.Key!.Replace('\\', '/');
 				return key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
 					&& SupportedExtensionHelper.IsImage(Path.GetExtension(key));
+			});
+	}
+
+	/// <summary>
+	/// Archive 内フォルダ配下のアーカイブファイル数を返します。
+	/// </summary>
+	private int countArchiveFiles(string folderKey, IEnumerable<IArchiveEntry> entries)
+	{
+		var normalizedFolderKey = folderKey.Replace('\\', '/').TrimEnd('/');
+		var prefix = normalizedFolderKey + "/";
+
+		return entries
+			.Where(e => !e.IsDirectory && e.Key != null)
+			.Count(e =>
+			{
+				var key = e.Key!.Replace('\\', '/');
+				return key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+					&& SupportedExtensionHelper.IsArchive(Path.GetExtension(key));
 			});
 	}
 

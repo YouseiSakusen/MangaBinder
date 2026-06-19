@@ -94,6 +94,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<MaterialArchiveExtractor>();
 		services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<AppSettings>().ConnectionString));
 		services.AddScoped<SeriesMaterialFolderLoader>();
+		services.AddScoped<MaterialFolderOpener>();
 
 		return services;
 	}

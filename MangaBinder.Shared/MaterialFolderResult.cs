@@ -25,4 +25,9 @@ public class MaterialFolderResult
 	/// Nested Archive が含まれているかどうかを取得します。
 	/// </summary>
 	public bool HasNestedArchive { get; init; }
+
+	/// <summary>
+	/// NestedArchive に該当する外側アーカイブファイル名の一覧を取得します。
+	/// </summary>
+	public IReadOnlyList<string> NestedArchiveFileNames { get; init; } = [];
 }

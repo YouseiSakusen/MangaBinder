@@ -5,10 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using R3;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.IO;
 using Wpf.Ui;
-using Wpf.Ui.Controls;
 
 namespace MangaBinder;
 
@@ -31,9 +28,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
 
     /// <summary>タグ変更追跡ストア。</summary>
     private readonly SeriesTagStore seriesTagStore;
-
-    /// <summary>スナックバーサービス。</summary>
-    private readonly ISnackbarService snackbarService;
 
     /// <summary>製本開始状態 Dispatcher。</summary>
     private readonly BindingQueueDispatcher bindingQueueDispatcher;
@@ -97,17 +91,15 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <param name="workspaceStore">作品選択状態ストア。</param>
     /// <param name="appSettings">アプリケーション設定。</param>
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
-    /// <param name="snackbarService">スナックバーサービス。</param>
     /// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
     /// <param name="mangaSeriesManager">MangaSeries 読み込みマネージャー。</param>
-    public HomePageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, ISnackbarService snackbarService, BindingQueueDispatcher bindingQueueDispatcher, MangaSeriesManager mangaSeriesManager)
+    public HomePageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, BindingQueueDispatcher bindingQueueDispatcher, MangaSeriesManager mangaSeriesManager)
     {
         this.serviceScopeFactory = serviceScopeFactory;
         this.navigationService = navigationService;
         this.workspaceStore = workspaceStore;
         this.seriesTagStore = seriesTagStore;
         this.appSettings = appSettings;
-        this.snackbarService = snackbarService;
         this.bindingQueueDispatcher = bindingQueueDispatcher;
         this.mangaSeriesManager = mangaSeriesManager;
 
@@ -181,22 +173,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
             .AddTo(ref this.disposableBag);
         this.OpenMaterialFolderCommand.Subscribe(source =>
         {
-            if (!Directory.Exists(source.Path))
-            {
-                this.snackbarService.Show(
-                    "素材フォルダを開けません",
-                    $"素材フォルダが見つかりません。\n{source.Path}",
-                    ControlAppearance.Danger,
-                    new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
-                    TimeSpan.FromSeconds(6));
-                return;
-            }
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = source.Path,
-                UseShellExecute = true,
-            });
+            _ = this.openMaterialFolderAsync(source);
         });
 
         // DEBUG: スクロール復元調査用
@@ -318,5 +295,16 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     {
         this.isSelectedSubscriptions.Dispose();
         this.disposableBag.Dispose();
+    }
+
+    /// <summary>
+    /// 素材フォルダを開きます。
+    /// </summary>
+    /// <param name="source">開くフォルダの情報。</param>
+    private async Task openMaterialFolderAsync(MangaSource source)
+    {
+        using var scope = this.serviceScopeFactory.CreateScope();
+        var opener = scope.ServiceProvider.GetRequiredService<MaterialFolderOpener>();
+        await opener.OpenAsync(source);
     }
 }

@@ -183,7 +183,7 @@
 
     </Page.Resources>
 
-    <!-- 外枠 Grid：Row0=作品タイトル、Row1=3カラム本体、Row2=フッター -->
+    <!-- 外枠 Grid：Row0=作品タイトル、Row1=メインコンテンツ、Row2=フッター -->
     <Grid Margin="16,4,16,16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -199,21 +199,47 @@
             Opacity="0.7"
             Margin="0,0,0,12" />
 
-        <!-- Row1：3カラム本体 -->
+        <!-- Row1：メインコンテンツ（3列2行） -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <!-- 左：作品情報 -->
                 <ColumnDefinition Width="250" />
-                <!-- 中央：zip設定 + 巻一覧 -->
+                <!-- 中央：調査レポート -->
                 <ColumnDefinition Width="2*" />
-                <!-- 右：将来用（ログ・警告サマリ等） -->
+                <!-- 右：製本設定 -->
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <!-- Row0：アイキャッチカード -->
+                <RowDefinition Height="Auto" />
+                <!-- Row1：本体 -->
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-            <!-- ══════════════════════════════════ -->
-            <!-- 左カラム：作品情報                  -->
-            <!-- ══════════════════════════════════ -->
-            <Grid Grid.Column="0" VerticalAlignment="Top" Margin="0,0,12,0">
+            <!-- ════════════════════════════════════ -->
+            <!-- Row0, Column1：アイキャッチカード    -->
+            <!-- ════════════════════════════════════ -->
+            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,16">
+                <ui:Card Padding="14,10">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="ClipboardCheckmark24" FontSize="48"
+                                       Foreground="{DynamicResource BindingAccentBrush}"
+                                       Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <StackPanel>
+                            <TextBlock FontSize="11" Margin="0,0,0,2"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">製本対象</TextBlock>
+                            <TextBlock FontSize="16" FontWeight="SemiBold">
+                                <Run Text="{Binding SelectedVolumeCountText.Value, Mode=OneWay}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </ui:Card>
+            </StackPanel>
+
+            <!-- ════════════════════════════════════ -->
+            <!-- Row1, Column0：作品情報カード        -->
+            <!-- ════════════════════════════════════ -->
+            <Grid Grid.Row="1" Grid.Column="0" VerticalAlignment="Top" Margin="0,0,12,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -280,129 +306,117 @@
                 </WrapPanel>
             </Grid>
 
-            <!-- ══════════════════════════════════ -->
-            <!-- 中央カラム：zip設定 + 巻カード一覧  -->
-            <!-- ══════════════════════════════════ -->
-            <Grid Grid.Column="1" Margin="0,0,12,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+            <!-- ════════════════════════════════════ -->
+            <!-- Row1, Column1：巻一覧（調査レポート） -->
+            <!-- ════════════════════════════════════ -->
+            <ListView
+                Grid.Row="1"
+                Grid.Column="1"
+                Margin="0,0,12,0"
+                ItemsSource="{Binding InspectionResults}"
+                ItemTemplate="{StaticResource VolumeCardTemplate}"
+                Background="Transparent"
+                BorderThickness="0"
+                VirtualizingPanel.IsVirtualizing="True"
+                VirtualizingPanel.VirtualizationMode="Recycling"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                HorizontalContentAlignment="Stretch">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListViewItem">
+                                    <ContentPresenter />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListView.ItemContainerStyle>
+            </ListView>
 
-                <!-- 製本後zipファイル設定カード（縦並び・幅制限あり） -->
-                <ui:Card Grid.Row="0" Margin="0,0,0,6" Padding="12,8">
-                    <StackPanel MaxWidth="720">
+            <!-- ════════════════════════════════════ -->
+            <!-- Row1, Column2：製本後zipファイル設定 -->
+            <!-- ════════════════════════════════════ -->
+            <ui:Card Grid.Row="1" Grid.Column="2" Margin="0,0,0,0" Padding="12,8" VerticalAlignment="Top">
+                <StackPanel MaxWidth="720">
 
-                        <!-- カードタイトル -->
-                        <TextBlock
-                            Text="製本後zipファイル設定"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Margin="0,0,0,8" />
+                    <!-- カードタイトル -->
+                    <TextBlock
+                        Text="製本後zipファイル設定"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Margin="0,0,0,8" />
 
-                        <!-- 作者 -->
-                        <TextBlock
-                            Text="作者"
-                            FontSize="11"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                            Margin="0,0,0,2" />
-                        <TextBox
-                            FontSize="12"
-                            Margin="0,0,0,6"
-                            Text="{Binding ZipAuthor.Value, UpdateSourceTrigger=PropertyChanged}" />
+                    <!-- 作者 -->
+                    <TextBlock
+                        Text="作者"
+                        FontSize="11"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        Margin="0,0,0,2" />
+                    <TextBox
+                        FontSize="12"
+                        Margin="0,0,0,6"
+                        Text="{Binding ZipAuthor.Value, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <!-- タイトル -->
-                        <TextBlock
-                            Text="タイトル"
-                            FontSize="11"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                            Margin="0,0,0,2" />
-                        <TextBox
-                            FontSize="12"
-                            Margin="0,0,0,6"
-                            Text="{Binding ZipTitle.Value, UpdateSourceTrigger=PropertyChanged}" />
+                    <!-- タイトル -->
+                    <TextBlock
+                        Text="タイトル"
+                        FontSize="11"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        Margin="0,0,0,2" />
+                    <TextBox
+                        FontSize="12"
+                        Margin="0,0,0,6"
+                        Text="{Binding ZipTitle.Value, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <!-- 出力zip -->
-                        <TextBlock
-                            Text="出力zip"
-                            FontSize="11"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                            Margin="0,0,0,2" />
-                        <TextBox
-                            FontSize="12"
-                            Margin="0,0,0,6"
-                            Text="{Binding ZipOutputFileName.Value, UpdateSourceTrigger=PropertyChanged}" />
+                    <!-- 出力zip -->
+                    <TextBlock
+                        Text="出力zip"
+                        FontSize="11"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        Margin="0,0,0,2" />
+                    <TextBox
+                        FontSize="12"
+                        Margin="0,0,0,6"
+                        Text="{Binding ZipOutputFileName.Value, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <!-- 出力形式 -->
-                        <TextBlock
-                            Text="出力形式"
-                            FontSize="11"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                            Margin="0,0,0,2" />
-                        <ComboBox
-                            FontSize="12"
-                            Margin="0,0,0,8"
-                            HorizontalAlignment="Left"
-                            MinWidth="200"
-                            ItemsSource="{Binding ZipOutputFormatItems}"
-                            SelectedIndex="{Binding ZipOutputFormatIndex.Value}" />
+                    <!-- 出力形式 -->
+                    <TextBlock
+                        Text="出力形式"
+                        FontSize="11"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        Margin="0,0,0,2" />
+                    <ComboBox
+                        FontSize="12"
+                        Margin="0,0,0,8"
+                        HorizontalAlignment="Left"
+                        MinWidth="200"
+                        ItemsSource="{Binding ZipOutputFormatItems}"
+                        SelectedIndex="{Binding ZipOutputFormatIndex.Value}" />
 
-                        <!-- 既存zip削除 -->
-                        <CheckBox
-                            Content="既存の製本済zipを削除する"
-                            FontSize="12"
-                            IsChecked="{Binding DeleteExistingZip.Value}"
-                            IsEnabled="{Binding ExistingZipExists.Value}"
-                            Margin="0,0,0,4" />
+                    <!-- 既存zip削除 -->
+                    <CheckBox
+                        Content="既存の製本済zipを削除する"
+                        FontSize="12"
+                        IsChecked="{Binding DeleteExistingZip.Value}"
+                        IsEnabled="{Binding ExistingZipExists.Value}"
+                        Margin="0,0,0,4" />
 
-                        <!-- iCloud削除（インデント） -->
-                        <CheckBox
-                            Content="iCloudからも削除する"
-                            FontSize="12"
-                            IsChecked="{Binding DeleteFromICloud.Value}"
-                            IsEnabled="{Binding DeleteExistingZip.Value}"
-                            Margin="16,0,0,0" />
+                    <!-- iCloud削除（インデント） -->
+                    <CheckBox
+                        Content="iCloudからも削除する"
+                        FontSize="12"
+                        IsChecked="{Binding DeleteFromICloud.Value}"
+                        IsEnabled="{Binding DeleteExistingZip.Value}"
+                        Margin="16,0,0,0" />
 
-                    </StackPanel>
-                </ui:Card>
-
-                <!-- 巻カード ListView -->
-                <ListView
-                    Grid.Row="1"
-                    ItemsSource="{Binding InspectionResults}"
-                    ItemTemplate="{StaticResource VolumeCardTemplate}"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    VirtualizingPanel.IsVirtualizing="True"
-                    VirtualizingPanel.VirtualizationMode="Recycling"
-                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                    ScrollViewer.VerticalScrollBarVisibility="Auto"
-                    HorizontalContentAlignment="Stretch">
-                    <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
-                            <Setter Property="Padding" Value="0" />
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Setter Property="Background" Value="Transparent" />
-                            <Setter Property="BorderThickness" Value="0" />
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListViewItem">
-                                        <ContentPresenter />
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListView.ItemContainerStyle>
-                </ListView>
-
-            </Grid>
-
-            <!-- ══════════════════════════════════ -->
-            <!-- 右カラム：将来用（空き領域）        -->
-            <!-- ══════════════════════════════════ -->
-            <Grid Grid.Column="2">
-                <!-- 将来：展開ログ・警告サマリ・進捗詳細 等 -->
-            </Grid>
+                </StackPanel>
+            </ui:Card>
 
         </Grid>
 

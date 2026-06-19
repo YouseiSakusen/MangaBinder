@@ -113,12 +113,22 @@ public class SeriesMaterialFolderLoader
 		// Nested Archive の集約判定：archiveCache 内に IsNestedArchive = true がある場合、HasNestedArchive を true に設定
 		var hasNestedArchive = archiveCache.Values.Any(c => c.IsNestedArchive);
 
+		// NestedArchive に該当する外側アーカイブファイル名を抽出
+		var nestedArchiveFileNames = archiveCache.Values
+			.Where(c => c.IsNestedArchive)
+			.Select(c => Path.GetFileName(c.ArchivePath))
+			.Where(name => !string.IsNullOrWhiteSpace(name))
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.OrderBy(name => name)
+			.ToList();
+
 		return new MaterialFolderResult
 		{
 			Status = MaterialFolderStatus.Success,
 			TargetPath = materialPath,
 			Materials = [rootItem],
 			HasNestedArchive = hasNestedArchive,
+			NestedArchiveFileNames = nestedArchiveFileNames,
 		};
 	}
 
@@ -207,6 +217,7 @@ public class SeriesMaterialFolderLoader
 	/// Archive ファイル内部のフォルダ構造を解析して、親 MaterialItem に子を追加します。
 	/// キャッシュが一致する場合はDBから復元し、不一致の場合は解析→保存します。
 	/// IsNestedArchive = false かつ MaterialArchiveEntries = 0件 の既存キャッシュは再スキャンします。
+	/// NestedArchive対応前の旧キャッシュ（判定条件：IsNestedArchive=false、HasArchiveFile=false、終端の空フォルダ存在）も再スキャンします。
 	/// 再スキャン結果はメモリ上の archiveCache にも反映されます。
 	/// </summary>
 	private async Task PopulateArchiveAsync(
@@ -227,12 +238,22 @@ public class SeriesMaterialFolderLoader
 					fileInfo.LastWriteTime == cacheInfo.LastWriteTime)
 				{
 					// キャッシュサイズ・更新日時が一致している場合
-					// IsNestedArchive = false かつ MaterialArchiveEntries = 0件 の場合は、旧キャッシュまたは未判定キャッシュのため再スキャン
+					// 再スキャン対象を判定
+					var needsRescan = false;
+
+					// 1. IsNestedArchive = false かつ MaterialArchiveEntries = 0件 の場合は、旧キャッシュまたは未判定キャッシュのため再スキャン
 					if (cacheInfo.IsNestedArchive == false && cacheInfo.Entries.Count == 0)
 					{
-						// 再スキャンが必要
+						needsRescan = true;
 					}
-					else
+
+					// 2. NestedArchive 対応前の旧キャッシュ判定
+					if (!needsRescan && this.IsLegacyNestedArchiveCache(cacheInfo))
+					{
+						needsRescan = true;
+					}
+
+					if (!needsRescan)
 					{
 						// キャッシュ一致 → DBから復元
 						await this.restoreArchiveFromCacheAsync(archiveItem, cacheInfo, archivePath, cancellationToken);
@@ -263,6 +284,7 @@ public class SeriesMaterialFolderLoader
 				FileSize = archiveFile.FileSize,
 				LastWriteTime = archiveFile.LastWriteTime,
 				IsNestedArchive = archiveFile.IsNestedArchive,
+				HasArchiveFile = entryCache.Any(e => e.HasArchiveFile),
 				Entries = entryCache,
 			};
 		}
@@ -423,6 +445,7 @@ public class SeriesMaterialFolderLoader
 				FileCount = folder.FileCount,
 				IsSelectable = folder.IsSelectable,
 				SelectionDisabledReason = string.IsNullOrEmpty(folder.SelectionDisabledReason) ? string.Empty : folder.SelectionDisabledReason,
+				HasArchiveFile = folder.HasArchiveFile,
 			};
 			result.Add(entryCache);
 
@@ -432,5 +455,47 @@ public class SeriesMaterialFolderLoader
 		}
 
 		return result;
+	}
+
+	/// <summary>
+	/// NestedArchive 対応前の旧キャッシュかどうかを判定します。
+	/// 以下の条件を満たす場合は旧キャッシュとして再スキャン対象になります：
+	/// - IsNestedArchive == false
+	/// - かつ HasArchiveFile == false
+	/// - かつ MaterialArchiveEntry の中に、FileCount == 0 で子フォルダを持たない終端フォルダが存在する
+	/// </summary>
+	private bool IsLegacyNestedArchiveCache(MaterialArchiveRepository.ArchiveCacheInfo cacheInfo)
+	{
+		// 最初の2つの条件をチェック
+		if (cacheInfo.IsNestedArchive || cacheInfo.HasArchiveFile)
+		{
+			return false;
+		}
+
+		// MaterialArchiveEntry が空の場合は既に判定済みなので旧キャッシュではない
+		if (cacheInfo.Entries.Count == 0)
+		{
+			return false;
+		}
+
+		// 終端フォルダで FileCount == 0 かつ子フォルダを持たないものを探す
+		foreach (var entry in cacheInfo.Entries)
+		{
+			// FileCount == 0 でなければスキップ
+			if (entry.FileCount != 0)
+			{
+				continue;
+			}
+
+			// 子フォルダの存在判定：このエントリを ParentEntryPath に持つレコードがあるか
+			var hasChildren = cacheInfo.Entries.Any(e => e.ParentEntryPath == entry.EntryPath);
+			if (!hasChildren)
+			{
+				// 子を持たない終端フォルダで FileCount == 0
+				return true;
+			}
+		}
+
+		return false;
 	}
 }

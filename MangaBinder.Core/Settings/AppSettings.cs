@@ -49,9 +49,6 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>ワークフォルダ内に作成する巻フォルダ名の接尾辞を取得します。</summary>
 	public BindableReactiveProperty<string> WorkVolumeFolderNameSuffix { get; }
 
-	/// <summary>ワークフォルダ内に作成する巻フォルダ番号のゼロ埋め桁数を取得します。</summary>
-	public BindableReactiveProperty<int> WorkVolumeFolderNumberDigits { get; }
-
 	/// <summary>作品一覧のスクロール位置を取得します。</summary>
 	public BindableReactiveProperty<double> SeriesListVerticalOffset { get; }
 
@@ -139,9 +136,6 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 		this.WorkVolumeFolderNameSuffix = new BindableReactiveProperty<string>("巻")
 			.AddTo(ref this.disposableBag);
 
-		this.WorkVolumeFolderNumberDigits = new BindableReactiveProperty<int>(2)
-			.AddTo(ref this.disposableBag);
-
 		this.SeriesListVerticalOffset = new BindableReactiveProperty<double>(0.0)
 			.AddTo(ref this.disposableBag);
 
@@ -200,10 +194,10 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// 巻番号からワークフォルダ内の巻フォルダ名を生成します。
 	/// </summary>
 	/// <param name="volumeNumber">巻番号。</param>
+	/// <param name="digits">ゼロ埋め桁数。</param>
 	/// <returns>生成されたフォルダ名。</returns>
-	public string CreateWorkVolumeFolderName(decimal volumeNumber)
+	public string CreateWorkVolumeFolderName(decimal volumeNumber, int digits)
 	{
-		var digits = this.WorkVolumeFolderNumberDigits.Value;
 		var prefix = this.WorkVolumeFolderNamePrefix.Value;
 		var suffix = this.WorkVolumeFolderNameSuffix.Value;
 
