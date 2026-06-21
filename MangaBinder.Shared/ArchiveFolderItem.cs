@@ -41,6 +41,11 @@ public class ArchiveFolderItem
 	public bool HasArchiveFile { get; init; }
 
 	/// <summary>
+	/// このフォルダ配下の画像ファイルの合計サイズ（バイト）を取得または設定します。
+	/// </summary>
+	public long TotalImageBytes { get; init; }
+
+	/// <summary>
 	/// 子フォルダ一覧を取得します。
 	/// </summary>
 	public List<ArchiveFolderItem> Children { get; } = [];

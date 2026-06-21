@@ -20,7 +20,10 @@ public sealed partial class EpubVolumeExtractor : IVolumeExtractor
 		var tempDir = Path.Combine(Path.GetTempPath(), $"__epub_{Guid.NewGuid():N}");
 		try
 		{
-			ZipFile.ExtractToDirectory(volume.SourcePath, tempDir);
+			// ZipFile.ExtractToDirectory は同期処理のため、Task.Run で非同期化
+			await Task.Run(
+				() => ZipFile.ExtractToDirectory(volume.SourcePath, tempDir),
+				cancellationToken).ConfigureAwait(false);
 
 			var opfPath = this.ResolveOpfPath(tempDir);
 			var (manifest, spine) = this.ReadOpf(tempDir, opfPath);

@@ -12,6 +12,20 @@ namespace MangaBinder.Bindings;
 public class MaterialArchiveExtractor
 {
 	/// <summary>
+	/// フォルダごとの集計情報を保持する内部クラス。
+	/// </summary>
+	private sealed class FolderStats
+	{
+		/// <summary>このフォルダ配下の画像ファイル数。</summary>
+		public int FileCount { get; set; }
+
+		/// <summary>アーカイブファイルの有無。</summary>
+		public bool HasArchiveFile { get; set; }
+
+		/// <summary>このフォルダ配下の画像ファイルの合計サイズ（展開後）。</summary>
+		public long TotalImageBytes { get; set; }
+	}
+	/// <summary>
 	/// アーカイブファイルを解析し、内部フォルダ構造と画像ファイル数を返します。
 	/// </summary>
 	/// <param name="archivePath">解析対象のアーカイブファイルパス。</param>
@@ -36,19 +50,23 @@ public class MaterialArchiveExtractor
 
 		var fileInfo = new FileInfo(archivePath);
 		bool isNestedArchive = false;
+		var folders = new List<ArchiveFolderItem>();
 
 		try
 		{
 			using var archive = ArchiveFactory.OpenArchive(fileInfo);
-			// Nested Archive 判定：アーカイブ内に対応圧縮ファイルが1件以上あるかチェック
+			// Entries は逐次読み取り専用アーカイブ（RAR 等）では1回しか列挙できないため、先にリスト化する
 			var entries = archive.Entries.ToList();
-			isNestedArchive = entries
-				.Where(e => !e.IsDirectory && e.Key != null)
-				.Any(e => SupportedExtensionHelper.IsArchive(Path.GetExtension(e.Key!)));
+
+			// 単一走査で NestedArchive 判定 + フォルダ統計を集計
+			var folderStats = this.computeFolderStats(entries, out isNestedArchive);
+
+			// ツリー構造を構築
+			this.buildArchiveTree(folders, entries, folderStats, cancellationToken);
 		}
 		catch
 		{
-			// アーカイブが開けない場合は isNestedArchive は false のままにする
+			// アーカイブが開けない場合は folders は空のままにする
 		}
 
 		var result = new MaterialArchiveFile
@@ -59,29 +77,78 @@ public class MaterialArchiveExtractor
 			IsNestedArchive = isNestedArchive,
 		};
 
-		try
+		// 構築したツリーを result に追加
+		foreach (var folder in folders)
 		{
-			using var archive = ArchiveFactory.OpenArchive(fileInfo);
-			this.populateArchive(result, archivePath, archive, cancellationToken);
-		}
-		catch
-		{
-			// アーカイブが開けない場合は Folders は空のままにする
+			result.Folders.Add(folder);
 		}
 
 		return result;
 	}
 
 	/// <summary>
-	/// アーカイブ内のフォルダ構造を走査して <paramref name="result"/> に追加します。
+	/// 全エントリを1回走査して、フォルダごとの統計情報と NestedArchive 判定を実施します。
+	/// ファイルは直接の親フォルダのみに統計を加算します。
 	/// </summary>
-	private void populateArchive(MaterialArchiveFile result, string archivePath, IArchive archive, CancellationToken cancellationToken)
+	private Dictionary<string, FolderStats> computeFolderStats(List<IArchiveEntry> entries, out bool isNestedArchive)
+	{
+		var stats = new Dictionary<string, FolderStats>(StringComparer.OrdinalIgnoreCase);
+		isNestedArchive = false;
+
+		// エントリを一度だけ走査
+		foreach (var entry in entries)
+		{
+			if (entry.IsDirectory || entry.Key == null)
+				continue;
+
+			var key = entry.Key.Replace('\\', '/');
+			var ext = Path.GetExtension(key);
+			var isImage = SupportedExtensionHelper.IsImage(ext);
+			var isArchive = SupportedExtensionHelper.IsArchive(ext);
+
+			// NestedArchive 判定
+			if (isArchive)
+				isNestedArchive = true;
+
+			// ファイルの直接の親フォルダパスを取得
+			var lastSlashIndex = key.LastIndexOf('/');
+			if (lastSlashIndex > 0)
+			{
+				// 親フォルダが存在する場合のみ統計を更新
+				var parentFolderPath = key.Substring(0, lastSlashIndex);
+
+				if (!stats.TryGetValue(parentFolderPath, out var folderStat))
+				{
+					folderStat = new FolderStats();
+					stats[parentFolderPath] = folderStat;
+				}
+
+				if (isImage)
+				{
+					folderStat.FileCount++;
+					folderStat.TotalImageBytes += entry.Size;
+				}
+
+				if (isArchive)
+					folderStat.HasArchiveFile = true;
+			}
+		}
+
+		return stats;
+	}
+
+	/// <summary>
+	/// アーカイブ内のフォルダ構造ツリーを構築します。
+	/// </summary>
+	private void buildArchiveTree(
+		List<ArchiveFolderItem> folders,
+		List<IArchiveEntry> entries,
+		Dictionary<string, FolderStats> folderStats,
+		CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
-		// Entries は逐次読み取り専用アーカイブ（RAR 等）では1回しか列挙できないため、先にリスト化する
-		var entries = archive.Entries.ToList();
-
+		// フォルダパスの完全なリストを抽出
 		var folderPaths = entries
 			.Where(e => e.IsDirectory || (e.Key != null && e.Key.Contains('/')))
 			.SelectMany(e => this.getAncestorFolders(e.Key, e.IsDirectory))
@@ -96,7 +163,6 @@ public class MaterialArchiveExtractor
 			cancellationToken.ThrowIfCancellationRequested();
 
 			var parts = folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-			var parentFolder = result;
 			string? currentKey = null;
 
 			for (var i = 0; i < parts.Length; i++)
@@ -104,10 +170,14 @@ public class MaterialArchiveExtractor
 				var key = string.Join("/", parts.Take(i + 1));
 				if (!nodeMap.TryGetValue(key, out var node))
 				{
+					// 事前集計済みの統計情報を使用
+					var hasStats = folderStats.TryGetValue(key, out var stat);
+					var fileCount = hasStats ? stat!.FileCount : 0;
+					var hasArchiveFile = hasStats && stat!.HasArchiveFile;
+					var totalImageBytes = hasStats ? stat!.TotalImageBytes : 0L;
+
 					var selectable = this.evaluateFolderSelectability(key);
 					var reason = selectable ? string.Empty : this.buildDisabledReason(parts[i], key);
-					var fileCount = this.countArchiveFolderImages(key, entries);
-					var hasArchiveFile = this.countArchiveFiles(key, entries) > 0;
 
 					node = new ArchiveFolderItem
 					{
@@ -117,14 +187,15 @@ public class MaterialArchiveExtractor
 						IsSelectable = selectable,
 						SelectionDisabledReason = reason,
 						HasArchiveFile = hasArchiveFile,
+						TotalImageBytes = totalImageBytes,
 					};
 
 					nodeMap[key] = node;
 
-					// ルートレベルの場合は result.Folders に追加
+					// ルートレベルの場合は folders に追加
 					if (i == 0)
 					{
-						result.Folders.Add(node);
+						folders.Add(node);
 					}
 				}
 
@@ -133,10 +204,14 @@ public class MaterialArchiveExtractor
 					var nextKey = string.Join("/", parts.Take(i + 2));
 					if (!nodeMap.TryGetValue(nextKey, out var nextNode))
 					{
+						// 事前集計済みの統計情報を使用
+						var hasStats = folderStats.TryGetValue(nextKey, out var stat);
+						var fileCount = hasStats ? stat!.FileCount : 0;
+						var hasArchiveFile = hasStats && stat!.HasArchiveFile;
+						var totalImageBytes = hasStats ? stat!.TotalImageBytes : 0L;
+
 						var selectable = this.evaluateFolderSelectability(nextKey);
 						var reason = selectable ? string.Empty : this.buildDisabledReason(parts[i + 1], nextKey);
-						var fileCount = this.countArchiveFolderImages(nextKey, entries);
-						var hasArchiveFile = this.countArchiveFiles(nextKey, entries) > 0;
 
 						nextNode = new ArchiveFolderItem
 						{
@@ -146,6 +221,7 @@ public class MaterialArchiveExtractor
 							IsSelectable = selectable,
 							SelectionDisabledReason = reason,
 							HasArchiveFile = hasArchiveFile,
+							TotalImageBytes = totalImageBytes,
 						};
 						nodeMap[nextKey] = nextNode;
 					}
@@ -159,42 +235,6 @@ public class MaterialArchiveExtractor
 				currentKey = key;
 			}
 		}
-	}
-
-	/// <summary>
-	/// Archive 内フォルダ配下の画像ファイル数を返します。
-	/// </summary>
-	private int countArchiveFolderImages(string folderKey, IEnumerable<IArchiveEntry> entries)
-	{
-		var normalizedFolderKey = folderKey.Replace('\\', '/').TrimEnd('/');
-		var prefix = normalizedFolderKey + "/";
-
-		return entries
-			.Where(e => !e.IsDirectory && e.Key != null)
-			.Count(e =>
-			{
-				var key = e.Key!.Replace('\\', '/');
-				return key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-					&& SupportedExtensionHelper.IsImage(Path.GetExtension(key));
-			});
-	}
-
-	/// <summary>
-	/// Archive 内フォルダ配下のアーカイブファイル数を返します。
-	/// </summary>
-	private int countArchiveFiles(string folderKey, IEnumerable<IArchiveEntry> entries)
-	{
-		var normalizedFolderKey = folderKey.Replace('\\', '/').TrimEnd('/');
-		var prefix = normalizedFolderKey + "/";
-
-		return entries
-			.Where(e => !e.IsDirectory && e.Key != null)
-			.Count(e =>
-			{
-				var key = e.Key!.Replace('\\', '/');
-				return key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-					&& SupportedExtensionHelper.IsArchive(Path.GetExtension(key));
-			});
 	}
 
 	/// <summary>

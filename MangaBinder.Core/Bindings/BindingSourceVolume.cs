@@ -39,4 +39,7 @@ public class BindingSourceVolume
 
 	/// <summary>出力先フォルダ名を取得します。</summary>
 	public string OutputVolumeFolderName { get; init; } = string.Empty;
+
+	/// <summary>想定される画像ファイル数を取得します。</summary>
+	public int ExpectedImageFileCount { get; init; }
 }

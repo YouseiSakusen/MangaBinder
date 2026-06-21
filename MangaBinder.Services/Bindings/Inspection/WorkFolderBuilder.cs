@@ -3,6 +3,7 @@ using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using NetVips;
 using System.IO;
+using System.Threading;
 
 namespace MangaBinder.Bindings.Inspection;
 
@@ -58,20 +59,99 @@ public sealed class WorkFolderBuilder
 
 		Directory.CreateDirectory(seriesFolderPath);
 
-		var results = new List<VolumeInspectionResult>();
+		// SourcePath のバリデーション
+		for (int i = 0; i < volumes.Count; i++)
+		{
+			if (string.IsNullOrEmpty(volumes[i].SourcePath))
+			{
+				throw new InvalidOperationException(
+					$"BindingSourceVolume[{i}] の SourcePath が null または空文字です。これは上流処理のバグです。");
+			}
+		}
 
-		foreach (var volume in volumes)
+		// SourcePath 単位で volume をグループ化し、元のインデックスを保持
+		var volumeGroups = volumes
+			.Select((volume, index) => (volume, index))
+			.GroupBy(x => x.volume.SourcePath, StringComparer.Ordinal)
+			.ToList();
+
+		// 最大4並列で処理用のグローバルセマフォ
+		using var globalSemaphore = new SemaphoreSlim(4, 4);
+
+		var groupTasks = new List<Task<List<(int Index, VolumeInspectionResult Result)>>>();
+
+		foreach (var group in volumeGroups)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			var result = await this.buildVolumeAsync(seriesFolderPath, volume, recreateWorkFolder, cancellationToken);
-			results.Add(result);
+			var groupTask = this.processSourcePathGroupAsync(
+				globalSemaphore,
+				group,
+				seriesFolderPath,
+				recreateWorkFolder,
+				cancellationToken);
+
+			groupTasks.Add(groupTask);
 		}
+
+		// すべてのグループタスクの完了を待機
+		var allResults = await Task.WhenAll(groupTasks).ConfigureAwait(false);
+
+		// グループの結果をフラット化し、元の順序で復元
+		var flatResults = allResults
+			.SelectMany(x => x)
+			.OrderBy(x => x.Index)
+			.Select(x => x.Result)
+			.ToList();
 
 		// 製本前確認処理後は libvips の変換キャッシュを保持する必要がないため解放します。
 		Cache.Max = 0;
 
-		return results;
+		return flatResults;
+	}
+
+	/// <summary>
+	/// SourcePath ごとのグループを処理します。
+	/// グループ内の volume は逐次処理され、グループ同士は最大4並列です。
+	/// </summary>
+	/// <param name="globalSemaphore">全体の並列実行数を制限するセマフォ。</param>
+	/// <param name="sourcePathGroup">同一 SourcePath の volume グループ。</param>
+	/// <param name="seriesFolderPath">作品フォルダパス。</param>
+	/// <param name="recreateWorkFolder">中間フォルダを再作成する場合は <see langword="true"/>。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	/// <returns>グループ内の処理結果一覧（Index と Result のタプル）。</returns>
+	private async Task<List<(int Index, VolumeInspectionResult Result)>> processSourcePathGroupAsync(
+		SemaphoreSlim globalSemaphore,
+		IGrouping<string, (BindingSourceVolume volume, int index)> sourcePathGroup,
+		string seriesFolderPath,
+		bool recreateWorkFolder,
+		CancellationToken cancellationToken)
+	{
+		// グローバルセマフォを取得（最大4並列のグループ）
+		await globalSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			var groupResults = new List<(int Index, VolumeInspectionResult Result)>();
+
+			// グループ内の volume を逐次処理
+			foreach (var (volume, index) in sourcePathGroup)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+
+				// 各 Extractor が内部で Task.Run により同期ライブラリを非同期化するため、
+				// WorkFolderBuilder は単純に await するだけ
+				var result = await this.buildVolumeAsync(seriesFolderPath, volume, recreateWorkFolder, cancellationToken).ConfigureAwait(false);
+
+				groupResults.Add((index, result));
+			}
+
+			return groupResults;
+		}
+		finally
+		{
+			globalSemaphore.Release();
+		}
 	}
 
 	/// <summary>

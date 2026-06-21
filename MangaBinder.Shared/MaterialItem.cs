@@ -33,6 +33,12 @@ public class MaterialItem
 	public int FileCount { get; init; }
 
 	/// <summary>
+	/// ノード直下に存在する画像ファイルの展開後サイズ合計（バイト）を取得または設定します。
+	/// FileCount と同じ粒度です。
+	/// </summary>
+	public long TotalImageBytes { get; init; }
+
+	/// <summary>
 	/// 解凍元の実パスを取得または設定します。
 	/// 実フォルダの場合はフォルダパス、Archive 内部フォルダの場合は Archive ファイルパス、Epub の場合は Epub ファイルパス。
 	/// </summary>

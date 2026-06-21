@@ -73,6 +73,9 @@ public class MaterialArchiveRepository
 
 		/// <summary>アーカイブファイルが存在するかどうか（0/1）。</summary>
 		public int HasArchiveFile { get; init; }
+
+		/// <summary>画像ファイルの合計サイズ（バイト）。</summary>
+		public long TotalImageBytes { get; init; }
 	}
 
 	/// <summary>
@@ -108,6 +111,7 @@ public class MaterialArchiveRepository
 		entriesSql.AppendLine(" 	, IsSelectable ");
 		entriesSql.AppendLine(" 	, SelectionDisabledReason ");
 		entriesSql.AppendLine(" 	, HasArchiveFile ");
+		entriesSql.AppendLine(" 	, TotalImageBytes ");
 		entriesSql.AppendLine(" FROM ");
 		entriesSql.AppendLine(" 	MaterialArchiveEntries ");
 		entriesSql.AppendLine(" WHERE ");
@@ -138,6 +142,7 @@ public class MaterialArchiveRepository
 				IsSelectable = e.IsSelectable != 0,
 				SelectionDisabledReason = e.SelectionDisabledReason ?? string.Empty,
 				HasArchiveFile = e.HasArchiveFile != 0,
+				TotalImageBytes = e.TotalImageBytes,
 			}).ToList();
 
 			var cacheInfo = new ArchiveCacheInfo
@@ -316,6 +321,7 @@ public class MaterialArchiveRepository
 		insertEntrySql.AppendLine(" 	, IsSelectable ");
 		insertEntrySql.AppendLine(" 	, SelectionDisabledReason ");
 		insertEntrySql.AppendLine(" 	, HasArchiveFile ");
+		insertEntrySql.AppendLine(" 	, TotalImageBytes ");
 		insertEntrySql.AppendLine(" ) VALUES ( ");
 		insertEntrySql.AppendLine(" 	  :MaterialArchiveId ");
 		insertEntrySql.AppendLine(" 	, :EntryPath ");
@@ -324,6 +330,7 @@ public class MaterialArchiveRepository
 		insertEntrySql.AppendLine(" 	, :IsSelectable ");
 		insertEntrySql.AppendLine(" 	, :SelectionDisabledReason ");
 		insertEntrySql.AppendLine(" 	, :HasArchiveFile ");
+		insertEntrySql.AppendLine(" 	, :TotalImageBytes ");
 		insertEntrySql.AppendLine(" ); ");
 
 		foreach (var folder in folders)
@@ -341,6 +348,7 @@ public class MaterialArchiveRepository
 					IsSelectable = folder.IsSelectable ? 1 : 0,
 					SelectionDisabledReason = string.IsNullOrEmpty(folder.SelectionDisabledReason) ? null : folder.SelectionDisabledReason,
 					HasArchiveFile = folder.HasArchiveFile ? 1 : 0,
+					TotalImageBytes = folder.TotalImageBytes,
 				},
 				transaction);
 
@@ -422,5 +430,8 @@ public class MaterialArchiveRepository
 
 		/// <summary>アーカイブファイルが存在するかどうか。</summary>
 		public bool HasArchiveFile { get; set; }
+
+		/// <summary>このエントリ配下の画像ファイルの合計サイズ（バイト）。</summary>
+		public long TotalImageBytes { get; set; }
 	}
 }

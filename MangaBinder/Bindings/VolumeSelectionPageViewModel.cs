@@ -676,6 +676,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
                 OutputVolumeFolderName = this.appSettings.CreateWorkVolumeFolderName(
                     volumeNumber,
                     this.workspaceStore.VolumeFolderDigits),
+                ExpectedImageFileCount = item.FileCount,
             });
         }
 
