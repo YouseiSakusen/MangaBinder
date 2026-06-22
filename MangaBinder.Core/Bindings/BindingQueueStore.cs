@@ -1,3 +1,5 @@
+using ObservableCollections;
+
 namespace MangaBinder.Bindings;
 
 /// <summary>
@@ -5,10 +7,10 @@ namespace MangaBinder.Bindings;
 /// </summary>
 public sealed class BindingQueueStore
 {
-	private readonly List<BindingSeries> queue = new();
+	private readonly ObservableList<BindingSeries> queue = new();
 
 	/// <summary>製本対象一覧を取得します。</summary>
-	public IReadOnlyList<BindingSeries> Queue => this.queue;
+	public ObservableList<BindingSeries> Queue => this.queue;
 
 	/// <summary>
 	/// 製本対象を追加します。

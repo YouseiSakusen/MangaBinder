@@ -20,19 +20,16 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>コンテントダイアログサービス。</summary>
 	private readonly IContentDialogService contentDialogService;
 
-	/// <summary>製本開始状態 Dispatcher。</summary>
-	private readonly BindingQueueDispatcher bindingQueueDispatcher;
-
 	/// <summary>製本ワークスペース ストア。</summary>
 	private readonly SeriesWorkspaceStore workspaceStore;
 
+	/// <summary>製本開始キュー ストア。</summary>
+	private readonly BindingQueueStore bindingQueueStore;
+
 	private DisposableBag disposableBag;
 
-	/// <summary>内部保持する BindingStartSeries コレクション。</summary>
-	private readonly ObservableList<BindingSeries> series;
-
 	/// <summary>
-	/// ListView にバインドする BindingStartSeries の一覧を取得します。
+	/// ListView にバインドする BindingSeries の一覧を取得します。
 	/// </summary>
 	public NotifyCollectionChangedSynchronizedViewList<BindingSeries> Series { get; }
 
@@ -66,24 +63,27 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	public ReactiveCommand<MangaSource> OpenMaterialFolderCommand { get; }
 
 	/// <summary>
+	/// 作品一覧 ListView の VerticalOffset の保存値を取得します。
+	/// </summary>
+	public BindableReactiveProperty<double> SavedBindingListVerticalOffset { get; }
+
+	/// <summary>
 	/// <see cref="StartPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
-	/// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
 	/// <param name="workspaceStore">製本ワークスペース ストア。</param>
-	public StartPageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, IContentDialogService contentDialogService, BindingQueueDispatcher bindingQueueDispatcher, SeriesWorkspaceStore workspaceStore)
+	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
+	public StartPageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, IContentDialogService contentDialogService, SeriesWorkspaceStore workspaceStore, BindingQueueStore bindingQueueStore)
 	{
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
-		this.bindingQueueDispatcher = bindingQueueDispatcher;
 		this.workspaceStore = workspaceStore;
+		this.bindingQueueStore = bindingQueueStore;
 
-		this.series = new ObservableList<BindingSeries>();
-
-		this.Series = this.series
+		this.Series = this.bindingQueueStore.Queue
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
@@ -114,13 +114,14 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		{
 			_ = this.openMaterialFolderAsync(source);
 		});
+
+		this.SavedBindingListVerticalOffset = new BindableReactiveProperty<double>(0)
+			.AddTo(ref this.disposableBag);
 	}
 
 	/// <inheritdoc/>
 	public ValueTask InitializeDataAsync()
 	{
-		this.series.Clear();
-		this.series.AddRange(this.bindingQueueDispatcher.GetAll());
 		this.updateState();
 		return ValueTask.CompletedTask;
 	}
@@ -146,7 +147,7 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 
 	private void updateState()
 	{
-		var count = this.series.Count;
+		var count = this.bindingQueueStore.Queue.Count;
 		this.SelectedSeriesCount.Value = count;
 		this.IsEmpty.Value = count == 0;
 		this.IsNotEmpty.Value = count > 0;
@@ -165,9 +166,8 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		if (!confirmed)
 			return;
 
-		// 全件削除
-		this.bindingQueueDispatcher.ReplaceAll(new List<BindingSeries>());
-		this.series.Clear();
+		// 全件削除（BindingQueueStore の Queue を直接クリア）
+		this.bindingQueueStore.Queue.Clear();
 		this.updateState();
 	}
 

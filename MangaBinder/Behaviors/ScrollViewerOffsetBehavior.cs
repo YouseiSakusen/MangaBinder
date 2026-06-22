@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Diagnostics;
 
 namespace MangaBinder.Behaviors;
 
@@ -84,7 +85,7 @@ public static class ScrollViewerOffsetBehavior
         // Debug.WriteLine($"[ScrollBehavior] OnLoaded: target={element.GetType().Name}");
 
         // DEBUG: スクロール復元調査用
-        // var boundOffset = GetBoundVerticalOffset(element);
+        var boundOffset = GetBoundVerticalOffset(element);
         // Debug.WriteLine($"[ScrollBehavior] OnLoaded: BoundVerticalOffset={boundOffset}");
 
         // DEBUG: スクロール復元調査用
@@ -92,18 +93,30 @@ public static class ScrollViewerOffsetBehavior
         // Debug.WriteLine($"[ScrollBehavior] OnLoaded: ScrollViewer count={scrollViewers.Count}");
         // for (int i = 0; i < scrollViewers.Count; i++)
         // {
-        // 	var sv = scrollViewers[i];
-        // 	Debug.WriteLine($"[ScrollBehavior] OnLoaded: [{i}] Name={sv.Name}, VerticalOffset={sv.VerticalOffset}, ExtentHeight={sv.ExtentHeight}, ViewportHeight={sv.ViewportHeight}, VerticalScrollBarVisibility={sv.ComputedVerticalScrollBarVisibility}");
+        //     var sv = scrollViewers[i];
+        //     Debug.WriteLine($"[ScrollBehavior] OnLoaded: [{i}] Name={sv.Name}, VerticalOffset={sv.VerticalOffset}, ExtentHeight={sv.ExtentHeight}, ViewportHeight={sv.ViewportHeight}, VerticalScrollBarVisibility={sv.ComputedVerticalScrollBarVisibility}");
         // }
 
         if (scrollViewers.Count == 0)
             return;
 
-        // ExtentHeight が最大の ScrollViewer を ListView 本体とみなして選択する
-        var primaryScrollViewer = scrollViewers.MaxBy(sv => sv.ExtentHeight)!;
+        // スクロール可能（ExtentHeight > ViewportHeight かつ VerticalScrollBarVisibility=Visible）な ScrollViewer を候補とする
+        var scrollableViewers = scrollViewers
+            .Where(sv => sv.ExtentHeight > sv.ViewportHeight && sv.ComputedVerticalScrollBarVisibility == Visibility.Visible)
+            .ToList();
+
+        if (scrollableViewers.Count == 0)
+        {
+            // スクロール可能な ScrollViewer が見つからない場合は処理を終了
+            // Debug.WriteLine($"[ScrollBehavior] OnLoaded: スクロール可能な ScrollViewer が見つかりません");
+            return;
+        }
+
+        // 候補の中から ExtentHeight が最大の ScrollViewer を選択する
+        var primaryScrollViewer = scrollableViewers.MaxBy(sv => sv.ExtentHeight)!;
 
         // DEBUG: スクロール復元調査用
-        // Debug.WriteLine($"[ScrollBehavior] OnLoaded: 選択された ScrollViewer: Name={primaryScrollViewer.Name}, ExtentHeight={primaryScrollViewer.ExtentHeight}");
+        // Debug.WriteLine($"[ScrollBehavior] OnLoaded: 選択された ScrollViewer: Name={primaryScrollViewer.Name}, ExtentHeight={primaryScrollViewer.ExtentHeight}, ViewportHeight={primaryScrollViewer.ViewportHeight}, VerticalScrollBarVisibility={primaryScrollViewer.ComputedVerticalScrollBarVisibility}");
 
         // 既に購読済みの ScrollViewer があれば先に解除する
         var previous = (ScrollViewer?)element.GetValue(ScrollViewerKey);
@@ -133,11 +146,11 @@ public static class ScrollViewerOffsetBehavior
                 primaryScrollViewer.ScrollToVerticalOffset(restoreOffset);
                 // Debug.WriteLine($"[ScrollBehavior] ContextIdle: 実行直後 scrollViewer.VerticalOffset={primaryScrollViewer.VerticalOffset}");
             }
-            // else
-            // {
-            // 	// DEBUG: スクロール復元調査用
-            // 	Debug.WriteLine($"[ScrollBehavior] ContextIdle: restoreOffset={restoreOffset} のため ScrollToVerticalOffset をスキップします");
-            // }
+            else
+            {
+                // DEBUG: スクロール復元調査用
+                // Debug.WriteLine($"[ScrollBehavior] ContextIdle: restoreOffset={restoreOffset} のため ScrollToVerticalOffset をスキップします");
+            }
 
             // DEBUG: スクロール復元調査用
             // Debug.WriteLine($"[ScrollBehavior] ContextIdle: ScrollChanged 購読を開始します");
@@ -181,7 +194,7 @@ public static class ScrollViewerOffsetBehavior
         if (sender is not ScrollViewer scrollViewer)
             return;
 
-        // DEBUG: スクロール復元調査用（大量出力になるため通常時は無効化する）
+        // DEBUG: スクロール復元調査用
         // Debug.WriteLine($"[ScrollBehavior] ScrollChanged fired: Name={scrollViewer.Name}, offset={e.VerticalOffset}, extent={scrollViewer.ExtentHeight}, viewport={scrollViewer.ViewportHeight}");
 
         // VisualTree 遡及より安定した、添付プロパティ経由でオーナー要素を取得する

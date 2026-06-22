@@ -57,7 +57,11 @@
 
 			<ui:NavigationView.ContentOverlay>
 				<Grid>
-					<ui:SnackbarPresenter x:Name="SnackbarPresenter" />
+					<ui:SnackbarPresenter x:Name="SnackbarPresenter" 
+											Width="1280"
+											HorizontalAlignment="Right"
+											VerticalAlignment="Bottom"
+											Margin="24" />
 				</Grid>
 			</ui:NavigationView.ContentOverlay>
 		</ui:NavigationView>
