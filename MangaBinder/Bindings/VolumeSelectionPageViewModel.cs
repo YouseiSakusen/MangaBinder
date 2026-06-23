@@ -17,6 +17,9 @@ namespace MangaBinder.Bindings;
 /// </summary>
 public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
 {
+    /// <summary>製本後ZIPサイズの推定係数（将来的に調整可能）。</summary>
+    private const double EstimatedZipSizeRatio = 1.0;
+
     /// <summary>作品選択状態ストア。</summary>
     private readonly SeriesWorkspaceStore workspaceStore;
 
@@ -392,6 +395,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         {
             FileSizeText = item.FileSizeText,
             FileCount = item.FileCount,
+            TotalImageBytes = item.TotalImageBytes,
             SourcePath = item.SourcePath,
             ArchiveEntryPrefix = string.IsNullOrEmpty(item.ArchiveEntryPrefix) ? null : item.ArchiveEntryPrefix,
         };
@@ -501,6 +505,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         }
 
         this.updateCanGoNext();
+        this.updateSelectedVolumeSummary();
     }
 
     /// <summary>
@@ -571,6 +576,12 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
 		{
 			this.RecreateWorkFolder.Value = false;
 			this.ImageExpansionMethod.Value = 0; // 新規作成固定
+		}
+		else
+		{
+			// フォルダが存在する場合は「既存の画像を使用する」をデフォルト選択
+			this.RecreateWorkFolder.Value = false;
+			this.ImageExpansionMethod.Value = 1; // 既存を使用
 		}
 	}
 
@@ -731,6 +742,42 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         // ファイル名を含めたメッセージを構築
         var fileNameList = string.Join("\n", fileNames);
         return $"以下の圧縮ファイル内に、圧縮ファイルが含まれています。\n\n{fileNameList}\n\n上記のファイルを手作業で展開してください。";
+    }
+
+    /// <summary>
+    /// 選択済み巻の合計サイズから推定ZIPサイズを計算し、SelectedVolumeSummaryText を更新します。
+    /// </summary>
+    private void updateSelectedVolumeSummary()
+    {
+        // 選択済み巻の TotalImageBytes を合計
+        var totalBytes = this.bindingQueueItems.Sum(item => item.TotalImageBytes);
+
+        if (totalBytes == 0)
+        {
+            this.SelectedVolumeSummaryText.Value = "0 MB";
+            return;
+        }
+
+        // 推定ZIPサイズを計算
+        var estimatedBytes = (long)(totalBytes * EstimatedZipSizeRatio);
+
+        // サイズを 1024 ベースでフォーマット
+        var sizeText = string.Empty;
+
+        if (estimatedBytes >= 1024L * 1024 * 1024)
+        {
+            // 1GB以上はGB表示（小数1桁）
+            var sizeGB = estimatedBytes / (1024.0 * 1024 * 1024);
+            sizeText = $"{sizeGB:F1} GB";
+        }
+        else
+        {
+            // 1GB未満はMB表示（小数なし）
+            var sizeMB = estimatedBytes / (1024.0 * 1024);
+            sizeText = $"{(long)sizeMB} MB";
+        }
+
+        this.SelectedVolumeSummaryText.Value = sizeText;
     }
 }
 

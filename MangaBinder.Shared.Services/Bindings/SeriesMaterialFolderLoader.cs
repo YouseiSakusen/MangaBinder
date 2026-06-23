@@ -98,6 +98,9 @@ public class SeriesMaterialFolderLoader
 		// Archiveキャッシュを事前取得
 		var archiveCache = await this.archiveRepository.GetArchivesBySourceIdAsync(sourceId, cancellationToken);
 
+		// 現物に存在するアーカイブパスを記録するセット
+		var existingArchivePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
 		// Root ノード相当の MaterialItem を生成
 		var rootItem = new MaterialItem
 		{
@@ -108,15 +111,21 @@ public class SeriesMaterialFolderLoader
 		};
 
 		// フォルダ直下を走査して子を追加
-		await this.PopulateFolderAsync(rootItem, materialPath, archiveCache, seriesId, sourceId, cancellationToken);
+		await this.PopulateFolderAsync(rootItem, materialPath, archiveCache, existingArchivePaths, seriesId, sourceId, cancellationToken);
 
-		// Nested Archive の集約判定：archiveCache 内に IsNestedArchive = true がある場合、HasNestedArchive を true に設定
-		var hasNestedArchive = archiveCache.Values.Any(c => c.IsNestedArchive);
+		// 削除済みアーカイブのキャッシュを掃除
+		await this.cleanupDeletedArchivesAsync(archiveCache, existingArchivePaths, sourceId, cancellationToken);
 
-		// NestedArchive に該当する外側アーカイブファイル名を抽出
-		var nestedArchiveFileNames = archiveCache.Values
-			.Where(c => c.IsNestedArchive)
-			.Select(c => Path.GetFileName(c.ArchivePath))
+		// Nested Archive の集約判定：現物に存在するアーカイブのみを対象
+		var hasNestedArchive = archiveCache
+			.Where(kvp => existingArchivePaths.Contains(kvp.Key))
+			.Any(kvp => kvp.Value.IsNestedArchive);
+
+		// NestedArchive に該当する外側アーカイブファイル名を抽出（現物のみ対象）
+		var nestedArchiveFileNames = archiveCache
+			.Where(kvp => existingArchivePaths.Contains(kvp.Key))
+			.Where(kvp => kvp.Value.IsNestedArchive)
+			.Select(kvp => Path.GetFileName(kvp.Value.ArchivePath))
 			.Where(name => !string.IsNullOrWhiteSpace(name))
 			.Distinct(StringComparer.OrdinalIgnoreCase)
 			.OrderBy(name => name)
@@ -139,6 +148,7 @@ public class SeriesMaterialFolderLoader
 		MaterialItem parentItem,
 		string folderPath,
 		Dictionary<string, MaterialArchiveRepository.ArchiveCacheInfo> archiveCache,
+		HashSet<string> existingArchivePaths,
 		long seriesId,
 		long sourceId,
 		CancellationToken cancellationToken)
@@ -165,7 +175,7 @@ public class SeriesMaterialFolderLoader
 			};
 
 			// 再帰的にサブフォルダを走査
-			await this.PopulateFolderAsync(folderItem, dir, archiveCache, seriesId, sourceId, cancellationToken);
+			await this.PopulateFolderAsync(folderItem, dir, archiveCache, existingArchivePaths, seriesId, sourceId, cancellationToken);
 			parentItem.Children.Add(folderItem);
 		}
 
@@ -195,7 +205,7 @@ public class SeriesMaterialFolderLoader
 				};
 
 				// Archive 内部構造を解析して子を追加
-				await this.PopulateArchiveAsync(archiveItem, file, archiveCache, seriesId, sourceId, cancellationToken);
+				await this.PopulateArchiveAsync(archiveItem, file, archiveCache, existingArchivePaths, seriesId, sourceId, cancellationToken);
 				parentItem.Children.Add(archiveItem);
 			}
 			else if (fileType == FileType.Epub)
@@ -222,12 +232,16 @@ public class SeriesMaterialFolderLoader
 		MaterialItem archiveItem,
 		string archivePath,
 		Dictionary<string, MaterialArchiveRepository.ArchiveCacheInfo> archiveCache,
+		HashSet<string> existingArchivePaths,
 		long seriesId,
 		long sourceId,
 		CancellationToken cancellationToken)
 	{
 		try
 		{
+			// 処理対象アーカイブとして記録
+			existingArchivePaths.Add(archivePath);
+
 			// キャッシュ一致確認
 			if (archiveCache.TryGetValue(archivePath, out var cacheInfo))
 			{
@@ -438,5 +452,40 @@ public class SeriesMaterialFolderLoader
 		}
 
 		return result;
+	}
+
+	/// <summary>
+	/// 削除済みアーカイブのキャッシュを掃除します。
+	/// 素材フォルダ内に現存しないアーカイブで、DBに残っているキャッシュを削除します。
+	/// </summary>
+	private async Task cleanupDeletedArchivesAsync(
+		Dictionary<string, MaterialArchiveRepository.ArchiveCacheInfo> archiveCache,
+		HashSet<string> existingArchivePaths,
+		long sourceId,
+		CancellationToken cancellationToken)
+	{
+		// archiveCache に存在するが existingArchivePaths に存在しないアーカイブを抽出
+		var deletedArchivePaths = archiveCache.Keys
+			.Where(cachePath => !existingArchivePaths.Contains(cachePath))
+			.ToList();
+
+		// 各削除済みアーカイブについて、DBキャッシュを削除
+		foreach (var deletedPath in deletedArchivePaths)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			try
+			{
+				// DBから削除
+				await this.archiveRepository.DeleteArchiveAsync(sourceId, deletedPath, cancellationToken);
+
+				// メモリ上の archiveCache からも削除
+				archiveCache.Remove(deletedPath);
+			}
+			catch
+			{
+				// 削除エラーは無視（ロギングなし）
+			}
+		}
 	}
 }

@@ -25,6 +25,9 @@ public sealed class BindingQueueItem
 	/// <summary>ファイル数列の表示文字列を取得します。EPUB の場合は "-"、それ以外は実数値。</summary>
 	public string FileCountText { get; }
 
+	/// <summary>ノード直下に存在する画像ファイルの展開後サイズ合計（バイト）を取得します。</summary>
+	public long TotalImageBytes { get; }
+
 	/// <summary>
 	/// <see cref="BindingQueueItem"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -36,6 +39,7 @@ public sealed class BindingQueueItem
 		this.VolumeNumber = new BindableReactiveProperty<decimal?>(volumeNumber);
 		this.DisplayName = node.Name.Value;
 		this.FileCount = node.FileCount;
+		this.TotalImageBytes = node.TotalImageBytes;
 		this.FileCountText = node.NodeType == MaterialItemType.Epub ? "-" : node.FileCount.ToString();
 		this.SourceTypeText = node.NodeType switch
 		{

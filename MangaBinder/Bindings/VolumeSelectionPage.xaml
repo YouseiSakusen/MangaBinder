@@ -154,9 +154,9 @@
 									   Margin="0,0,12,0" VerticalAlignment="Center" />
 						<StackPanel>
 							<TextBlock FontSize="11" Margin="0,0,0,2"
-									   Foreground="{DynamicResource TextFillColorSecondaryBrush}">素材数</TextBlock>
+									   Foreground="{DynamicResource TextFillColorSecondaryBrush}">製本後ZIPサイズ（推定）</TextBlock>
 							<TextBlock FontSize="16" FontWeight="SemiBold">
-								<Run Text="{Binding MaterialCountText.Value, Mode=OneWay}" />
+								<Run Text="{Binding SelectedVolumeSummaryText.Value, Mode=OneWay}" />
 							</TextBlock>
 						</StackPanel>
 					</StackPanel>
