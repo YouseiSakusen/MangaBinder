@@ -643,9 +643,24 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         var numbers = this.bindingQueueItems.Select(q => q.VolumeNumber.Value!.Value).ToList();
         if (numbers.Count != numbers.Distinct().Count())
         {
-            await ContentDialogHelper.ShowErrorAsync(
-                this.contentDialogService,
-                "巻番号が重複しています。");
+            // 重複している巻番号を抽出
+            var duplicateNumbers = numbers
+                .GroupBy(n => n)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .OrderBy(n => n)
+                .ToList();
+
+            // メッセージを構築
+            var duplicateText = string.Join(", ", duplicateNumbers.Select(n => $"{n:0.#}巻"));
+            var snackbarMessage = $"巻番号が重複しています：{duplicateText}";
+
+            this.snackbarService.Show(
+                "巻番号が重複しています",
+                snackbarMessage,
+                ControlAppearance.Danger,
+                new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+                TimeSpan.MaxValue);
             return;
         }
 

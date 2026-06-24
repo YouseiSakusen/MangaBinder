@@ -562,7 +562,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <!-- 巻番号（編集可能） -->
-                                    <TextBox
+                                    <ui:TextBox
                                         Grid.Column="0"
                                         Width="42"
                                         HorizontalAlignment="Right"
