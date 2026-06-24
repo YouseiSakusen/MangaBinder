@@ -275,10 +275,8 @@
                                 <RowDefinition Height="Auto" />
                                 <!-- Row1: 巻数情報 -->
                                 <RowDefinition Height="Auto" />
-                                <!-- Row2: あらすじ（可変） -->
+                                <!-- Row2: あらすじ領域 + 補助情報領域 -->
                                 <RowDefinition Height="*" />
-                                <!-- Row3: 作者名 + タグ表示領域 -->
-                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <!-- Row0: タイトル + 3点リーダ -->
@@ -431,115 +429,165 @@
                                     VerticalAlignment="Center" />
                             </Grid>
 
-                            <!-- Row2: あらすじ（可変高さ） -->
-                            <StackPanel Grid.Row="2" Margin="0,0,0,6">
-                                <!-- あらすじ本文 -->
-                                <TextBlock
-                                    Text="{Binding Description}"
-                                    FontSize="12"
-                                    TextWrapping="Wrap"
-                                    MaxHeight="80"
-                                    TextTrimming="CharacterEllipsis"
-                                    Opacity="0.85"
-                                    Margin="0,0,0,4" />
-
-                                <!-- あらすじ出典 -->
-                                <StackPanel
-                                    Orientation="Horizontal"
-                                    Visibility="{Binding HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <TextBlock
-                                        Text="あらすじ出典："
-                                        FontSize="11"
-                                        Opacity="0.6"
-                                        VerticalAlignment="Center" />
-                                    <TextBlock
-                                        Text="{Binding DescriptionSourceName}"
-                                        FontSize="11"
-                                        Opacity="0.6"
-                                        VerticalAlignment="Center" />
-                                    <TextBlock
-                                        Text=" / "
-                                        FontSize="11"
-                                        Opacity="0.6"
-                                        VerticalAlignment="Center" />
-                                    <TextBox
-                                        Style="{StaticResource TitleReadOnlyTextBoxStyle}"
-                                        Text="{Binding DescriptionSourceTitle}"
-                                        FontSize="11"
-                                        Opacity="0.6"
-                                        VerticalAlignment="Center"
-                                        Focusable="True"
-                                        Cursor="IBeam" />
-                                </StackPanel>
-                            </StackPanel>
-
-                            <!-- Row3: 作者名 + タグ表示領域 -->
-                            <Grid Grid.Row="3" Margin="0,0,0,4">
+                            <!-- Row2: Grid（あらすじ領域 + 補助情報領域） -->
+                            <Grid Grid.Row="2" Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
+                                    <!-- Col0: あらすじ領域（2*） -->
+                                    <ColumnDefinition Width="3*" />
+                                    <!-- Col1: 補助情報領域（1*） -->
+                                    <ColumnDefinition Width="1*" />
                                 </Grid.ColumnDefinitions>
 
-                                <!-- 作者名（補助情報・控えめ） -->
-                                <TextBlock
-                                    Grid.Column="0"
-                                    Text="{Binding Author}"
-                                    FontSize="11"
-                                    Opacity="0.55"
-                                    TextWrapping="NoWrap"
-                                    TextTrimming="CharacterEllipsis"
-                                    VerticalAlignment="Center" />
+                                <!-- Col0: あらすじ領域 -->
+                                <Grid Grid.Column="0" Margin="0,0,12,0">
+                                    <Grid.RowDefinitions>
+                                        <!-- あらすじ本文 -->
+                                        <RowDefinition Height="*" />
+                                        <!-- あらすじ出典 -->
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
 
-                                <!-- タグ表示領域（ToggleButton + Popup） -->
+                                    <!-- あらすじ本文 -->
+                                    <TextBlock
+                                        Grid.Row="0"
+                                        Text="{Binding Description}"
+                                        FontSize="12"
+                                        TextWrapping="Wrap"
+                                        MaxHeight="80"
+                                        TextTrimming="CharacterEllipsis"
+                                        Opacity="0.85"
+                                        VerticalAlignment="Top"
+                                        Margin="0,0,0,4" />
+
+                                    <!-- あらすじ出典 -->
+                                    <Grid
+                                        Grid.Row="1"
+                                        Visibility="{Binding HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock
+                                            Grid.Column="0"
+                                            Text="あらすじ出典："
+                                            FontSize="11"
+                                            Opacity="0.6"
+                                            VerticalAlignment="Center" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            Text="{Binding DescriptionSourceName}"
+                                            FontSize="11"
+                                            Opacity="0.6"
+                                            VerticalAlignment="Center" />
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            Text=" / "
+                                            FontSize="11"
+                                            Opacity="0.6"
+                                            VerticalAlignment="Center" />
+                                        <TextBox
+                                            Grid.Column="3"
+                                            Style="{StaticResource TitleReadOnlyTextBoxStyle}"
+                                            Text="{Binding DescriptionSourceTitle}"
+                                            FontSize="11"
+                                            Opacity="0.6"
+                                            VerticalAlignment="Center"
+                                            Focusable="True"
+                                            Cursor="IBeam" />
+                                    </Grid>
+                                </Grid>
+
+                                <!-- Col1: 補助情報領域（作者 + タグ） -->
                                 <Grid Grid.Column="1">
-                                    <!-- ToggleButton: タグ表示 & ポップアップ開閉 -->
-                                    <ToggleButton
-                                        x:Name="TagToggleButton"
-                                        Padding="6,2"
-                                        FontSize="11"
-                                        Content="{Binding TagDisplayText}"
-                                        Cursor="Hand"
-                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                        BorderThickness="0"
-                                        Command="{Binding DataContext.PrepareTagPopupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                        CommandParameter="{Binding}" />
+                                    <Grid.RowDefinitions>
+                                        <!-- 余白 -->
+                                        <RowDefinition Height="*" />
+                                        <!-- 作者名 + タグ -->
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
 
-                                    <!-- Popup: タグ選択チェックボックス一覧 -->
-                                    <Popup
-                                        x:Name="TagPopup"
-                                        PlacementTarget="{Binding ElementName=TagToggleButton}"
-                                        Placement="Top"
-                                        IsOpen="{Binding IsChecked, ElementName=TagToggleButton, Mode=TwoWay}"
-                                        StaysOpen="False"
-                                        AllowsTransparency="True"
-                                        PopupAnimation="Fade">
-                                        <Border
-                                            Background="{DynamicResource ApplicationBackgroundBrush}"
-                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="6"
-                                            Padding="8,6"
-                                            MinWidth="100"
-                                            MaxWidth="220"
-                                            MaxHeight="200">
-                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                                <ItemsControl
-                                                    ItemsSource="{Binding Data.SelectableTagsForPopup, Source={StaticResource VmProxy}}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <CheckBox
-                                                                Content="{Binding Tag.Name}"
-                                                                IsChecked="{Binding IsChecked, Mode=TwoWay}"
-                                                                FontSize="12"
-                                                                Padding="4,1"
-                                                                Margin="0,1"
-                                                                MinHeight="0" />
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                            </ScrollViewer>
-                                        </Border>
-                                    </Popup>
+                                    <!-- Row0: 余白 -->
+                                    <Border Grid.Row="0" />
+
+                                    <!-- Row1: 作者名 + タグ -->
+                                    <Grid Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- 作者名（補助情報・控えめ） -->
+                                        <TextBlock
+                                            Grid.Column="0"
+                                            Text="{Binding Author}"
+                                            FontSize="11"
+                                            Opacity="0.55"
+                                            TextWrapping="NoWrap"
+                                            TextTrimming="CharacterEllipsis"
+                                            VerticalAlignment="Center" />
+
+                                        <!-- タグ表示領域（ToggleButton + Popup） -->
+                                        <Grid Grid.Column="1">
+                                            <!-- ToggleButton: タグ表示 & ポップアップ開閉 -->
+                                            <ToggleButton
+                                                x:Name="TagToggleButton"
+                                                Padding="6,2"
+                                                FontSize="11"
+                                                Content="{Binding TagDisplayText}"
+                                                Cursor="Hand"
+                                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                                BorderThickness="0"
+                                                Command="{Binding DataContext.PrepareTagPopupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                CommandParameter="{Binding}" />
+
+                                            <!-- Popup: タグ選択チェックボックス一覧（3列表示） -->
+                                            <Popup
+                                                x:Name="TagPopup"
+                                                PlacementTarget="{Binding ElementName=TagToggleButton}"
+                                                Placement="Top"
+                                                IsOpen="{Binding IsChecked, ElementName=TagToggleButton, Mode=TwoWay}"
+                                                StaysOpen="False"
+                                                AllowsTransparency="True"
+                                                PopupAnimation="Fade">
+                                                <Border
+                                                    Background="{DynamicResource ApplicationBackgroundBrush}"
+                                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="8,6"
+                                                    MinWidth="280"
+                                                    MaxWidth="420"
+                                                    MaxHeight="250">
+                                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                        <ItemsControl
+                                                            ItemsSource="{Binding Data.SelectableTagsForPopup, Source={StaticResource VmProxy}}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <UniformGrid Columns="2"
+                                                                                 Rows="4"/>
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <CheckBox
+                                                                        Content="{Binding Tag.Name}"
+                                                                        IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                                                        FontSize="12"
+                                                                        Padding="4,1"
+                                                                        Margin="4,2"
+                                                                        VerticalAlignment="Center"
+                                                                        MinHeight="0" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </ScrollViewer>
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
+                                    </Grid>
                                 </Grid>
                             </Grid>
 
