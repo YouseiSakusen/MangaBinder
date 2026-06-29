@@ -1,7 +1,9 @@
 using MangaBinder.Bindings;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NetVips;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 
@@ -22,20 +24,26 @@ public sealed class WorkFolderBuilder
 	/// <summary>画像変換サービス。</summary>
 	private readonly IVolumeImageProcessor imageProcessor;
 
+	/// <summary>ロガー。</summary>
+	private readonly ILogger<WorkFolderBuilder> logger;
+
 	/// <summary>
 	/// <see cref="WorkFolderBuilder"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="serviceScopeFactory">Extractor 解決用スコープファクトリー。</param>
 	/// <param name="imageProcessor">画像変換サービス。</param>
+	/// <param name="logger">ロガー。</param>
 	public WorkFolderBuilder(
 		AppSettings appSettings,
 		IServiceScopeFactory serviceScopeFactory,
-		IVolumeImageProcessor imageProcessor)
+		IVolumeImageProcessor imageProcessor,
+		ILogger<WorkFolderBuilder> logger)
 	{
 		this.appSettings = appSettings;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.imageProcessor = imageProcessor;
+		this.logger = logger;
 	}
 
 	/// <summary>
@@ -104,8 +112,60 @@ public sealed class WorkFolderBuilder
 			.Select(x => x.Result)
 			.ToList();
 
+		// ── メモリ調査：展開・検査処理完了直後 ──
+		var currentProcess = Process.GetCurrentProcess();
+		//this.logger.LogInformation(
+		//	"[Memory Investigation] Before NetVips Cache.Max=0: " +
+		//	"GC.Managed={ManagedMB}MB, " +
+		//	"GC.Collect={GCCollectMB}MB, " +
+		//	"WorkingSet={WorkingSetMB}MB, " +
+		//	"PrivateMemory={PrivateMemoryMB}MB, " +
+		//	"PagedMemory={PagedMemoryMB}MB",
+		//	GC.GetTotalMemory(false) / (1024.0 * 1024),
+		//	GC.GetTotalMemory(true) / (1024.0 * 1024),
+		//	currentProcess.WorkingSet64 / (1024.0 * 1024),
+		//	currentProcess.PrivateMemorySize64 / (1024.0 * 1024),
+		//	currentProcess.PagedMemorySize64 / (1024.0 * 1024));
+
 		// 製本前確認処理後は libvips の変換キャッシュを保持する必要がないため解放します。
 		Cache.Max = 0;
+		Cache.MaxFiles = 0;
+		Cache.MaxMem = 0;
+
+		// ── メモリ調査：NetVips キャッシュ設定後 ──
+		currentProcess = Process.GetCurrentProcess();
+		//this.logger.LogInformation(
+		//	"[Memory Investigation] After NetVips Cache.Max=0: " +
+		//	"GC.Managed={ManagedMB}MB, " +
+		//	"GC.Collect={GCCollectMB}MB, " +
+		//	"WorkingSet={WorkingSetMB}MB, " +
+		//	"PrivateMemory={PrivateMemoryMB}MB, " +
+		//	"PagedMemory={PagedMemoryMB}MB",
+		//	GC.GetTotalMemory(false) / (1024.0 * 1024),
+		//	GC.GetTotalMemory(true) / (1024.0 * 1024),
+		//	currentProcess.WorkingSet64 / (1024.0 * 1024),
+		//	currentProcess.PrivateMemorySize64 / (1024.0 * 1024),
+		//	currentProcess.PagedMemorySize64 / (1024.0 * 1024));
+
+		// メモリ調査用の切り分け処理：管理メモリとGC待ちを確認
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		// ── メモリ調査：GC実行後 ──
+		currentProcess = Process.GetCurrentProcess();
+		//this.logger.LogInformation(
+		//	"[Memory Investigation] After GC.Collect/WaitForPendingFinalizers: " +
+		//	"GC.Managed={ManagedMB}MB, " +
+		//	"GC.Collect={GCCollectMB}MB, " +
+		//	"WorkingSet={WorkingSetMB}MB, " +
+		//	"PrivateMemory={PrivateMemoryMB}MB, " +
+		//	"PagedMemory={PagedMemoryMB}MB",
+		//	GC.GetTotalMemory(false) / (1024.0 * 1024),
+		//	GC.GetTotalMemory(true) / (1024.0 * 1024),
+		//	currentProcess.WorkingSet64 / (1024.0 * 1024),
+		//	currentProcess.PrivateMemorySize64 / (1024.0 * 1024),
+		//	currentProcess.PagedMemorySize64 / (1024.0 * 1024));
 
 		return flatResults;
 	}

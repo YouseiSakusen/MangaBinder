@@ -453,7 +453,7 @@
                                         Text="{Binding Description}"
                                         FontSize="12"
                                         TextWrapping="Wrap"
-                                        MaxHeight="80"
+                                        MaxHeight="120"
                                         TextTrimming="CharacterEllipsis"
                                         Opacity="0.85"
                                         VerticalAlignment="Top"

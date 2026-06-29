@@ -63,6 +63,11 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	public ReactiveCommand<MangaSource> OpenMaterialFolderCommand { get; }
 
 	/// <summary>
+	/// 製本待ちから削除するコマンドです。<see cref="BindingSeries"/> をパラメータとして受け取ります。
+	/// </summary>
+	public ReactiveCommand<BindingSeries> RemoveFromQueueCommand { get; }
+
+	/// <summary>
 	/// 作品一覧 ListView の VerticalOffset の保存値を取得します。
 	/// </summary>
 	public BindableReactiveProperty<double> SavedBindingListVerticalOffset { get; }
@@ -115,6 +120,10 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 			_ = this.openMaterialFolderAsync(source);
 		});
 
+		this.RemoveFromQueueCommand = new ReactiveCommand<BindingSeries>()
+			.AddTo(ref this.disposableBag);
+		this.RemoveFromQueueCommand.Subscribe(bindingSeries => this.executeRemoveFromQueue(bindingSeries));
+
 		this.SavedBindingListVerticalOffset = new BindableReactiveProperty<double>(0)
 			.AddTo(ref this.disposableBag);
 	}
@@ -151,6 +160,16 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.SelectedSeriesCount.Value = count;
 		this.IsEmpty.Value = count == 0;
 		this.IsNotEmpty.Value = count > 0;
+	}
+
+	/// <summary>
+	/// 指定した作品を製本待ちから削除します。
+	/// </summary>
+	/// <param name="bindingSeries">削除対象の作品。</param>
+	private void executeRemoveFromQueue(BindingSeries bindingSeries)
+	{
+		this.bindingQueueStore.Remove(bindingSeries.Series.SeriesId);
+		this.updateState();
 	}
 
 	/// <summary>

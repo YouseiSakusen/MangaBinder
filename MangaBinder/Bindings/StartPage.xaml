@@ -355,6 +355,11 @@
 												</Style>
 											</MenuItem.ItemContainerStyle>
 										</MenuItem>
+										<!-- 製本待ちから削除 -->
+										<MenuItem
+											Header="製本待ちから削除"
+											Command="{Binding Data.RemoveFromQueueCommand, Source={StaticResource VmProxy}}"
+											CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
 									</ContextMenu>
 								</ui:Button.ContextMenu>
 								<ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />
