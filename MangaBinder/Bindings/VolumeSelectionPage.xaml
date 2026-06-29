@@ -40,6 +40,18 @@
 			<Setter Property="Margin" Value="0,0,0,2" />
         </Style>
 
+        <!-- タイトル表示専用 TextBox スタイル：TextBlock 寄りの見た目、選択可能 -->
+        <Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="CaretBrush" Value="Transparent" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="IsTabStop" Value="False" />
+        </Style>
+
         <!-- ノード表示テンプレート -->
         <HierarchicalDataTemplate x:Key="NodeTemplate"
                                   DataType="{x:Type core:MaterialVolumeNode}"
@@ -131,12 +143,15 @@
 		</Grid.RowDefinitions>
 
 		<!-- ── Row0：作品タイトル（「巻選択」は BreadcrumbBar で表示） ── -->
-		<TextBlock
+		<ui:TextBox
 			Grid.Row="0"
+			Style="{StaticResource TitleReadOnlyTextBoxStyle}"
 			Text="{Binding SeriesTitle.Value}"
-			FontSize="15"
-			Opacity="0.7"
-			Margin="0,0,0,12" />
+			FontSize="17"
+			Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+			Margin="0,0,0,12"
+			Focusable="True"
+			Cursor="IBeam" />
 
 		<!-- ── Row1：アイキャッチカード ── -->
 		<Grid Grid.Row="1" Margin="0,0,0,16">

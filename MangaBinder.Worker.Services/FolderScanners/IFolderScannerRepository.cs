@@ -48,4 +48,21 @@ public interface IFolderScannerRepository
     /// <param name="ct">キャンセルトークン。</param>
     /// <returns>1 件以上存在する場合は <c>true</c>。</returns>
     ValueTask<bool> HasLimitExceededAsync(CancellationToken ct);
+
+    /// <summary>
+    /// 指定された役割のスキャン対象フォルダ配下に存在する MangaSource 一覧を取得します。
+    /// スキャン開始時に呼び出し、スキャン中に見つかった作品と比較して、削除された作品を検出するために使用します。
+    /// </summary>
+    /// <param name="role">フォルダの役割を表す値（<see cref="MangaBinder.Settings.FolderRole"/> のキャスト値）。</param>
+    /// <param name="sourceFolderPaths">スキャン対象フォルダパス一覧。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>SourceId をキーとした MangaSource の辞書。</returns>
+    ValueTask<Dictionary<long, MangaSource>> GetSourcesByFolderRoleAsync(int role, IEnumerable<string> sourceFolderPaths, CancellationToken ct);
+
+    /// <summary>
+    /// 指定された SourceId の MangaSource を削除します。
+    /// </summary>
+    /// <param name="sourceIds">削除対象の SourceId 一覧。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct);
 }

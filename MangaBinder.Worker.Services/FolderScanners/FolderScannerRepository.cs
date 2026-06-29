@@ -111,6 +111,9 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// <summary>
     /// 素材スキャン向けの MangaSeries UPSERT を実行し、SeriesId を返します。
     /// Author は INSERT 時のみ設定され、UPDATE 時は除外して既存値を維持します。
+    /// 複数フォルダ登録運用に対応するため、巻情報は保護的に更新します：
+    /// - StartVolume: DB値と新規値の小さい方を保持
+    /// - EndVolume / OwnedMaxVolume: DB値と新規値の大きい方を保持
     /// </summary>
     private async ValueTask<long> UpsertMaterialSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series)
     {
@@ -147,9 +150,23 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, SeriesCompleted   = excluded.SeriesCompleted ");
         sql.AppendLine(" 	, IsOwnedCompleted  = excluded.IsOwnedCompleted ");
         sql.AppendLine(" 	, IsSourceMissing   = 0 ");
-        sql.AppendLine(" 	, StartVolume       = excluded.StartVolume ");
-        sql.AppendLine(" 	, EndVolume         = excluded.EndVolume ");
-        sql.AppendLine(" 	, OwnedMaxVolume    = excluded.OwnedMaxVolume ");
+        // 複数フォルダ登録運用対応：巻情報を保護的に更新
+        // StartVolume は小さい方を、EndVolume/OwnedMaxVolume は大きい方を保持
+        sql.AppendLine(" 	, StartVolume       = CASE ");
+        sql.AppendLine(" 	                        WHEN StartVolume IS NULL THEN excluded.StartVolume ");
+        sql.AppendLine(" 	                        WHEN excluded.StartVolume IS NULL THEN StartVolume ");
+        sql.AppendLine(" 	                        ELSE MIN(StartVolume, excluded.StartVolume) ");
+        sql.AppendLine(" 	                      END ");
+        sql.AppendLine(" 	, EndVolume         = CASE ");
+        sql.AppendLine(" 	                        WHEN EndVolume IS NULL THEN excluded.EndVolume ");
+        sql.AppendLine(" 	                        WHEN excluded.EndVolume IS NULL THEN EndVolume ");
+        sql.AppendLine(" 	                        ELSE MAX(EndVolume, excluded.EndVolume) ");
+        sql.AppendLine(" 	                      END ");
+        sql.AppendLine(" 	, OwnedMaxVolume    = CASE ");
+        sql.AppendLine(" 	                        WHEN OwnedMaxVolume IS NULL THEN excluded.OwnedMaxVolume ");
+        sql.AppendLine(" 	                        WHEN excluded.OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
+        sql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, excluded.OwnedMaxVolume) ");
+        sql.AppendLine(" 	                      END ");
         sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
         sql.AppendLine(" RETURNING SeriesId; ");
 
@@ -169,6 +186,9 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// <summary>
     /// 製本済みスキャン向けの MangaSeries UPSERT を実行し、SeriesId を返します。
     /// Author を含む全フィールドを UPDATE 対象とします。
+    /// 複数フォルダ登録運用に対応するため、巻情報は保護的に更新します：
+    /// - StartVolume: DB値と新規値の小さい方を保持
+    /// - EndVolume / BoundEndVolume: DB値と新規値の大きい方を保持
     /// </summary>
     private async ValueTask<long> UpsertBindingSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series)
     {
@@ -202,9 +222,23 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, ShortTitle        = excluded.ShortTitle ");
         sql.AppendLine(" 	, Author            = excluded.Author ");
         sql.AppendLine(" 	, SeriesCompleted   = excluded.SeriesCompleted ");
-        sql.AppendLine(" 	, StartVolume       = excluded.StartVolume ");
-        sql.AppendLine(" 	, EndVolume         = excluded.EndVolume ");
-        sql.AppendLine(" 	, BoundEndVolume    = excluded.BoundEndVolume ");
+        // 複数フォルダ登録運用対応：巻情報を保護的に更新
+        // StartVolume は小さい方を、EndVolume/BoundEndVolume は大きい方を保持
+        sql.AppendLine(" 	, StartVolume       = CASE ");
+        sql.AppendLine(" 	                        WHEN StartVolume IS NULL THEN excluded.StartVolume ");
+        sql.AppendLine(" 	                        WHEN excluded.StartVolume IS NULL THEN StartVolume ");
+        sql.AppendLine(" 	                        ELSE MIN(StartVolume, excluded.StartVolume) ");
+        sql.AppendLine(" 	                      END ");
+        sql.AppendLine(" 	, EndVolume         = CASE ");
+        sql.AppendLine(" 	                        WHEN EndVolume IS NULL THEN excluded.EndVolume ");
+        sql.AppendLine(" 	                        WHEN excluded.EndVolume IS NULL THEN EndVolume ");
+        sql.AppendLine(" 	                        ELSE MAX(EndVolume, excluded.EndVolume) ");
+        sql.AppendLine(" 	                      END ");
+        sql.AppendLine(" 	, BoundEndVolume    = CASE ");
+        sql.AppendLine(" 	                        WHEN BoundEndVolume IS NULL THEN excluded.BoundEndVolume ");
+        sql.AppendLine(" 	                        WHEN excluded.BoundEndVolume IS NULL THEN BoundEndVolume ");
+        sql.AppendLine(" 	                        ELSE MAX(BoundEndVolume, excluded.BoundEndVolume) ");
+        sql.AppendLine(" 	                      END ");
         sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
         sql.AppendLine(" RETURNING SeriesId; ");
 
@@ -435,5 +469,63 @@ public class FolderScannerRepository : IFolderScannerRepository
         await conn.OpenAsync(ct);
         var count = await conn.ExecuteScalarAsync<int>(sql, new { LimitExceeded = (int)ThumbnailStatus.LimitExceeded });
         return count > 0;
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<Dictionary<long, MangaSource>> GetSourcesByFolderRoleAsync(int role, IEnumerable<string> sourceFolderPaths, CancellationToken ct)
+    {
+        var sql = new StringBuilder();
+        sql.AppendLine(" SELECT ");
+        sql.AppendLine(" 	  SourceId ");
+        sql.AppendLine(" 	, SeriesId ");
+        sql.AppendLine(" 	, Path ");
+        sql.AppendLine(" 	, Role ");
+        sql.AppendLine(" FROM MangaSources ");
+        sql.AppendLine(" WHERE Role = :Role; ");
+
+        using var conn = new SQLiteConnection(this.connectionString);
+        await conn.OpenAsync(ct);
+        var allSources = (await conn.QueryAsync<MangaSource>(sql.ToString(), new { Role = role })).ToList();
+
+        // 指定されたフォルダパス配下に存在するソースのみをフィルタリング
+        var result = new Dictionary<long, MangaSource>();
+        var folderPathList = sourceFolderPaths.ToList();
+
+        foreach (var source in allSources)
+        {
+            // Path がいずれかのフォルダパス配下に存在するかを確認
+            var sourcePath = source.Path;
+            foreach (var folderPath in folderPathList)
+            {
+                // フォルダパスの末尾のセパレーターを正規化
+                var normalizedFolderPath = folderPath.EndsWith(Path.DirectorySeparatorChar.ToString()) 
+                    ? folderPath 
+                    : folderPath + Path.DirectorySeparatorChar;
+
+                if (sourcePath.StartsWith(normalizedFolderPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    result[source.SourceId] = source;
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct)
+    {
+        var ids = sourceIds.ToList();
+        if (ids.Count == 0)
+            return;
+
+        var sql = new StringBuilder();
+        sql.AppendLine(" DELETE FROM MangaSources ");
+        sql.AppendLine(" WHERE SourceId IN :SourceIds; ");
+
+        using var conn = new SQLiteConnection(this.connectionString);
+        await conn.OpenAsync(ct);
+        await conn.ExecuteAsync(sql.ToString(), new { SourceIds = ids });
     }
 }

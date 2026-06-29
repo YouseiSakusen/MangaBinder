@@ -176,8 +176,8 @@ public class MaterialArchiveExtractor
 					var hasArchiveFile = hasStats && stat!.HasArchiveFile;
 					var totalImageBytes = hasStats ? stat!.TotalImageBytes : 0L;
 
-					var selectable = this.evaluateFolderSelectability(key);
-					var reason = selectable ? string.Empty : this.buildDisabledReason(parts[i], key);
+					var selectable = this.evaluateFolderSelectability(fileCount);
+					var reason = selectable ? string.Empty : this.buildDisabledReason(fileCount);
 
 					node = new ArchiveFolderItem
 					{
@@ -210,8 +210,8 @@ public class MaterialArchiveExtractor
 						var hasArchiveFile = hasStats && stat!.HasArchiveFile;
 						var totalImageBytes = hasStats ? stat!.TotalImageBytes : 0L;
 
-						var selectable = this.evaluateFolderSelectability(nextKey);
-						var reason = selectable ? string.Empty : this.buildDisabledReason(parts[i + 1], nextKey);
+						var selectable = this.evaluateFolderSelectability(fileCount);
+						var reason = selectable ? string.Empty : this.buildDisabledReason(fileCount);
 
 						nextNode = new ArchiveFolderItem
 						{
@@ -239,38 +239,23 @@ public class MaterialArchiveExtractor
 
 	/// <summary>
 	/// 選択不可の理由メッセージを生成します。
+	/// FileCount が 0 の場合のみ理由を返します。
 	/// </summary>
-	private string buildDisabledReason(string folderName, string key)
+	private string buildDisabledReason(int fileCount)
 	{
-		if (this.isMultiVolumeRange(folderName))
-			return "複数巻範囲と判定されました";
+		if (fileCount == 0)
+			return "直下に画像ファイルが存在しません";
 
 		return string.Empty;
 	}
 
 	/// <summary>
-	/// フォルダ名が複数巻範囲を表しているかどうかを判定します。
-	/// </summary>
-	private bool isMultiVolumeRange(string folderName)
-	{
-		var pattern = new Regex(
-			@"(?:\d+\s*[-–—~～〜]\s*\d+)",
-			RegexOptions.IgnorePatternWhitespace | RegexOptions.IgnoreCase);
-		return pattern.IsMatch(folderName);
-	}
-
-	/// <summary>
 	/// Archive 内フォルダが製本対象として選択可能かどうかを評価します。
+	/// 直下に画像ファイルが存在するか（FileCount > 0）で判定します。
 	/// </summary>
-	private bool evaluateFolderSelectability(string folderKey)
+	private bool evaluateFolderSelectability(int fileCount)
 	{
-		var folderName = folderKey.TrimEnd('/').Split('/', StringSplitOptions.RemoveEmptyEntries)
-			.LastOrDefault() ?? string.Empty;
-
-		if (this.isMultiVolumeRange(folderName))
-			return false;
-
-		return true;
+		return fileCount > 0;
 	}
 
 	/// <summary>

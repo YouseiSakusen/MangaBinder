@@ -30,6 +30,9 @@ public abstract class FolderScannerBase : IJob
 	/// <summary>Worker 実行コンテキスト。</summary>
 	protected readonly WorkerContext workerContext;
 
+	/// <summary>スキャン対象フォルダ配下に存在する MangaSource をメモリに保持。SourceId をキーに。</summary>
+	protected Dictionary<long, MangaSource> targetSourcesByFolder = new();
+
 	/// <summary>
 	/// <see cref="FolderScannerBase"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -47,7 +50,9 @@ public abstract class FolderScannerBase : IJob
 
 	/// <summary>
 	/// フォルダスキャンを非同期で実行します。
-	/// リポジトリからルートパスを取得し、走査・保存フローを派生クラスに委譲します。
+	/// 1. スキャン対象フォルダ配下の MangaSource をメモリに読み込む
+	/// 2. リポジトリからルートパスを取得し、走査・保存フローを派生クラスに委譲
+	/// 3. スキャン後もメモリに残っている MangaSource を削除
 	/// </summary>
 	/// <param name="ct">キャンセルトークン。</param>
 	public virtual async ValueTask ExecuteAsync(CancellationToken ct)
@@ -56,10 +61,25 @@ public abstract class FolderScannerBase : IJob
 
 		using var scope = this.scopeFactory.CreateScope();
 		var repository = scope.ServiceProvider.GetRequiredService<IFolderScannerRepository>();
-		var rootPaths = await repository.GetSourceFoldersAsync((int)this.role, ct);
+		var rootPaths = (await repository.GetSourceFoldersAsync((int)this.role, ct)).ToList();
+
+		// スキャン開始時：対象 SourceFolder 配下の MangaSource を取得してメモリに保持
+		this.targetSourcesByFolder = await repository.GetSourcesByFolderRoleAsync((int)this.role, rootPaths, ct);
+		this.logger.ZLogInformation($"スキャン対象フォルダ配下に存在する MangaSource: {this.targetSourcesByFolder.Count} 件");
+
+		// 通常スキャン実行
 		var savedCount = await this.ScanAndSaveAsync(rootPaths, ct);
 
 		this.logger.ZLogInformation($"フォルダスキャン完了: {savedCount} 件保存");
+
+		// スキャン終了時：メモリに残っている MangaSource は削除されたと判断し削除
+		if (this.targetSourcesByFolder.Count > 0)
+		{
+			var sourceIdsToDelete = this.targetSourcesByFolder.Keys.ToList();
+			this.logger.ZLogInformation($"スキャン対象フォルダから削除された MangaSource を削除: {sourceIdsToDelete.Count} 件");
+			await repository.DeleteSourcesByIdAsync(sourceIdsToDelete, ct);
+			this.logger.ZLogInformation($"MangaSource 削除完了");
+		}
 	}
 
     /// <summary>

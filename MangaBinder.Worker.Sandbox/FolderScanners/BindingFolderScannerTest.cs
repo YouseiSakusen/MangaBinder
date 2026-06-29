@@ -94,6 +94,14 @@ file class StubFolderRepository : IFolderScannerRepository
     public ValueTask<bool> HasLimitExceededAsync(CancellationToken ct)
         => ValueTask.FromResult(false);
 
+    /// <summary>このテストでは空の辞書を返します。</summary>
+    public ValueTask<Dictionary<long, MangaSource>> GetSourcesByFolderRoleAsync(int role, IEnumerable<string> sourceFolderPaths, CancellationToken ct)
+        => ValueTask.FromResult(new Dictionary<long, MangaSource>());
+
+    /// <summary>このテストでは削除は行いません。</summary>
+    public ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct)
+        => ValueTask.CompletedTask;
+
     /// <summary>
     /// 蓄積した <see cref="MangaSeries"/> リストをCSVファイルに書き出します。
     /// Sources 列には統合された全ファイルのフルパスをセミコロン連結で出力します。

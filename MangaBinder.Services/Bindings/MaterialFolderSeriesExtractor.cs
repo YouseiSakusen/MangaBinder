@@ -115,10 +115,8 @@ public class MaterialFolderSeriesExtractor : ISeriesExtractor
                 if (!nodeMap.TryGetValue(key, out var node))
                 {
                     var fileCount = this.countArchiveFolderImages(key, entries);
-                    var selectableByRange = ArchiveFolderSelectabilityEvaluator.Evaluate(key, archivePath, archive);
-                    var selectableByImages = fileCount > 0;
-                    var selectable = selectableByRange && selectableByImages;
-                    var reason = selectable ? null : this.buildDisabledReason(parts[i], key, archivePath, archive, selectableByRange, selectableByImages);
+                    var selectable = fileCount > 0;
+                    var reason = selectable ? null : this.buildDisabledReason(fileCount);
                     node = new MaterialVolumeNode(
                         parts[i],
                         $"{archivePath}/{key}",
@@ -177,13 +175,12 @@ public class MaterialFolderSeriesExtractor : ISeriesExtractor
 
     /// <summary>
     /// 選択不可の理由メッセージを生成します。
+    /// FileCount が 0 の場合のみ理由を返します。
     /// </summary>
-    private string buildDisabledReason(string folderName, string key, string archivePath, SharpCompress.Archives.IArchive archive, bool selectableByRange, bool selectableByImages)
+    private string buildDisabledReason(int fileCount)
     {
-        if (!selectableByImages)
+        if (fileCount == 0)
             return "直下に画像ファイルが存在しません";
-        if (!selectableByRange)
-            return "複数巻範囲と判定されました";
         return "選択できません";
     }
 

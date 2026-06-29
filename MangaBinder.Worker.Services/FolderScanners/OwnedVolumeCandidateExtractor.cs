@@ -197,11 +197,15 @@ public static class OwnedVolumeCandidateExtractor
         // 丸数字 ①～⑳
         results.AddRange(extractByPattern(name, CircledNumberPattern, "CircledNumber", "vol"));
 
-        // ローマ数字（限定: I～XV）
-        results.AddRange(extractRomanNumerals(name));
-
         // 拡張子直前の単独数字（最後に適用して誤検知を最小化）
         results.AddRange(extractByPattern(name, NumberBeforeExtensionPattern, "NumberBeforeExtension", "vol"));
+
+        // ローマ数字は、通常の数字系候補が1件も取得できなかった場合のみ評価
+        // これにより、「v01-07」で７を取得した場合に「X」の誤検出を避ける
+        if (results.Count == 0)
+        {
+            results.AddRange(extractRomanNumerals(name));
+        }
 
         return results;
     }

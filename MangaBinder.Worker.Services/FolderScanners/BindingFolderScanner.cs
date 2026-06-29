@@ -115,9 +115,26 @@ public class BindingFolderScanner : FolderScannerBase
         await Parallel.ForEachAsync(dict.Values, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (series, token) =>
         {
             var savedSeries = await this.SaveResultsAsync(series, repository, token);
+
+            // スキャン中に見つかった MangaSource をメモリから除外
+            foreach (var source in savedSeries.Sources.Where(s => (int)s.Role == (int)FolderRole.Binding || (int)s.Role == (int)FolderRole.DefaultBinding))
+            {
+                var keysToRemove = this.targetSourcesByFolder
+                    .Where(kvp => kvp.Value.Path.Equals(source.Path, StringComparison.OrdinalIgnoreCase))
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+                foreach (var key in keysToRemove)
+                {
+                    this.targetSourcesByFolder.Remove(key);
+                }
+            }
+
+            // DB保存完了
+            this.logger.ZLogInformation($"作品情報保存完了：{savedSeries.Title}");
+
             if (this.HasCompletedThumbnail(savedSeries))
             {
-                this.logger.ZLogInformation($"サムネイル作成済みのためスキップ: {savedSeries.Title}");
+                this.logger.ZLogInformation($"サムネイル生成済みのためスキップ");
                 Interlocked.Increment(ref savedCount);
                 return;
             }

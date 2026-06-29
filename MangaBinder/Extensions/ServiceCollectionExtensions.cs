@@ -77,6 +77,7 @@ public static class ServiceCollectionExtensions
 
 		services.AddSingleton<SeriesWorkspaceStore>();
 		services.AddSingleton<SeriesTagStore>();
+		services.AddSingleton<MangaSeriesStore>();
 		services.AddSingleton<BindingQueueStore>();
 		services.AddSingleton<BindingStoreRepository>();
 		services.AddSingleton<BindingQueueDispatcher>();

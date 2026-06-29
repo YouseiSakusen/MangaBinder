@@ -123,6 +123,14 @@ file class StubMaterialRepository : IFolderScannerRepository
     public ValueTask<bool> HasLimitExceededAsync(CancellationToken ct)
         => ValueTask.FromResult(false);
 
+    /// <summary>このテストでは空の辞書を返します。</summary>
+    public ValueTask<Dictionary<long, MangaSource>> GetSourcesByFolderRoleAsync(int role, IEnumerable<string> sourceFolderPaths, CancellationToken ct)
+        => ValueTask.FromResult(new Dictionary<long, MangaSource>());
+
+    /// <summary>このテストでは削除は行いません。</summary>
+    public ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct)
+        => ValueTask.CompletedTask;
+
     /// <summary>サムネイル更新はこのテストでは記録しません。</summary>
     public ValueTask UpdateThumbnailAsync(long seriesId, string thumbnailFileName, ThumbnailStatus thumbnailStatus, CancellationToken ct)
         => ValueTask.CompletedTask;
