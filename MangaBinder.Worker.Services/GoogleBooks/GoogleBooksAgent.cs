@@ -2,6 +2,7 @@ using MangaBinder.Settings;
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Web;
 using ZLogger;
 
@@ -151,8 +152,9 @@ public class GoogleBooksAgent
 	/// <returns>構築済み URL 文字列。</returns>
 	private string buildUrl(string query, int startIndex)
 	{
+		var normalizedQuery = this.normalizeSearchQuery(query);
 		var queryParams = HttpUtility.ParseQueryString(string.Empty);
-		queryParams["q"] = query;
+		queryParams["q"] = normalizedQuery;
 		queryParams["startIndex"] = startIndex.ToString();
 		queryParams["maxResults"] = "40";
 		queryParams["printType"] = "books";
@@ -162,5 +164,24 @@ public class GoogleBooksAgent
 			queryParams["key"] = this.settings.ApiKey;
 
 		return $"{VolumesBaseUrl}?{queryParams}";
+	}
+
+	/// <summary>
+	/// Google Books API 検索用に、検索クエリを正規化します。
+	/// </summary>
+	/// <param name="query">元の検索クエリ。</param>
+	/// <returns>正規化済みの検索クエリ。</returns>
+	private string normalizeSearchQuery(string query)
+	{
+		// " -" を半角スペースへ置換
+		var result = query.Replace(" -", " ");
+		// "- " も半角スペースへ置換
+		result = result.Replace("- ", " ");
+		// 連続する空白は1つの半角スペースへ正規化
+		result = Regex.Replace(result, @"\s+", " ");
+		// 前後の空白を Trim
+		result = result.Trim();
+
+		return result;
 	}
 }

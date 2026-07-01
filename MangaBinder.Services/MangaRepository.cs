@@ -54,6 +54,7 @@ public class MangaRepository
                  , DescriptionSource
                  , DescriptionSourceTitle
                  , HasNestedArchive
+                 , Memo
             FROM MangaSeries
             ORDER BY NormalizedTitleInternal
             """;

@@ -129,6 +129,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, EndVolume ");
         sql.AppendLine(" 	, OwnedMaxVolume ");
         sql.AppendLine(" 	, UpdatedAt ");
+        sql.AppendLine(" 	, Memo ");
         sql.AppendLine(" ) VALUES ( ");
         sql.AppendLine(" 	  :NormalizedTitleInternal ");
         sql.AppendLine(" 	, :Title ");
@@ -140,6 +141,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, :EndVolume ");
         sql.AppendLine(" 	, :OwnedMaxVolume ");
         sql.AppendLine(" 	, DATETIME('now', 'localtime') ");
+        sql.AppendLine(" 	, '' ");
         sql.AppendLine(" ) ");
         sql.AppendLine(" ON CONFLICT (NormalizedTitleInternal) DO UPDATE SET ");
         // TODO:
@@ -203,6 +205,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, EndVolume ");
         sql.AppendLine(" 	, BoundEndVolume ");
         sql.AppendLine(" 	, UpdatedAt ");
+        sql.AppendLine(" 	, Memo ");
         sql.AppendLine(" ) VALUES ( ");
         sql.AppendLine(" 	  :NormalizedTitleInternal ");
         sql.AppendLine(" 	, :Title ");
@@ -213,6 +216,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, :EndVolume ");
         sql.AppendLine(" 	, :BoundEndVolume ");
         sql.AppendLine(" 	, DATETIME('now', 'localtime') ");
+        sql.AppendLine(" 	, '' ");
         sql.AppendLine(" ) ");
         sql.AppendLine(" ON CONFLICT (NormalizedTitleInternal) DO UPDATE SET ");
         // TODO:

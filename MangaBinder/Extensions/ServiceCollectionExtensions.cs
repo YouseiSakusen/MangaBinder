@@ -5,6 +5,7 @@ using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Converters;
 using MangaBinder.Jobs;
+using MangaBinder.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using Microsoft.Extensions.Configuration;
@@ -65,6 +66,7 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPageWithSingletonViewModel<StartPage, StartPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<VolumeSelectionPage, VolumeSelectionPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<SeriesInspectionPage, SeriesInspectionPageViewModel>();
+		services.AddNavigationPageWithSingletonViewModel<MaintenancePage, MaintenancePageViewModel>();
 		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>();
 		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>();
 		services.AddSingleton<IContentDialogService, ContentDialogService>();

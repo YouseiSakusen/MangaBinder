@@ -214,6 +214,12 @@ public class MangaSeries : INotifyPropertyChanged
 
     /// <summary>Nested Archive の有無を示します。内部判定用プロパティです。</summary>
     public bool HasNestedArchive { get; set; }
+
+    /// <summary>作業 ID です。WorkMangaSeries テーブルから取得した場合のみ使用します。MangaSeries テーブルからは常に 0 です。</summary>
+    public int WorkId { get; set; }
+
+    /// <summary>メモです。MangaSeries / WorkMangaSeries 共通で使用します。</summary>
+    public string Memo { get; set; } = string.Empty;
 }
 
 

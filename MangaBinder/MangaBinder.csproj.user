@@ -20,6 +20,9 @@
     <Compile Update="Bindings\VolumeSelectionPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="Series\MaintenancePage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Update="Settings\SettingsPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>

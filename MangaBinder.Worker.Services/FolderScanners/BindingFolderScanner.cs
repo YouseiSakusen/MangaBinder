@@ -20,6 +20,9 @@ public class BindingFolderScanner : FolderScannerBase
     /// <summary>タイトル区切り文字群。</summary>
     private readonly string titleSeparatorChars;
 
+    /// <summary>フォルダパスから対応する Role へのマッピング。SourceFolder のフルパスをキーとして使用。</summary>
+    private Dictionary<string, FolderRole> folderPathToRoleMapping = new();
+
     /// <summary>
     /// <see cref="BindingFolderScanner"/> の新しいインスタンスを初期化します。
     /// </summary>
@@ -48,19 +51,90 @@ public class BindingFolderScanner : FolderScannerBase
     /// <summary>
     /// ファイル名を解析して <see cref="MangaSeries"/> を生成します。
     /// <see cref="MangaSeries.Sources"/> にファイルの所在情報を追加します。
+    /// ファイルが属するフォルダから取得元の Role を判定して MangaSource.Role に反映します。
     /// </summary>
     /// <param name="info">解析対象のアーカイブファイル情報。</param>
     /// <returns>解析結果の <see cref="MangaSeries"/>。</returns>
     protected override MangaSeries ParseToSeries(FileSystemInfo info)
     {
         var series = MangaTitleHelper.ParseAsBinding(info.Name, this.titleSeparatorChars);
+
+        // ファイルパスから対応するフォルダパスと Role を特定
+        var filePath = info.FullName;
+        var sourceFolder = this.folderPathToRoleMapping
+            .FirstOrDefault(kvp => filePath.StartsWith(kvp.Key + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                                   filePath.Equals(kvp.Key, StringComparison.OrdinalIgnoreCase));
+
+        var role = sourceFolder.Value != default(FolderRole) ? sourceFolder.Value : FolderRole.Binding;
+
         series.Sources.Add(new MangaSource
         {
-            Role = FolderRole.Binding,
+            Role = role,
             Path = info.FullName,
         });
         return series;
     }
+    /// <summary>
+    /// フォルダスキャンを非同期で実行します。
+    /// Role=Binding と Role=DefaultBinding の両方をスキャン対象とします。
+    /// </summary>
+    /// <param name="ct">キャンセルトークン。</param>
+    public override async ValueTask ExecuteAsync(CancellationToken ct)
+    {
+        this.logger.ZLogInformation($"フォルダスキャン開始: Role=Binding および Role=DefaultBinding");
+
+        using var scope = this.scopeFactory.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IFolderScannerRepository>();
+
+        // 両方の Role に対応したフォルダを取得
+        var bindingFolders = (await repository.GetSourceFoldersAsync((int)FolderRole.Binding, ct)).ToList();
+        var defaultBindingFolders = (await repository.GetSourceFoldersAsync((int)FolderRole.DefaultBinding, ct)).ToList();
+
+        // フォルダパス → Role のマッピングを構築
+        this.folderPathToRoleMapping.Clear();
+        foreach (var folder in bindingFolders)
+        {
+            this.folderPathToRoleMapping[folder] = FolderRole.Binding;
+        }
+        foreach (var folder in defaultBindingFolders)
+        {
+            this.folderPathToRoleMapping[folder] = FolderRole.DefaultBinding;
+        }
+
+        var allRootPaths = bindingFolders.Concat(defaultBindingFolders).ToList();
+
+        // スキャン開始時：対象 SourceFolder 配下の MangaSource を取得してメモリに保持
+        // Binding と DefaultBinding 両方のソースを取得対象に
+        this.targetSourcesByFolder.Clear();
+        var bindingSources = await repository.GetSourcesByFolderRoleAsync((int)FolderRole.Binding, allRootPaths, ct);
+        var defaultBindingSources = await repository.GetSourcesByFolderRoleAsync((int)FolderRole.DefaultBinding, allRootPaths, ct);
+
+        foreach (var kvp in bindingSources)
+        {
+            this.targetSourcesByFolder[kvp.Key] = kvp.Value;
+        }
+        foreach (var kvp in defaultBindingSources)
+        {
+            this.targetSourcesByFolder[kvp.Key] = kvp.Value;
+        }
+
+        this.logger.ZLogInformation($"スキャン対象フォルダ配下に存在する MangaSource: {this.targetSourcesByFolder.Count} 件");
+
+        // 通常スキャン実行
+        var savedCount = await this.ScanAndSaveAsync(allRootPaths, ct);
+
+        this.logger.ZLogInformation($"フォルダスキャン完了: {savedCount} 件保存");
+
+        // スキャン終了時：メモリに残っている MangaSource は削除されたと判断し削除
+        if (this.targetSourcesByFolder.Count > 0)
+        {
+            var sourceIdsToDelete = this.targetSourcesByFolder.Keys.ToList();
+            this.logger.ZLogInformation($"スキャン対象フォルダから削除された MangaSource を削除: {sourceIdsToDelete.Count} 件");
+            await repository.DeleteSourcesByIdAsync(sourceIdsToDelete, ct);
+            this.logger.ZLogInformation($"MangaSource 削除完了");
+        }
+    }
+
     /// <summary>
     /// 全ルートパスを走査して名寄せ（集約）し、1 件ずつ保存します。
     /// </summary>

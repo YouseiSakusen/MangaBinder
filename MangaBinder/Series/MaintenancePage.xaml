@@ -1,0 +1,232 @@
+﻿<Page x:Class="MangaBinder.Series.MaintenancePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      mc:Ignorable="d"
+      d:DesignHeight="800" d:DesignWidth="1200"
+      Title="MaintenancePage"
+      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+      ScrollViewer.CanContentScroll="False">
+
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Row0: ヘッダー（サマリカード + 検索エリア） -->
+            <RowDefinition Height="Auto" />
+            <!-- Row1: 作品一覧エリア -->
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+		<!-- ══════════════════════════════════════════════════ -->
+		<!-- Row0: ヘッダー（サマリカード + 検索エリア）         -->
+		<!-- ══════════════════════════════════════════════════ -->
+		<Grid Grid.Row="0">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="1*" />
+				<ColumnDefinition Width="4*" />
+				<ColumnDefinition Width="1*" />
+			</Grid.ColumnDefinitions>
+
+			<!-- LeftPadding -->
+			<Grid Grid.Column="0" />
+
+			<!-- 中央エリア: サマリカード + 検索エリア -->
+			<Grid Grid.Column="1" Margin="0,8,0,8" VerticalAlignment="Center">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="Auto" />
+					<ColumnDefinition Width="*" />
+				</Grid.ColumnDefinitions>
+
+				<!-- サマリカード -->
+				<ui:Card Grid.Column="0" Padding="14,10" Margin="0,0,16,0">
+					<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+						<ui:SymbolIcon Symbol="BookToolbox24" FontSize="48"
+									   Foreground="{DynamicResource BindingAccentBrush}"
+									   Margin="0,0,12,0" VerticalAlignment="Center" />
+						<StackPanel>
+							<TextBlock FontSize="11" Margin="0,0,0,2"
+									   Foreground="{DynamicResource TextFillColorSecondaryBrush}">作品管理</TextBlock>
+							<TextBlock FontSize="16" FontWeight="SemiBold">
+								<Run>登録待ち</Run>
+								<Run>&#x20;--</Run>
+							</TextBlock>
+						</StackPanel>
+					</StackPanel>
+				</ui:Card>
+
+				<!-- 検索エリア -->
+				<Grid Grid.Column="1" VerticalAlignment="Center">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+					</Grid.ColumnDefinitions>
+
+					<!-- 検索TextBox -->
+					<ui:TextBox
+						Grid.Column="0"
+						PlaceholderText="タイトル検索"
+						InputMethod.PreferredImeState="On"
+						Text="{Binding SearchQuery.Value, UpdateSourceTrigger=PropertyChanged}"
+						Margin="0,0,8,0"
+						VerticalAlignment="Center" />
+
+					<!-- 検索ボタン -->
+					<ui:Button
+						Grid.Column="1"
+						Content="検索"
+						Appearance="Primary"
+						Command="{Binding SearchCommand}"
+						VerticalAlignment="Center" />
+				</Grid>
+			</Grid>
+		</Grid>
+
+        <!-- ══════════════════════════════════════════════════ -->
+        <!-- Row1: 作品一覧エリア                               -->
+        <!-- ══════════════════════════════════════════════════ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="4*" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 作品一覧 ListView -->
+            <Grid Grid.Column="1" Background="Transparent">
+                <!-- ListView: 検索結果がある場合の表示 -->
+                <ListView
+                    Name="SeriesListView"
+                    ItemsSource="{Binding SearchResults}"
+                    SelectionMode="Single"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    VirtualizingPanel.ScrollUnit="Item"
+                    ScrollViewer.CanContentScroll="True"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    BorderThickness="0"
+                    Background="Transparent"
+                    Visibility="Collapsed">
+
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel
+                                IsVirtualizing="True"
+                                VirtualizationMode="Recycling" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0,0,0,2" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <!-- コンパクトな作品カード -->
+                            <Grid Height="120" Margin="8,4" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <!-- サムネイル -->
+                                    <ColumnDefinition Width="80" />
+                                    <!-- 作品情報 -->
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- サムネイル -->
+                                <Border
+                                    Grid.Column="0"
+                                    Width="80"
+                                    Height="112"
+                                    VerticalAlignment="Top"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                    CornerRadius="4"
+                                    ClipToBounds="True"
+                                    Margin="0,0,8,0">
+                                    <Image
+                                        Source="{Binding}"
+                                        Width="80"
+                                        Height="112"
+                                        Stretch="UniformToFill"
+                                        RenderOptions.BitmapScalingMode="LowQuality" />
+                                </Border>
+
+                                <!-- 作品情報 -->
+                                <StackPanel
+                                    Grid.Column="1"
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Top">
+
+                                    <!-- タイトル -->
+                                    <TextBlock
+                                        Text="{Binding Title}"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        MaxHeight="36"
+                                        TextWrapping="Wrap"
+                                        Margin="0,0,0,4" />
+
+                                    <!-- あらすじ（省略） -->
+                                    <TextBlock
+                                        Text="{Binding Description}"
+                                        FontSize="11"
+                                        Opacity="0.6"
+                                        MaxHeight="48"
+                                        TextWrapping="Wrap"
+                                        TextTrimming="CharacterEllipsis"
+                                        Margin="0,0,0,4" />
+
+                                    <!-- 巻数情報 -->
+                                    <TextBlock
+                                        FontSize="10"
+                                        Opacity="0.6">
+                                        <Run>全巻数: </Run>
+                                        <Run Text="{Binding VolumeCount, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+
+                </ListView>
+
+                <!-- エンプティステート: 検索結果が0件の場合の表示 -->
+                <Grid
+                    Background="Transparent"
+                    Panel.ZIndex="1"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Visibility="Visible">
+                    <StackPanel
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Width="220"
+                        Margin="100, 80, 0, 0">
+                        <ui:SymbolIcon
+                            Symbol="Search24"
+                            FontSize="48"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                            Margin="0,0,0,12"
+                            HorizontalAlignment="Center" />
+                        <TextBlock
+                            Text="作品タイトル、作者名で既存作品も併せて検索できます"
+                            FontSize="13"
+                            Opacity="0.7"
+                            TextWrapping="Wrap"
+                            TextAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+        </Grid>
+    </Grid>
+</Page>

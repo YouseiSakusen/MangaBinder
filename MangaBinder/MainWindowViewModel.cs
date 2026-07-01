@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Windows;
 using HalationGhost.Wpf.Ui.Navigation;
 using MangaBinder.Bindings;
+using MangaBinder.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,17 +106,24 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 			},
 			new NavigationViewItem
 			{
-				Content = "タグ",
-				Icon = new SymbolIcon { Symbol = SymbolRegular.Tag24 },
-				FontSize = 24,
-				TargetPageType = typeof(TagPage),
-			},
-			new NavigationViewItem
-			{
 				Content = "製本",
 				Icon = new SymbolIcon { Symbol = SymbolRegular.Library24 },
 				FontSize = 24,
 				TargetPageType = typeof(StartPage),
+			},
+			new NavigationViewItem
+			{
+				Content = "作品管理",
+				Icon = new SymbolIcon { Symbol = SymbolRegular.BookToolbox24 },
+				FontSize = 24,
+				TargetPageType = typeof(MaintenancePage),
+			},
+			new NavigationViewItem
+			{
+				Content = "タグ",
+				Icon = new SymbolIcon { Symbol = SymbolRegular.Tag24 },
+				FontSize = 24,
+				TargetPageType = typeof(TagPage),
 			},
 		}
 		.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
