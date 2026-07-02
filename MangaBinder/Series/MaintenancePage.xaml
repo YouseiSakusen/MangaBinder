@@ -4,6 +4,7 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:extensions="clr-namespace:MangaBinder.Extensions"
       mc:Ignorable="d"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="MaintenancePage"
@@ -53,7 +54,9 @@
 									   Foreground="{DynamicResource TextFillColorSecondaryBrush}">作品管理</TextBlock>
 							<TextBlock FontSize="16" FontWeight="SemiBold">
 								<Run>登録待ち</Run>
-								<Run>&#x20;--</Run>
+								<Run>&#x20;</Run>
+								<Run Text="{Binding WorkSeriesCount.Value}" />
+								<Run>件</Run>
 							</TextBlock>
 						</StackPanel>
 					</StackPanel>
@@ -64,14 +67,16 @@
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="*" />
 						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="Auto" />
 					</Grid.ColumnDefinitions>
 
 					<!-- 検索TextBox -->
 					<ui:TextBox
 						Grid.Column="0"
-						PlaceholderText="タイトル検索"
+						PlaceholderText="タイトル・作者・メモから検索"
 						InputMethod.PreferredImeState="On"
 						Text="{Binding SearchQuery.Value, UpdateSourceTrigger=PropertyChanged}"
+						ClearButtonEnabled="True"
 						Margin="0,0,8,0"
 						VerticalAlignment="Center" />
 
@@ -81,7 +86,21 @@
 						Content="検索"
 						Appearance="Primary"
 						Command="{Binding SearchCommand}"
-						VerticalAlignment="Center" />
+						IsDefault="True"
+						VerticalAlignment="Center"
+						Height="36"
+						Padding="16,0"
+						Margin="0,0,8,0" />
+
+					<!-- 登録待ちボタン -->
+					<ui:Button
+						Grid.Column="2"
+						Content="登録待ち"
+						Appearance="Secondary"
+						Command="{Binding ShowWorkSeriesCommand}"
+						VerticalAlignment="Center"
+						Height="36"
+						Padding="16,0" />
 				</Grid>
 			</Grid>
 		</Grid>
@@ -90,18 +109,39 @@
         <!-- Row1: 作品一覧エリア                               -->
         <!-- ══════════════════════════════════════════════════ -->
         <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <!-- Row0：検索結果件数 -->
+                <RowDefinition Height="Auto" />
+                <!-- Row1：ListView / EmptyState -->
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1*" />
                 <ColumnDefinition Width="4*" />
                 <ColumnDefinition Width="1*" />
             </Grid.ColumnDefinitions>
 
+            <!-- Row0：検索結果件数表示 -->
+            <Grid
+                Grid.Row="0"
+                Grid.Column="1"
+                Margin="0,8,0,8"
+                VerticalAlignment="Center"
+                Visibility="{Binding IsSearchResultsShown.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock
+                    Text="{Binding DisplaySeries.Count, StringFormat='検索結果 {0}件'}"
+                    FontSize="13"
+                    HorizontalAlignment="Right"
+                    Opacity="0.7" />
+            </Grid>
+
             <!-- 作品一覧 ListView -->
-            <Grid Grid.Column="1" Background="Transparent">
-                <!-- ListView: 検索結果がある場合の表示 -->
+            <Grid Grid.Row="1" Grid.Column="1" Background="Transparent">
+                <!-- ListView: 登録待ち一覧または検索結果を表示 -->
                 <ListView
                     Name="SeriesListView"
-                    ItemsSource="{Binding SearchResults}"
+                    ItemsSource="{Binding DisplaySeries}"
                     SelectionMode="Single"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Stretch"
@@ -113,7 +153,7 @@
                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                     BorderThickness="0"
                     Background="Transparent"
-                    Visibility="Collapsed">
+                    Visibility="{Binding HasSearchResults.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
 
                     <ListView.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -153,7 +193,7 @@
                                     ClipToBounds="True"
                                     Margin="0,0,8,0">
                                     <Image
-                                        Source="{Binding}"
+                                        Source="{Binding Converter={extensions:ThumbnailImageConverterExtension}}"
                                         Width="80"
                                         Height="112"
                                         Stretch="UniformToFill"
@@ -164,7 +204,7 @@
                                 <StackPanel
                                     Grid.Column="1"
                                     Margin="0,0,8,0"
-                                    VerticalAlignment="Top">
+                                    VerticalAlignment="Stretch">
 
                                     <!-- タイトル -->
                                     <TextBlock
@@ -175,6 +215,50 @@
                                         TextWrapping="Wrap"
                                         Margin="0,0,0,4" />
 
+                                    <!-- 巻数情報 -->
+                                    <Grid Margin="0,0,0,4" VerticalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <!-- 全巻数バッジ -->
+                                            <ColumnDefinition Width="Auto" />
+                                            <!-- 所持推定 -->
+                                            <ColumnDefinition Width="Auto" />
+                                            <!-- 製本済み -->
+                                            <ColumnDefinition Width="Auto" />
+                                            <!-- 余白 -->
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <!-- 全巻数バッジ -->
+                                        <Border
+                                            Grid.Column="0"
+                                            Background="{Binding Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
+                                            CornerRadius="3"
+                                            Padding="6,2"
+                                            Margin="0,0,10,0"
+                                            VerticalAlignment="Center">
+                                            <TextBlock
+                                                Text="{Binding TotalVolumeText}"
+                                                FontSize="11"
+                                                FontWeight="SemiBold"
+                                                Foreground="White"
+                                                TextWrapping="NoWrap" />
+                                        </Border>
+                                        <!-- 所持推定 -->
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            Text="{Binding OwnedEstimatedVolumeText}"
+                                            FontSize="11"
+                                            TextWrapping="NoWrap"
+                                            Margin="0,0,12,0"
+                                            VerticalAlignment="Center" />
+                                        <!-- 製本済み -->
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            Text="{Binding BoundEndVolumeText}"
+                                            FontSize="11"
+                                            TextWrapping="NoWrap"
+                                            VerticalAlignment="Center" />
+                                    </Grid>
+
                                     <!-- あらすじ（省略） -->
                                     <TextBlock
                                         Text="{Binding Description}"
@@ -184,14 +268,6 @@
                                         TextWrapping="Wrap"
                                         TextTrimming="CharacterEllipsis"
                                         Margin="0,0,0,4" />
-
-                                    <!-- 巻数情報 -->
-                                    <TextBlock
-                                        FontSize="10"
-                                        Opacity="0.6">
-                                        <Run>全巻数: </Run>
-                                        <Run Text="{Binding VolumeCount, Mode=OneWay}" />
-                                    </TextBlock>
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -201,16 +277,17 @@
 
                 <!-- エンプティステート: 検索結果が0件の場合の表示 -->
                 <Grid
+                    Grid.Row="1"
                     Background="Transparent"
                     Panel.ZIndex="1"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
-                    Visibility="Visible">
+                    Visibility="{Binding IsSearchResultsEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel
                         HorizontalAlignment="Left"
                         VerticalAlignment="Top"
-                        Width="220"
-                        Margin="100, 80, 0, 0">
+                        Width="170"
+                        Margin="100, 40, 0, 0">
                         <ui:SymbolIcon
                             Symbol="Search24"
                             FontSize="48"
@@ -218,7 +295,7 @@
                             Margin="0,0,0,12"
                             HorizontalAlignment="Center" />
                         <TextBlock
-                            Text="作品タイトル、作者名で既存作品も併せて検索できます"
+                            Text="作品タイトル、作者名、メモから既存作品も併せて検索できます"
                             FontSize="13"
                             Opacity="0.7"
                             TextWrapping="Wrap"

@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<JobRepository>();
 		services.AddScoped<AppSettingsService>();
 		services.AddScoped<MangaRepository>();
+		services.AddScoped<WorkMangaSeriesRepository>();
 		services.AddScoped<BindingQueueRepository>();
 
 		return services;

@@ -10,6 +10,8 @@ using MangaBinder.Tags;
 public sealed class MangaSeriesStore
 {
 	private readonly List<MangaSeries> series = new();
+	private readonly List<MangaSeries> workSeries = new();
+	private readonly List<MangaSeries> mergedSeries = new();
 	private readonly List<MangaTag> tags = new();
 
 	/// <summary>
@@ -20,6 +22,22 @@ public sealed class MangaSeriesStore
 		=> this.series.AsReadOnly();
 
 	/// <summary>
+	/// 検索用に統合した MangaSeries 一覧を取得します。
+	/// 正式作品と登録待ち作品をまとめた一覧を返します。
+	/// </summary>
+	/// <returns>統合 MangaSeries の読み取り専用リスト。</returns>
+	public IReadOnlyList<MangaSeries> GetMergedSeries()
+		=> this.mergedSeries.AsReadOnly();
+
+	/// <summary>
+	/// 登録待ち作品の MangaSeries 一覧を取得します。
+	/// 作品管理画面の通常表示用。登録待ち一覧の正本を返します。
+	/// </summary>
+	/// <returns>登録待ち作品 MangaSeries の読み取り専用リスト。</returns>
+	public IReadOnlyList<MangaSeries> GetWorkSeries()
+		=> this.workSeries.AsReadOnly();
+
+	/// <summary>
 	/// MangaSeries の一覧を指定したリストで一括置換します。
 	/// </summary>
 	/// <param name="newSeries">新しい MangaSeries 一覧。</param>
@@ -27,6 +45,18 @@ public sealed class MangaSeriesStore
 	{
 		this.series.Clear();
 		this.series.AddRange(newSeries);
+		this.RebuildMergedSeries();
+	}
+
+	/// <summary>
+	/// 登録待ち作品の MangaSeries 一覧を指定したリストで一括置換します。
+	/// </summary>
+	/// <param name="newWorkSeries">新しい登録待ち MangaSeries 一覧。</param>
+	public void ReplaceWorkSeries(IEnumerable<MangaSeries> newWorkSeries)
+	{
+		this.workSeries.Clear();
+		this.workSeries.AddRange(newWorkSeries);
+		this.RebuildMergedSeries();
 	}
 
 	/// <summary>
@@ -119,5 +149,16 @@ public sealed class MangaSeriesStore
 		var target = this.tags.FirstOrDefault(x => x.TagId == tagId);
 		if (target is not null)
 			this.tags.Remove(target);
+	}
+
+	/// <summary>
+	/// 正式作品と登録待ち作品をまとめた mergedSeries を再構築します。
+	/// ReplaceAll() と ReplaceWorkSeries() から呼び出されます。
+	/// </summary>
+	private void RebuildMergedSeries()
+	{
+		this.mergedSeries.Clear();
+		this.mergedSeries.AddRange(this.series);
+		this.mergedSeries.AddRange(this.workSeries);
 	}
 }

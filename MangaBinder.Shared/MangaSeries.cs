@@ -218,6 +218,9 @@ public class MangaSeries : INotifyPropertyChanged
     /// <summary>作業 ID です。WorkMangaSeries テーブルから取得した場合のみ使用します。MangaSeries テーブルからは常に 0 です。</summary>
     public int WorkId { get; set; }
 
+    /// <summary>登録待ち作品であるかを示します。WorkId != 0 のとき true となります。</summary>
+    public bool IsWork => this.WorkId != 0;
+
     /// <summary>メモです。MangaSeries / WorkMangaSeries 共通で使用します。</summary>
     public string Memo { get; set; } = string.Empty;
 }
