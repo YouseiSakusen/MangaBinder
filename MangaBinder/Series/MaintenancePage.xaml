@@ -62,45 +62,75 @@
 					</StackPanel>
 				</ui:Card>
 
-				<!-- 検索エリア -->
+				<!-- 検索エリアと新規作品登録カード -->
 				<Grid Grid.Column="1" VerticalAlignment="Center">
 					<Grid.ColumnDefinitions>
-						<ColumnDefinition Width="*" />
-						<ColumnDefinition Width="Auto" />
-						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="2*" />
+						<ColumnDefinition Width="1*" />
 					</Grid.ColumnDefinitions>
 
-					<!-- 検索TextBox -->
-					<ui:TextBox
-						Grid.Column="0"
-						PlaceholderText="タイトル・作者・メモから検索"
-						InputMethod.PreferredImeState="On"
-						Text="{Binding SearchQuery.Value, UpdateSourceTrigger=PropertyChanged}"
-						ClearButtonEnabled="True"
-						Margin="0,0,8,0"
-						VerticalAlignment="Center" />
+					<!-- Column0: 検索エリア -->
+					<Grid Grid.Column="0" VerticalAlignment="Center">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*" />
+							<ColumnDefinition Width="Auto" />
+							<ColumnDefinition Width="Auto" />
+						</Grid.ColumnDefinitions>
 
-					<!-- 検索ボタン -->
-					<ui:Button
-						Grid.Column="1"
-						Content="検索"
-						Appearance="Primary"
-						Command="{Binding SearchCommand}"
-						IsDefault="True"
-						VerticalAlignment="Center"
-						Height="36"
-						Padding="16,0"
-						Margin="0,0,8,0" />
+						<!-- 検索TextBox -->
+						<ui:TextBox
+							Grid.Column="0"
+							PlaceholderText="タイトル・作者・メモから検索"
+							InputMethod.PreferredImeState="On"
+							Text="{Binding SearchQuery.Value, UpdateSourceTrigger=PropertyChanged}"
+							ClearButtonEnabled="True"
+							Margin="0,0,8,0"
+							VerticalAlignment="Center" />
 
-					<!-- 登録待ちボタン -->
-					<ui:Button
-						Grid.Column="2"
-						Content="登録待ち"
-						Appearance="Secondary"
-						Command="{Binding ShowWorkSeriesCommand}"
-						VerticalAlignment="Center"
-						Height="36"
-						Padding="16,0" />
+						<!-- 検索ボタン -->
+						<ui:Button
+							Grid.Column="1"
+							Content="検索"
+							Appearance="Primary"
+							Command="{Binding SearchCommand}"
+							IsDefault="True"
+							VerticalAlignment="Center"
+							Height="36"
+							Padding="16,0"
+							Margin="0,0,8,0" />
+
+						<!-- 登録待ちボタン -->
+						<ui:Button
+							Grid.Column="2"
+							Content="登録待ち"
+							Appearance="Secondary"
+							Command="{Binding ShowWorkSeriesCommand}"
+							VerticalAlignment="Center"
+							Height="36"
+							Padding="16,0" />
+					</Grid>
+
+					<!-- Column1: 新規作品登録カード -->
+					<ui:Card Grid.Column="1"
+                             Width="200"
+                             Margin="16,0,0,0" Padding="0">
+						<Button
+							Background="Transparent"
+							BorderThickness="0"
+							Padding="14,10"
+							Cursor="Hand">
+							<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+								<ui:SymbolIcon Symbol="BookAdd24" FontSize="48"
+											   Foreground="{DynamicResource BindingAccentBrush}"
+											   Margin="0,0,12,0" VerticalAlignment="Center" />
+								<StackPanel>
+									<TextBlock FontSize="11" Margin="0,0,0,2"
+											   Foreground="{DynamicResource TextFillColorSecondaryBrush}">新規作品</TextBlock>
+									<TextBlock FontSize="16" FontWeight="SemiBold">新規作品登録</TextBlock>
+								</StackPanel>
+							</StackPanel>
+						</Button>
+					</ui:Card>
 				</Grid>
 			</Grid>
 		</Grid>
