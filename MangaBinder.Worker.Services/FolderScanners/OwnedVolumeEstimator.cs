@@ -25,9 +25,15 @@ public class OwnedVolumeEstimator
             allCandidates.AddRange(candidates);
         }
 
-        var maxVolume = allCandidates.Count > 0
-            ? allCandidates.Max(c => c.Volume)
-            : 0;
+        var maxVolume = 0;
+        if (allCandidates.Count > 0)
+        {
+            // 最も優先度が高い候補グループのみ取得し、その中から最大巻を選択
+            var maxPriority = allCandidates.Max(c => c.Priority);
+            maxVolume = allCandidates
+                .Where(c => c.Priority == maxPriority)
+                .Max(c => c.Volume);
+        }
 
         return new OwnedVolumeEstimateResult
         {

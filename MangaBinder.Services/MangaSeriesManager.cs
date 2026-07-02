@@ -1,4 +1,5 @@
 using MangaBinder.Bindings;
+using MangaBinder.Tags;
 
 namespace MangaBinder;
 
@@ -19,6 +20,9 @@ public class MangaSeriesManager
 	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
 	private readonly MangaSeriesStore mangaSeriesStore;
 
+	/// <summary>タグを取得する Repository。</summary>
+	private readonly TagRepository tagRepository;
+
 	/// <summary>
 	/// <see cref="MangaSeriesManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -26,16 +30,19 @@ public class MangaSeriesManager
 	/// <param name="bindingQueueRepository">BindingQueue の SeriesId 復元を担う Repository。</param>
 	/// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
+	/// <param name="tagRepository">タグを取得する Repository。</param>
 	public MangaSeriesManager(
 		MangaRepository mangaRepository,
 		BindingQueueRepository bindingQueueRepository,
 		BindingQueueDispatcher bindingQueueDispatcher,
-		MangaSeriesStore mangaSeriesStore)
+		MangaSeriesStore mangaSeriesStore,
+		TagRepository tagRepository)
 	{
 		this.mangaRepository = mangaRepository;
 		this.bindingQueueRepository = bindingQueueRepository;
 		this.bindingQueueDispatcher = bindingQueueDispatcher;
 		this.mangaSeriesStore = mangaSeriesStore;
+		this.tagRepository = tagRepository;
 	}
 
 	/// <summary>
@@ -55,10 +62,16 @@ public class MangaSeriesManager
 		// 2. MangaSeriesStore に DB から取得した MangaSeries を格納する
 		this.mangaSeriesStore.ReplaceAll(allSeries);
 
-		// 3. BindingQueue から SeriesId 一覧を取得する
+		// 3. TagRepository からタグ一覧を取得する
+		var allTags = this.tagRepository.GetAll();
+
+		// 4. MangaSeriesStore にタグを格納する
+		this.mangaSeriesStore.ReplaceTags(allTags);
+
+		// 5. BindingQueue から SeriesId 一覧を取得する
 		var queuedSeriesIds = await this.bindingQueueRepository.GetQueuedSeriesIdsAsync(cancellationToken);
 
-		// 4. MangaSeriesStore から SeriesId が一致するインスタンスを探し、BindingSeries を構築する
+		// 6. MangaSeriesStore から SeriesId が一致するインスタンスを探し、BindingSeries を構築する
 		var bindingSeriesList = new List<BindingSeries>();
 		foreach (var seriesId in queuedSeriesIds)
 		{
@@ -77,10 +90,10 @@ public class MangaSeriesManager
 			}
 		}
 
-		// 5. BindingQueueDispatcher に復元したBindingQueue一覧を設定する
+		// 7. BindingQueueDispatcher に復元したBindingQueue一覧を設定する
 		this.bindingQueueDispatcher.ReplaceAll(bindingSeriesList);
 
-		// 6. MangaSeriesStore から取得した MangaSeries 一覧を返す
+		// 8. MangaSeriesStore から取得した MangaSeries 一覧を返す
 		return this.mangaSeriesStore.GetAll().ToList();
 	}
 }

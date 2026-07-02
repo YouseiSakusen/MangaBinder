@@ -3,6 +3,7 @@ using MangaBinder.Jobs;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using System.Data.SQLite;
+using System.Text;
 
 namespace MangaBinder;
 
@@ -29,57 +30,76 @@ public class MangaRepository
     /// <returns>タイトル昇順で並んだ <see cref="MangaSeries"/> の読み取り専用リスト。</returns>
     public async ValueTask<IReadOnlyList<MangaSeries>> GetAllSeriesAsync()
     {
-        const string seriesSql = """
-            SELECT SeriesId
-                 , NormalizedTitleInternal
-                 , Title
-                 , ShortTitle
-                 , ThumbnailFileName
-                 , Author
-                 , Description
-                 , SeriesCompleted
-                 , IsOwnedCompleted
-                 , IsSourceMissing
-                 , StartVolume
-                 , EndVolume
-                 , BoundEndVolume
-                 , OwnedMaxVolume
-                 , NormalizedTitleExternal
-                 , UpdatedAt
-                 , ThumbnailStatus
-                 , Publisher
-                 , GoogleBooksImportStatus
-                 , GoogleBooksImportedAt
-                 , GoogleBooksImportMessage
-                 , DescriptionSource
-                 , DescriptionSourceTitle
-                 , HasNestedArchive
-                 , Memo
-            FROM MangaSeries
-            ORDER BY NormalizedTitleInternal
-            """;
+        var seriesSql = new StringBuilder();
+        seriesSql.AppendLine(" SELECT ");
+        seriesSql.AppendLine(" 	  SeriesId ");
+        seriesSql.AppendLine(" 	, NormalizedTitleInternal ");
+        seriesSql.AppendLine(" 	, Title ");
+        seriesSql.AppendLine(" 	, ShortTitle ");
+        seriesSql.AppendLine(" 	, ThumbnailFileName ");
+        seriesSql.AppendLine(" 	, Author ");
+        seriesSql.AppendLine(" 	, Description ");
+        seriesSql.AppendLine(" 	, SeriesCompleted ");
+        seriesSql.AppendLine(" 	, IsOwnedCompleted ");
+        seriesSql.AppendLine(" 	, IsSourceMissing ");
+        seriesSql.AppendLine(" 	, StartVolume ");
+        seriesSql.AppendLine(" 	, EndVolume ");
+        seriesSql.AppendLine(" 	, BoundEndVolume ");
+        seriesSql.AppendLine(" 	, OwnedMaxVolume ");
+        seriesSql.AppendLine(" 	, NormalizedTitleExternal ");
+        seriesSql.AppendLine(" 	, UpdatedAt ");
+        seriesSql.AppendLine(" 	, ThumbnailStatus ");
+        seriesSql.AppendLine(" 	, Publisher ");
+        seriesSql.AppendLine(" 	, GoogleBooksImportStatus ");
+        seriesSql.AppendLine(" 	, GoogleBooksImportedAt ");
+        seriesSql.AppendLine(" 	, GoogleBooksImportMessage ");
+        seriesSql.AppendLine(" 	, DescriptionSource ");
+        seriesSql.AppendLine(" 	, DescriptionSourceTitle ");
+        seriesSql.AppendLine(" 	, HasNestedArchive ");
+        seriesSql.AppendLine(" 	, Memo ");
+        seriesSql.AppendLine(" FROM ");
+        seriesSql.AppendLine(" 	MangaSeries ");
+        seriesSql.AppendLine(" ORDER BY ");
+        seriesSql.AppendLine(" 	NormalizedTitleInternal; ");
 
-        const string sourcesSql = """
-            SELECT SourceId
-                 , SeriesId
-                 , Path
-                 , Role
-            FROM MangaSources
-            ORDER BY SeriesId, Role, Path
-            """;
+        var sourcesSql = new StringBuilder();
+        sourcesSql.AppendLine(" SELECT ");
+        sourcesSql.AppendLine(" 	  SourceId ");
+        sourcesSql.AppendLine(" 	, SeriesId ");
+        sourcesSql.AppendLine(" 	, Path ");
+        sourcesSql.AppendLine(" 	, Role ");
+        sourcesSql.AppendLine(" FROM ");
+        sourcesSql.AppendLine(" 	MangaSources ");
+        sourcesSql.AppendLine(" ORDER BY ");
+        sourcesSql.AppendLine(" 	  SeriesId ");
+        sourcesSql.AppendLine(" 	, Role ");
+        sourcesSql.AppendLine(" 	, Path; ");
+
+        var seriesTagsSql = new StringBuilder();
+        seriesTagsSql.AppendLine(" SELECT ");
+        seriesTagsSql.AppendLine(" 	  st.SeriesId ");
+        seriesTagsSql.AppendLine(" 	, t.TagId ");
+        seriesTagsSql.AppendLine(" 	, t.Name ");
+        seriesTagsSql.AppendLine(" 	, t.DisplayOrder ");
+        seriesTagsSql.AppendLine(" 	, t.ShowOnSeriesCard ");
+        seriesTagsSql.AppendLine(" FROM ");
+        seriesTagsSql.AppendLine(" 	MangaSeriesTags st ");
+        seriesTagsSql.AppendLine(" INNER JOIN MangaTags t ON ");
+        seriesTagsSql.AppendLine(" 	t.TagId = st.TagId ");
+        seriesTagsSql.AppendLine(" ORDER BY ");
+        seriesTagsSql.AppendLine(" 	  st.SeriesId ");
+        seriesTagsSql.AppendLine(" 	, t.DisplayOrder ");
+        seriesTagsSql.AppendLine(" 	, t.TagId; ");
 
         using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
         await connection.OpenAsync();
 
-        var seriesList = (await connection.QueryAsync<MangaSeries>(seriesSql)).AsList();
-        var sources = await connection.QueryAsync<MangaSource>(sourcesSql);
+        var seriesList = (await connection.QueryAsync<MangaSeries>(seriesSql.ToString())).AsList();
+        var sources = await connection.QueryAsync<MangaSource>(sourcesSql.ToString());
 
         // MangaSeriesTags + MangaTags を一括取得（N+1禁止）
         var seriesTags = await connection.QueryAsync<(long SeriesId, long TagId, string Name, int DisplayOrder, bool ShowOnSeriesCard)>(
-            "SELECT st.SeriesId, t.TagId, t.Name, t.DisplayOrder, t.ShowOnSeriesCard " +
-            "FROM MangaSeriesTags st " +
-            "INNER JOIN MangaTags t ON t.TagId = st.TagId " +
-            "ORDER BY st.SeriesId, t.DisplayOrder ASC, t.TagId ASC");
+            seriesTagsSql.ToString());
 
         var seriesDict = seriesList.ToDictionary(s => s.SeriesId);
 
@@ -114,18 +134,17 @@ public class MangaRepository
     /// <returns>Home 画面の状態情報。</returns>
     public async ValueTask<HomeStateInformation> GetHomeStateInformationAsync()
     {
-        const string sql = """
-            SELECT
-                (SELECT COUNT(*) FROM MangaSeries)                                                      AS SeriesCount
-              , (SELECT COUNT(*) > 0 FROM SourceFolders WHERE Role = 0)                                 AS HasMaterialSourceFolder
-              , (SELECT COUNT(*) > 0 FROM JobQueue WHERE Type = @MaterialScan AND Status = @Success)     AS HasCompletedMaterialFolderScanJob
-            """;
+        var sql = new StringBuilder();
+        sql.AppendLine(" SELECT ");
+        sql.AppendLine(" 	  (SELECT COUNT(*) FROM MangaSeries) AS SeriesCount ");
+        sql.AppendLine(" 	, (SELECT COUNT(*) > 0 FROM SourceFolders WHERE Role = 0) AS HasMaterialSourceFolder ");
+        sql.AppendLine(" 	, (SELECT COUNT(*) > 0 FROM JobQueue WHERE Type = :MaterialScan AND Status = :Success) AS HasCompletedMaterialFolderScanJob; ");
 
         using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
         await connection.OpenAsync();
 
         var row = await connection.QuerySingleAsync(
-            sql,
+            sql.ToString(),
             new
             {
                 MaterialScan = (int)JobType.MaterialScan,
@@ -157,6 +176,7 @@ public class MangaRepository
     /// <summary>
     /// 指定した作品一覧のタグを MangaSeriesTags テーブルへ保存します。
     /// 各作品の既存レコードを DELETE してから series.Tags を INSERT します。
+    /// TagId &lt;= 0 のタグは保存対象外となります（未保存タグの防御）。
     /// </summary>
     /// <param name="seriesList">保存対象の作品一覧。</param>
     /// <param name="cancellationToken">キャンセルトークン。</param>
@@ -164,6 +184,20 @@ public class MangaRepository
         IEnumerable<MangaSeries> seriesList,
         CancellationToken cancellationToken = default)
     {
+        var deleteSql = new StringBuilder();
+        deleteSql.AppendLine(" DELETE FROM MangaSeriesTags ");
+        deleteSql.AppendLine(" WHERE ");
+        deleteSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+        var insertSql = new StringBuilder();
+        insertSql.AppendLine(" INSERT INTO MangaSeriesTags ( ");
+        insertSql.AppendLine(" 	  SeriesId ");
+        insertSql.AppendLine(" 	, TagId ");
+        insertSql.AppendLine(" ) VALUES ( ");
+        insertSql.AppendLine(" 	  :SeriesId ");
+        insertSql.AppendLine(" 	, :TagId ");
+        insertSql.AppendLine(" ); ");
+
         using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
@@ -173,15 +207,17 @@ public class MangaRepository
             foreach (var series in seriesList)
             {
                 await connection.ExecuteAsync(
-                    "DELETE FROM MangaSeriesTags WHERE SeriesId = @SeriesId",
-                    new { series.SeriesId },
+                    deleteSql.ToString(),
+                    new { SeriesId = series.SeriesId },
                     transaction);
 
-                foreach (var tag in series.Tags)
+                // TagId > 0 のタグのみ保存（未保存タグ TagId=0 は除外）
+                var validTags = series.Tags.Where(t => t.TagId > 0).ToList();
+                foreach (var tag in validTags)
                 {
                     await connection.ExecuteAsync(
-                        "INSERT INTO MangaSeriesTags (SeriesId, TagId) VALUES (@SeriesId, @TagId)",
-                        new { series.SeriesId, tag.TagId },
+                        insertSql.ToString(),
+                        new { SeriesId = series.SeriesId, TagId = tag.TagId },
                         transaction);
                 }
             }

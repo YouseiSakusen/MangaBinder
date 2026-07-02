@@ -61,15 +61,15 @@ public class TagPageViewModel : IDisposable
 	/// <summary>
 	/// <see cref="TagPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="appSettings">アプリケーション設定。</param>
+	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="serviceScopeFactory">サービススコープファクトリ。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
-	public TagPageViewModel(AppSettings appSettings, IServiceScopeFactory serviceScopeFactory, ISnackbarService snackbarService)
+	public TagPageViewModel(MangaSeriesStore mangaSeriesStore, IServiceScopeFactory serviceScopeFactory, ISnackbarService snackbarService)
 	{
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.snackbarService = snackbarService;
 
-		this.Tags = new ObservableCollection<MangaTag>(appSettings.Tags);
+		this.Tags = new ObservableCollection<MangaTag>(mangaSeriesStore.GetTags());
 
 		this.NewTagName = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
@@ -166,7 +166,7 @@ public class TagPageViewModel : IDisposable
 
 		// ObservableCollection を更新して画面に反映
 		// TagRepository.Rename が返した同一インスタンスを使うことで
-		// AppSettings.Tags と ViewModel.Tags が常に同じオブジェクトを参照する
+		// MangaSeriesStore.GetTags() と ViewModel.Tags が常に同じオブジェクトを参照する
 		var index = this.Tags.IndexOf(target);
 		if (index >= 0)
 			this.Tags[index] = result.RenamedTag!;

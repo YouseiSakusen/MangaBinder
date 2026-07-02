@@ -35,6 +35,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <summary>MangaSeries 読み込みマネージャー。</summary>
     private readonly MangaSeriesManager mangaSeriesManager;
 
+    /// <summary>MangaSeries の正本リストを管理するストア。</summary>
+    private readonly MangaSeriesStore mangaSeriesStore;
+
     private DisposableBag disposableBag;
 
     /// <summary>内部保持する MangaSeries コレクション。</summary>
@@ -93,7 +96,8 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
     /// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
     /// <param name="mangaSeriesManager">MangaSeries 読み込みマネージャー。</param>
-    public HomePageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, BindingQueueDispatcher bindingQueueDispatcher, MangaSeriesManager mangaSeriesManager)
+    /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
+    public HomePageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, BindingQueueDispatcher bindingQueueDispatcher, MangaSeriesManager mangaSeriesManager, MangaSeriesStore mangaSeriesStore)
     {
         this.serviceScopeFactory = serviceScopeFactory;
         this.navigationService = navigationService;
@@ -102,6 +106,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.appSettings = appSettings;
         this.bindingQueueDispatcher = bindingQueueDispatcher;
         this.mangaSeriesManager = mangaSeriesManager;
+        this.mangaSeriesStore = mangaSeriesStore;
 
         this.series = new ObservableList<MangaSeries>();
 
@@ -151,7 +156,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.PrepareTagPopupCommand.Subscribe(series =>
         {
             this.SelectableTagsForPopup.Clear();
-            foreach (var tag in this.appSettings.Tags
+            foreach (var tag in this.mangaSeriesStore.GetTags()
                          .OrderByDescending(t => t.DisplayOrder)
                          .ThenByDescending(t => t.TagId))
             {
@@ -186,11 +191,11 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     private readonly CompositeDisposable isSelectedSubscriptions;
 
     /// <summary>
-    /// 各 <see cref="MangaSeries"/> のタグを <see cref="AppSettings.Tags"/> の現行インスタンスへ再同期します。
+    /// 各 <see cref="MangaSeries"/> のタグを <see cref="MangaSeriesStore"/> のタグへ再同期します。
     /// </summary>
-    private void refreshSeriesTagsFromAppSettings()
+    private void refreshSeriesTagsFromStore()
     {
-        var tagMap = this.appSettings.Tags.ToDictionary(t => t.TagId);
+        var tagMap = this.mangaSeriesStore.GetTags().ToDictionary(t => t.TagId);
 
         foreach (var s in this.series)
         {
@@ -249,7 +254,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
             s.IsSelected = this.bindingQueueDispatcher.Contains(s.SeriesId);
 
         // 毎回: タグ再同期
-        this.refreshSeriesTagsFromAppSettings();
+        this.refreshSeriesTagsFromStore();
 
         // 毎回: 購読再設定・ボタン状態更新
         this.resubscribeIsSelected();

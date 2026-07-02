@@ -1,4 +1,3 @@
-using MangaBinder.Tags;
 using ObservableCollections;
 using R3;
 using System.Data.SQLite;
@@ -93,9 +92,6 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 
 	/// <summary>サポート対象の拡張子一覧を取得します。</summary>
 	public IReadOnlyList<SupportedFileExtension> SupportedExtensions => this.supportedExtensions;
-
-	/// <summary>タグ定義一覧を取得します。</summary>
-	public List<MangaTag> Tags { get; } = [];
 
 	/// <inheritdoc/>
 	ThumbnailOptions IMangaBinderConfig.ThumbnailOptions =>
@@ -235,16 +231,6 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	{
 		this.supportedExtensions.Clear();
 		this.supportedExtensions.AddRange(extensions);
-	}
-
-	/// <summary>
-	/// タグ定義一覧を <paramref name="tags"/> で置き換えます。
-	/// </summary>
-	/// <param name="tags">新しいタグ定義一覧。</param>
-	public void ReloadTags(IReadOnlyList<MangaTag> tags)
-	{
-		this.Tags.Clear();
-		this.Tags.AddRange(tags);
 	}
 
 	/// <summary>リソースを解放します。</summary>

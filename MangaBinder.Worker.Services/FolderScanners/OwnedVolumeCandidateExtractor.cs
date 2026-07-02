@@ -148,57 +148,55 @@ public static class OwnedVolumeCandidateExtractor
     {
         var results = new List<OwnedVolumeEstimateCandidate>();
 
-        // 優先度の高い範囲パターンを先に適用（VolRange / VRange が VolSingle / VSingle に勝つ）
-        results.AddRange(extractByPattern(name, VolRangeLoosePattern, "VolRangeLoose", "vol"));
-        results.AddRange(extractByPattern(name, VolRangePattern, "VolRange", "vol"));
-        results.AddRange(extractByPattern(name, VlRangePattern, "VlRange", "vol"));
-        results.AddRange(extractByPattern(name, VRangeSuffixPattern, "VRangeSuffix", "vol"));
-        results.AddRange(extractByPattern(name, VRangePattern, "VRange", "vol"));
-        results.AddRange(extractByPattern(name, SimpleRangePattern, "SimpleRange", "vol"));
-        results.AddRange(extractByPattern(name, SimpleRangeLoosePattern, "SimpleRangeLoose", "vol"));
+        // 高優先度：v/vol 系の範囲パターン（末尾寄りの明確な巻数表現）
+        results.AddRange(extractByPattern(name, VolRangePattern, "VolRange", "vol", 11));
+        results.AddRange(extractByPattern(name, VRangePattern, "VRange", "vol", 11));
+        results.AddRange(extractByPattern(name, VlRangePattern, "VlRange", "vol", 11));
+        results.AddRange(extractByPattern(name, VRangeSuffixPattern, "VRangeSuffix", "vol", 11));
+        results.AddRange(extractByPattern(name, SimpleRangePattern, "SimpleRange", "vol", 11));
+        results.AddRange(extractByPattern(name, VolRangeLoosePattern, "VolRangeLoose", "vol", 11));
 
-        // 単巻パターン（範囲で既にヒットしていても追加で拾う — 最大値で集約するので問題なし）
-        results.AddRange(extractByPattern(name, VolSinglePattern, "VolSingle", "vol"));
-        results.AddRange(extractByPattern(name, VSinglePattern, "VSingle", "vol"));
-        results.AddRange(extractByPattern(name, VSingleUnderscorePattern, "VSingleUnderscore", "vol"));
+        // 高優先度：括弧末尾パターン（末尾寄り、拡張子直前など明確）
+        results.AddRange(extractByPattern(name, ParenNumberPattern, "ParenNumber", "vol", 10));
 
-        // 日本語表記（全n巻を先に、次に第n巻、次に単純n巻の順）
-        results.AddRange(extractByPattern(name, CompleteVolumePattern, "CompleteVolume", "vol"));
-        results.AddRange(extractByPattern(name, JapaneseVolumePattern, "JapaneseVolume", "vol"));
-        results.AddRange(extractByPattern(name, KanjiVolumeSuffixPattern, "KanjiVolumeSuffix", "vol"));
+        // 高優先度：日本語の「第n巻」「全n巻」
+        results.AddRange(extractByPattern(name, CompleteVolumePattern, "CompleteVolume", "vol", 10));
+        results.AddRange(extractByPattern(name, JapaneseVolumePattern, "JapaneseVolume", "vol", 10));
 
-        // 括弧数字（末尾寄り）
-        results.AddRange(extractByPattern(name, ParenNumberPattern, "ParenNumber", "vol"));
+        // 中優先度：v/vol 単巻パターン
+        results.AddRange(extractByPattern(name, VolSinglePattern, "VolSingle", "vol", 8));
+        results.AddRange(extractByPattern(name, VSinglePattern, "VSingle", "vol", 8));
+        results.AddRange(extractByPattern(name, VSingleUnderscorePattern, "VSingleUnderscore", "vol", 8));
 
-        // 全角括弧数字（緩め: どこでも）
-        results.AddRange(extractByPattern(name, FullWidthParenLoosePattern, "FullWidthParenLoose", "vol"));
+        // 中優先度：その他の括弧パターン
+        results.AddRange(extractByPattern(name, FullWidthParenVolumePattern, "FullWidthParenVolume", "vol", 8));
+        results.AddRange(extractByPattern(name, HalfWidthParenVolumePattern, "HalfWidthParenVolume", "vol", 8));
 
-        // 全角括弧数字 + -
-        results.AddRange(extractByPattern(name, FullWidthParenVolumePattern, "FullWidthParenVolume", "vol"));
+        // 中優先度：タイトル + 数字 + [
+        results.AddRange(extractByPattern(name, NumberBeforeBracketPattern, "NumberBeforeBracket", "vol", 7));
+        results.AddRange(extractByPattern(name, NumberBeforePromoBracketPattern, "NumberBeforePromoBracket", "vol", 7));
 
-        // 半角括弧数字 + -
-        results.AddRange(extractByPattern(name, HalfWidthParenVolumePattern, "HalfWidthParenVolume", "vol"));
+        // 低優先度：数字 + 空白 + -（著者名区切り）
+        results.AddRange(extractByPattern(name, NumberBeforeAuthorPattern, "NumberBeforeAuthor", "vol", 3));
 
-        // タイトル + 数字 + [
-        results.AddRange(extractByPattern(name, NumberBeforeBracketPattern, "NumberBeforeBracket", "vol"));
+        // 低優先度：緩い括弧パターン（タイトル中の数字を拾いやすい）
+        results.AddRange(extractByPattern(name, NumberBeforeParenLoosePattern, "NumberBeforeParenLoose", "vol", 2));
+        results.AddRange(extractByPattern(name, FullWidthParenLoosePattern, "FullWidthParenLoose", "vol", 2));
 
-        // 数字 + 【宣伝文句】
-        results.AddRange(extractByPattern(name, NumberBeforePromoBracketPattern, "NumberBeforePromoBracket", "vol"));
+        // 中優先度：EPUB系の明確な括弧パターン（数字 + 括弧で直後が拡張子）
+        results.AddRange(extractByPattern(name, NumberBeforeParenPattern, "NumberBeforeParen", "vol", 8));
 
-        // 数字 + 空白 + -（著者名区切り）
-        results.AddRange(extractByPattern(name, NumberBeforeAuthorPattern, "NumberBeforeAuthor", "vol"));
+        // 低優先度：丸数字（ほかにネタがない場合に参照）
+        results.AddRange(extractByPattern(name, CircledNumberPattern, "CircledNumber", "vol", 4));
 
-        // 数字 + 空白 + ( または ～（緩め）
-        results.AddRange(extractByPattern(name, NumberBeforeParenLoosePattern, "NumberBeforeParenLoose", "vol"));
+        // 中優先度：拡張子直前の単独数字（末尾寄り）
+        results.AddRange(extractByPattern(name, NumberBeforeExtensionPattern, "NumberBeforeExtension", "vol", 9));
 
-        // EPUB系: 数字 + (
-        results.AddRange(extractByPattern(name, NumberBeforeParenPattern, "NumberBeforeParen", "vol"));
+        // 低優先度：単純な範囲パターン（拡張子・末尾判定なし）
+        results.AddRange(extractByPattern(name, SimpleRangeLoosePattern, "SimpleRangeLoose", "vol", 2));
 
-        // 丸数字 ①～⑳
-        results.AddRange(extractByPattern(name, CircledNumberPattern, "CircledNumber", "vol"));
-
-        // 拡張子直前の単独数字（最後に適用して誤検知を最小化）
-        results.AddRange(extractByPattern(name, NumberBeforeExtensionPattern, "NumberBeforeExtension", "vol"));
+        // 中優先度：n巻パターン
+        results.AddRange(extractByPattern(name, KanjiVolumeSuffixPattern, "KanjiVolumeSuffix", "vol", 6));
 
         // ローマ数字は、通常の数字系候補が1件も取得できなかった場合のみ評価
         // これにより、「v01-07」で７を取得した場合に「X」の誤検出を避ける
@@ -211,12 +209,8 @@ public static class OwnedVolumeCandidateExtractor
     }
 
     // ---- private ヘルパー ----
-
-    /// <summary>
-    /// 指定パターンで name をスキャンし、巻数候補リストを返します。
-    /// </summary>
     private static IReadOnlyList<OwnedVolumeEstimateCandidate> extractByPattern(
-        string name, Regex regex, string patternName, string groupName)
+        string name, Regex regex, string patternName, string groupName, int priority)
     {
         var list = new List<OwnedVolumeEstimateCandidate>();
         foreach (Match m in regex.Matches(name))
@@ -238,6 +232,7 @@ public static class OwnedVolumeCandidateExtractor
                 Name = name,
                 Volume = volume,
                 PatternName = patternName,
+                Priority = priority,
             });
         }
         return list;
@@ -284,6 +279,7 @@ public static class OwnedVolumeCandidateExtractor
                 Name = name,
                 Volume = volume.Value,
                 PatternName = "RomanNumeral",
+                Priority = 5,
             });
         }
         return list;

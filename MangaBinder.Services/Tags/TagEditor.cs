@@ -1,26 +1,30 @@
 namespace MangaBinder.Tags;
 
 /// <summary>
-/// タグ追加に関するルールを集約するクラスです。
+/// タグ追加・削除・リネームに関するルールを集約するクラスです。
 /// </summary>
 public sealed class TagEditor
 {
 	private readonly TagRepository repository;
+	private readonly MangaSeriesStore store;
 
 	/// <summary>
 	/// <see cref="TagEditor"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="repository">タグリポジトリ。</param>
-	public TagEditor(TagRepository repository)
+	/// <param name="store">MangaSeries 正本ストア。</param>
+	public TagEditor(TagRepository repository, MangaSeriesStore store)
 	{
 		this.repository = repository;
+		this.store = store;
 	}
 
 	/// <summary>
 	/// 指定した名前のタグを追加します。
+	/// DB に即座に挿入され、採番済み TagId を持つタグが返されます。
 	/// </summary>
 	/// <param name="name">追加するタグ名。</param>
-	/// <returns>追加結果。</returns>
+	/// <returns>追加結果。成功時は採番済み MangaTag を含みます。</returns>
 	public TagAddResult Add(string name)
 	{
 		var trimmed = name.Trim();
@@ -28,38 +32,48 @@ public sealed class TagEditor
 		if (string.IsNullOrEmpty(trimmed))
 			return TagAddResult.Failure(TagAddFailureReason.EmptyName);
 
-		var isDuplicate = this.repository.GetAll()
+		// Store のタグ一覧から重複チェック
+		var isDuplicate = this.store.GetTags()
 			.Any(t => string.Equals(t.Name, trimmed, StringComparison.OrdinalIgnoreCase));
 
 		if (isDuplicate)
 			return TagAddResult.Failure(TagAddFailureReason.Duplicate);
 
-		var nextOrder = this.repository.GetAll().Count;
+		// DisplayOrder を計算（現在のタグ数が次の順序）
+		var nextOrder = this.store.GetTags().Count;
 
-		var tag = new MangaTag
-		{
-			TagId = 0,
-			Name = trimmed,
-			DisplayOrder = nextOrder,
-			ShowOnSeriesCard = true,
-		};
+		// DB に挿入、採番済みタグを取得
+		var addedTag = this.repository.Insert(trimmed, nextOrder, showOnSeriesCard: true);
 
-		this.repository.Add(tag);
-		return TagAddResult.Success(tag);
+		// Store へ追加
+		this.store.AddTag(addedTag);
+
+		return TagAddResult.Success(addedTag);
 	}
 
 	/// <summary>
 	/// 指定した ID のタグを削除します。
-	/// 対象が存在しない場合は何もしません。
 	/// </summary>
 	/// <param name="tagId">削除するタグの ID。</param>
 	public void Delete(long tagId)
 	{
-		var exists = this.repository.GetAll().Any(t => t.TagId == tagId);
+		var exists = this.store.GetTags().Any(t => t.TagId == tagId);
 		if (!exists)
 			return;
 
-		this.repository.Remove(tagId);
+		// DB から削除
+		this.repository.Delete(tagId);
+
+		// Store から削除
+		this.store.RemoveTag(tagId);
+
+		// 各 MangaSeries から該当タグを削除
+		foreach (var series in this.store.GetAll())
+		{
+			var targetTag = series.Tags.FirstOrDefault(t => t.TagId == tagId);
+			if (targetTag is not null)
+				series.Tags.Remove(targetTag);
+		}
 	}
 
 	/// <summary>
@@ -75,16 +89,21 @@ public sealed class TagEditor
 		if (string.IsNullOrEmpty(trimmed))
 			return TagRenameResult.Failure(TagRenameFailureReason.EmptyName);
 
-		var isDuplicate = this.repository.GetAll()
-			.Any(t => !ReferenceEquals(t, target)
+		// 重複チェック（自身以外）
+		var isDuplicate = this.store.GetTags()
+			.Any(t => t.TagId != target.TagId
 				&& string.Equals(t.Name, trimmed, StringComparison.OrdinalIgnoreCase));
 
 		if (isDuplicate)
 			return TagRenameResult.Failure(TagRenameFailureReason.DuplicateName);
 
-		var updated = this.repository.Rename(target, trimmed);
+		// DB 更新
+		var updated = this.repository.Rename(target.TagId, trimmed);
 		if (updated is null)
 			return TagRenameResult.Failure(TagRenameFailureReason.NotFound);
+
+		// Store 更新
+		this.store.UpdateTag(updated);
 
 		return TagRenameResult.Success(updated);
 	}

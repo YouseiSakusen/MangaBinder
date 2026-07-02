@@ -13,4 +13,7 @@ public class OwnedVolumeEstimateCandidate
 
     /// <summary>マッチに使用したパターン名です。</summary>
     public string PatternName { get; init; } = string.Empty;
+
+    /// <summary>候補の優先度です。値が大きいほど優先度が高いです。</summary>
+    public int Priority { get; init; } = 0;
 }

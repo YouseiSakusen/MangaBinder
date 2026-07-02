@@ -567,7 +567,7 @@
                                                             <ItemsControl.ItemsPanel>
                                                                 <ItemsPanelTemplate>
                                                                     <UniformGrid Columns="2"
-                                                                                 Rows="4"/>
+                                                                                 Rows="6"/>
                                                                 </ItemsPanelTemplate>
                                                             </ItemsControl.ItemsPanel>
                                                             <ItemsControl.ItemTemplate>
