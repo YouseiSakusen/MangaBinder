@@ -70,6 +70,7 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPageWithSingletonViewModel<MaintenancePage, MaintenancePageViewModel>();
 		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>();
 		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>();
+		services.AddNavigationPage<EditorPage, EditorPageViewModel>();
 		services.AddSingleton<IContentDialogService, ContentDialogService>();
 		services.AddSingleton<VolumeFileNameNormalizer>();
 		services.AddSingleton<VolumeThumbnailImageProcessor>();

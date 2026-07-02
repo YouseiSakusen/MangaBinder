@@ -112,13 +112,14 @@
 
 					<!-- Column1: 新規作品登録カード -->
 					<ui:Card Grid.Column="1"
-                             Width="200"
-                             Margin="16,0,0,0" Padding="0">
+							 Width="200"
+							 Margin="16,0,0,0" Padding="0">
 						<Button
 							Background="Transparent"
 							BorderThickness="0"
 							Padding="14,10"
-							Cursor="Hand">
+							Cursor="Hand"
+							Command="{Binding ShowEditorCommand}">
 							<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
 								<ui:SymbolIcon Symbol="BookAdd24" FontSize="48"
 											   Foreground="{DynamicResource BindingAccentBrush}"

@@ -1,6 +1,8 @@
-﻿using ObservableCollections;
+﻿using MangaBinder.Bindings;
+using ObservableCollections;
 using R3;
 using System.Collections.Specialized;
+using Wpf.Ui;
 
 namespace MangaBinder.Series;
 
@@ -10,6 +12,12 @@ namespace MangaBinder.Series;
 public class MaintenancePageViewModel : IDisposable, IDataInitializable
 {
 	private DisposableBag disposableBag;
+
+	/// <summary>ナビゲーションサービス。</summary>
+	private readonly INavigationService navigationService;
+
+	/// <summary>作品選択状態ストア。</summary>
+	private readonly SeriesWorkspaceStore workspaceStore;
 
 	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
 	private readonly MangaSeriesStore mangaSeriesStore;
@@ -48,13 +56,20 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>登録待ち表示コマンドです。</summary>
 	public ReactiveCommand<Unit> ShowWorkSeriesCommand { get; private set; }
 
+	/// <summary>EditorPage を表示するコマンドです。</summary>
+	public ReactiveCommand<Unit> ShowEditorCommand { get; private set; }
+
 	/// <summary>
 	/// <see cref="MaintenancePageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
+	/// <param name="navigationService">ナビゲーションサービス。</param>
+	/// <param name="workspaceStore">作品選択状態ストア。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="mangaSeriesManager">作品の検索を担う Manager。</param>
-	public MaintenancePageViewModel(MangaSeriesStore mangaSeriesStore, MangaSeriesManager mangaSeriesManager)
+	public MaintenancePageViewModel(INavigationService navigationService, SeriesWorkspaceStore workspaceStore, MangaSeriesStore mangaSeriesStore, MangaSeriesManager mangaSeriesManager)
 	{
+		this.navigationService = navigationService;
+		this.workspaceStore = workspaceStore;
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.mangaSeriesManager = mangaSeriesManager;
 
@@ -83,11 +98,17 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.ShowWorkSeriesCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
 
+		this.ShowEditorCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+
 		// SearchCommand の実装
 		this.SearchCommand.Subscribe(async _ => await this.executeSearchAsync());
 
 		// ShowWorkSeriesCommand の実装
 		this.ShowWorkSeriesCommand.Subscribe(async _ => await this.executeShowWorkSeriesAsync());
+
+		// ShowEditorCommand の実装
+		this.ShowEditorCommand.Subscribe(_ => this.showEditor());
 	}
 
 	/// <summary>
@@ -183,6 +204,18 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.UpdateEmptyState();
 
 		await ValueTask.CompletedTask;
+	}
+
+	/// <summary>
+	/// EditorPage を表示します。新規作品として新しい MangaSeries を初期化します。
+	/// </summary>
+	private void showEditor()
+	{
+		// NavigationHierarchy を設定
+		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
+
+		// 編集対象を新規作品として初期化
+		this.workspaceStore.EditTarget = new MangaSeries();
 	}
 
 	public void Dispose()

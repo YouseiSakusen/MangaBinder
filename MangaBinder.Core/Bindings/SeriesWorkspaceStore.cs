@@ -17,6 +17,9 @@ public class SeriesWorkspaceStore : IDisposable
     /// <summary>製本工程で現在処理対象とする単一作品を取得します。</summary>
     public MangaSeries? BindingTarget { get; private set; }
 
+    /// <summary>編集対象作品を取得または設定します。</summary>
+    public MangaSeries? EditTarget { get; set; }
+
     /// <summary>VolumeSelectionPage で確定した巻の一覧を取得します。</summary>
     public List<BindingSourceVolume> SelectedMaterialVolumes { get; } = [];
 
