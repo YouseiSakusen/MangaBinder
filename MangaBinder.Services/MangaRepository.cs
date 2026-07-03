@@ -57,6 +57,8 @@ public class MangaRepository
         seriesSql.AppendLine(" 	, DescriptionSourceTitle ");
         seriesSql.AppendLine(" 	, HasNestedArchive ");
         seriesSql.AppendLine(" 	, Memo ");
+        seriesSql.AppendLine(" 	, ManuallyEditedAt ");
+        seriesSql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
         seriesSql.AppendLine(" FROM ");
         seriesSql.AppendLine(" 	MangaSeries ");
         seriesSql.AppendLine(" ORDER BY ");

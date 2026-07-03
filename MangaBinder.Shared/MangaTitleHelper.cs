@@ -100,6 +100,8 @@ public static class MangaTitleHelper
             EndVolume = endVolume,
             BoundEndVolume = boundEndVolume,
             HasNestedArchive = false,
+            ManuallyEditedAt = null,
+            IsOwnedMaxVolumeManuallyEdited = false,
         };
     }
 
@@ -127,6 +129,8 @@ public static class MangaTitleHelper
                 StartVolume = 0,
                 EndVolume = int.Parse(parenMatch.Groups["vol"].Value),
                 HasNestedArchive = false,
+                ManuallyEditedAt = null,
+                IsOwnedMaxVolumeManuallyEdited = false,
             };
         }
 
@@ -146,6 +150,8 @@ public static class MangaTitleHelper
                 StartVolume = 0,
                 EndVolume = int.Parse(bareMatch.Groups["vol"].Value),
                 HasNestedArchive = false,
+                ManuallyEditedAt = null,
+                IsOwnedMaxVolumeManuallyEdited = false,
             };
         }
 
@@ -162,6 +168,8 @@ public static class MangaTitleHelper
             StartVolume = 0,
             EndVolume = 0,
             HasNestedArchive = false,
+            ManuallyEditedAt = null,
+            IsOwnedMaxVolumeManuallyEdited = false,
         };
     }
 

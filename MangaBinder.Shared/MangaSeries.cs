@@ -223,6 +223,21 @@ public class MangaSeries : INotifyPropertyChanged
 
     /// <summary>メモです。MangaSeries / WorkMangaSeries 共通で使用します。</summary>
     public string Memo { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 作品情報が手動編集された日時です。
+    /// </summary>
+    public DateTime? ManuallyEditedAt { get; set; }
+
+    /// <summary>
+    /// 所持推定巻数を手動補正しているかを取得または設定します。
+    /// </summary>
+    public bool IsOwnedMaxVolumeManuallyEdited { get; set; }
+
+    /// <summary>
+    /// メモが存在するかを取得します。
+    /// </summary>
+    public bool HasMemo => !string.IsNullOrWhiteSpace(this.Memo);
 }
 
 
