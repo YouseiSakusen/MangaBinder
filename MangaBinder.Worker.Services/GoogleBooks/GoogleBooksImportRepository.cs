@@ -51,7 +51,11 @@ public class GoogleBooksImportRepository : IGoogleBooksImportRepository
 		sql.AppendLine(" 	MangaSeries ");
 		sql.AppendLine(" WHERE ");
 		sql.AppendLine(" 	GoogleBooksImportStatus = @None ");
-		sql.AppendLine(" 	AND Description = '' ");
+		sql.AppendLine(" 	AND ( ");
+		sql.AppendLine(" 		Author = '' ");
+		sql.AppendLine(" 		OR Publisher = '' ");
+		sql.AppendLine(" 		OR Description = '' ");
+		sql.AppendLine(" 	) ");
 		sql.AppendLine(" ORDER BY SeriesId; ");
 
 		using var conn = new SQLiteConnection(this.connectionString);
@@ -76,11 +80,15 @@ public class GoogleBooksImportRepository : IGoogleBooksImportRepository
 		var sql = new StringBuilder();
 		sql.AppendLine(" UPDATE MangaSeries ");
 		sql.AppendLine(" SET ");
-		sql.AppendLine(" 	  Description              = :Description ");
-		sql.AppendLine(" 	, Publisher                = :Publisher ");
-		sql.AppendLine(" 	, Author                   = CASE WHEN Author = '' THEN :Author ELSE Author END ");
-		sql.AppendLine(" 	, DescriptionSource        = :DescriptionSource ");
-		sql.AppendLine(" 	, DescriptionSourceTitle   = :DescriptionSourceTitle ");
+		// Author は既存値が空の場合のみ更新
+		sql.AppendLine(" 	  Author                    = CASE WHEN Author = '' THEN :Author ELSE Author END ");
+		// Publisher は既存値が空の場合のみ更新
+		sql.AppendLine(" 	, Publisher                = CASE WHEN Publisher = '' THEN :Publisher ELSE Publisher END ");
+		// Description は既存値が空の場合のみ更新
+		// Description を更新した場合のみ DescriptionSource / DescriptionSourceTitle も更新
+		sql.AppendLine(" 	, Description              = CASE WHEN Description = '' THEN :Description ELSE Description END ");
+		sql.AppendLine(" 	, DescriptionSource        = CASE WHEN Description = '' THEN :DescriptionSource ELSE DescriptionSource END ");
+		sql.AppendLine(" 	, DescriptionSourceTitle   = CASE WHEN Description = '' THEN :DescriptionSourceTitle ELSE DescriptionSourceTitle END ");
 		sql.AppendLine(" 	, GoogleBooksImportStatus  = :GoogleBooksImportStatus ");
 		sql.AppendLine(" 	, GoogleBooksImportedAt    = DATETIME('now', 'localtime') ");
 		sql.AppendLine(" 	, GoogleBooksImportMessage = :GoogleBooksImportMessage ");

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text;
-using MangaBinder;
 using MangaBinder.Bindings;
 using MangaBinder.Jobs.Contexts;
 using MangaBinder.Jobs.FolderScanners;
@@ -57,7 +56,7 @@ public class MaterialFolderScannerTest
         services.AddScoped<ThumbnailCreator>(sp => new ThumbnailCreator(
             context,
             sp.GetRequiredService<MangaBinder.Bindings.SeriesExtractorFactory>(),
-            new MangaBinder.Bindings.ThumbnailImageProcessor(),
+            new ThumbnailImageProcessor(),
             NullLogger<ThumbnailCreator>.Instance));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
@@ -200,10 +199,10 @@ file class StubSeriesExtractor : MangaBinder.Bindings.IThumbnailExtractor
 }
 
 /// <summary>
-/// テスト用の <see cref="MangaBinder.Bindings.IThumbnailImageProcessor"/> スタブです。
+/// テスト用の <see cref="MangaBinder.IThumbnailImageProcessor"/> スタブです。
 /// 画像処理は行わず、空のストリームを返します。
 /// </summary>
-file class StubImageProcessor : MangaBinder.Bindings.IThumbnailImageProcessor
+file class StubImageProcessor : IThumbnailImageProcessor
 {
     public ValueTask<Stream> ProcessThumbnailAsync(Stream input, MangaBinder.Settings.ThumbnailOptions options, CancellationToken ct)
         => ValueTask.FromResult<Stream>(new MemoryStream());

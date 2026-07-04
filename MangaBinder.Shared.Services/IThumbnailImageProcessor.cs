@@ -1,6 +1,6 @@
 using MangaBinder.Settings;
 
-namespace MangaBinder.Bindings;
+namespace MangaBinder;
 
 /// <summary>
 /// サムネイル生成処理の抽象インターフェースです。

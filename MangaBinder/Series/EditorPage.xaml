@@ -5,6 +5,7 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:local="clr-namespace:MangaBinder.Series"
+      xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
       mc:Ignorable="d" 
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="作品編集"
@@ -173,6 +174,8 @@
                                 Grid.Column="1"
                                 InputMethod.PreferredImeState="On"
                                 Margin="0,0,0,8"
+                                Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                behaviors:FocusOnChangedBehavior.Request="{Binding TitleFocusRequest.Value}"
                                 PlaceholderText="作品のタイトルを入力してください" />
 
                             <!-- 作者・出版社 -->
@@ -196,6 +199,7 @@
                                     x:Name="AuthorTextBox"
                                     Grid.Column="0"
                                     InputMethod.PreferredImeState="On"
+                                    Text="{Binding Author.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     Margin="0,0,0,0"
                                     PlaceholderText="作者名を入力してください" />
 
@@ -212,6 +216,7 @@
                                     x:Name="PublisherTextBox"
                                     Grid.Column="2"
                                     InputMethod.PreferredImeState="On"
+                                    Text="{Binding Publisher.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     PlaceholderText="出版社名を入力してください" />
                             </Grid>
                         </Grid>
@@ -231,107 +236,130 @@
 								<ColumnDefinition Width="1.1*"/>
 							</Grid.ColumnDefinitions>
 							<Grid Grid.Column="0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="1*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="1*" />
-                                    <ColumnDefinition Width="1*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="Auto" />
+									<ColumnDefinition Width="1*" />
+									<ColumnDefinition Width="Auto" />
+									<ColumnDefinition Width="1*" />
+									<ColumnDefinition Width="1*" />
+								</Grid.ColumnDefinitions>
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
+								</Grid.RowDefinitions>
 
-                                <!-- Row0: 完結巻 / 全巻揃い -->
-                                <!-- 完結巻ラベル -->
-                                <TextBlock
-                                    Grid.Row="0"
-                                    Grid.Column="0"
-                                    Text="完結巻"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,6,8"
-                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+								<!-- Row0: 完結巻 / 全巻揃い -->
+								<!-- 完結巻ラベル -->
+								<TextBlock
+									Grid.Row="0"
+									Grid.Column="0"
+									Text="完結巻"
+									VerticalAlignment="Center"
+									Margin="0,0,6,8"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                                <!-- 完結巻入力 -->
+								<!-- 完結巻入力 -->
 								<ui:NumberBox
-                                    x:Name="EndVolumeNumberBox"
-                                    Grid.Row="0"
-                                    Grid.Column="1"
-                                    Margin="0,0,12,8"
-                                    PlaceholderText="0" />
+									x:Name="EndVolumeNumberBox"
+									Grid.Row="0"
+									Grid.Column="1"
+									Value="{Binding EndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									Margin="0,0,12,8"
+									PlaceholderText="0" />
 
 								<StackPanel Grid.Row="0" Grid.Column="2"
-                                            Grid.ColumnSpan="2"
-                                            Orientation="Horizontal"
-                                            HorizontalAlignment="Left">
+											Grid.ColumnSpan="2"
+											Orientation="Horizontal"
+											HorizontalAlignment="Left">
 									<!-- 全巻所持 CheckBox -->
 									<CheckBox
-                                    x:Name="IsOwnedCompletedCheckBox"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,0,8" />
+										x:Name="IsOwnedCompletedCheckBox"
+										IsChecked="{Binding IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+										IsEnabled="{Binding CanEditOwnedCompleted.Value}"
+										VerticalAlignment="Center"
+										Margin="0,0,0,8" />
 									<!-- 全巻所持ラベル -->
 									<TextBlock
-                                        Text="全巻所持"
-                                        VerticalAlignment="Center"
-                                        Margin="0,0,6,8"
-                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+										Text="全巻所持"
+										VerticalAlignment="Center"
+										Margin="0,0,6,8"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 								</StackPanel>
 
 								<!-- Row1: 所持推定 / 製本済み -->
-                                <!-- 所持推定ラベル -->
-                                <TextBlock
-                                    Grid.Row="1"
-                                    Grid.Column="0"
-                                    Text="所持推定"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,6,8"
-                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+								<!-- 所持推定ラベル -->
+								<TextBlock
+									Grid.Row="1"
+									Grid.Column="0"
+									Text="所持推定"
+									VerticalAlignment="Center"
+									Margin="0,0,6,8"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                                <!-- 所持推定入力 -->
-                                <ui:NumberBox
-                                    x:Name="OwnedMaxVolumeNumberBox"
-                                    Grid.Row="1"
-                                    Grid.Column="1"
-                                    Margin="0,0,12,8"
-                                    PlaceholderText="0" />
+								<!-- 所持推定入力 -->
+								<ui:NumberBox
+									x:Name="OwnedMaxVolumeNumberBox"
+									Grid.Row="1"
+									Grid.Column="1"
+									Value="{Binding OwnedMaxVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									Margin="0,0,12,8"
+									PlaceholderText="0" />
 
-                                <!-- 製本済みラベル -->
-                                <TextBlock
-                                    Grid.Row="1"
-                                    Grid.Column="2"
-                                    Text="製本済み"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,6,8"
-                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+								<!-- 製本済みラベル -->
+								<TextBlock
+									Grid.Row="1"
+									Grid.Column="2"
+									Text="製本済み"
+									VerticalAlignment="Center"
+									Margin="0,0,6,8"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                                <!-- 製本済み入力 -->
-                                <ui:NumberBox
-                                    x:Name="BoundEndVolumeNumberBox"
-                                    Grid.Row="1"
-                                    Grid.Column="3"
-                                    Margin="0,0,0,8"
-                                    PlaceholderText="0" />
+								<!-- 製本済み入力 -->
+								<ui:NumberBox
+									x:Name="BoundEndVolumeNumberBox"
+									Grid.Row="1"
+									Grid.Column="3"
+									Value="{Binding BoundEndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									Margin="0,0,0,8"
+									PlaceholderText="0" />
 
-                                <!-- Row2: 開始巻 -->
-                                <!-- 開始巻ラベル -->
-                                <TextBlock
-                                    Grid.Row="2"
-                                    Grid.Column="0"
-                                    Text="開始巻"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,6,8"
-                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+								<!-- Row2: 開始巻 -->
+								<!-- 開始巻ラベル -->
+								<TextBlock
+									Grid.Row="2"
+									Grid.Column="0"
+									Text="開始巻"
+									VerticalAlignment="Center"
+									Margin="0,0,6,8"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                                <!-- 開始巻入力 -->
-                                <ui:NumberBox
-                                    x:Name="StartVolumeNumberBox"
-                                    Grid.Row="2"
-                                    Grid.Column="1"
-                                    Margin="0,0,12,8"
-                                    PlaceholderText="0" />
-                            </Grid>
+								<!-- 開始巻入力 -->
+								<ui:NumberBox
+									x:Name="StartVolumeNumberBox"
+									Grid.Row="2"
+									Grid.Column="1"
+									Value="{Binding StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									Margin="0,0,12,8"
+									PlaceholderText="0" />
+							</Grid>
+							<!-- 右側パネル：完結・シリーズ完結チェックボックス -->
+							<StackPanel Grid.Column="1" Margin="12,0,0,0">
+								<StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+									<!-- 完結 CheckBox -->
+									<CheckBox
+										x:Name="SeriesCompletedCheckBox"
+										IsChecked="{Binding SeriesCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+										VerticalAlignment="Center"
+										Margin="0,0,0,0" />
+									<!-- 完結ラベル -->
+									<TextBlock
+										Text="完結"
+										VerticalAlignment="Center"
+										Margin="0,0,0,0"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+								</StackPanel>
+							</StackPanel>
 						</Grid>
 					</StackPanel>
 
@@ -377,6 +405,7 @@
                             VerticalScrollBarVisibility="Auto"
                             MinHeight="160"
                             Margin="0,0,6,0"
+                            Text="{Binding Description.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             PlaceholderText="作品のあらすじを入力してください" />
 
                         <!-- メモ -->
@@ -390,6 +419,7 @@
                             VerticalScrollBarVisibility="Auto"
                             MinHeight="160"
                             Margin="6,0,0,0"
+                            Text="{Binding Memo.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             PlaceholderText="メモを入力してください" />
                     </Grid>
 

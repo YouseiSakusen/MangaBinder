@@ -1,5 +1,4 @@
 using System.Text;
-using MangaBinder;
 using MangaBinder.Bindings;
 using MangaBinder.Jobs.Contexts;
 using MangaBinder.Jobs.FolderScanners;
@@ -148,10 +147,10 @@ file class StubFolderRepository : IFolderScannerRepository
 }
 
 /// <summary>
-/// テスト用の <see cref="MangaBinder.Bindings.IThumbnailImageProcessor"/> スタブです。
+/// テスト用の <see cref="MangaBinder.IThumbnailImageProcessor"/> スタブです。
 /// 画像処理は行わず、空のストリームを返します。
 /// </summary>
-file class StubImageProcessor : MangaBinder.Bindings.IThumbnailImageProcessor
+file class StubImageProcessor : IThumbnailImageProcessor
 {
     public ValueTask<Stream> ProcessThumbnailAsync(Stream input, MangaBinder.Settings.ThumbnailOptions options, CancellationToken ct)
         => ValueTask.FromResult<Stream>(new MemoryStream());

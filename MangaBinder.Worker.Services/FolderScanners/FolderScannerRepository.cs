@@ -111,9 +111,8 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// <summary>
     /// 素材スキャン向けの MangaSeries UPSERT を実行し、SeriesId を返します。
     /// Author は INSERT 時のみ設定され、UPDATE 時は除外して既存値を維持します。
-    /// 複数フォルダ登録運用に対応するため、巻情報は保護的に更新します：
-    /// - StartVolume: DB値と新規値の小さい方を保持
-    /// - EndVolume / OwnedMaxVolume: DB値と新規値の大きい方を保持
+    /// フォルダ名由来の情報（Title, ShortTitle, SeriesCompleted, IsOwnedCompleted, StartVolume, EndVolume）はスキャン結果で上書きします。
+    /// OwnedMaxVolume は IsOwnedMaxVolumeManuallyEdited フラグで保護します。
     /// </summary>
     private async ValueTask<long> UpsertMaterialSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series)
     {
@@ -148,27 +147,18 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, 0 ");
         sql.AppendLine(" ) ");
         sql.AppendLine(" ON CONFLICT (NormalizedTitleInternal) DO UPDATE SET ");
-        // TODO:
-        // 将来的にユーザー編集値を保持する設計へ変更予定。
-        // 現状はフォルダスキャン結果で上書きする。
+        // フォルダ名由来の正規情報としてスキャン結果で上書き
         sql.AppendLine(" 	  Title             = excluded.Title ");
         sql.AppendLine(" 	, ShortTitle        = excluded.ShortTitle ");
         sql.AppendLine(" 	, SeriesCompleted   = excluded.SeriesCompleted ");
         sql.AppendLine(" 	, IsOwnedCompleted  = excluded.IsOwnedCompleted ");
         sql.AppendLine(" 	, IsSourceMissing   = 0 ");
-        // 複数フォルダ登録運用対応：巻情報を保護的に更新
-        // StartVolume は小さい方を、EndVolume/OwnedMaxVolume は大きい方を保持
-        sql.AppendLine(" 	, StartVolume       = CASE ");
-        sql.AppendLine(" 	                        WHEN StartVolume IS NULL THEN excluded.StartVolume ");
-        sql.AppendLine(" 	                        WHEN excluded.StartVolume IS NULL THEN StartVolume ");
-        sql.AppendLine(" 	                        ELSE MIN(StartVolume, excluded.StartVolume) ");
-        sql.AppendLine(" 	                      END ");
-        sql.AppendLine(" 	, EndVolume         = CASE ");
-        sql.AppendLine(" 	                        WHEN EndVolume IS NULL THEN excluded.EndVolume ");
-        sql.AppendLine(" 	                        WHEN excluded.EndVolume IS NULL THEN EndVolume ");
-        sql.AppendLine(" 	                        ELSE MAX(EndVolume, excluded.EndVolume) ");
-        sql.AppendLine(" 	                      END ");
+        // StartVolume と EndVolume はフォルダ名由来の正規情報として直接更新
+        sql.AppendLine(" 	, StartVolume       = excluded.StartVolume ");
+        sql.AppendLine(" 	, EndVolume         = excluded.EndVolume ");
+        // OwnedMaxVolume は IsOwnedMaxVolumeManuallyEdited で保護
         sql.AppendLine(" 	, OwnedMaxVolume    = CASE ");
+        sql.AppendLine(" 	                        WHEN IsOwnedMaxVolumeManuallyEdited = 1 THEN OwnedMaxVolume ");
         sql.AppendLine(" 	                        WHEN OwnedMaxVolume IS NULL THEN excluded.OwnedMaxVolume ");
         sql.AppendLine(" 	                        WHEN excluded.OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
         sql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, excluded.OwnedMaxVolume) ");
@@ -191,10 +181,8 @@ public class FolderScannerRepository : IFolderScannerRepository
 
     /// <summary>
     /// 製本済みスキャン向けの MangaSeries UPSERT を実行し、SeriesId を返します。
-    /// Author を含む全フィールドを UPDATE 対象とします。
-    /// 複数フォルダ登録運用に対応するため、巻情報は保護的に更新します：
-    /// - StartVolume: DB値と新規値の小さい方を保持
-    /// - EndVolume / BoundEndVolume: DB値と新規値の大きい方を保持
+    /// 既存作品に一致した場合、メタ情報（Title、ShortTitle、Author、SeriesCompleted、StartVolume、EndVolume）は上書きしません。
+    /// 更新対象は BoundEndVolume と UpdatedAt のみです。
     /// </summary>
     private async ValueTask<long> UpsertBindingSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series)
     {
@@ -227,26 +215,9 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, 0 ");
         sql.AppendLine(" ) ");
         sql.AppendLine(" ON CONFLICT (NormalizedTitleInternal) DO UPDATE SET ");
-        // TODO:
-        // 将来的にユーザー編集値を保持する設計へ変更予定。
-        // 現状はフォルダスキャン結果で上書きする。
-        sql.AppendLine(" 	  Title             = excluded.Title ");
-        sql.AppendLine(" 	, ShortTitle        = excluded.ShortTitle ");
-        sql.AppendLine(" 	, Author            = excluded.Author ");
-        sql.AppendLine(" 	, SeriesCompleted   = excluded.SeriesCompleted ");
-        // 複数フォルダ登録運用対応：巻情報を保護的に更新
-        // StartVolume は小さい方を、EndVolume/BoundEndVolume は大きい方を保持
-        sql.AppendLine(" 	, StartVolume       = CASE ");
-        sql.AppendLine(" 	                        WHEN StartVolume IS NULL THEN excluded.StartVolume ");
-        sql.AppendLine(" 	                        WHEN excluded.StartVolume IS NULL THEN StartVolume ");
-        sql.AppendLine(" 	                        ELSE MIN(StartVolume, excluded.StartVolume) ");
-        sql.AppendLine(" 	                      END ");
-        sql.AppendLine(" 	, EndVolume         = CASE ");
-        sql.AppendLine(" 	                        WHEN EndVolume IS NULL THEN excluded.EndVolume ");
-        sql.AppendLine(" 	                        WHEN excluded.EndVolume IS NULL THEN EndVolume ");
-        sql.AppendLine(" 	                        ELSE MAX(EndVolume, excluded.EndVolume) ");
-        sql.AppendLine(" 	                      END ");
-        sql.AppendLine(" 	, BoundEndVolume    = CASE ");
+        // 既存作品の場合、メタ情報は上書きしない
+        // 更新対象は BoundEndVolume と UpdatedAt のみ
+        sql.AppendLine(" 	  BoundEndVolume    = CASE ");
         sql.AppendLine(" 	                        WHEN BoundEndVolume IS NULL THEN excluded.BoundEndVolume ");
         sql.AppendLine(" 	                        WHEN excluded.BoundEndVolume IS NULL THEN BoundEndVolume ");
         sql.AppendLine(" 	                        ELSE MAX(BoundEndVolume, excluded.BoundEndVolume) ");
@@ -316,6 +287,7 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// MangaSources を差分同期します。
     /// 既存の MangaSources と スキャン結果を比較し、追加・削除を実施します。
     /// SourceId を維持するため、DELETE/INSERT ではなく差分同期で対応します。
+    /// 削除対象の Source に紐づくアーカイブキャッシュ（MaterialArchiveEntries、MaterialArchives）も削除します。
     /// </summary>
     /// <param name="conn">DB接続。</param>
     /// <param name="tx">トランザクション。</param>
@@ -384,10 +356,29 @@ public class FolderScannerRepository : IFolderScannerRepository
         if (existingDict.Count > 0)
         {
             var sourceIdsToDelete = existingDict.Values.ToList();
+
+            // MangaSources 削除前に、関連するアーカイブキャッシュを削除
+            // 削除順: MaterialArchiveEntries → MaterialArchives → MangaSources
+
+            // 1. MaterialArchiveEntries の削除
+            var deleteEntriesSql = new StringBuilder();
+            deleteEntriesSql.AppendLine(" DELETE FROM MaterialArchiveEntries ");
+            deleteEntriesSql.AppendLine(" WHERE MaterialArchiveId IN ( ");
+            deleteEntriesSql.AppendLine(" 	SELECT Id FROM MaterialArchives ");
+            deleteEntriesSql.AppendLine(" 	WHERE SourceId IN :SourceIds ");
+            deleteEntriesSql.AppendLine(" ); ");
+            await conn.ExecuteAsync(deleteEntriesSql.ToString(), new { SourceIds = sourceIdsToDelete }, tx);
+
+            // 2. MaterialArchives の削除
+            var deleteArchivesSql = new StringBuilder();
+            deleteArchivesSql.AppendLine(" DELETE FROM MaterialArchives ");
+            deleteArchivesSql.AppendLine(" WHERE SourceId IN :SourceIds; ");
+            await conn.ExecuteAsync(deleteArchivesSql.ToString(), new { SourceIds = sourceIdsToDelete }, tx);
+
+            // 3. MangaSources の削除
             var deleteSql = new StringBuilder();
             deleteSql.AppendLine(" DELETE FROM MangaSources ");
             deleteSql.AppendLine(" WHERE SourceId IN :SourceIds; ");
-
             await conn.ExecuteAsync(deleteSql.ToString(), new { SourceIds = sourceIdsToDelete }, tx);
         }
     }

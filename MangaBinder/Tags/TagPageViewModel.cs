@@ -10,7 +10,7 @@ namespace MangaBinder.Tags;
 /// <summary>
 /// タグ画面の ViewModel です。
 /// </summary>
-public class TagPageViewModel : IDisposable
+public class TagPageViewModel : IDataInitializable, IDisposable
 {
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly ISnackbarService snackbarService;
@@ -229,6 +229,16 @@ public class TagPageViewModel : IDisposable
 		this.Tags.Add(result.AddedTag!);
 		this.NewTagName.Value = string.Empty;
 		this.TagNameFocusRequest.Value++;
+	}
+
+	/// <summary>
+	/// ナビゲーション完了後に呼ばれる初期データ読み込み処理。
+	/// 新規タグ入力欄へのフォーカスを要求します。
+	/// </summary>
+	public ValueTask InitializeDataAsync()
+	{
+		this.TagNameFocusRequest.Value++;
+		return ValueTask.CompletedTask;
 	}
 
 	/// <summary>

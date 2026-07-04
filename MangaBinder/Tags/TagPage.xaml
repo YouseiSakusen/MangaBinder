@@ -5,6 +5,8 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:local="clr-namespace:MangaBinder.Tags"
+      xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
+      xmlns:converters="clr-namespace:MangaBinder.Converters"
       mc:Ignorable="d"
       d:DesignHeight="700" d:DesignWidth="900"
       Title="タグ"
@@ -12,7 +14,7 @@
 
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-        <local:TagEditingVisibilityConverter x:Key="TagEditingVis" />
+        <converters:TagEditingVisibilityConverter x:Key="TagEditingVis" />
         <local:BindingProxy x:Key="VmProxy" Data="{Binding}" />
     </Page.Resources>
 
@@ -69,7 +71,7 @@
                                     PlaceholderText="タグ名を入力してください"
                                     Text="{Binding NewTagName.Value, UpdateSourceTrigger=PropertyChanged}"
                                     InputMethod.PreferredImeState="On"
-                                    local:FocusOnChangedBehavior.Request="{Binding TagNameFocusRequest.Value}">
+                                    behaviors:FocusOnChangedBehavior.Request="{Binding TagNameFocusRequest.Value}">
                             <ui:TextBox.InputBindings>
                                 <KeyBinding Key="Return" Command="{Binding AddTagCommand}" />
                             </ui:TextBox.InputBindings>
@@ -151,7 +153,7 @@
                                                     Text="{Binding DataContext.EditingTagName.Value,
                                                                RelativeSource={RelativeSource AncestorType=ItemsControl},
                                                                UpdateSourceTrigger=PropertyChanged}"
-                                                    local:FocusAndSelectAllBehavior.Request="{Binding DataContext.RenameTextBoxFocusRequest.Value,
+                                                    behaviors:FocusAndSelectAllBehavior.Request="{Binding DataContext.RenameTextBoxFocusRequest.Value,
                                                                RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                                             <ui:TextBox.InputBindings>
                                                 <KeyBinding Key="Return"

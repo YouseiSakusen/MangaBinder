@@ -1,5 +1,4 @@
 using System.Text;
-using MangaBinder.Bindings;
 using MangaBinder.Settings;
 using NetVips;
 

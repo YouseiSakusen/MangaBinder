@@ -18,31 +18,31 @@ public class MangaSeries : INotifyPropertyChanged
     public string NormalizedTitleInternal { get; init; } = string.Empty;
 
     /// <summary>作品の代表タイトルです。</summary>
-    public string Title { get; init; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
 
     /// <summary>著者名です。製本済みから抽出される正の情報です。</summary>
-    public string Author { get; init; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
 
     /// <summary>作品のあらすじです。</summary>
-    public string Description { get; init; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
 
     /// <summary>作品自体が完結しているかを示すフラグです。</summary>
-    public bool SeriesCompleted { get; init; }
+    public bool SeriesCompleted { get; set; }
 
     /// <summary>素材フォルダ名から判定される全巻所持フラグです。</summary>
-    public bool IsOwnedCompleted { get; init; }
+    public bool IsOwnedCompleted { get; set; }
 
     /// <summary>素材フォルダが見つからなくなった作品として扱うかどうかを示します。</summary>
     public bool IsSourceMissing { get; set; }
 
     /// <summary>開始巻です。</summary>
-    public int StartVolume { get; init; }
+    public int StartVolume { get; set; } = 1;
 
     /// <summary>作品の総巻数（完結巻）です。</summary>
-    public int EndVolume { get; init; }
+    public int EndVolume { get; set; }
 
     /// <summary>製本済みファイルから抽出された製本済み最終巻です。</summary>
-    public int BoundEndVolume { get; init; }
+    public int BoundEndVolume { get; set; }
 
     /// <summary>素材フォルダ内のファイル名・フォルダ名から推定した手持ちの最大巻数です。</summary>
     public int OwnedMaxVolume { get; set; }
@@ -233,6 +233,11 @@ public class MangaSeries : INotifyPropertyChanged
     /// 所持推定巻数を手動補正しているかを取得または設定します。
     /// </summary>
     public bool IsOwnedMaxVolumeManuallyEdited { get; set; }
+
+    /// <summary>
+    /// 手動編集済み作品かどうかを取得します。
+    /// </summary>
+    public bool IsManuallyEdited => this.ManuallyEditedAt is not null;
 
     /// <summary>
     /// メモが存在するかを取得します。

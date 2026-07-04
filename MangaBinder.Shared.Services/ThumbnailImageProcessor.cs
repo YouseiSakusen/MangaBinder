@@ -1,7 +1,7 @@
 using MangaBinder.Settings;
 using NetVips;
 
-namespace MangaBinder.Bindings;
+namespace MangaBinder;
 
 /// <summary>
 /// NetVips を使用したサムネイル生成実装です。

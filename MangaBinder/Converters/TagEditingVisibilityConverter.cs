@@ -1,8 +1,9 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using MangaBinder.Tags;
 
-namespace MangaBinder.Tags;
+namespace MangaBinder.Converters;
 
 /// <summary>
 /// 現在の行タグが編集中かどうかを <see cref="Visibility"/> に変換するマルチバリューコンバーターです。

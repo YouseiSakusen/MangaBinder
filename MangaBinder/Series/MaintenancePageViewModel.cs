@@ -211,11 +211,11 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// </summary>
 	private void showEditor()
 	{
-		// NavigationHierarchy を設定
-		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
-
 		// 編集対象を新規作品として初期化
 		this.workspaceStore.EditTarget = new MangaSeries();
+
+		// NavigationHierarchy を設定
+		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
 	}
 
 	public void Dispose()

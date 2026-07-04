@@ -1,3 +1,4 @@
+using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Tags;
 
@@ -5,6 +6,7 @@ namespace MangaBinder;
 
 /// <summary>
 /// Home 画面の初期化と BindingQueue 復元を統一する Manager クラスです。
+/// また、作品編集セッションを管理します。
 /// </summary>
 public class MangaSeriesManager
 {
@@ -25,6 +27,12 @@ public class MangaSeriesManager
 
 	/// <summary>タグを取得する Repository。</summary>
 	private readonly TagRepository tagRepository;
+
+	/// <summary>編集セッション中の編集対象 Series。</summary>
+	private MangaSeries? editingSeriesSnapshot;
+
+	/// <summary>編集セッション中の編集開始時点での DeepCopy。</summary>
+	private MangaSeries? editingSeriesOriginalSnapshot;
 
 	/// <summary>
 	/// <see cref="MangaSeriesManager"/> の新しいインスタンスを初期化します。
@@ -154,4 +162,39 @@ public class MangaSeriesManager
 
 		return results;
 	}
+
+	/// <summary>
+	/// 指定された作品の編集セッションを開始します。
+	/// 編集開始時点の作品状態を DeepCopy して保持し、
+	/// 後で変更判定や比較処理などに使用できるようにします。
+	/// 新規作品・登録待ち作品・既存作品のすべてが同じ処理で扱われます。
+	/// </summary>
+	/// <param name="series">編集対象の作品。</param>
+	/// <exception cref="ArgumentNullException">series が null の場合にスローされます。</exception>
+	public void BeginEdit(MangaSeries series)
+	{
+		ArgumentNullException.ThrowIfNull(series);
+
+		// 編集対象を保持
+		this.editingSeriesSnapshot = series;
+
+		// 編集開始時点での状態を DeepCopy で保持
+		this.editingSeriesOriginalSnapshot = DeepCopyHelper.Copy(series);
+	}
+
+	/// <summary>
+	/// 現在の編集セッション中の編集対象 Series を取得します。
+	/// 編集セッション未開始の場合は null を返します。
+	/// </summary>
+	/// <returns>編集中の Series、またはセッション未開始時は null。</returns>
+	public MangaSeries? GetEditingSeries()
+		=> this.editingSeriesSnapshot;
+
+	/// <summary>
+	/// 現在の編集セッション中の編集開始時点での DeepCopy を取得します。
+	/// 編集セッション未開始の場合は null を返します。
+	/// </summary>
+	/// <returns>編集開始時点での Series コピー、またはセッション未開始時は null。</returns>
+	public MangaSeries? GetEditingSeriesOriginal()
+		=> this.editingSeriesOriginalSnapshot;
 }

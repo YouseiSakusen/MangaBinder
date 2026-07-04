@@ -1,23 +1,22 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 
-namespace MangaBinder.Tags;
+namespace MangaBinder.Behaviors;
 
 /// <summary>
-/// バインドされた値が変化したとき、対象の <see cref="TextBox"/> にフォーカスを移し、テキストを全選択する添付ビヘイビアです。
+/// バインドされた値が変化したとき、対象の <see cref="UIElement"/> にフォーカスを移す添付ビヘイビアです。
 /// </summary>
-public static class FocusAndSelectAllBehavior
+public static class FocusOnChangedBehavior
 {
 	/// <summary>
-	/// フォーカス＆全選択の要求カウンタの添付プロパティです。
-	/// 値が変化するたびに対象 TextBox へフォーカスし、テキストを全選択します。
+	/// フォーカス要求カウンタの添付プロパティです。
+	/// 値が変化するたびに対象要素へ <see cref="UIElement.Focus"/> を呼び出します。
 	/// </summary>
 	public static readonly DependencyProperty RequestProperty =
 		DependencyProperty.RegisterAttached(
 			"Request",
 			typeof(int),
-			typeof(FocusAndSelectAllBehavior),
+			typeof(FocusOnChangedBehavior),
 			new PropertyMetadata(0, OnRequestChanged));
 
 	/// <summary>Request 添付プロパティの値を取得します。</summary>
@@ -33,20 +32,25 @@ public static class FocusAndSelectAllBehavior
 
 	private static void OnRequestChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
 	{
-		if (d is not TextBox textBox)
+		if (d is not UIElement element)
 			return;
 
 		// 初期値 (0) では発火させない
 		if ((int)e.NewValue == 0)
 			return;
 
-		textBox.Dispatcher.BeginInvoke(
-			System.Windows.Threading.DispatcherPriority.Input,
+		// UI レンダリング完了後にフォーカスを設定するため、複数段階で遅延実行
+		element.Dispatcher.BeginInvoke(
+			System.Windows.Threading.DispatcherPriority.Render,
 			new Action(() =>
 			{
-				textBox.Focus();
-				Keyboard.Focus(textBox);
-				textBox.SelectAll();
+				element.Dispatcher.BeginInvoke(
+					System.Windows.Threading.DispatcherPriority.Input,
+					new Action(() =>
+					{
+						element.Focus();
+						Keyboard.Focus(element);
+					}));
 			}));
 	}
 }
