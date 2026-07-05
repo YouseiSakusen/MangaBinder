@@ -1,5 +1,6 @@
 using MangaBinder.Bindings;
 using R3;
+using Reactive.Bindings.R3;
 
 namespace MangaBinder.Series;
 
@@ -15,8 +16,11 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	/// <summary>編集対象の Series を取得します。</summary>
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
 
-	/// <summary>タイトルを取得または設定します。</summary>
-	public BindableReactiveProperty<string?> Title { get; }
+	/// <summary>タイトルを取得または設定します。バリデーション機能付き。</summary>
+	public ValidatableReactiveProperty<string?> Title { get; }
+
+	/// <summary>1件ヒット時の既存作品候補を取得します。</summary>
+	public BindableReactiveProperty<MangaSeries?> DuplicateSeriesFound { get; }
 
 	/// <summary>作者を取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Author { get; }
@@ -67,7 +71,11 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
 
-		this.Title = new BindableReactiveProperty<string?>(null)
+		this.DuplicateSeriesFound = new BindableReactiveProperty<MangaSeries?>(null)
+			.AddTo(ref this.disposableBag);
+
+		this.Title = new ValidatableReactiveProperty<string?>(null)
+			.SetValidateNotifyError(this.validateTitle)
 			.AddTo(ref this.disposableBag);
 
 		this.Author = new BindableReactiveProperty<string?>(null)
@@ -108,9 +116,6 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 
 		this.TitleFocusRequest = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
-
-		// ReactiveProperty の値が変更されたら、編集対象 MangaSeries に反映
-		this.setupSynchronization();
 	}
 
 	/// <summary>
@@ -133,6 +138,7 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 		if (editingSeries != null)
 		{
 			this.Title.Value = editingSeries.Title;
+			this.DuplicateSeriesFound.Value = null;
 			this.Author.Value = editingSeries.Author;
 			this.Publisher.Value = editingSeries.Publisher;
 			this.StartVolume.Value = editingSeries.StartVolume;
@@ -150,108 +156,40 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	}
 
 	/// <summary>
-	/// ReactiveProperty の値を編集対象 MangaSeries に同期します。
+	/// タイトルのバリデーション処理。
+	/// タイトル重複チェックを行い、結果に応じてエラーメッセージまたは null を返す。
 	/// </summary>
-	private void setupSynchronization()
+	/// <param name="title">検証するタイトル。</param>
+	/// <returns>エラーメッセージ、またはエラーなしの場合は null。</returns>
+	private string? validateTitle(string? title)
 	{
-		// Title の変更を MangaSeries に反映
-		this.Title
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.Title = value ?? string.Empty;
-			})
-			.AddTo(ref this.disposableBag);
+		// null / 空白なら重複チェックしない
+		if (string.IsNullOrWhiteSpace(title))
+		{
+			this.DuplicateSeriesFound.Value = null;
+			return null;
+		}
 
-		// Author の変更を MangaSeries に反映
-		this.Author
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.Author = value ?? string.Empty;
-			})
-			.AddTo(ref this.disposableBag);
+		// タイトル重複チェック
+		var duplicates = this.seriesManager.FindSameTitle(title);
 
-		// Publisher の変更を MangaSeries に反映
-		this.Publisher
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.Publisher = value ?? string.Empty;
-			})
-			.AddTo(ref this.disposableBag);
+		// 0件なら重複候補なし
+		if (duplicates.Count == 0)
+		{
+			this.DuplicateSeriesFound.Value = null;
+			return null;
+		}
 
-		// StartVolume の変更を MangaSeries に反映
-		this.StartVolume
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.StartVolume = value;
-			})
-			.AddTo(ref this.disposableBag);
+		// 1件なら既存作品候補として保持（エラーではない）
+		if (duplicates.Count == 1)
+		{
+			this.DuplicateSeriesFound.Value = duplicates[0];
+			return null;
+		}
 
-		// EndVolume の変更を MangaSeries に反映
-		this.EndVolume
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.EndVolume = value;
-			})
-			.AddTo(ref this.disposableBag);
-
-		// SeriesCompleted の変更を MangaSeries に反映
-		this.SeriesCompleted
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.SeriesCompleted = value;
-			})
-			.AddTo(ref this.disposableBag);
-
-		// IsOwnedCompleted の変更を MangaSeries に反映
-		this.IsOwnedCompleted
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.IsOwnedCompleted = value;
-			})
-			.AddTo(ref this.disposableBag);
-
-		// OwnedMaxVolume の変更を MangaSeries に反映
-		this.OwnedMaxVolume
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.OwnedMaxVolume = value ?? 0;
-			})
-			.AddTo(ref this.disposableBag);
-
-		// BoundEndVolume の変更を MangaSeries に反映
-		this.BoundEndVolume
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.BoundEndVolume = value ?? 0;
-			})
-			.AddTo(ref this.disposableBag);
-
-		// Description の変更を MangaSeries に反映
-		this.Description
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.Description = value ?? string.Empty;
-			})
-			.AddTo(ref this.disposableBag);
-
-		// Memo の変更を MangaSeries に反映
-		this.Memo
-			.Subscribe(value =>
-			{
-				if (this.EditingSeries.Value != null)
-					this.EditingSeries.Value.Memo = value ?? string.Empty;
-			})
-			.AddTo(ref this.disposableBag);
+		// 2件以上ならエラー
+		this.DuplicateSeriesFound.Value = null;
+		return "同じタイトルの作品が複数見つかりました。";
 	}
 
 	/// <summary>

@@ -174,7 +174,7 @@
                                 Grid.Column="1"
                                 InputMethod.PreferredImeState="On"
                                 Margin="0,0,0,8"
-                                Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                 behaviors:FocusOnChangedBehavior.Request="{Binding TitleFocusRequest.Value}"
                                 PlaceholderText="作品のタイトルを入力してください" />
 

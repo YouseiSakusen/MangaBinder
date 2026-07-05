@@ -15,6 +15,9 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>変更検知の基準となる初期フォルダ一覧を保持するフィールドです。</summary>
 	private List<SourceFolderRecord> initialFolders = [];
 
+	/// <summary>ワークサムネイルフォルダ名の定数です。</summary>
+	public const string WorkThumbnailFolderName = "wk";
+
 	/// <summary>SQLite データベースへの接続文字列を取得します。</summary>
 	public required string ConnectionString { get; init; }
 
@@ -26,6 +29,10 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 
 	/// <summary>サムネイル画像の保存先フォルダパスを取得します。</summary>
 	public BindableReactiveProperty<string> ThumbnailFolderPath { get; }
+
+	/// <summary>ワークサムネイル画像の保存先フォルダパスを取得します。</summary>
+	public string WorkThumbnailFolderPath =>
+		Path.Combine(this.ThumbnailFolderPath.Value, WorkThumbnailFolderName);
 
 	/// <summary>サムネイル画像の幅（ピクセル）を取得します。</summary>
 	public BindableReactiveProperty<int> ThumbnailWidth { get; }
@@ -204,6 +211,14 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 
 		return $"{prefix}{numberPart}{suffix}";
 	}
+
+	/// <summary>
+	/// 指定されたファイル名のワークサムネイルフルパスを生成します。
+	/// </summary>
+	/// <param name="fileName">ファイル名（拡張子含む）。</param>
+	/// <returns>ワークサムネイルファイルのフルパス。</returns>
+	public string GetWorkThumbnailFullPath(string fileName) =>
+		Path.Combine(this.WorkThumbnailFolderPath, fileName);
 
 	/// <summary>
 	/// 現在の <see cref="SourceFolders"/> の状態をスナップショットとして保存し、初期状態を確定します。

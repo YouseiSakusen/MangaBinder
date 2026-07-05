@@ -164,6 +164,36 @@ public class MangaSeriesManager
 	}
 
 	/// <summary>
+	/// 指定されたタイトルと同じタイトルを持つ作品を検索します。
+	/// 対象は MergedSeriesList（正式作品＋登録待ち作品）です。
+	/// 検索は正規化タイトルの完全一致で行います。
+	/// </summary>
+	/// <param name="title">検索するタイトル。</param>
+	/// <returns>同一タイトルの作品リスト。タイトルが null または空白の場合は空リスト。</returns>
+	public IReadOnlyList<MangaSeries> FindSameTitle(string? title)
+	{
+		// title が null、空文字、または空白のみの場合は空リストを返す
+		if (string.IsNullOrWhiteSpace(title))
+			return new List<MangaSeries>();
+
+		// 入力タイトルを正規化
+		var normalizedTitle = MangaTitleHelper.NormalizeTitleInternal(title);
+
+		// 正規化後に空になった場合は空リストを返す
+		if (string.IsNullOrEmpty(normalizedTitle))
+			return new List<MangaSeries>();
+
+		// MergedSeriesList から検索（正規化タイトルの完全一致）
+		var mergedSeries = this.mangaSeriesStore.GetMergedSeries();
+
+		var results = mergedSeries
+			.Where(series => series.NormalizedTitleInternal == normalizedTitle)
+			.ToList();
+
+		return results;
+	}
+
+	/// <summary>
 	/// 指定された作品の編集セッションを開始します。
 	/// 編集開始時点の作品状態を DeepCopy して保持し、
 	/// 後で変更判定や比較処理などに使用できるようにします。
