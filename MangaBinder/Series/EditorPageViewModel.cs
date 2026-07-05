@@ -1,6 +1,7 @@
 using MangaBinder.Bindings;
 using R3;
 using Reactive.Bindings.R3;
+using System.Collections.ObjectModel;
 
 namespace MangaBinder.Series;
 
@@ -29,22 +30,16 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	public BindableReactiveProperty<string?> Publisher { get; }
 
 	/// <summary>開始巻を取得または設定します。</summary>
-	public BindableReactiveProperty<int> StartVolume { get; }
+	public BindableReactiveProperty<double> StartVolume { get; }
 
-	/// <summary>完結巻を取得または設定します。</summary>
-	public BindableReactiveProperty<int> EndVolume { get; }
-
-	/// <summary>シリーズが完結しているかどうかを取得または設定します。</summary>
-	public BindableReactiveProperty<bool> SeriesCompleted { get; }
+	/// <summary>完結巻を取得または設定します。null の場合は未入力です。</summary>
+	public BindableReactiveProperty<double?> EndVolume { get; }
 
 	/// <summary>全巻所持しているかどうかを取得または設定します。</summary>
 	public BindableReactiveProperty<bool> IsOwnedCompleted { get; }
 
 	/// <summary>所持推定巻数を取得または設定します。</summary>
-	public BindableReactiveProperty<int?> OwnedMaxVolume { get; }
-
-	/// <summary>製本済み巻数を取得または設定します。</summary>
-	public BindableReactiveProperty<int?> BoundEndVolume { get; }
+	public BindableReactiveProperty<double?> OwnedMaxVolume { get; }
 
 	/// <summary>説明を取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Description { get; }
@@ -52,11 +47,20 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	/// <summary>メモを取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Memo { get; }
 
-	/// <summary>全巻所持が編集可能かどうかを取得します。完結巻が 0 ではない場合のみ編集可能です。</summary>
-	public ReadOnlyReactiveProperty<bool> CanEditOwnedCompleted { get; }
+	/// <summary>全巻所持が編集可能かどうかを取得または設定します。完結巻が null ではない場合のみ編集可能です。</summary>
+	public BindableReactiveProperty<bool> CanEditOwnedCompleted { get; }
 
 	/// <summary>タイトル入力欄へのフォーカス要求を取得します。</summary>
 	public BindableReactiveProperty<int> TitleFocusRequest { get; }
+
+	/// <summary>素材ファイル一覧を取得します。</summary>
+	public ObservableCollection<MaterialFileItemViewModel> MaterialFiles { get; }
+
+	/// <summary>素材ファイル一覧のヘッダー表示用文字列を取得します。</summary>
+	public BindableReactiveProperty<string> MaterialFilesDisplay { get; }
+
+	/// <summary>完結巻入力中テキストを処理し、CanEditOwnedCompleted を制御するコマンドを取得します。</summary>
+	public ReactiveCommand<string?> EndVolumeTextInputCommand { get; }
 
 	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
@@ -84,22 +88,16 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 		this.Publisher = new BindableReactiveProperty<string?>(null)
 			.AddTo(ref this.disposableBag);
 
-		this.StartVolume = new BindableReactiveProperty<int>(1)
+		this.StartVolume = new BindableReactiveProperty<double>(1.0)
 			.AddTo(ref this.disposableBag);
 
-		this.EndVolume = new BindableReactiveProperty<int>(0)
-			.AddTo(ref this.disposableBag);
-
-		this.SeriesCompleted = new BindableReactiveProperty<bool>(false)
+		this.EndVolume = new BindableReactiveProperty<double?>(null)
 			.AddTo(ref this.disposableBag);
 
 		this.IsOwnedCompleted = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
-		this.OwnedMaxVolume = new BindableReactiveProperty<int?>(null)
-			.AddTo(ref this.disposableBag);
-
-		this.BoundEndVolume = new BindableReactiveProperty<int?>(null)
+		this.OwnedMaxVolume = new BindableReactiveProperty<double?>(null)
 			.AddTo(ref this.disposableBag);
 
 		this.Description = new BindableReactiveProperty<string?>(null)
@@ -108,14 +106,56 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 		this.Memo = new BindableReactiveProperty<string?>(null)
 			.AddTo(ref this.disposableBag);
 
-		// CanEditOwnedCompleted: EndVolume が 0 ではない場合のみ true
-		this.CanEditOwnedCompleted = this.EndVolume
-			.Select(e => e != 0)
-			.ToReadOnlyReactiveProperty()
+		// CanEditOwnedCompleted: EndVolume が null ではない場合のみ true
+		this.CanEditOwnedCompleted = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		// EndVolume の変更を監視し、CanEditOwnedCompleted を制御
+		this.EndVolume
+			.Subscribe(endVolume =>
+			{
+				if (endVolume == null)
+				{
+					// 完結巻が null になった場合
+					this.CanEditOwnedCompleted.Value = false;
+					this.IsOwnedCompleted.Value = false;
+				}
+				else
+				{
+					// 完結巻が入力された場合
+					this.CanEditOwnedCompleted.Value = true;
+				}
+			})
 			.AddTo(ref this.disposableBag);
 
 		this.TitleFocusRequest = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
+
+		this.MaterialFiles = new ObservableCollection<MaterialFileItemViewModel>();
+
+		// MaterialFilesDisplay: MaterialFiles.Count に基づいて表示文字列を生成
+		// 初期値を設定し、XAML で Count にバインドして表示内容を切り替えるアプローチに変更
+		this.MaterialFilesDisplay = new BindableReactiveProperty<string>(this.getMaterialFilesDisplayText())
+			.AddTo(ref this.disposableBag);
+
+		// EndVolumeTextInputCommand: 完結巻入力中テキストを処理するコマンド
+		this.EndVolumeTextInputCommand = new ReactiveCommand<string?>()
+			.AddTo(ref this.disposableBag);
+		this.EndVolumeTextInputCommand.Subscribe(text =>
+		{
+			this.HandleEndVolumeTextInput(text);
+		});
+	}
+
+	/// <summary>
+	/// 素材ファイル一覧のヘッダー表示文字列を取得します。
+	/// </summary>
+	/// <returns>0件の場合は "素材ファイル　無し"、1件以上の場合は "素材ファイル　{Count}件"。</returns>
+	private string getMaterialFilesDisplayText()
+	{
+		return this.MaterialFiles.Count == 0
+			? "素材ファイル　無し"
+			: $"素材ファイル　{this.MaterialFiles.Count}件";
 	}
 
 	/// <summary>
@@ -141,12 +181,10 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 			this.DuplicateSeriesFound.Value = null;
 			this.Author.Value = editingSeries.Author;
 			this.Publisher.Value = editingSeries.Publisher;
-			this.StartVolume.Value = editingSeries.StartVolume;
-			this.EndVolume.Value = editingSeries.EndVolume;
-			this.SeriesCompleted.Value = editingSeries.SeriesCompleted;
+			this.StartVolume.Value = (double)editingSeries.StartVolume;
+			this.EndVolume.Value = editingSeries.EndVolume > 0 ? (double)editingSeries.EndVolume : null;
 			this.IsOwnedCompleted.Value = editingSeries.IsOwnedCompleted;
-			this.OwnedMaxVolume.Value = editingSeries.OwnedMaxVolume > 0 ? editingSeries.OwnedMaxVolume : null;
-			this.BoundEndVolume.Value = editingSeries.BoundEndVolume > 0 ? editingSeries.BoundEndVolume : null;
+			this.OwnedMaxVolume.Value = editingSeries.OwnedMaxVolume > 0 ? (double)editingSeries.OwnedMaxVolume : null;
 			this.Description.Value = editingSeries.Description;
 			this.Memo.Value = editingSeries.Memo;
 
@@ -206,6 +244,33 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 		}
 
 		return ValueTask.CompletedTask;
+	}
+
+	/// <summary>
+	/// 完結巻入力中のテキストを処理し、UI 制御状態を更新します。
+	/// </summary>
+	/// <param name="text">NumberBox から入力されたテキスト。</param>
+	private void HandleEndVolumeTextInput(string? text)
+	{
+		// テキストが空または null である、または数値として解釈できない場合
+		if (string.IsNullOrEmpty(text) || !double.TryParse(text, out var value))
+		{
+			this.CanEditOwnedCompleted.Value = false;
+			this.IsOwnedCompleted.Value = false;
+			return;
+		}
+
+		// 値が 1 以上である場合、CanEditOwnedCompleted を有効化
+		if (value >= 1)
+		{
+			this.CanEditOwnedCompleted.Value = true;
+		}
+		else
+		{
+			// 値が 1 未満である場合
+			this.CanEditOwnedCompleted.Value = false;
+			this.IsOwnedCompleted.Value = false;
+		}
 	}
 
 	/// <inheritdoc/>

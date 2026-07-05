@@ -20,9 +20,6 @@
 
     <Page.Resources>
 
-        <!-- NodeType ごとのアイコン文字 (Segoe UI Emoji) -->
-        <converters:NodeTypeToIconConverter x:Key="NodeTypeToIconConverter" />
-
         <!-- NodeType ごとの SymbolIcon Symbol 名 -->
         <converters:NodeTypeToSymbolConverter x:Key="NodeTypeToSymbolConverter" />
 
@@ -590,11 +587,12 @@
                                         FontSize="12"
                                         VerticalAlignment="Center" />
                                     <!-- 種別アイコン -->
-                                    <TextBlock
+                                    <ui:SymbolIcon
                                         Grid.Column="1"
-                                        Text="{Binding SourceNode.NodeType, Converter={StaticResource NodeTypeToIconConverter}}"
-                                        FontFamily="Segoe UI Emoji"
-                                        FontSize="13"
+                                        Symbol="{Binding SourceNode.NodeType, Converter={StaticResource NodeTypeToSymbolConverter}}"
+                                        Filled="{Binding SourceNode, Converter={StaticResource NodeTypeToFilledConverter}}"
+                                        FontSize="16"
+                                        Foreground="{Binding SourceNode.NodeType, Converter={StaticResource NodeTypeToColorConverter}}"
                                         ToolTip="{Binding SourceTypeText}"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center" />

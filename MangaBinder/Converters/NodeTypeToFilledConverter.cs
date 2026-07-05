@@ -5,34 +5,54 @@ using MangaBinder.Bindings;
 namespace MangaBinder.Converters;
 
 /// <summary>
-/// <see cref="MaterialVolumeNode"/> に基づいて、ui:SymbolIcon の Filled 属性値を決定するマルチコンバーターです。
+/// <see cref="MaterialVolumeNode"/> または <see cref="MaterialItemType"/> に基づいて、ui:SymbolIcon の Filled 属性値を決定するコンバーターです。
 /// 実フォルダと圧縮ファイル内フォルダを見分けやすくするために使用されます。
 /// </summary>
-[ValueConversion(typeof(MaterialVolumeNode), typeof(bool))]
+[ValueConversion(typeof(object), typeof(bool))]
 public class NodeTypeToFilledConverter : IValueConverter
 {
 	/// <inheritdoc/>
 	public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
 	{
-		if (value is not MaterialVolumeNode node)
-			return false;
-
-		return node.NodeType switch
+		// MaterialVolumeNode の場合
+		if (value is MaterialVolumeNode node)
 		{
-			// Root は常に Filled = true（実フォルダルート）
-			MaterialItemType.Root => true,
+			return node.NodeType switch
+			{
+				// Root は常に Filled = true（実フォルダルート）
+				MaterialItemType.Root => true,
 
-			// Folder の場合、ArchiveEntryPrefix で判別
-			// null = 実フォルダ → Filled = true
-			// not null = 圧縮ファイル内フォルダ → Filled = false
-			MaterialItemType.Folder => node.ArchiveEntryPrefix == null,
+				// Folder の場合、ArchiveEntryPrefix で判別
+				// null = 実フォルダ → Filled = true
+				// not null = 圧縮ファイル内フォルダ → Filled = false
+				MaterialItemType.Folder => node.ArchiveEntryPrefix == null,
 
-			// Archive / Epub は Filled = true（実体を持つもの）
-			MaterialItemType.Archive => true,
-			MaterialItemType.Epub => true,
+				// Archive / Epub は Filled = true（実体を持つもの）
+				MaterialItemType.Archive => true,
+				MaterialItemType.Epub => true,
 
-			_ => false,
-		};
+				_ => false,
+			};
+		}
+
+		// MaterialItemType を直接受け取った場合
+		if (value is MaterialItemType itemType)
+		{
+			return itemType switch
+			{
+				// Root / Archive / Epub は常に Filled = true
+				MaterialItemType.Root => true,
+				MaterialItemType.Archive => true,
+				MaterialItemType.Epub => true,
+
+				// Folder はデータソースから判別できないため、Filled = true として表示
+				MaterialItemType.Folder => true,
+
+				_ => false,
+			};
+		}
+
+		return false;
 	}
 
 	/// <inheritdoc/>
