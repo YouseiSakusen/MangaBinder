@@ -364,7 +364,7 @@ public class FolderScannerRepository : IFolderScannerRepository
             var deleteEntriesSql = new StringBuilder();
             deleteEntriesSql.AppendLine(" DELETE FROM MaterialArchiveEntries ");
             deleteEntriesSql.AppendLine(" WHERE MaterialArchiveId IN ( ");
-            deleteEntriesSql.AppendLine(" 	SELECT Id FROM MaterialArchives ");
+            deleteEntriesSql.AppendLine(" 	SELECT MaterialArchiveId FROM MaterialArchives ");
             deleteEntriesSql.AppendLine(" 	WHERE SourceId IN :SourceIds ");
             deleteEntriesSql.AppendLine(" ); ");
             await conn.ExecuteAsync(deleteEntriesSql.ToString(), new { SourceIds = sourceIdsToDelete }, tx);

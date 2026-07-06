@@ -166,7 +166,6 @@
                                 <Run Text=" *" Foreground="Red" />
                             </TextBlock>
                             <ui:TextBox
-                                x:Name="TitleTextBox"
                                 Grid.Row="0"
                                 Grid.Column="1"
                                 InputMethod.PreferredImeState="On"
@@ -193,7 +192,6 @@
 
                                 <!-- 作者 -->
                                 <ui:TextBox
-                                    x:Name="AuthorTextBox"
                                     Grid.Column="0"
                                     InputMethod.PreferredImeState="On"
                                     Text="{Binding Author.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -210,7 +208,6 @@
 
                                 <!-- 出版社 -->
                                 <ui:TextBox
-                                    x:Name="PublisherTextBox"
                                     Grid.Column="2"
                                     InputMethod.PreferredImeState="On"
                                     Text="{Binding Publisher.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -252,7 +249,6 @@
 
                         <!-- あらすじ -->
                         <ui:TextBox
-                            x:Name="DescriptionTextBox"
                             Grid.Row="1"
                             Grid.Column="0"
                             InputMethod.PreferredImeState="On"
@@ -266,7 +262,6 @@
 
                         <!-- メモ -->
                         <ui:TextBox
-                            x:Name="MemoTextBox"
                             Grid.Row="1"
                             Grid.Column="1"
                             InputMethod.PreferredImeState="On"
@@ -340,7 +335,6 @@
 
                             <!-- Column 1: EndVolumeNumberBox -->
                             <ui:NumberBox
-                                x:Name="EndVolumeNumberBox"
                                 Grid.Column="1"
                                 Value="{Binding EndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 behaviors:NumberBoxTextChangedBehavior.Command="{Binding EndVolumeTextInputCommand}"
@@ -357,7 +351,6 @@
 
                             <!-- Column 3: 全巻所持チェック -->
                             <CheckBox
-                                x:Name="IsOwnedCompletedCheckBox"
                                 Grid.Column="3"
                                 IsChecked="{Binding IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 IsEnabled="{Binding CanEditOwnedCompleted.Value}"
@@ -387,7 +380,6 @@
 
                             <!-- Column 7: StartVolumeNumberBox -->
                             <ui:NumberBox
-                                x:Name="StartVolumeNumberBox"
                                 Grid.Column="7"
                                 Value="{Binding StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Width="120"
@@ -422,7 +414,6 @@
 
                         <!-- 所持推定入力 -->
                         <ui:NumberBox
-                            x:Name="OwnedMaxVolumeNumberBox"
                             Grid.Column="1"
                             Value="{Binding OwnedMaxVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             PlaceholderText="0"
