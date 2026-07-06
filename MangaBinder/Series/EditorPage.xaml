@@ -7,6 +7,7 @@
       xmlns:local="clr-namespace:MangaBinder.Series"
       xmlns:controls="clr-namespace:MangaBinder.Controls"
       xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
+      xmlns:extensions="clr-namespace:MangaBinder.Extensions"
       mc:Ignorable="d"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="作品編集"
@@ -65,28 +66,29 @@
             <!-- ══════════════════════════════════ -->
             <!-- 左パネル：サムネイル・巻数・ボタン   -->
             <!-- ══════════════════════════════════ -->
-            <ui:Card Grid.Column="0" VerticalAlignment="Top" Padding="12,14" Margin="0,0,12,0">
+            <ui:Card Grid.Column="0" VerticalAlignment="Top" Padding="12,12" Margin="40,0,40,0">
                 <StackPanel>
                     <!-- サムネイル表示領域 -->
                     <Border
-                        Height="220"
-                        Margin="0,0,0,12"
+                        Width="160"
+                        Height="224"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,8"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
                         CornerRadius="4"
-                        BorderThickness="1"
-                        BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                        Background="{DynamicResource ControlFillColorDefaultBrush}">
-                        <TextBlock
-                            Text="サムネイル表示予定地"
-                            FontSize="12"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        ClipToBounds="True">
+                        <Image
+                            Source="{Binding EditingSeries.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
+                            Width="160"
+                            Height="224"
+                            Stretch="UniformToFill"
+                            RenderOptions.BitmapScalingMode="HighQuality" />
                     </Border>
 
                     <!-- 巻数情報表示領域 -->
                     <controls:SeriesVolumeStatus
                         HorizontalAlignment="Center"
-                        Margin="0,0,0,12"
+                        Margin="0,0,0,10"
                         DataContext="{Binding VolumeStatus.DisplayStatus.Value}" />
 
                     <!-- 「貼り付け」「参照」ボタン配置予定領域 -->
@@ -266,16 +268,8 @@
                             PlaceholderText="メモを入力してください" />
                     </Grid>
 
-                    <!-- ── Row2：タグ・素材エリア ── -->
-                    <StackPanel Grid.Row="2">
-                        <TextBlock
-                            Text="タグ編集予定地"
-                            FontSize="12"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                            Margin="0,0,0,8" />
-                    </StackPanel>
-                </Grid>
-            </ui:Card>
+                        </Grid>
+                    </ui:Card>
 
             <!-- ── 巻情報カード ── -->
             <ui:Card VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
@@ -472,6 +466,96 @@
                         </ListView.View>
                     </ListView>
                 </StackPanel>
+            </ui:Card>
+
+            <!-- ── タグカード ── -->
+            <ui:Card VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- ヘッダー -->
+                    <TextBlock
+                        Grid.Row="0"
+                        Text="タグ"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                        Margin="0,0,0,8" />
+
+                    <!-- タグ選択エリア -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- + タグ ボタン -->
+                        <StackPanel Grid.Column="0" VerticalAlignment="Bottom" Margin="0,0,12,0">
+                            <ToggleButton
+                                x:Name="TagToggleButton"
+                                Padding="6,2"
+                                FontSize="11"
+                                Content="⊕ タグを設定"
+                                Cursor="Hand"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                BorderThickness="0"
+                                Command="{Binding PrepareTagPopupCommand}" />
+
+                            <!-- Popup: タグ選択チェックボックス一覧 -->
+                            <Popup
+                                x:Name="TagPopup"
+                                PlacementTarget="{Binding ElementName=TagToggleButton}"
+                                Placement="Top"
+                                IsOpen="{Binding IsChecked, ElementName=TagToggleButton, Mode=TwoWay}"
+                                StaysOpen="False"
+                                AllowsTransparency="True"
+                                PopupAnimation="Fade">
+                                <Border
+                                    Background="{DynamicResource ApplicationBackgroundBrush}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                    MinWidth="280"
+                                    MaxWidth="420"
+                                    MaxHeight="250">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <controls:SeriesTagSelector
+                                            ItemsSource="{Binding SelectableTagsForPopup}"
+                                            Columns="{Binding TagSelectionColumns}"
+                                            Rows="{Binding TagSelectionRows}"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </StackPanel>
+
+                        <!-- 選択済みタグ表示エリア -->
+                        <ItemsControl Grid.Column="1" ItemsSource="{Binding EditingTagsCollection.Value}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border
+                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                        CornerRadius="4"
+                                        Padding="6,2"
+                                        Margin="4,2">
+                                        <TextBlock
+                                            Text="{Binding Name}"
+                                            FontSize="12"
+                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </Grid>
             </ui:Card>
         </StackPanel>
 

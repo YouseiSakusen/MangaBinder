@@ -504,7 +504,7 @@
                                                 Command="{Binding DataContext.PrepareTagPopupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                 CommandParameter="{Binding Series}" />
 
-                                            <!-- Popup: タグ選択チェックボックス一覧（3列表示） -->
+                                            <!-- Popup: タグ選択チェックボックス一覧 -->
                                             <Popup
                                                 x:Name="TagPopup"
                                                 PlacementTarget="{Binding ElementName=TagToggleButton}"
@@ -523,27 +523,10 @@
                                                     MaxWidth="420"
                                                     MaxHeight="250">
                                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                                        <ItemsControl
-                                                            ItemsSource="{Binding Data.SelectableTagsForPopup, Source={StaticResource VmProxy}}">
-                                                            <ItemsControl.ItemsPanel>
-                                                                <ItemsPanelTemplate>
-                                                                    <UniformGrid Columns="2"
-                                                                                 Rows="6"/>
-                                                                </ItemsPanelTemplate>
-                                                            </ItemsControl.ItemsPanel>
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <CheckBox
-                                                                        Content="{Binding Tag.Name}"
-                                                                        IsChecked="{Binding IsChecked, Mode=TwoWay}"
-                                                                        FontSize="12"
-                                                                        Padding="4,1"
-                                                                        Margin="4,2"
-                                                                        VerticalAlignment="Center"
-                                                                        MinHeight="0" />
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
+                                                        <controls:SeriesTagSelector
+                                                            ItemsSource="{Binding Data.SelectableTagsForPopup, Source={StaticResource VmProxy}}"
+                                                            Columns="{Binding Data.TagSelectionColumns, Source={StaticResource VmProxy}}"
+                                                            Rows="{Binding Data.TagSelectionRows, Source={StaticResource VmProxy}}"/>
                                                     </ScrollViewer>
                                                 </Border>
                                             </Popup>

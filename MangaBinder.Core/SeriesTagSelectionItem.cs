@@ -13,6 +13,7 @@ public sealed class SeriesTagSelectionItem : INotifyPropertyChanged
 	public MangaTag Tag { get; }
 
 	private bool isChecked;
+	private bool isPlaceholder;
 
 	/// <summary>このタグが対象作品に付与されているかどうかを取得または設定します。</summary>
 	public bool IsChecked
@@ -27,6 +28,19 @@ public sealed class SeriesTagSelectionItem : INotifyPropertyChanged
 		}
 	}
 
+	/// <summary>このアイテムがプレースホルダー（空セル）かどうかを取得または設定します。</summary>
+	public bool IsPlaceholder
+	{
+		get => this.isPlaceholder;
+		set
+		{
+			if (this.isPlaceholder == value)
+				return;
+			this.isPlaceholder = value;
+			this.OnPropertyChanged();
+		}
+	}
+
 	/// <summary>
 	/// <see cref="SeriesTagSelectionItem"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -36,6 +50,7 @@ public sealed class SeriesTagSelectionItem : INotifyPropertyChanged
 	{
 		this.Tag = tag;
 		this.isChecked = isChecked;
+		this.isPlaceholder = false;
 	}
 
 	/// <inheritdoc/>

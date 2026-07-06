@@ -5,6 +5,9 @@
     <Compile Update="Controls\ExistingSeriesDialogContent.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="Controls\SeriesTagSelector.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Update="Controls\SeriesVolumeStatus.xaml.cs">
       <SubType>Code</SubType>
     </Compile>

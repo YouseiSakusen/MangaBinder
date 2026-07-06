@@ -1,5 +1,6 @@
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
+using MangaBinder.Tags;
 using R3;
 using Reactive.Bindings.R3;
 using System.Collections.ObjectModel;
@@ -17,6 +18,7 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	private readonly SeriesWorkspaceStore workspaceStore;
 	private readonly IContentDialogService contentDialogService;
 	private readonly INavigationService navigationService;
+	private readonly MangaSeriesStore mangaSeriesStore;
 	private DisposableBag disposableBag;
 
 	/// <summary>編集対象の Series を取得します。</summary>
@@ -71,20 +73,51 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	public EditorSeriesVolumeStatusViewModel VolumeStatus { get; }
 
 	/// <summary>
+	/// Editor で選択可能なタグ一覧（ポップアップ用チェックボックスリスト）を取得します。
+	/// </summary>
+	public ObservableCollection<SeriesTagSelectionItem> SelectableTagsForPopup { get; } = new();
+
+	/// <summary>
+	/// タグ選択ポップアップの列数を取得します。
+	/// </summary>
+	public int TagSelectionColumns { get; private set; } = 2;
+
+	/// <summary>
+	/// タグ選択ポップアップの行数を取得します。
+	/// </summary>
+	public int TagSelectionRows { get; private set; }
+
+	/// <summary>
+	/// 編集中の作品に付与されているタグを取得します。
+	/// </summary>
+	public BindableReactiveProperty<ObservableCollection<MangaTag>> EditingTagsCollection { get; }
+
+	/// <summary>
+	/// タグポップアップを開く前に、対象作品のチェック状態を準備するコマンドです。
+	/// </summary>
+	public ReactiveCommand<Unit> PrepareTagPopupCommand { get; }
+
+	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="seriesManager">作品管理マネージャー。</param>
 	/// <param name="workspaceStore">作業領域ストア。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
-	public EditorPageViewModel(MangaSeriesManager seriesManager, SeriesWorkspaceStore workspaceStore, IContentDialogService contentDialogService, INavigationService navigationService)
+	/// <param name="mangaSeriesStore">作品タグストア。</param>
+	public EditorPageViewModel(MangaSeriesManager seriesManager, SeriesWorkspaceStore workspaceStore, IContentDialogService contentDialogService, INavigationService navigationService, MangaSeriesStore mangaSeriesStore)
 	{
 		this.seriesManager = seriesManager ?? throw new ArgumentNullException(nameof(seriesManager));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
 		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
 		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
+		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
+			.AddTo(ref this.disposableBag);
+
+		// 編集中タグコレクションの初期化
+		this.EditingTagsCollection = new BindableReactiveProperty<ObservableCollection<MangaTag>>(new ObservableCollection<MangaTag>())
 			.AddTo(ref this.disposableBag);
 
 		this.DuplicateSeriesFound = new BindableReactiveProperty<MangaSeries?>(null)
@@ -172,6 +205,14 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 			this.HandleEndVolumeTextInput(text);
 		});
 
+		// タグポップアップコマンド
+		this.PrepareTagPopupCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.PrepareTagPopupCommand.Subscribe(_ =>
+		{
+			this.PrepareTagPopup();
+		});
+
 		// VolumeStatus: 巻情報編集用ViewModel
 		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
 			.AddTo(ref this.disposableBag);
@@ -216,6 +257,9 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 
 			// 巻情報を VolumeStatus に読み込み
 			this.VolumeStatus.LoadFromSeries(editingSeries);
+
+			// 編集対象作品のタグをコピー
+			this.EditingTagsCollection.Value = new ObservableCollection<MangaTag>(editingSeries.Tags);
 
 			// タイトル入力欄へのフォーカスを要求
 			this.TitleFocusRequest.Value++;
@@ -344,6 +388,81 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 			this.DuplicateSeriesFound.Value = null;
 			// ナビゲーションで MaintenancePage へ戻る
 			this.navigationService.Navigate(typeof(MaintenancePage));
+		}
+	}
+
+	/// <summary>
+	/// タグポップアップ用のタグ一覧を準備します。
+	/// </summary>
+	private void PrepareTagPopup()
+	{
+		this.SelectableTagsForPopup.Clear();
+		var tags = this.mangaSeriesStore.GetTags()
+			.OrderByDescending(t => t.DisplayOrder)
+			.ThenByDescending(t => t.TagId)
+			.ToList();
+
+		// プレースホルダーセルを計算
+		var tagCount = tags.Count;
+		var columns = this.TagSelectionColumns;
+		var placeholderCount = (columns - (tagCount % columns)) % columns;
+
+		// プレースホルダーを先頭に追加
+		for (var i = 0; i < placeholderCount; i++)
+		{
+			var placeholderItem = new SeriesTagSelectionItem(null!, false)
+			{
+				IsPlaceholder = true
+			};
+			this.SelectableTagsForPopup.Add(placeholderItem);
+		}
+
+		// 実際のタグを追加
+		foreach (var tag in tags)
+		{
+			var isChecked = this.EditingTagsCollection.Value.Any(t => t.TagId == tag.TagId);
+			var item = new SeriesTagSelectionItem(tag, isChecked);
+			item.PropertyChanged += (_, e) =>
+			{
+				if (e.PropertyName != nameof(SeriesTagSelectionItem.IsChecked))
+					return;
+				this.ApplyTagToEditingSeries(tag, item.IsChecked);
+			};
+			this.SelectableTagsForPopup.Add(item);
+		}
+
+		// 行数を計算
+		this.TagSelectionRows = (tagCount + placeholderCount + columns - 1) / columns;
+	}
+
+	/// <summary>
+	/// タグの選択状態を編集中の作品に反映します。
+	/// </summary>
+	/// <param name="tag">対象タグ。</param>
+	/// <param name="isChecked">チェック状態。</param>
+	private void ApplyTagToEditingSeries(MangaTag tag, bool isChecked)
+	{
+		if (this.EditingSeries.Value == null)
+			return;
+
+		if (isChecked)
+		{
+			// タグを追加
+			if (!this.EditingTagsCollection.Value.Any(t => t.TagId == tag.TagId))
+			{
+				this.EditingTagsCollection.Value.Add(tag);
+				this.EditingSeries.Value.Tags.Add(tag);
+			}
+		}
+		else
+		{
+			// タグを削除
+			var tagToRemove = this.EditingTagsCollection.Value.FirstOrDefault(t => t.TagId == tag.TagId);
+			if (tagToRemove != null)
+			{
+				this.EditingTagsCollection.Value.Remove(tagToRemove);
+				this.EditingSeries.Value.Tags.Remove(tagToRemove);
+			}
 		}
 	}
 

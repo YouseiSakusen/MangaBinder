@@ -77,6 +77,16 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     public ObservableCollection<SeriesTagSelectionItem> SelectableTagsForPopup { get; } = new();
 
     /// <summary>
+    /// タグ選択ポップアップの列数を取得します。
+    /// </summary>
+    public int TagSelectionColumns { get; private set; } = 2;
+
+    /// <summary>
+    /// タグ選択ポップアップの行数を取得します。
+    /// </summary>
+    public int TagSelectionRows { get; private set; }
+
+    /// <summary>
     /// タグポップアップを開く前に、対象作品のチェック状態を準備するコマンドです。
     /// </summary>
     public ReactiveCommand<MangaSeries> PrepareTagPopupCommand { get; }
@@ -162,9 +172,28 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.PrepareTagPopupCommand.Subscribe(series =>
         {
             this.SelectableTagsForPopup.Clear();
-            foreach (var tag in this.mangaSeriesStore.GetTags()
+            var tags = this.mangaSeriesStore.GetTags()
                          .OrderByDescending(t => t.DisplayOrder)
-                         .ThenByDescending(t => t.TagId))
+                         .ThenByDescending(t => t.TagId)
+                         .ToList();
+
+            // プレースホルダーセルを計算
+            var tagCount = tags.Count;
+            var columns = this.TagSelectionColumns;
+            var placeholderCount = (columns - (tagCount % columns)) % columns;
+
+            // プレースホルダーを先頭に追加
+            for (var i = 0; i < placeholderCount; i++)
+            {
+                var placeholderItem = new SeriesTagSelectionItem(null!, false)
+                {
+                    IsPlaceholder = true
+                };
+                this.SelectableTagsForPopup.Add(placeholderItem);
+            }
+
+            // 実際のタグを追加
+            foreach (var tag in tags)
             {
                 var isChecked = series.Tags.Any(t => t.TagId == tag.TagId);
                 var item = new SeriesTagSelectionItem(tag, isChecked);
@@ -178,6 +207,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
                 };
                 this.SelectableTagsForPopup.Add(item);
             }
+
+            // 行数を計算
+            this.TagSelectionRows = (tagCount + placeholderCount + columns - 1) / columns;
         });
 
         this.OpenMaterialFolderCommand = new ReactiveCommand<MangaSource>()
