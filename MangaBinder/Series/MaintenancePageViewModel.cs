@@ -26,7 +26,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	private readonly MangaSeriesManager mangaSeriesManager;
 
 	/// <summary>表示用作品一覧の内部バッファ。</summary>
-	private readonly ObservableList<MangaSeries> displaySeriesSource = new();
+	private readonly ObservableList<SeriesCardViewModel> displaySeriesSource = new();
 
 	/// <summary>検索文字列を取得します。</summary>
 	public BindableReactiveProperty<string> SearchQuery { get; }
@@ -39,7 +39,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		=> this.mangaSeriesStore.GetWorkSeries();
 
 	/// <summary>表示する作品一覧を取得します。通常表示時は WorkSeries、検索表示時は検索結果。</summary>
-	public NotifyCollectionChangedSynchronizedViewList<MangaSeries> DisplaySeries { get; }
+	public NotifyCollectionChangedSynchronizedViewList<SeriesCardViewModel> DisplaySeries { get; }
 
 	/// <summary>検索結果が空であるかを取得します。</summary>
 	public BindableReactiveProperty<bool> IsSearchResultsEmpty { get; }
@@ -125,7 +125,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		// DisplaySeries に通常表示データを初期設定
 		this.displaySeriesSource.Clear();
-		this.displaySeriesSource.AddRange(workSeriesList);
+		this.displaySeriesSource.AddRange(workSeriesList.Select(s => new SeriesCardViewModel(s)));
 
 		// 検索結果表示フラグを false に初期化
 		this.IsSearchResultsShown.Value = false;
@@ -159,7 +159,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		{
 			// 検索文字列が空 → 通常表示へ戻す
 			this.displaySeriesSource.Clear();
-			this.displaySeriesSource.AddRange(this.WorkSeries);
+			this.displaySeriesSource.AddRange(this.WorkSeries.Select(s => new SeriesCardViewModel(s)));
 			this.IsSearchResultsShown.Value = false;
 		}
 		else
@@ -169,7 +169,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 			// DisplaySeries に検索結果を設定
 			this.displaySeriesSource.Clear();
-			this.displaySeriesSource.AddRange(results);
+			this.displaySeriesSource.AddRange(results.Select(s => new SeriesCardViewModel(s)));
 
 			// 検索結果表示フラグを設定
 			this.IsSearchResultsShown.Value = true;
@@ -195,7 +195,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		// DisplaySeries を通常表示へ戻す
 		this.displaySeriesSource.Clear();
-		this.displaySeriesSource.AddRange(this.WorkSeries);
+		this.displaySeriesSource.AddRange(this.WorkSeries.Select(s => new SeriesCardViewModel(s)));
 
 		// 検索結果表示フラグを false に設定
 		this.IsSearchResultsShown.Value = false;

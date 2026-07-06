@@ -1,7 +1,10 @@
 using MangaBinder.Bindings;
+using MangaBinder.Controls;
 using R3;
 using Reactive.Bindings.R3;
 using System.Collections.ObjectModel;
+using Wpf.Ui;
+using Wpf.Ui.Controls;
 
 namespace MangaBinder.Series;
 
@@ -12,6 +15,8 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 {
 	private readonly MangaSeriesManager seriesManager;
 	private readonly SeriesWorkspaceStore workspaceStore;
+	private readonly IContentDialogService contentDialogService;
+	private readonly INavigationService navigationService;
 	private DisposableBag disposableBag;
 
 	/// <summary>編集対象の Series を取得します。</summary>
@@ -62,20 +67,41 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	/// <summary>完結巻入力中テキストを処理し、CanEditOwnedCompleted を制御するコマンドを取得します。</summary>
 	public ReactiveCommand<string?> EndVolumeTextInputCommand { get; }
 
+	/// <summary>巻情報編集用の ViewModel を取得します。</summary>
+	public EditorSeriesVolumeStatusViewModel VolumeStatus { get; }
+
 	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="seriesManager">作品管理マネージャー。</param>
 	/// <param name="workspaceStore">作業領域ストア。</param>
-	public EditorPageViewModel(MangaSeriesManager seriesManager, SeriesWorkspaceStore workspaceStore)
+	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
+	/// <param name="navigationService">ナビゲーションサービス。</param>
+	public EditorPageViewModel(MangaSeriesManager seriesManager, SeriesWorkspaceStore workspaceStore, IContentDialogService contentDialogService, INavigationService navigationService)
 	{
 		this.seriesManager = seriesManager ?? throw new ArgumentNullException(nameof(seriesManager));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
+		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
+		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
 
 		this.DuplicateSeriesFound = new BindableReactiveProperty<MangaSeries?>(null)
+			.AddTo(ref this.disposableBag);
+
+		// DuplicateSeriesFound が非 null に更新された場合、既存作品ダイアログを表示
+		this.DuplicateSeriesFound
+			.Subscribe(duplicateSeries =>
+			{
+				if (duplicateSeries != null)
+				{
+					// 二重実行を防ぐため、即座に DuplicateSeriesFound をクリア
+					this.DuplicateSeriesFound.Value = null;
+					// 非同期で dialog を表示
+					_ = this.showExistingSeriesDialogAsync(duplicateSeries);
+				}
+			})
 			.AddTo(ref this.disposableBag);
 
 		this.Title = new ValidatableReactiveProperty<string?>(null)
@@ -145,6 +171,10 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 		{
 			this.HandleEndVolumeTextInput(text);
 		});
+
+		// VolumeStatus: 巻情報編集用ViewModel
+		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
+			.AddTo(ref this.disposableBag);
 	}
 
 	/// <summary>
@@ -181,12 +211,11 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 			this.DuplicateSeriesFound.Value = null;
 			this.Author.Value = editingSeries.Author;
 			this.Publisher.Value = editingSeries.Publisher;
-			this.StartVolume.Value = (double)editingSeries.StartVolume;
-			this.EndVolume.Value = editingSeries.EndVolume > 0 ? (double)editingSeries.EndVolume : null;
-			this.IsOwnedCompleted.Value = editingSeries.IsOwnedCompleted;
-			this.OwnedMaxVolume.Value = editingSeries.OwnedMaxVolume > 0 ? (double)editingSeries.OwnedMaxVolume : null;
 			this.Description.Value = editingSeries.Description;
 			this.Memo.Value = editingSeries.Memo;
+
+			// 巻情報を VolumeStatus に読み込み
+			this.VolumeStatus.LoadFromSeries(editingSeries);
 
 			// タイトル入力欄へのフォーカスを要求
 			this.TitleFocusRequest.Value++;
@@ -270,6 +299,51 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 			// 値が 1 未満である場合
 			this.CanEditOwnedCompleted.Value = false;
 			this.IsOwnedCompleted.Value = false;
+		}
+	}
+
+	/// <summary>
+	/// 既存作品ダイアログを非同期で表示し、ユーザーの選択に応じた処理を実行します。
+	/// </summary>
+	/// <param name="duplicateSeries">既存の作品。</param>
+	private async ValueTask showExistingSeriesDialogAsync(MangaSeries duplicateSeries)
+	{
+		// ダイアログ用に SeriesCardViewModel を生成
+		var cardViewModel = new SeriesCardViewModel(duplicateSeries);
+
+		// ダイアログコンテンツを作成
+		var content = new ExistingSeriesDialogContent
+		{
+			DataContext = cardViewModel,
+		};
+
+		// ダイアログを作成
+		var dialog = new ContentDialog
+		{
+			Title = "既に登録済みです。",
+			Content = content,
+			PrimaryButtonText = "開く",
+			CloseButtonText = "戻る",
+		};
+
+		// ダイアログを表示して結果を取得
+		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+
+		// ユーザーが「開く」を選択した場合
+		if (result == ContentDialogResult.Primary)
+		{
+			// DuplicateSeriesFound を null にリセット（ダイアログループ防止）
+			this.DuplicateSeriesFound.Value = null;
+			// 既存作品を読み込み
+			this.StartEdit(duplicateSeries);
+		}
+		else
+		{
+			// 「戻る」の場合、作品管理画面へ戻る
+			// DuplicateSeriesFound を null にリセット
+			this.DuplicateSeriesFound.Value = null;
+			// ナビゲーションで MaintenancePage へ戻る
+			this.navigationService.Navigate(typeof(MaintenancePage));
 		}
 	}
 

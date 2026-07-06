@@ -5,8 +5,9 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:local="clr-namespace:MangaBinder.Series"
+      xmlns:controls="clr-namespace:MangaBinder.Controls"
       xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
-      mc:Ignorable="d" 
+      mc:Ignorable="d"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="作品編集"
       ui:NavigationView.HeaderContent="作品編集"
@@ -83,19 +84,10 @@
                     </Border>
 
                     <!-- 巻数情報表示領域 -->
-                    <Border
-                        Padding="8,6"
+                    <controls:SeriesVolumeStatus
+                        HorizontalAlignment="Center"
                         Margin="0,0,0,12"
-                        CornerRadius="4"
-                        BorderThickness="1"
-                        BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                        Background="{DynamicResource ControlFillColorDefaultBrush}">
-                        <TextBlock
-                            Text="巻数情報表示予定地"
-                            FontSize="11"
-                            HorizontalAlignment="Center"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    </Border>
+                        DataContext="{Binding VolumeStatus.DisplayStatus.Value}" />
 
                     <!-- 「貼り付け」「参照」ボタン配置予定領域 -->
                     <StackPanel>
@@ -328,7 +320,6 @@
                             <TextBlock
                                 Grid.Column="0"
                                 Text="完結巻"
-                                FontSize="11"
                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                 VerticalAlignment="Center"
                                 Margin="0,0,6,0" />
@@ -336,8 +327,8 @@
                             <!-- Column 1: EndVolumeNumberBox -->
                             <ui:NumberBox
                                 Grid.Column="1"
-                                Value="{Binding EndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                behaviors:NumberBoxTextChangedBehavior.Command="{Binding EndVolumeTextInputCommand}"
+                                Value="{Binding VolumeStatus.EndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                behaviors:NumberBoxTextChangedBehavior.Command="{Binding VolumeStatus.EndVolumeTextInputCommand}"
                                 Width="120"
                                 PlaceholderText="0"
                                 Minimum="1"
@@ -352,8 +343,8 @@
                             <!-- Column 3: 全巻所持チェック -->
                             <CheckBox
                                 Grid.Column="3"
-                                IsChecked="{Binding IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding CanEditOwnedCompleted.Value}"
+                                IsChecked="{Binding VolumeStatus.IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                IsEnabled="{Binding VolumeStatus.CanEditOwnedCompleted.Value}"
                                 VerticalAlignment="Center"
                                 Margin="0,0,6,0" />
 
@@ -361,7 +352,6 @@
                             <TextBlock
                                 Grid.Column="4"
                                 Text="全巻所持"
-                                FontSize="11"
                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                 VerticalAlignment="Center"
                                 Margin="0,0,18,0" />
@@ -373,7 +363,6 @@
                             <TextBlock
                                 Grid.Column="6"
                                 Text="開始巻"
-                                FontSize="11"
                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                 VerticalAlignment="Center"
                                 Margin="0,0,6,0" />
@@ -381,7 +370,7 @@
                             <!-- Column 7: StartVolumeNumberBox -->
                             <ui:NumberBox
                                 Grid.Column="7"
-                                Value="{Binding StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Value="{Binding VolumeStatus.StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Width="120"
                                 PlaceholderText="0"
                                 Minimum="1"
@@ -398,32 +387,39 @@
             <ui:Card VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
                 <StackPanel>
                     <!-- 所持推定 -->
-                    <Grid Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="1*" />
-                        </Grid.ColumnDefinitions>
+					<Grid Margin="0,0,0,12">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="4*" />
+							<ColumnDefinition Width="1*" />
+						</Grid.ColumnDefinitions>
+							<Grid Grid.Column="0">
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="Auto" />
+									<ColumnDefinition Width="100" />
+								</Grid.ColumnDefinitions>
 
-                        <!-- 所持推定ラベル -->
-                        <TextBlock
-                            Grid.Column="0"
-                            Text="所持推定"
-                            VerticalAlignment="Center"
-                            Margin="0,0,6,0"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+								<!-- 所持推定ラベル -->
+								<TextBlock
+                                    Grid.Column="0"
+                                    Text="所持推定"
+									VerticalAlignment="Center"
+									Margin="0,0,6,0"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                        <!-- 所持推定入力 -->
-                        <ui:NumberBox
-                            Grid.Column="1"
-                            Value="{Binding OwnedMaxVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                            PlaceholderText="0"
-                            Minimum="0"
-                            Maximum="999"
-                            SpinButtonPlacementMode="Hidden"
-                            InputMethod.PreferredImeState="Off" />
-                    </Grid>
+								<!-- 所持推定入力 -->
+								<ui:NumberBox
+									Grid.Column="1"
+									Value="{Binding VolumeStatus.OwnedMaxVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									PlaceholderText="0"
+									Minimum="0"
+									Maximum="999"
+									SpinButtonPlacementMode="Hidden"
+									InputMethod.PreferredImeState="Off"
+									behaviors:NumberBoxTextChangedBehavior.Command="{Binding VolumeStatus.OwnedMaxVolumeTextInputCommand}" />
+							</Grid>
+						</Grid>
 
-                    <!-- ヘッダー -->
+						<!-- ヘッダー -->
                     <TextBlock
                         Text="{Binding MaterialFilesDisplay.Value}"
                         FontSize="12"

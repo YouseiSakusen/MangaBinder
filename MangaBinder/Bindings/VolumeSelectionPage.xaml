@@ -7,6 +7,7 @@
       xmlns:local="clr-namespace:MangaBinder.Bindings"
       xmlns:core="clr-namespace:MangaBinder.Bindings;assembly=MangaBinder.Core"
       xmlns:shared="clr-namespace:MangaBinder.Bindings;assembly=MangaBinder.Shared"
+      xmlns:controls="clr-namespace:MangaBinder.Controls"
       xmlns:dd="urn:gong-wpf-dragdrop"
       xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
       xmlns:converters="clr-namespace:MangaBinder.Converters"
@@ -271,38 +272,11 @@
                     </Border>
 
                     <!-- 巻数情報（中央寄せ） -->
-                    <WrapPanel
+                    <controls:SeriesVolumeStatus
                         Grid.Row="1"
+                        Margin="0,0,0,4"
                         HorizontalAlignment="Center"
-                        Orientation="Horizontal"
-                        Margin="0,0,0,4">
-                        <!-- 全巻数バッジ -->
-                        <Border
-                            Background="{Binding SelectedSeries.Value, Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
-                            CornerRadius="3"
-                            Padding="6,2"
-                            Margin="0,0,8,4"
-                            VerticalAlignment="Center">
-                            <TextBlock
-                                Text="{Binding SelectedSeries.Value.TotalVolumeText}"
-                                FontSize="11"
-                                FontWeight="SemiBold"
-                                Foreground="White"
-                                TextWrapping="NoWrap" />
-                        </Border>
-                        <!-- 所持推定 -->
-                        <TextBlock
-                            Text="{Binding SelectedSeries.Value.OwnedEstimatedVolumeText}"
-                            FontSize="11"
-                            Margin="0,0,8,4"
-                            VerticalAlignment="Center" />
-                        <!-- 製本済み -->
-                        <TextBlock
-                            Text="{Binding SelectedSeries.Value.BoundEndVolumeText}"
-                            FontSize="11"
-                            Margin="0,0,0,4"
-                            VerticalAlignment="Center" />
-                    </WrapPanel>
+                        DataContext="{Binding SelectedSeriesVolumeStatus.Value}" />
 
                     <!-- 素材内訳（解析完了後も表示） -->
                     <Border

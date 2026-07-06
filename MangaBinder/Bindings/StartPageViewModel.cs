@@ -26,12 +26,15 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>製本開始キュー ストア。</summary>
 	private readonly BindingQueueStore bindingQueueStore;
 
+	/// <summary>表示用作品一覧の内部バッファ。</summary>
+	private readonly ObservableList<StartPageSeriesCardViewModel> displaySeriesSource = new();
+
 	private DisposableBag disposableBag;
 
 	/// <summary>
-	/// ListView にバインドする BindingSeries の一覧を取得します。
+	/// ListView にバインドする表示用アイテムの一覧を取得します。
 	/// </summary>
-	public NotifyCollectionChangedSynchronizedViewList<BindingSeries> Series { get; }
+	public NotifyCollectionChangedSynchronizedViewList<StartPageSeriesCardViewModel> Series { get; }
 
 	/// <summary>
 	/// BindingQueue 登録件数を取得します。
@@ -88,8 +91,24 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.workspaceStore = workspaceStore;
 		this.bindingQueueStore = bindingQueueStore;
 
-		this.Series = this.bindingQueueStore.Queue
-			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+		// bindingQueueStore.Queue の変更を監視して displaySeriesSource へ反映
+		this.bindingQueueStore.Queue.ObserveAdd()
+			.Subscribe(x => this.displaySeriesSource.Add(new StartPageSeriesCardViewModel(x.Value)))
+			.AddTo(ref this.disposableBag);
+		this.bindingQueueStore.Queue.ObserveRemove()
+			.Subscribe(x => this.displaySeriesSource.RemoveAt(x.Index))
+			.AddTo(ref this.disposableBag);
+		this.bindingQueueStore.Queue.ObserveReset()
+			.Subscribe(_ => this.displaySeriesSource.Clear())
+			.AddTo(ref this.disposableBag);
+
+		// 初期要素を追加
+		foreach (var bindingSeries in this.bindingQueueStore.Queue)
+		{
+			this.displaySeriesSource.Add(new StartPageSeriesCardViewModel(bindingSeries));
+		}
+
+		this.Series = this.displaySeriesSource.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
 		this.SelectedSeriesCount = new BindableReactiveProperty<int>(0)

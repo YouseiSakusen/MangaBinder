@@ -21,13 +21,28 @@ public class SeriesStatusBadgeBrushConverter : IValueConverter
     /// <inheritdoc/>
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        if (value is not MangaSeries series)
-            return CompletedNotOwnedBrush;
+        var seriesCompleted = false;
+        var isOwnedCompleted = false;
 
-        if (!series.SeriesCompleted)
+        if (value is MangaSeries series)
+        {
+            seriesCompleted = series.SeriesCompleted;
+            isOwnedCompleted = series.IsOwnedCompleted;
+        }
+        else if (value is Controls.SeriesVolumeStatusViewModel viewModel)
+        {
+            seriesCompleted = viewModel.SeriesCompleted;
+            isOwnedCompleted = viewModel.IsOwnedCompleted;
+        }
+        else
+        {
+            return CompletedNotOwnedBrush;
+        }
+
+        if (!seriesCompleted)
             return OngoingBrush;
 
-        return series.IsOwnedCompleted
+        return isOwnedCompleted
             ? CompletedAndOwnedBrush
             : CompletedNotOwnedBrush;
     }

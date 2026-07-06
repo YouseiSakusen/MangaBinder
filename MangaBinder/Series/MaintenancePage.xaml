@@ -5,6 +5,7 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:extensions="clr-namespace:MangaBinder.Extensions"
+      xmlns:controls="clr-namespace:MangaBinder.Controls"
       mc:Ignorable="d"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="MaintenancePage"
@@ -224,7 +225,7 @@
                                     ClipToBounds="True"
                                     Margin="0,0,8,0">
                                     <Image
-                                        Source="{Binding Converter={extensions:ThumbnailImageConverterExtension}}"
+                                        Source="{Binding Series, Converter={extensions:ThumbnailImageConverterExtension}}"
                                         Width="80"
                                         Height="112"
                                         Stretch="UniformToFill"
@@ -239,7 +240,7 @@
 
                                     <!-- タイトル -->
                                     <TextBlock
-                                        Text="{Binding Title}"
+                                        Text="{Binding Series.Title}"
                                         FontSize="13"
                                         FontWeight="SemiBold"
                                         MaxHeight="36"
@@ -247,52 +248,11 @@
                                         Margin="0,0,0,4" />
 
                                     <!-- 巻数情報 -->
-                                    <Grid Margin="0,0,0,4" VerticalAlignment="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <!-- 全巻数バッジ -->
-                                            <ColumnDefinition Width="Auto" />
-                                            <!-- 所持推定 -->
-                                            <ColumnDefinition Width="Auto" />
-                                            <!-- 製本済み -->
-                                            <ColumnDefinition Width="Auto" />
-                                            <!-- 余白 -->
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <!-- 全巻数バッジ -->
-                                        <Border
-                                            Grid.Column="0"
-                                            Background="{Binding Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
-                                            CornerRadius="3"
-                                            Padding="6,2"
-                                            Margin="0,0,10,0"
-                                            VerticalAlignment="Center">
-                                            <TextBlock
-                                                Text="{Binding TotalVolumeText}"
-                                                FontSize="11"
-                                                FontWeight="SemiBold"
-                                                Foreground="White"
-                                                TextWrapping="NoWrap" />
-                                        </Border>
-                                        <!-- 所持推定 -->
-                                        <TextBlock
-                                            Grid.Column="1"
-                                            Text="{Binding OwnedEstimatedVolumeText}"
-                                            FontSize="11"
-                                            TextWrapping="NoWrap"
-                                            Margin="0,0,12,0"
-                                            VerticalAlignment="Center" />
-                                        <!-- 製本済み -->
-                                        <TextBlock
-                                            Grid.Column="2"
-                                            Text="{Binding BoundEndVolumeText}"
-                                            FontSize="11"
-                                            TextWrapping="NoWrap"
-                                            VerticalAlignment="Center" />
-                                    </Grid>
+                                    <controls:SeriesVolumeStatus DataContext="{Binding VolumeStatus}" Margin="0,0,0,4" />
 
                                     <!-- あらすじ（省略） -->
                                     <TextBlock
-                                        Text="{Binding Description}"
+                                        Text="{Binding Series.Description}"
                                         FontSize="11"
                                         Opacity="0.6"
                                         MaxHeight="48"

@@ -1,4 +1,5 @@
 using MangaBinder.Bindings.Inspection;
+using MangaBinder.Controls;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
@@ -48,6 +49,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
 
     /// <summary>選択中の作品エンティティを取得します（サムネイル・巻数情報表示用）。</summary>
     public BindableReactiveProperty<MangaSeries?> SelectedSeries { get; }
+
+    /// <summary>選択中の作品の巻情報表示用ViewModel を取得します。</summary>
+    public BindableReactiveProperty<SeriesVolumeStatusViewModel?> SelectedSeriesVolumeStatus { get; }
 
     /// <summary>素材を解析中かどうかを取得します。</summary>
     public BindableReactiveProperty<bool> IsLoading { get; }
@@ -167,6 +171,8 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             .AddTo(ref this.disposableBag);
         this.SelectedSeries = new BindableReactiveProperty<MangaSeries?>(null)
             .AddTo(ref this.disposableBag);
+        this.SelectedSeriesVolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel?>(null)
+            .AddTo(ref this.disposableBag);
 
         this.IsLoading = new BindableReactiveProperty<bool>(false)
             .AddTo(ref this.disposableBag);
@@ -250,6 +256,19 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             // 0 = 新規作成（RecreateWorkFolder = true）
             // 1 = 既存を使用（RecreateWorkFolder = false）
             this.workspaceStore.RecreateWorkFolder.Value = selectedIndex == 0;
+        }).AddTo(ref this.disposableBag);
+
+        // SelectedSeries 変更時に巻情報表示ViewModel を生成
+        this.SelectedSeries.Subscribe(series =>
+        {
+            if (series is not null)
+            {
+                this.SelectedSeriesVolumeStatus.Value = SeriesVolumeStatusViewModel.FromSeries(series);
+            }
+            else
+            {
+                this.SelectedSeriesVolumeStatus.Value = null;
+            }
         }).AddTo(ref this.disposableBag);
 
         this.DropHandler = new BindingQueueDropHandler(this.bindingQueueItems, this.notifyManualOrderSet);

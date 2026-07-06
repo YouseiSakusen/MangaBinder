@@ -8,6 +8,7 @@
 	  xmlns:binding="clr-namespace:MangaBinder.Bindings"
 	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
 	  xmlns:extensions="clr-namespace:MangaBinder.Extensions"
+	  xmlns:controls="clr-namespace:MangaBinder.Controls"
 	  xmlns:tags="clr-namespace:MangaBinder.Tags"
 	  mc:Ignorable="d"
 	  d:DesignHeight="800" d:DesignWidth="1200"
@@ -149,24 +150,7 @@
 									</Grid>
 
 									<!-- Row1: 巻数情報 -->
-									<Grid Grid.Row="1" Margin="0,0,0,8" VerticalAlignment="Center">
-										<Grid.ColumnDefinitions>
-											<ColumnDefinition Width="Auto" />
-											<ColumnDefinition Width="Auto" />
-											<ColumnDefinition Width="Auto" />
-											<ColumnDefinition Width="*" />
-										</Grid.ColumnDefinitions>
-										<Border Grid.Column="0"
-												Background="{Binding Series, Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
-												CornerRadius="3" Padding="6,2" Margin="0,0,10,0" VerticalAlignment="Center">
-											<TextBlock Text="{Binding Series.TotalVolumeText}"
-													   FontSize="11" FontWeight="SemiBold" Foreground="White" TextWrapping="NoWrap" />
-										</Border>
-										<TextBlock Grid.Column="1" Text="{Binding Series.OwnedEstimatedVolumeText}"
-												   FontSize="11" TextWrapping="NoWrap" Margin="0,0,12,0" VerticalAlignment="Center" />
-										<TextBlock Grid.Column="2" Text="{Binding Series.BoundEndVolumeText}"
-												   FontSize="11" TextWrapping="NoWrap" VerticalAlignment="Center" />
-									</Grid>
+									<controls:SeriesVolumeStatus Grid.Row="1" DataContext="{Binding VolumeStatus}" Margin="0,0,0,8" />
 
 									<!-- Row2: あらすじボタン -->
 									<ui:Button Grid.Row="2" 
@@ -294,19 +278,19 @@
 										<!-- 素材フォルダを開く（1件） -->
 										<MenuItem
 											Header="素材フォルダを開く"
-											Visibility="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
+											Visibility="{Binding PlacementTarget.DataContext.BindingSeries.Series.HasMaterialSources,
 														 RelativeSource={RelativeSource AncestorType=ContextMenu},
 														 Converter={StaticResource BooleanToVisibilityConverter}}"
-											IsEnabled="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
+											IsEnabled="{Binding PlacementTarget.DataContext.BindingSeries.Series.HasMaterialSources,
 														RelativeSource={RelativeSource AncestorType=ContextMenu}}"
 											Command="{Binding Data.OpenMaterialFolderCommand, Source={StaticResource VmProxy}}"
-											CommandParameter="{Binding PlacementTarget.DataContext.Series.SingleMaterialSource,
+											CommandParameter="{Binding PlacementTarget.DataContext.BindingSeries.Series.SingleMaterialSource,
 																   RelativeSource={RelativeSource AncestorType=ContextMenu}}">
 											<MenuItem.Style>
 												<Style TargetType="MenuItem">
 													<Setter Property="Visibility" Value="Visible" />
 													<Style.Triggers>
-														<DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMultipleMaterialSources,
+														<DataTrigger Binding="{Binding PlacementTarget.DataContext.BindingSeries.Series.HasMultipleMaterialSources,
 																	 RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
 															<Setter Property="Visibility" Value="Collapsed" />
 														</DataTrigger>
@@ -322,7 +306,7 @@
 												<Style TargetType="MenuItem">
 													<Setter Property="Visibility" Value="Collapsed" />
 													<Style.Triggers>
-														<DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
+														<DataTrigger Binding="{Binding PlacementTarget.DataContext.BindingSeries.Series.HasMaterialSources,
 																	 RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="False">
 															<Setter Property="Visibility" Value="Visible" />
 														</DataTrigger>
@@ -336,7 +320,7 @@
 												<Style TargetType="MenuItem">
 													<Setter Property="Visibility" Value="Collapsed" />
 													<Style.Triggers>
-														<DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMultipleMaterialSources,
+														<DataTrigger Binding="{Binding PlacementTarget.DataContext.BindingSeries.Series.HasMultipleMaterialSources,
 																	 RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
 															<Setter Property="Visibility" Value="Visible" />
 														</DataTrigger>
@@ -344,7 +328,7 @@
 												</Style>
 											</MenuItem.Style>
 											<MenuItem.ItemsSource>
-												<Binding Path="PlacementTarget.DataContext.Series.MaterialSources"
+												<Binding Path="PlacementTarget.DataContext.BindingSeries.Series.MaterialSources"
 														 RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
 											</MenuItem.ItemsSource>
 											<MenuItem.ItemContainerStyle>
@@ -359,7 +343,7 @@
 										<MenuItem
 											Header="製本待ちから削除"
 											Command="{Binding Data.RemoveFromQueueCommand, Source={StaticResource VmProxy}}"
-											CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+											CommandParameter="{Binding PlacementTarget.DataContext.BindingSeries, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
 									</ContextMenu>
 								</ui:Button.ContextMenu>
 								<ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />
@@ -376,7 +360,7 @@
 											   BorderBrush="Transparent"
 											   ToolTip="製本開始"
 											   Command="{Binding DataContext.NavigateToVolumeSelectionCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=Page}}"
-											   CommandParameter="{Binding}">
+											   CommandParameter="{Binding BindingSeries}">
 								<TextBlock Text="▶"
 												   FontSize="12"
 												   Opacity="0.6"

@@ -246,3 +246,7 @@ public class MangaSeries : INotifyPropertyChanged
 }
 
 
+
+
+
+

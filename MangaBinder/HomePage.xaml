@@ -10,6 +10,7 @@
       xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
       xmlns:extensions="clr-namespace:MangaBinder.Extensions"
       xmlns:converters="clr-namespace:MangaBinder.Converters"
+      xmlns:controls="clr-namespace:MangaBinder.Controls"
       mc:Ignorable="d"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="HomePage"
@@ -244,7 +245,7 @@
                         <!-- 製本対象選択 CheckBox -->
                         <CheckBox
                             Grid.Column="0"
-                            IsChecked="{Binding IsSelected}"
+                            IsChecked="{Binding Series.IsSelected}"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center" />
 
@@ -258,7 +259,7 @@
                             CornerRadius="4"
                             ClipToBounds="True">
                             <Image
-                                Source="{Binding Converter={extensions:ThumbnailImageConverterExtension}}"
+                                Source="{Binding Series, Converter={extensions:ThumbnailImageConverterExtension}}"
                                 Width="140"
                                 Height="196"
                                 Stretch="UniformToFill"
@@ -290,7 +291,7 @@
                                 <TextBox
                                     Grid.Column="0"
                                     Style="{StaticResource TitleReadOnlyTextBoxStyle}"
-                                    Text="{Binding Title}"
+                                    Text="{Binding Series.Title}"
                                     FontSize="16"
                                     FontWeight="SemiBold"
                                     MaxHeight="72"
@@ -318,19 +319,19 @@
                                             <!-- 素材フォルダを開く（1件） -->
                                             <MenuItem
                                                 Header="素材フォルダを開く"
-                                                Visibility="{Binding PlacementTarget.DataContext.HasMaterialSources,
+                                                Visibility="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
                                                              RelativeSource={RelativeSource AncestorType=ContextMenu},
                                                              Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                IsEnabled="{Binding PlacementTarget.DataContext.HasMaterialSources,
+                                                IsEnabled="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
                                                             RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                 Command="{Binding Data.OpenMaterialFolderCommand, Source={StaticResource VmProxy}}"
-                                                CommandParameter="{Binding PlacementTarget.DataContext.SingleMaterialSource,
+                                                CommandParameter="{Binding PlacementTarget.DataContext.Series.SingleMaterialSource,
                                                                    RelativeSource={RelativeSource AncestorType=ContextMenu}}">
                                                 <MenuItem.Style>
                                                     <Style TargetType="MenuItem">
                                                         <Setter Property="Visibility" Value="Visible" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.HasMultipleMaterialSources,
+                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMultipleMaterialSources,
                                                                          RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                             </DataTrigger>
@@ -346,7 +347,7 @@
                                                     <Style TargetType="MenuItem">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.HasMaterialSources,
+                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
                                                                          RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="False">
                                                                 <Setter Property="Visibility" Value="Visible" />
                                                             </DataTrigger>
@@ -360,7 +361,7 @@
                                                     <Style TargetType="MenuItem">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.HasMultipleMaterialSources,
+                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMultipleMaterialSources,
                                                                          RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
                                                                 <Setter Property="Visibility" Value="Visible" />
                                                             </DataTrigger>
@@ -368,7 +369,7 @@
                                                     </Style>
                                                 </MenuItem.Style>
                                                 <MenuItem.ItemsSource>
-                                                    <Binding Path="PlacementTarget.DataContext.MaterialSources"
+                                                    <Binding Path="PlacementTarget.DataContext.Series.MaterialSources"
                                                              RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
                                                 </MenuItem.ItemsSource>
                                                 <MenuItem.ItemContainerStyle>
@@ -386,48 +387,8 @@
                             </Grid>
 
                             <!-- Row1: 巻数情報 -->
-                            <Grid Grid.Row="1" Margin="0,0,0,8" VerticalAlignment="Center">
-                                <Grid.ColumnDefinitions>
-                                    <!-- 全巻数バッジ -->
-                                    <ColumnDefinition Width="Auto" />
-                                    <!-- 所持推定 -->
-                                    <ColumnDefinition Width="Auto" />
-                                    <!-- 製本済み -->
-                                    <ColumnDefinition Width="Auto" />
-                                    <!-- 余白 -->
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <!-- 全巻数バッジ -->
-                                <Border
-                                    Grid.Column="0"
-                                    Background="{Binding Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
-                                    CornerRadius="3"
-                                    Padding="6,2"
-                                    Margin="0,0,10,0"
-                                    VerticalAlignment="Center">
-                                    <TextBlock
-                                        Text="{Binding TotalVolumeText}"
-                                        FontSize="11"
-                                        FontWeight="SemiBold"
-                                        Foreground="White"
-                                        TextWrapping="NoWrap" />
-                                </Border>
-                                <!-- 所持推定 -->
-                                <TextBlock
-                                    Grid.Column="1"
-                                    Text="{Binding OwnedEstimatedVolumeText}"
-                                    FontSize="11"
-                                    TextWrapping="NoWrap"
-                                    Margin="0,0,12,0"
-                                    VerticalAlignment="Center" />
-                                <!-- 製本済み -->
-                                <TextBlock
-                                    Grid.Column="2"
-                                    Text="{Binding BoundEndVolumeText}"
-                                    FontSize="11"
-                                    TextWrapping="NoWrap"
-                                    VerticalAlignment="Center" />
-                            </Grid>
+                            <controls:SeriesVolumeStatus Grid.Row="1" Margin="0,0,0,8" VerticalAlignment="Center"
+                                DataContext="{Binding VolumeStatus}" />
 
                             <!-- Row2: Grid（あらすじ領域 + 補助情報領域） -->
                             <Grid Grid.Row="2" Margin="0,0,0,4">
@@ -450,7 +411,7 @@
                                     <!-- あらすじ本文 -->
                                     <TextBlock
                                         Grid.Row="0"
-                                        Text="{Binding Description}"
+                                        Text="{Binding Series.Description}"
                                         FontSize="12"
                                         TextWrapping="Wrap"
                                         MaxHeight="120"
@@ -462,7 +423,7 @@
                                     <!-- あらすじ出典 -->
                                     <Grid
                                         Grid.Row="1"
-                                        Visibility="{Binding HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        Visibility="{Binding Series.HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
@@ -478,7 +439,7 @@
                                             VerticalAlignment="Center" />
                                         <TextBlock
                                             Grid.Column="1"
-                                            Text="{Binding DescriptionSourceName}"
+                                            Text="{Binding Series.DescriptionSourceName}"
                                             FontSize="11"
                                             Opacity="0.6"
                                             VerticalAlignment="Center" />
@@ -491,7 +452,7 @@
                                         <TextBox
                                             Grid.Column="3"
                                             Style="{StaticResource TitleReadOnlyTextBoxStyle}"
-                                            Text="{Binding DescriptionSourceTitle}"
+                                            Text="{Binding Series.DescriptionSourceTitle}"
                                             FontSize="11"
                                             Opacity="0.6"
                                             VerticalAlignment="Center"
@@ -522,7 +483,7 @@
                                         <!-- 作者名（補助情報・控えめ） -->
                                         <TextBlock
                                             Grid.Column="0"
-                                            Text="{Binding Author}"
+                                            Text="{Binding Series.Author}"
                                             FontSize="11"
                                             Opacity="0.55"
                                             TextWrapping="NoWrap"
@@ -536,12 +497,12 @@
                                                 x:Name="TagToggleButton"
                                                 Padding="6,2"
                                                 FontSize="11"
-                                                Content="{Binding TagDisplayText}"
+                                                Content="{Binding Series.TagDisplayText}"
                                                 Cursor="Hand"
                                                 Background="{DynamicResource ControlFillColorDefaultBrush}"
                                                 BorderThickness="0"
                                                 Command="{Binding DataContext.PrepareTagPopupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                CommandParameter="{Binding}" />
+                                                CommandParameter="{Binding Series}" />
 
                                             <!-- Popup: タグ選択チェックボックス一覧（3列表示） -->
                                             <Popup

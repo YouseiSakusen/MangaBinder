@@ -41,12 +41,12 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     private DisposableBag disposableBag;
 
     /// <summary>内部保持する MangaSeries コレクション。</summary>
-    private readonly ObservableList<MangaSeries> series;
+    private readonly ObservableList<MangaSeries> internalSeries;
 
     /// <summary>
-    /// ListView にバインドする MangaSeries の一覧を取得します。
+    /// ListView にバインドする SeriesCardViewModel の一覧を取得します。
     /// </summary>
-    public NotifyCollectionChangedSynchronizedViewList<MangaSeries> Series { get; }
+    public NotifyCollectionChangedSynchronizedViewList<SeriesCardViewModel> Series { get; }
 
     /// <summary>
     /// 製本開始ボタンの有効状態を取得します。
@@ -108,9 +108,11 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.mangaSeriesManager = mangaSeriesManager;
         this.mangaSeriesStore = mangaSeriesStore;
 
-        this.series = new ObservableList<MangaSeries>();
+        this.internalSeries = new ObservableList<MangaSeries>();
 
-        this.Series = this.series
+        // SeriesCardViewModel のコレクション
+        var cardSeries = new ObservableList<SeriesCardViewModel>();
+        this.Series = cardSeries
             .ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
             .AddTo(ref this.disposableBag);
 
@@ -123,10 +125,14 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.SelectedCount = selectedCount;
 
         // コレクション変化時に全要素の PropertyChanged を再購読する
-        this.series.CollectionChanged += (in NotifyCollectionChangedEventArgs<MangaSeries> _) =>
+        this.internalSeries.CollectionChanged += (in NotifyCollectionChangedEventArgs<MangaSeries> _) =>
         {
+            // cardSeries を更新
+            cardSeries.Clear();
+            cardSeries.AddRange(this.internalSeries.Select(s => new SeriesCardViewModel(s)));
+
             this.resubscribeIsSelected();
-            var count = this.series.Count(s => s.IsSelected);
+            var count = this.internalSeries.Count(s => s.IsSelected);
             this.CanStartBinding.Value = count > 0;
             this.SelectedCount.Value = count;
         };
@@ -138,7 +144,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.StartBindingCommand.Subscribe(_ =>
         {
             this.workspaceStore.SelectedSeries.Clear();
-            this.workspaceStore.SelectedSeries.AddRange(this.series.Where(s => s.IsSelected));
+            this.workspaceStore.SelectedSeries.AddRange(this.internalSeries.Where(s => s.IsSelected));
             this.navigationService.NavigateWithHierarchy(typeof(VolumeSelectionPage));
         });
 
@@ -197,7 +203,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     {
         var tagMap = this.mangaSeriesStore.GetTags().ToDictionary(t => t.TagId);
 
-        foreach (var s in this.series)
+        foreach (var s in this.internalSeries)
         {
             var currentTagIds = s.Tags.Select(t => t.TagId).ToList();
             s.Tags.Clear();
@@ -215,7 +221,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     private void resubscribeIsSelected()
     {
         this.isSelectedSubscriptions.Clear();
-        foreach (var s in this.series)
+        foreach (var s in this.internalSeries)
         {
             var captured = s;
             Observable.FromEvent<System.ComponentModel.PropertyChangedEventHandler, System.ComponentModel.PropertyChangedEventArgs>(
@@ -230,7 +236,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
                     else
                         this.bindingQueueDispatcher.Remove(captured.SeriesId);
 
-                    var count = this.series.Count(x => x.IsSelected);
+                    var count = this.internalSeries.Count(x => x.IsSelected);
                     this.CanStartBinding.Value = count > 0;
                     this.SelectedCount.Value = count;
                 })
@@ -242,15 +248,15 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     public async ValueTask InitializeDataAsync()
     {
         // 初回のみ DB から取得して Store へ反映する
-        if (this.series.Count == 0)
+        if (this.internalSeries.Count == 0)
         {
             var result = await this.mangaSeriesManager.GetAllSeriesAsync();
-            this.series.Clear();
-            this.series.AddRange(result);
+            this.internalSeries.Clear();
+            this.internalSeries.AddRange(result);
         }
 
         // 毎回: Store の状態を元に IsSelected を復元する
-        foreach (var s in this.series)
+        foreach (var s in this.internalSeries)
             s.IsSelected = this.bindingQueueDispatcher.Contains(s.SeriesId);
 
         // 毎回: タグ再同期
@@ -258,7 +264,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
 
         // 毎回: 購読再設定・ボタン状態更新
         this.resubscribeIsSelected();
-        var count = this.series.Count(s => s.IsSelected);
+        var count = this.internalSeries.Count(s => s.IsSelected);
         this.CanStartBinding.Value = count > 0;
         this.SelectedCount.Value = count;
 
