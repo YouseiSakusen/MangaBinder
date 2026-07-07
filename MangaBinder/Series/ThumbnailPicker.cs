@@ -9,7 +9,7 @@ namespace MangaBinder.Series;
 /// Clipboard や画像ファイルから BitmapSource を取得し、byte[] へ変換する機能を提供します。
 /// 状態は保持しません。
 /// </summary>
-public class ThumbnailManager
+public class ThumbnailPicker
 {
 	/// <summary>
 	/// Clipboard から BitmapSource を取得します。

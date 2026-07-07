@@ -8,12 +8,17 @@
       xmlns:controls="clr-namespace:MangaBinder.Controls"
       xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
       xmlns:extensions="clr-namespace:MangaBinder.Extensions"
+      xmlns:converters="clr-namespace:MangaBinder.Converters"
       mc:Ignorable="d"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="作品編集"
       ui:NavigationView.HeaderContent="作品編集"
       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
       ScrollViewer.CanContentScroll="False">
+
+    <Page.Resources>
+        <converters:ThumbnailPreviewOrDefaultConverter x:Key="ThumbnailPreviewOrDefaultConverter" />
+    </Page.Resources>
 
     <!-- ══════════════════════════════════════════════════════════════════ -->
     <!-- 外枠 Grid：Row0=アイキャッチカード、Row1=本体、Row2=フッター        -->
@@ -78,11 +83,17 @@
                         CornerRadius="4"
                         ClipToBounds="True">
                         <Image
-                            Source="{Binding EditingSeries.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
                             Width="160"
                             Height="224"
                             Stretch="UniformToFill"
-                            RenderOptions.BitmapScalingMode="HighQuality" />
+                            RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.Source>
+                                <MultiBinding Converter="{StaticResource ThumbnailPreviewOrDefaultConverter}">
+                                    <Binding Path="ThumbnailPreviewImageSource.Value" />
+                                    <Binding Path="EditingSeries.Value" />
+                                </MultiBinding>
+                            </Image.Source>
+                        </Image>
                     </Border>
 
                     <!-- 巻数情報表示領域 -->
@@ -97,7 +108,8 @@
                             Height="40"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Center"
-                            Margin="0,0,0,8">
+                            Margin="0,0,0,8"
+                            Command="{Binding PasteThumbnailCommand}">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
                                 <ui:SymbolIcon Symbol="ClipboardPaste20" FontSize="16" Margin="0,0,6,0" />
                                 <TextBlock Text="貼り付け" VerticalAlignment="Center" />

@@ -4,6 +4,7 @@ using MangaBinder.Tags;
 using R3;
 using Reactive.Bindings.R3;
 using System.Collections.ObjectModel;
+using System.Windows.Media.Imaging;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
@@ -19,6 +20,7 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	private readonly IContentDialogService contentDialogService;
 	private readonly INavigationService navigationService;
 	private readonly MangaSeriesStore mangaSeriesStore;
+	private readonly ThumbnailPicker thumbnailManager;
 	private DisposableBag disposableBag;
 
 	/// <summary>編集対象の Series を取得します。</summary>
@@ -98,6 +100,24 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	public ReactiveCommand<Unit> PrepareTagPopupCommand { get; }
 
 	/// <summary>
+	/// サムネイルプレビュー画像を取得または設定します。
+	/// クリップボードから貼り付けた画像が優先表示されます。
+	/// null の場合は、既存のサムネイル（EditingSeries.Value のサムネイル）が表示されます。
+	/// </summary>
+	public BindableReactiveProperty<BitmapSource?> ThumbnailPreviewImageSource { get; }
+
+	/// <summary>
+	/// 貼り付けたサムネイルの PNG byte[] を取得します。
+	/// 保存時に利用するための一時保持です。
+	/// </summary>
+	private byte[]? PastedThumbnailBytes { get; set; }
+
+	/// <summary>
+	/// クリップボードからサムネイルを貼り付けるコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> PasteThumbnailCommand { get; }
+
+	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="seriesManager">作品管理マネージャー。</param>
@@ -105,13 +125,21 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="mangaSeriesStore">作品タグストア。</param>
-	public EditorPageViewModel(MangaSeriesManager seriesManager, SeriesWorkspaceStore workspaceStore, IContentDialogService contentDialogService, INavigationService navigationService, MangaSeriesStore mangaSeriesStore)
+	/// <param name="thumbnailManager">サムネイル操作マネージャー。</param>
+	public EditorPageViewModel(
+		MangaSeriesManager seriesManager,
+		SeriesWorkspaceStore workspaceStore,
+		IContentDialogService contentDialogService,
+		INavigationService navigationService,
+		MangaSeriesStore mangaSeriesStore,
+		ThumbnailPicker thumbnailManager)
 	{
 		this.seriesManager = seriesManager ?? throw new ArgumentNullException(nameof(seriesManager));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
 		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
 		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
+		this.thumbnailManager = thumbnailManager ?? throw new ArgumentNullException(nameof(thumbnailManager));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
@@ -211,6 +239,18 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 		this.PrepareTagPopupCommand.Subscribe(_ =>
 		{
 			this.PrepareTagPopup();
+		});
+
+		// ThumbnailPreviewImageSource: プレビュー用画像ソース
+		this.ThumbnailPreviewImageSource = new BindableReactiveProperty<BitmapSource?>(null)
+			.AddTo(ref this.disposableBag);
+
+		// PasteThumbnailCommand: クリップボードからサムネイルを貼り付けるコマンド
+		this.PasteThumbnailCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.PasteThumbnailCommand.Subscribe(_ =>
+		{
+			this.PasteThumbnailAsync();
 		});
 
 		// VolumeStatus: 巻情報編集用ViewModel
@@ -466,9 +506,63 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 		}
 	}
 
+	/// <summary>
+	/// クリップボードからサムネイルを貼り付けます。
+	/// 成功時はプレビュー画像を更新し、PNG byte[] を保持します。
+	/// 失敗時はログのみ出力し、UI には何も反映されません。
+	/// </summary>
+	private void PasteThumbnailAsync()
+	{
+		try
+		{
+			// ThumbnailManager からクリップボード画像を取得
+			var bitmapSource = this.thumbnailManager.GetFromClipboard();
+			if (bitmapSource == null)
+			{
+				System.Diagnostics.Debug.WriteLine("[EditorPageViewModel.PasteThumbnailAsync] クリップボードに画像がありません。");
+				return;
+			}
+
+			// BitmapSource を PNG byte[] に変換
+			var pngBytes = this.thumbnailManager.ToBytes(bitmapSource);
+			if (pngBytes == null || pngBytes.Length == 0)
+			{
+				System.Diagnostics.Debug.WriteLine("[EditorPageViewModel.PasteThumbnailAsync] 画像を PNG 形式に変換できませんでした。");
+				return;
+			}
+
+			// 成功時：プレビュー画像を更新し、PNG byte[] を保持
+			this.ThumbnailPreviewImageSource.Value = bitmapSource;
+			this.PastedThumbnailBytes = pngBytes;
+		}
+		catch (Exception ex)
+		{
+			// 予期しないエラーが発生した場合もログ出力のみ
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.PasteThumbnailAsync] 例外発生: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// 貼り付けたサムネイルの PNG byte[] を取得します。
+	/// 保存処理で利用します。
+	/// </summary>
+	/// <returns>貼り付けた PNG byte[]、存在しない場合は null。</returns>
+	public byte[]? GetPastedThumbnailBytes()
+		=> this.PastedThumbnailBytes;
+
+	/// <summary>
+	/// 貼り付けたサムネイル情報をクリアします。
+	/// </summary>
+	public void ClearPastedThumbnail()
+	{
+		this.ThumbnailPreviewImageSource.Value = null;
+		this.PastedThumbnailBytes = null;
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{
+		this.ClearPastedThumbnail();
 		this.disposableBag.Dispose();
 	}
 }

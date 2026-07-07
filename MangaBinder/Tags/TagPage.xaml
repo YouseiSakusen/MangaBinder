@@ -10,6 +10,8 @@
       mc:Ignorable="d"
       d:DesignHeight="700" d:DesignWidth="900"
       Title="タグ"
+      ui:NavigationView.HeaderContent="タグ"
+      ScrollViewer.CanContentScroll="False"
       Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
     <Page.Resources>
@@ -18,43 +20,49 @@
         <local:BindingProxy x:Key="VmProxy" Data="{Binding}" />
     </Page.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- 外枠 Grid：3カラム構成（左余白, 中央本体, 右余白）        -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <Grid Margin="16,4,16,16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1*" />
+            <ColumnDefinition Width="2*" />
+            <ColumnDefinition Width="1*" />
+        </Grid.ColumnDefinitions>
 
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1*" />
-                <ColumnDefinition Width="2*" />
-                <ColumnDefinition Width="1*" />
-            </Grid.ColumnDefinitions>
+        <!-- ──────────────────────────────────────────────────────────── -->
+        <!-- 中央カラム（タグ管理本体） -->
+        <!-- ──────────────────────────────────────────────────────────── -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-            <StackPanel Grid.Column="1" Margin="0,16,0,32">
-
-                <!-- ══════════════════════════════════════════════════ -->
-                <!-- サマリカード                                       -->
-                <!-- ══════════════════════════════════════════════════ -->
-                <Border Padding="0,0,0,8" Margin="0,0,0,16">
-                    <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
-                            CornerRadius="6" Padding="14,10"
-                            HorizontalAlignment="Left">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <ui:SymbolIcon Symbol="Tag24" FontSize="48"
-                                           Foreground="{DynamicResource BindingAccentBrush}"
-                                           Margin="0,0,12,0" VerticalAlignment="Center" />
-                            <StackPanel>
-                                <TextBlock FontSize="11" Margin="0,0,0,2"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}">登録タグ数</TextBlock>
-                                <TextBlock FontSize="16" FontWeight="SemiBold">
-                                    <Run Text="{Binding TagCount, Mode=OneWay}" /><Run>&#x20;件</Run>
-                                </TextBlock>
-                            </StackPanel>
+            <!-- Row0: サマリカード -->
+            <Border Grid.Row="0" Padding="0,0,0,8" Margin="0,0,0,16">
+                <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="6" Padding="14,10"
+                        HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="Tag24" FontSize="48"
+                                       Foreground="{DynamicResource BindingAccentBrush}"
+                                       Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <StackPanel>
+                            <TextBlock FontSize="11" Margin="0,0,0,2"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">登録タグ数</TextBlock>
+                            <TextBlock FontSize="16" FontWeight="SemiBold">
+                                <Run Text="{Binding TagCount, Mode=OneWay}" /><Run>&#x20;件</Run>
+                            </TextBlock>
                         </StackPanel>
-                    </Border>
+                    </StackPanel>
                 </Border>
+            </Border>
 
-                <!-- ════════════════════════════ -->
-                <!-- タグ登録エリア              -->
-                <!-- ════════════════════════════ -->
+            <!-- Row1: タグ追加エリア -->
+            <StackPanel Grid.Row="1" Margin="0,0,0,0">
                 <TextBlock Text="タグ登録"
                            Style="{StaticResource SubtitleTextBlockStyle}"
                            Margin="0,0,0,6" />
@@ -83,15 +91,19 @@
                                    Command="{Binding AddTagCommand}" />
                     </Grid>
                 </ui:Card>
+            </StackPanel>
 
-                <!-- ════════════════════════════ -->
-                <!-- タグ一覧                    -->
-                <!-- ════════════════════════════ -->
-                <TextBlock Text="タグ一覧"
-                           Style="{StaticResource SubtitleTextBlockStyle}"
-                           Margin="0,0,0,6"
-                           Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}" />
+            <!-- Row2: タグ一覧ヘッダー -->
+            <TextBlock Grid.Row="2"
+                       Text="タグ一覧"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       Margin="0,0,0,6"
+                       Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}" />
 
+            <!-- Row3: タグ一覧（スクロール対応） -->
+            <ScrollViewer Grid.Row="3"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl x:Name="TagList"
                               ItemsSource="{Binding Tags}"
                               Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}">
@@ -224,29 +236,24 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+            </ScrollViewer>
 
-                <!-- ════════════════════════════ -->
-                <!-- Empty State                 -->
-                <!-- ════════════════════════════ -->
-                <StackPanel Margin="72,32,0,0"
-                            HorizontalAlignment="Left"
-                            Width="300"
-                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
+            <!-- Empty State -->
+            <StackPanel Grid.Row="2" Grid.RowSpan="2"
+                        Margin="72,32,0,0"
+                        HorizontalAlignment="Left"
+                        Width="300"
+                        Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
+                <TextBlock FontSize="17" FontWeight="SemiBold"
+                           Margin="0,0,0,10">タグが登録されていません</TextBlock>
 
-                    <TextBlock FontSize="17" FontWeight="SemiBold"
-                               Margin="0,0,0,10">タグが登録されていません</TextBlock>
-
-                    <TextBlock FontSize="13" TextWrapping="Wrap"
-                               Opacity="0.7">
-                        <Run>Home画面で作品を探しやすくするため、</Run>
-                        <LineBreak />
-                        <Run>よく読むジャンルや気分に合わせてタグを作成できます。</Run>
-                    </TextBlock>
-
-                </StackPanel>
-
+                <TextBlock FontSize="13" TextWrapping="Wrap"
+                           Opacity="0.7">
+                    <Run>Home画面で作品を探しやすくするため、</Run>
+                    <LineBreak />
+                    <Run>よく読むジャンルや気分に合わせてタグを作成できます。</Run>
+                </TextBlock>
             </StackPanel>
         </Grid>
-
-    </ScrollViewer>
+    </Grid>
 </Page>
