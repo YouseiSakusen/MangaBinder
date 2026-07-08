@@ -4,6 +4,7 @@ using MangaBinder.Core.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using Microsoft.Extensions.Logging;
+using System.IO;
 
 namespace MangaBinder;
 
@@ -31,6 +32,9 @@ public class MangaSeriesManager
 	/// <summary>タグを取得する Repository。</summary>
 	private readonly TagRepository tagRepository;
 
+	/// <summary>アプリケーション設定。</summary>
+	private readonly AppSettings appSettings;
+
 	/// <summary>ログ出力用の Logger。</summary>
 	private readonly ILogger<MangaSeriesManager>? logger;
 
@@ -49,6 +53,7 @@ public class MangaSeriesManager
 	/// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="tagRepository">タグを取得する Repository。</param>
+	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="logger">ログ出力用の Logger。オプション。</param>
 	public MangaSeriesManager(
 		MangaRepository mangaRepository,
@@ -57,6 +62,7 @@ public class MangaSeriesManager
 		BindingQueueDispatcher bindingQueueDispatcher,
 		MangaSeriesStore mangaSeriesStore,
 		TagRepository tagRepository,
+		AppSettings appSettings,
 		ILogger<MangaSeriesManager>? logger = null)
 	{
 		this.mangaRepository = mangaRepository;
@@ -65,6 +71,7 @@ public class MangaSeriesManager
 		this.bindingQueueDispatcher = bindingQueueDispatcher;
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.tagRepository = tagRepository;
+		this.appSettings = appSettings;
 		this.logger = logger;
 	}
 
@@ -349,4 +356,91 @@ public class MangaSeriesManager
 		// その他
 		return MaterialItemType.Root;
 	}
+
+	/// <summary>
+	/// 指定された作品を WorkMangaSeries テーブルへ一時保存し、Store へ反映します。
+	/// series.WorkId == 0 の場合は新規 INSERT を行い、採番された WorkId を series.WorkId に反映します。
+	/// series.WorkId != 0 の場合は UPDATE を行います。
+	/// サムネイル byte[] が指定されている場合、WorkThumbnail フォルダへ JPEG ファイルとして保存し、
+	/// 保存後に series.ThumbnailFileName と series.ThumbnailStatus を更新してから DB へ反映します。
+	/// 保存成功後、MangaSeriesStore の登録待ち作品一覧へ即座に反映されます。
+	/// </summary>
+	/// <param name="series">保存対象の作品。</param>
+	/// <param name="thumbnailBytes">保存するサムネイル JPEG byte[]。null または空の場合はファイル保存をスキップします。</param>
+	/// <returns>一時保存後の WorkId。</returns>
+	public async ValueTask<int> SaveWorkSeriesAsync(MangaSeries series, byte[]? thumbnailBytes = null)
+	{
+		ArgumentNullException.ThrowIfNull(series);
+
+		if (series.WorkId == 0)
+		{
+			// 新規 INSERT：採番された WorkId を返す
+			var workId = await this.workMangaSeriesRepository.InsertAsync(series);
+			// series.WorkId は InsertAsync 内で既に設定されているが、念のため保証
+			if (series.WorkId == 0)
+				series.WorkId = workId;
+
+			// サムネイル JPEG を保存（存在する場合のみ）
+			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
+			{
+				await this.saveThumbnailAsync(series, thumbnailBytes);
+				// ファイル保存後、DB に反映
+				await this.workMangaSeriesRepository.UpdateAsync(series);
+			}
+
+			// Store へ即座に反映
+			this.mangaSeriesStore.UpdateWorkSeries(series);
+
+			return workId;
+		}
+		else
+		{
+			// UPDATE（既存の登録待ち作品の更新）
+			// サムネイル JPEG を保存（存在する場合のみ）
+			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
+			{
+				await this.saveThumbnailAsync(series, thumbnailBytes);
+			}
+
+			// DB へ反映
+			await this.workMangaSeriesRepository.UpdateAsync(series);
+
+			// Store へ即座に反映
+			this.mangaSeriesStore.UpdateWorkSeries(series);
+
+			return series.WorkId;
+		}
+	}
+
+	/// <summary>
+	/// サムネイル JPEG byte[] をファイルとして WorkThumbnail フォルダへ保存し、
+	/// series.ThumbnailFileName と series.ThumbnailStatus を更新します。
+	/// </summary>
+	/// <param name="series">保存対象の作品。WorkId が設定されていること。</param>
+	/// <param name="thumbnailBytes">JPEG byte[] データ。</param>
+	private async ValueTask saveThumbnailAsync(MangaSeries series, byte[] thumbnailBytes)
+	{
+		try
+		{
+			// ファイル名を決定（WorkThumbnailFileNameBase を使用）
+			var fileName = $"{series.WorkThumbnailFileNameBase}.jpg";
+
+			// 保存先パスを取得
+			var filePath = this.appSettings.GetWorkThumbnailFullPath(fileName);
+
+			// JPEG を保存
+			await File.WriteAllBytesAsync(filePath, thumbnailBytes);
+
+			// series の ThumbnailFileName と ThumbnailStatus を更新
+			series.ThumbnailFileName = fileName;
+			series.ThumbnailStatus = ThumbnailStatus.Completed;
+		}
+		catch (Exception ex)
+		{
+			// ファイル保存失敗時はログとともに例外を投げる
+			this.logger?.LogError(ex, "サムネイル JPEG 保存に失敗しました。WorkId={WorkId}", series.WorkId);
+			throw;
+		}
+	}
 }
+

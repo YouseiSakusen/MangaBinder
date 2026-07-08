@@ -12,6 +12,9 @@ public class ThumbnailImageLoader
     /// <summary>アプリケーション設定。</summary>
     private readonly IMangaBinderConfig config;
 
+    /// <summary>アプリケーション設定（WorkThumbnail 用）。</summary>
+    private readonly AppSettings appSettings;
+
     /// <summary>
     /// <see cref="ThumbnailImageLoader"/> の新しいインスタンスを初期化します。
     /// </summary>
@@ -19,10 +22,13 @@ public class ThumbnailImageLoader
     public ThumbnailImageLoader(IMangaBinderConfig config)
     {
         this.config = config;
+        this.appSettings = (AppSettings)config;
     }
 
     /// <summary>
     /// <see cref="MangaSeries"/> のサムネイルを <see cref="ImageSource"/> として読み込みます。
+    /// 登録待ち作品の場合は WorkThumbnail フォルダから読み込み、
+    /// 正式作品の場合は通常のサムネイルフォルダから読み込みます。
     /// </summary>
     /// <param name="series">対象の <see cref="MangaSeries"/>。</param>
     /// <returns>読み込んだ <see cref="ImageSource"/>。ファイルが存在しない場合は <see langword="null"/>。</returns>
@@ -38,7 +44,11 @@ public class ThumbnailImageLoader
             _                              => "00000!_none.jpg",
         };
 
-        var fullPath = this.config.GetThumbnailFullPath(fileName);
+        // 登録待ち作品と正式作品でサムネイルフォルダを読み分ける
+        var fullPath = series.IsWork
+            ? this.appSettings.GetWorkThumbnailFullPath(fileName)
+            : this.config.GetThumbnailFullPath(fileName);
+
         if (!File.Exists(fullPath))
             return null;
 
@@ -56,3 +66,4 @@ public class ThumbnailImageLoader
         return bitmap;
     }
 }
+

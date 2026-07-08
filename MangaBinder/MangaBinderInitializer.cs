@@ -27,6 +27,7 @@ public class MangaBinderInitializer
         var connectionString = this.ensureDatabaseExists();
         var thumbnailPath = await this.getThumbnailDirectoryPath(connectionString);
         this.ensureThumbnailDirectoryExists(thumbnailPath);
+        this.ensureWorkThumbnailDirectoryExists(thumbnailPath);
         this.ensureSpecialThumbnailFilesExist(thumbnailPath);
     }
 
@@ -91,6 +92,19 @@ public class MangaBinderInitializer
             return;
 
         Directory.CreateDirectory(thumbnailPath);
+    }
+
+    /// <summary>
+    /// ワークサムネイルフォルダが存在しない場合に作成します。
+    /// </summary>
+    /// <param name="thumbnailPath">サムネフォルダのパス。</param>
+    private void ensureWorkThumbnailDirectoryExists(string thumbnailPath)
+    {
+        if (string.IsNullOrWhiteSpace(thumbnailPath))
+            return;
+
+        var workThumbnailPath = Path.Combine(thumbnailPath, "wk");
+        Directory.CreateDirectory(workThumbnailPath);
     }
 
     /// <summary>

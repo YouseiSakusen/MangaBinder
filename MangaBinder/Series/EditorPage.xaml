@@ -16,54 +16,59 @@
       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
       ScrollViewer.CanContentScroll="False">
 
-    <Page.Resources>
-        <converters:ThumbnailPreviewOrDefaultConverter x:Key="ThumbnailPreviewOrDefaultConverter" />
+	<Page.Resources>
+		<converters:ThumbnailPreviewOrDefaultConverter x:Key="ThumbnailPreviewOrDefaultConverter" />
 
-        <!-- 素材ファイル一覧用コンバーター -->
-        <converters:NodeTypeToSymbolConverter x:Key="NodeTypeToSymbolConverter" />
-        <converters:NodeTypeToColorConverter x:Key="NodeTypeToColorConverter" />
-        <converters:NodeTypeToFilledConverter x:Key="NodeTypeToFilledConverter" />
-    </Page.Resources>
+		<!-- 素材ファイル一覧用コンバーター -->
+		<converters:NodeTypeToSymbolConverter x:Key="NodeTypeToSymbolConverter" />
+		<converters:NodeTypeToColorConverter x:Key="NodeTypeToColorConverter" />
+		<converters:NodeTypeToFilledConverter x:Key="NodeTypeToFilledConverter" />
 
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <!-- 外枠 Grid：Row0=アイキャッチカード、Row1=本体、Row2=フッター        -->
-    <!-- HeaderContent = BreadcrumbBar に「作品編集」を表示するための添付プロパティ -->
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <Grid Margin="16,4,16,16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-			<RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+		<!-- bool を Visibility に変換（true -> Visible, false -> Collapsed） -->
+		<BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+	</Page.Resources>
 
-        <!-- ── Row0：アイキャッチカード ── -->
-        <Grid Grid.Row="0" Margin="0,0,0,16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1*" />
-                <ColumnDefinition Width="4*" />
-                <ColumnDefinition Width="1*" />
-            </Grid.ColumnDefinitions>
+	<!-- ドラッグアンドドロップオーバーレイを含むルートGrid -->
+	<Grid x:Name="RootGrid"
+          Background="Transparent"
+		  behaviors:MaterialFileDropBehavior.DropCommand="{Binding DropFilesCommand}"
+		  behaviors:MaterialFileDropBehavior.IsDragOver="{Binding IsMaterialDragOver.Value, Mode=TwoWay}">
+		<!-- ── 本体コンテンツ ── -->
+		<Grid Margin="16,4,16,16">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+				<RowDefinition Height="Auto" />
+			</Grid.RowDefinitions>
 
-            <ui:Card Grid.Column="1"
-                     HorizontalAlignment="Left"
-                     Padding="14,10">
-				<StackPanel Orientation="Horizontal" Width="150" VerticalAlignment="Center">
-					<ui:SymbolIcon Symbol="CheckboxArrowRight24"  FontSize="48"
+			<!-- ── Row0：アイキャッチカード ── -->
+			<Grid Grid.Row="0" Margin="0,0,0,16">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="1*" />
+					<ColumnDefinition Width="4*" />
+					<ColumnDefinition Width="1*" />
+				</Grid.ColumnDefinitions>
+
+				<ui:Card Grid.Column="1"
+						 HorizontalAlignment="Left"
+						 Padding="14,10">
+					<StackPanel Orientation="Horizontal" Width="150" VerticalAlignment="Center">
+						<ui:SymbolIcon Symbol="CheckboxArrowRight24"  FontSize="48"
 									   Foreground="{DynamicResource BindingAccentBrush}"
 									   Margin="0,0,12,0" VerticalAlignment="Center" />
-					<StackPanel>
-						<TextBlock FontSize="11" Margin="0,0,0,2"
+						<StackPanel>
+							<TextBlock FontSize="11" Margin="0,0,0,2"
 									   Foreground="{DynamicResource TextFillColorSecondaryBrush}">作品編集</TextBlock>
-						<TextBlock FontSize="16" FontWeight="SemiBold">
+							<TextBlock FontSize="16" FontWeight="SemiBold">
 								<Run Text="作品編集" />
-						</TextBlock>
+							</TextBlock>
+						</StackPanel>
 					</StackPanel>
-				</StackPanel>
-			</ui:Card>
-        </Grid>
+				</ui:Card>
+			</Grid>
 
-        <!-- ── Row1：本体エリア ── -->
-        <Grid Grid.Row="1">
+			<!-- ── Row1：本体エリア ── -->
+			<Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <!-- 左：サムネイル・巻数情報・ボタン -->
                 <ColumnDefinition Width="1*" />
@@ -633,7 +638,8 @@
                     Height="48"
                     MinWidth="140"
                     VerticalAlignment="Center"
-                    HorizontalAlignment="Left">
+                    HorizontalAlignment="Left"
+                    Command="{Binding BackCommand}">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
                         <ui:SymbolIcon Symbol="ChevronLeft16" FontSize="18" Margin="0,0,6,0" />
                         <TextBlock Text="戻る" VerticalAlignment="Center" />
@@ -643,6 +649,8 @@
                 <!-- 中央：保存・一時保存ボタン配置予定領域 -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right"  VerticalAlignment="Center">
                     <ui:Button
+                        Command="{Binding SaveWorkSeriesCommand}"
+                        IsEnabled="{Binding SaveWorkSeriesCommandCanExecute.Value}"
                         Height="48"
                         MinWidth="140"
                         VerticalAlignment="Center"
@@ -653,13 +661,15 @@
                         </StackPanel>
                     </ui:Button>
                     <ui:Button
+                        Command="{Binding RegisterSeriesCommand}"
+                        IsEnabled="{Binding RegisterSeriesCommandCanExecute.Value}"
                         Height="48"
                         MinWidth="140"
                         VerticalAlignment="Center"
                         Appearance="Primary">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
                             <ui:SymbolIcon Symbol="CheckmarkCircle20" FontSize="18" Margin="0,0,6,0" />
-                            <TextBlock Text="保存" VerticalAlignment="Center" />
+                            <TextBlock Text="登録" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
                 </StackPanel>
@@ -668,5 +678,27 @@
                 <Border Grid.Column="2" />
             </Grid>
         </Border>
+        </Grid>
+
+        <!-- ── ドラッグアンドドロップオーバーレイ ── -->
+        <Grid x:Name="DragOverlayGrid"
+              Background="#FFFFFF"
+              Opacity="0.7"
+              Visibility="{Binding IsMaterialDragOver.Value, Converter={StaticResource BoolToVisibilityConverter}}"
+              IsHitTestVisible="False"
+              Panel.ZIndex="1000">
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        TextBlock.TextAlignment="Center">
+                <TextBlock Text="ここに素材をドロップ"
+                           FontSize="28"
+                           FontWeight="SemiBold"
+                           Foreground="#333333"
+                           Margin="0,0,0,12" />
+                <TextBlock Text="対応アーカイブファイル、またはフォルダを追加できます"
+                           FontSize="16"
+                           Foreground="#666666" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Page>

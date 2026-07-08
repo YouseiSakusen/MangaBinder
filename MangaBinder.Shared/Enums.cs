@@ -203,6 +203,9 @@ namespace MangaBinder
 
 		/// <summary>Google Books API から取得。</summary>
 		GoogleBooks = 1,
+
+		/// <summary>手入力（ユーザーが作品編集画面で入力）。</summary>
+		Manual = 2,
 	}
 }
 

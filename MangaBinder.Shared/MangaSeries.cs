@@ -15,7 +15,7 @@ public class MangaSeries : INotifyPropertyChanged
     public long SeriesId { get; set; }
 
     /// <summary>内部用ノーマライズタイトルです。名寄せ・比較用に使用します。</summary>
-    public string NormalizedTitleInternal { get; init; } = string.Empty;
+    public string NormalizedTitleInternal { get; set; } = string.Empty;
 
     /// <summary>作品の代表タイトルです。</summary>
     public string Title { get; set; } = string.Empty;
@@ -48,10 +48,10 @@ public class MangaSeries : INotifyPropertyChanged
     public int OwnedMaxVolume { get; set; }
 
     /// <summary>外部用（API検索用）ノーマライズタイトルです。将来の外部API連携用です。</summary>
-    public string NormalizedTitleExternal { get; init; } = string.Empty;
+    public string NormalizedTitleExternal { get; set; } = string.Empty;
 
     /// <summary>略称タイトルです。</summary>
-    public string ShortTitle { get; init; } = string.Empty;
+    public string ShortTitle { get; set; } = string.Empty;
 
     /// <summary>サムネイル画像のファイル名です。</summary>
     public string ThumbnailFileName { get; set; } = string.Empty;
@@ -82,6 +82,9 @@ public class MangaSeries : INotifyPropertyChanged
 
     /// <summary>サムネイル画像のファイル名（拡張子なし）を取得します。</summary>
     public string ThumbnailFileNameBase => $"{this.SeriesId:D6}_{this.ShortTitle}";
+
+    /// <summary>Work サムネイル画像のファイル名（拡張子なし）を取得します。WorkId を使用して形成されます。</summary>
+    public string WorkThumbnailFileNameBase => $"{this.WorkId:D6}_{this.ShortTitle}";
 
     /// <summary>この作品に付与されたタグ一覧を取得します。</summary>
     public ObservableCollection<MangaTag> Tags { get; } = new();
@@ -192,14 +195,15 @@ public class MangaSeries : INotifyPropertyChanged
             return this.DescriptionSource switch
             {
                 DescriptionSource.GoogleBooks => "Google",
+                DescriptionSource.Manual => string.Empty,
                 _ => string.Empty,
             };
         }
     }
 
-    /// <summary>あらすじ出典情報を表示するかどうかを示します。</summary>
+    /// <summary>あらすじ出典情報を表示するかどうかを示します。Manual および None の場合は非表示です。</summary>
     public bool HasDescriptionSource
-        => this.DescriptionSource != DescriptionSource.None
+        => this.DescriptionSource == DescriptionSource.GoogleBooks
            && !string.IsNullOrEmpty(this.DescriptionSourceTitle);
 
     /// <summary>この作品の最大巻数を表現するために必要な桁数を取得します。</summary>

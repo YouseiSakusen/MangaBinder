@@ -1,10 +1,12 @@
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
+using MangaBinder.Core.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using R3;
 using Reactive.Bindings.R3;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Media.Imaging;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -125,6 +127,44 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	public ReactiveCommand<Unit> SelectThumbnailCommand { get; }
 
 	/// <summary>
+	/// 編集画面を閉じてメイン画面へ戻るコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> BackCommand { get; }
+
+	/// <summary>
+	/// 作品を WorkMangaSeries へ一時保存するコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> SaveWorkSeriesCommand { get; }
+
+	/// <summary>
+	/// 一時保存ボタンの有効/無効状態を取得します。
+	/// 新規作品または登録待ち作品で、かつ今回の編集セッションで追加した素材がない場合に有効です。
+	/// </summary>
+	public BindableReactiveProperty<bool> SaveWorkSeriesCommandCanExecute { get; }
+
+	/// <summary>
+	/// ファイル/フォルダをドラッグアンドドロップで追加するコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<string[]> DropFilesCommand { get; }
+
+	/// <summary>
+	/// 素材ファイルドラッグオーバー中かどうかを取得または設定します。
+	/// Behavior の IsDragOver と双方向バインドされます。
+	/// </summary>
+	public BindableReactiveProperty<bool> IsMaterialDragOver { get; }
+
+	/// <summary>
+	/// 登録ボタンの有効/無効状態を取得します。
+	/// 素材ファイルがある場合に有効になります。
+	/// </summary>
+	public BindableReactiveProperty<bool> RegisterSeriesCommandCanExecute { get; }
+
+	/// <summary>
+	/// 作品を正式に MangaSeries へ登録するコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> RegisterSeriesCommand { get; }
+
+	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="seriesManager">作品管理マネージャー。</param>
@@ -133,8 +173,6 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="mangaSeriesStore">作品タグストア。</param>
 	/// <param name="thumbnailPicker">サムネイル操作ピッカー。</param>
-	/// <param name="thumbnailImageProcessor">サムネイル画像処理。</param>
-	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="snackbarService">Snackbar サービス。</param>
 	public EditorPageViewModel(
 		MangaSeriesManager seriesManager,
@@ -273,6 +311,50 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 			await this.SelectThumbnailAsync();
 		});
 
+		// BackCommand: 戻るコマンド
+		this.BackCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.BackCommand.Subscribe(_ =>
+		{
+			this.navigationService.Navigate(typeof(MaintenancePage));
+		});
+
+		// SaveWorkSeriesCommandCanExecute: 一時保存ボタンの有効/無効状態
+		this.SaveWorkSeriesCommandCanExecute = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		// SaveWorkSeriesCommand: 一時保存コマンド
+		this.SaveWorkSeriesCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.SaveWorkSeriesCommand.Subscribe(async _ =>
+		{
+			await this.SaveWorkSeriesAsync();
+		});
+
+		// DropFilesCommand: ドラッグアンドドロップでファイルを追加
+		this.DropFilesCommand = new ReactiveCommand<string[]>()
+			.AddTo(ref this.disposableBag);
+		this.DropFilesCommand.Subscribe(async filePaths =>
+		{
+			await this.AddMaterialFilesFromDropAsync(filePaths);
+		});
+
+		// IsMaterialDragOver: 素材ファイルドラッグオーバー状態
+		this.IsMaterialDragOver = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		// RegisterSeriesCommandCanExecute: 登録ボタンの有効/無効状態
+		this.RegisterSeriesCommandCanExecute = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		// RegisterSeriesCommand: 正式登録コマンド（実装は後続）
+		this.RegisterSeriesCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.RegisterSeriesCommand.Subscribe(async _ =>
+		{
+			// TODO: 正式登録処理は後続で実装
+		});
+
 		// VolumeStatus: 巻情報編集用ViewModel
 		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
 			.AddTo(ref this.disposableBag);
@@ -338,12 +420,51 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 
 			// タイトル入力欄へのフォーカスを要求
 			this.TitleFocusRequest.Value++;
+
+			// 一時保存ボタンの有効/無効を更新
+			this.UpdateSaveWorkSeriesCommandCanExecute();
 		}
+	}
+
+	/// <summary>
+	/// 一時保存ボタンと登録ボタンの有効/無効状態を更新します。
+	/// 新規作品・登録待ち作品の場合は一時保存ボタンが有効、既存作品の場合は登録ボタンが有効になります。
+	/// </summary>
+	private void UpdateSaveWorkSeriesCommandCanExecute()
+	{
+		if (this.EditingSeries.Value == null)
+		{
+			this.SaveWorkSeriesCommandCanExecute.Value = false;
+			this.RegisterSeriesCommandCanExecute.Value = false;
+			return;
+		}
+
+		// 既存作品（SeriesId != 0）の場合
+		if (this.EditingSeries.Value.SeriesId != 0)
+		{
+			// 一時保存は不可、登録は常に可能
+			this.SaveWorkSeriesCommandCanExecute.Value = false;
+			this.RegisterSeriesCommandCanExecute.Value = true;
+			return;
+		}
+
+		// D&D で追加された素材がある場合
+		if (this.MaterialFiles.Count > 0)
+		{
+			this.SaveWorkSeriesCommandCanExecute.Value = false;
+			this.RegisterSeriesCommandCanExecute.Value = true;
+			return;
+		}
+
+		// 新規作品・登録待ち作品で素材なし
+		this.SaveWorkSeriesCommandCanExecute.Value = true;
+		this.RegisterSeriesCommandCanExecute.Value = false;
 	}
 
 	/// <summary>
 	/// タイトルのバリデーション処理。
 	/// タイトル重複チェックを行い、結果に応じてエラーメッセージまたは null を返す。
+	/// 編集中の作品自身は重複候補から除外します。
 	/// </summary>
 	/// <param name="title">検証するタイトル。</param>
 	/// <returns>エラーメッセージ、またはエラーなしの場合は null。</returns>
@@ -358,6 +479,25 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 
 		// タイトル重複チェック
 		var duplicates = this.seriesManager.FindSameTitle(title);
+
+		// 編集中の作品自身を除外
+		if (this.EditingSeries.Value != null)
+		{
+			// 正式作品の場合は SeriesId で除外
+			if (this.EditingSeries.Value.SeriesId != 0)
+			{
+				duplicates = duplicates
+					.Where(s => s.SeriesId != this.EditingSeries.Value.SeriesId)
+					.ToList();
+			}
+			// 登録待ち作品の場合は WorkId で除外
+			else if (this.EditingSeries.Value.WorkId != 0)
+			{
+				duplicates = duplicates
+					.Where(s => s.WorkId != this.EditingSeries.Value.WorkId)
+					.ToList();
+			}
+		}
 
 		// 0件なら重複候補なし
 		if (duplicates.Count == 0)
@@ -645,6 +785,274 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 				ControlAppearance.Caution,
 				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
 				TimeSpan.FromSeconds(3));
+		}
+	}
+
+	/// <summary>
+	/// 編集画面の入力値を EditingSeries へ反映し、完成データへ更新します。
+	/// Worker（MaterialFolderScanner / GoogleBooksImporter）と同等の品質を目指します。
+	/// </summary>
+	private void UpdateEditingSeriesFromUI()
+	{
+		if (this.EditingSeries.Value == null)
+			return;
+
+		var editingSeries = this.EditingSeries.Value;
+		var titleInput = this.Title.Value ?? string.Empty;
+
+		// === 基本情報 ===
+		editingSeries.Title = titleInput;
+		editingSeries.Author = this.Author.Value ?? string.Empty;
+		editingSeries.Publisher = this.Publisher.Value ?? string.Empty;
+		editingSeries.Description = this.Description.Value ?? string.Empty;
+		editingSeries.Memo = this.Memo.Value ?? string.Empty;
+
+		// === タイトル派生値（MangaTitleHelper を利用） ===
+		editingSeries.NormalizedTitleInternal = MangaTitleHelper.NormalizeTitleInternal(titleInput);
+		editingSeries.ShortTitle = MangaTitleHelper.GetShortTitle(titleInput, string.Empty);
+		// NormalizedTitleExternal は Worker でも設定されていないため string.Empty のまま
+		editingSeries.NormalizedTitleExternal = string.Empty;
+
+		// === 巻情報 ===
+		editingSeries.StartVolume = (int)this.VolumeStatus.StartVolume.Value;
+
+		// 完結巻の反映：EndVolume が入力されている場合は SeriesCompleted = true
+		if (this.VolumeStatus.EndVolume.Value.HasValue && this.VolumeStatus.EndVolume.Value.Value >= 1)
+		{
+			editingSeries.EndVolume = (int)this.VolumeStatus.EndVolume.Value.Value;
+			editingSeries.SeriesCompleted = true;
+		}
+		else
+		{
+			// 完結巻が未入力の場合
+			editingSeries.EndVolume = 0;
+			editingSeries.SeriesCompleted = false;
+			editingSeries.IsOwnedCompleted = false;
+		}
+
+		// 所持推定巻数を反映
+		editingSeries.OwnedMaxVolume = this.VolumeStatus.OwnedMaxVolume.Value.HasValue ? (int)this.VolumeStatus.OwnedMaxVolume.Value.Value : 0;
+
+		// 全巻所持フラグを反映
+		editingSeries.IsOwnedCompleted = this.VolumeStatus.IsOwnedCompleted.Value;
+
+		// 製本済み最終巻は UI で編集不可のため、デフォルト値のまま
+		editingSeries.BoundEndVolume = 0;
+
+		// === Description 出典 ===
+		// Description が入力されている場合は Manual、未入力の場合は None
+		if (!string.IsNullOrEmpty(this.Description.Value))
+		{
+			editingSeries.DescriptionSource = DescriptionSource.Manual;
+			editingSeries.DescriptionSourceTitle = string.Empty;
+		}
+		else
+		{
+			editingSeries.DescriptionSource = DescriptionSource.None;
+			editingSeries.DescriptionSourceTitle = string.Empty;
+		}
+
+		// === GoogleBooks 関連 ===
+		// UI から一時保存した時点では GoogleBooksImporter はまだ実行されていない
+		// GoogleBooksImporter の取得条件・更新条件を満たす状態を保存
+		editingSeries.GoogleBooksImportStatus = GoogleBooksImportStatus.NotImported;
+		editingSeries.GoogleBooksImportedAt = string.Empty;
+		editingSeries.GoogleBooksImportMessage = string.Empty;
+
+		// === その他の初期値 ===
+		// Worker で生成される MangaSeries と同等の状態を保持
+		editingSeries.IsSourceMissing = false;
+		editingSeries.HasNestedArchive = false;
+		// NOTE: ManuallyEditedAt と IsOwnedMaxVolumeManuallyEdited は WorkMangaSeries テーブルに存在しないため設定しない
+	}
+
+	/// <summary>
+	/// 編集中の作品を WorkMangaSeries テーブルへ一時保存します。
+	/// 保存対象となるサムネイル JPEG byte[] がある場合は、MangaSeriesManager 経由で WorkThumbnail フォルダへ保存します。
+	/// 成功後は自動的に作品管理画面へ戻ります。
+	/// </summary>
+	private async ValueTask SaveWorkSeriesAsync()
+	{
+		if (this.EditingSeries.Value == null)
+			return;
+
+		try
+		{
+			// EditingSeries を完成状態へ更新
+			this.UpdateEditingSeriesFromUI();
+
+			// サムネイル JPEG byte[] を取得
+			var editingSeries = this.EditingSeries.Value;
+			var thumbnailBytes = this.GetPastedThumbnailBytes();
+
+			// WorkMangaSeries へ一時保存
+			var workId = await this.seriesManager.SaveWorkSeriesAsync(editingSeries, thumbnailBytes);
+
+			// 成功ログ
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SaveWorkSeriesAsync] 一時保存成功。WorkId={workId}");
+
+			// 作品管理画面へ戻る
+			this.navigationService.Navigate(typeof(MaintenancePage));
+		}
+		catch (Exception ex)
+		{
+			// エラーが発生した場合はログとユーザー通知
+			// 開発中のアプリであるため、Exception.Message と StackTrace を表示
+			var errorMessageBody = $"{ex.Message}\n\nStackTrace:\n{ex.StackTrace}";
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SaveWorkSeriesAsync] 例外発生: {ex}");
+
+			// VolumeSelectionPage と同じ通知方式：赤色（Danger）で自動では閉じない
+			this.snackbarService.Show(
+				"一時保存に失敗しました",
+				errorMessageBody,
+				ControlAppearance.Danger,
+				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+				TimeSpan.MaxValue);
+		}
+	}
+
+	/// <summary>
+	/// ドラッグアンドドロップされたファイル/フォルダを解析し、素材として MaterialFiles に追加します。
+	/// 以下の基準で判定・追加します：
+	/// - ファイル：SupportedExtensionHelper.IsArchive() で対応アーカイブのみ追加
+	/// - フォルダ（epub のみ）：フォルダ内の epub ファイルを単体で追加
+	/// - フォルダ（画像のみ）：フォルダ自体を追加
+	/// - それ以外：追加しない（エラー表示なし）
+	/// 重複する FullPath は追加しません。
+	/// </summary>
+	/// <param name="droppedPaths">ドラッグアンドドロップされたファイル/フォルダのパス配列。</param>
+	private async ValueTask AddMaterialFilesFromDropAsync(string[] droppedPaths)
+	{
+		if (droppedPaths == null || droppedPaths.Length == 0)
+		{
+			return;
+		}
+
+		try
+		{
+			var addedAny = false;
+
+			foreach (var path in droppedPaths)
+			{
+				if (string.IsNullOrWhiteSpace(path))
+				{
+					continue;
+				}
+
+				var fullPath = Path.GetFullPath(path);
+
+				// 既存の素材に同じパスがあるかチェック
+				if (this.MaterialFiles.Any(m => m.FullPath == fullPath))
+				{
+					continue;
+				}
+
+				if (File.Exists(fullPath))
+				{
+					// ファイルの場合：拡張子をチェック
+					var ext = Path.GetExtension(fullPath);
+					if (SupportedExtensionHelper.IsArchive(ext))
+					{
+						// アーカイブファイルを追加
+						var item = new MaterialFileItem
+						{
+							Name = Path.GetFileName(fullPath),
+							FullPath = fullPath,
+							ItemType = MaterialItemType.Archive,
+							SizeBytes = new FileInfo(fullPath).Length,
+							CanRemove = true,
+						};
+						var viewModel = MaterialFileItemViewModel.FromDto(item);
+						this.MaterialFiles.Add(viewModel);
+						addedAny = true;
+					}
+				}
+				else if (Directory.Exists(fullPath))
+				{
+					// フォルダの場合：内容を解析
+					var epubFiles = new List<string>();
+					var imageFiles = new List<string>();
+					var otherFiles = new List<string>();
+
+					// フォルダ直下のファイルのみを分析（サブフォルダは見ない）
+					foreach (var file in Directory.GetFiles(fullPath))
+					{
+						var fileExt = Path.GetExtension(file);
+
+						if (string.Equals(fileExt, ".epub", StringComparison.OrdinalIgnoreCase))
+						{
+							epubFiles.Add(file);
+						}
+						else if (SupportedExtensionHelper.IsImage(fileExt))
+						{
+							imageFiles.Add(file);
+						}
+						else
+						{
+							otherFiles.Add(file);
+						}
+					}
+
+					// フォルダの種類を判定
+					var hasOnlyEpub = epubFiles.Count > 0 && imageFiles.Count == 0 && otherFiles.Count == 0;
+					var hasOnlyImages = imageFiles.Count > 0 && epubFiles.Count == 0 && otherFiles.Count == 0;
+
+					if (hasOnlyEpub)
+					{
+						// epub のみが入っているフォルダ：epub ファイルを個別に追加
+						foreach (var epubFile in epubFiles)
+						{
+							// 重複チェック
+							if (this.MaterialFiles.Any(m => m.FullPath == epubFile))
+							{
+								continue;
+							}
+
+							var item = new MaterialFileItem
+							{
+								Name = Path.GetFileName(epubFile),
+								FullPath = epubFile,
+								ItemType = MaterialItemType.Epub,
+								SizeBytes = new FileInfo(epubFile).Length,
+								CanRemove = true,
+							};
+							var viewModel = MaterialFileItemViewModel.FromDto(item);
+							this.MaterialFiles.Add(viewModel);
+							addedAny = true;
+						}
+					}
+					else if (hasOnlyImages)
+					{
+						// 画像のみが入っているフォルダ：フォルダ自体を追加
+						var item = new MaterialFileItem
+						{
+							Name = Path.GetFileName(fullPath),
+							FullPath = fullPath,
+							ItemType = MaterialItemType.Folder,
+							SizeBytes = null,
+							CanRemove = true,
+						};
+						var viewModel = MaterialFileItemViewModel.FromDto(item);
+						this.MaterialFiles.Add(viewModel);
+						addedAny = true;
+					}
+					// それ以外は追加しない
+				}
+			}
+
+			if (addedAny)
+			{
+				// ヘッダー表示用文字列を更新
+				this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
+
+				// ボタン有効制御を更新
+				this.UpdateSaveWorkSeriesCommandCanExecute();
+			}
+		}
+		catch (Exception ex)
+		{
+			// ドラッグアンドドロップ処理中のエラーをログ出力
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.AddMaterialFilesFromDropAsync] 例外発生: {ex.Message}");
 		}
 	}
 

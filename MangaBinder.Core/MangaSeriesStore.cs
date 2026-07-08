@@ -60,6 +60,58 @@ public sealed class MangaSeriesStore
 	}
 
 	/// <summary>
+	/// 登録待ち作品として、指定された MangaSeries を更新します。
+	/// 同じ WorkId を持つ登録待ち作品が既に存在する場合は、そのインスタンスのプロパティを更新します。
+	/// 存在しない場合は新規追加します。
+	/// WorkId が 0 の場合は受け付けません。
+	/// </summary>
+	/// <param name="workSeries">追加または更新する登録待ち MangaSeries。WorkId != 0 である必要があります。</param>
+	public void UpdateWorkSeries(MangaSeries workSeries)
+	{
+		// WorkId == 0 の場合は受け付けない
+		if (workSeries.WorkId == 0)
+			return;
+
+		// 既存の登録待ち作品を検索
+		var existingIndex = this.workSeries.FindIndex(x => x.WorkId == workSeries.WorkId);
+
+		if (existingIndex >= 0)
+		{
+			// 既存する場合は、そのインスタンスのプロパティを更新（差し替えない）
+			// WorkMangaSeries UPDATE 対象のプロパティをコピー
+			var existing = this.workSeries[existingIndex];
+			existing.Title = workSeries.Title;
+			existing.ThumbnailFileName = workSeries.ThumbnailFileName;
+			existing.Author = workSeries.Author;
+			existing.Description = workSeries.Description;
+			existing.SeriesCompleted = workSeries.SeriesCompleted;
+			existing.IsOwnedCompleted = workSeries.IsOwnedCompleted;
+			existing.IsSourceMissing = workSeries.IsSourceMissing;
+			existing.StartVolume = workSeries.StartVolume;
+			existing.EndVolume = workSeries.EndVolume;
+			existing.BoundEndVolume = workSeries.BoundEndVolume;
+			existing.OwnedMaxVolume = workSeries.OwnedMaxVolume;
+			existing.ThumbnailStatus = workSeries.ThumbnailStatus;
+			existing.Publisher = workSeries.Publisher;
+			existing.GoogleBooksImportStatus = workSeries.GoogleBooksImportStatus;
+			existing.GoogleBooksImportedAt = workSeries.GoogleBooksImportedAt;
+			existing.GoogleBooksImportMessage = workSeries.GoogleBooksImportMessage;
+			existing.DescriptionSource = workSeries.DescriptionSource;
+			existing.DescriptionSourceTitle = workSeries.DescriptionSourceTitle;
+			existing.HasNestedArchive = workSeries.HasNestedArchive;
+			existing.Memo = workSeries.Memo;
+		}
+		else
+		{
+			// 存在しない場合は追加する
+			this.workSeries.Add(workSeries);
+		}
+
+		// mergedSeries を再構築
+		this.RebuildMergedSeries();
+	}
+
+	/// <summary>
 	/// 指定した MangaSeries を追加します。
 	/// 同一 SeriesId は重複登録しません。
 	/// </summary>

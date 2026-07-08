@@ -212,6 +212,8 @@
                                     <ColumnDefinition Width="80" />
                                     <!-- 作品情報 -->
                                     <ColumnDefinition Width="*" />
+                                    <!-- 操作ボタン列 -->
+                                    <ColumnDefinition Width="40" />
                                 </Grid.ColumnDefinitions>
 
                                 <!-- サムネイル -->
@@ -260,6 +262,31 @@
                                         TextTrimming="CharacterEllipsis"
                                         Margin="0,0,0,4" />
                                 </StackPanel>
+
+                                <!-- 操作列 -->
+                                <ui:Button
+                                    Grid.Column="2"
+                                    Appearance="Transparent"
+                                    Width="28"
+                                    Height="28"
+                                    Padding="0"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Background="Transparent"
+                                    BorderBrush="Transparent"
+                                    MouseOverBackground="{DynamicResource ControlFillColorSecondaryBrush}"
+                                    MouseOverBorderBrush="Transparent"
+                                    ToolTip="編集"
+                                    Command="{Binding DataContext.EditSeriesCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=Page}}"
+                                    CommandParameter="{Binding Series}">
+                                    <TextBlock
+                                        Text="▶"
+                                        FontSize="12"
+                                        Opacity="0.6"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Center"
+                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </ui:Button>
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>

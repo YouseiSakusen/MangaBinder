@@ -59,6 +59,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>EditorPage を表示するコマンドです。</summary>
 	public ReactiveCommand<Unit> ShowEditorCommand { get; private set; }
 
+	/// <summary>既存作品を編集モードで EditorPage を表示するコマンドです。</summary>
+	public ReactiveCommand<MangaSeries> EditSeriesCommand { get; private set; }
+
 	/// <summary>
 	/// <see cref="MaintenancePageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -101,6 +104,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.ShowEditorCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
 
+		this.EditSeriesCommand = new ReactiveCommand<MangaSeries>()
+			.AddTo(ref this.disposableBag);
+
 		// SearchCommand の実装
 		this.SearchCommand.Subscribe(async _ => await this.executeSearchAsync());
 
@@ -109,6 +115,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		// ShowEditorCommand の実装
 		this.ShowEditorCommand.Subscribe(_ => this.showEditor());
+
+		// EditSeriesCommand の実装
+		this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
 	}
 
 	/// <summary>
@@ -123,9 +132,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		// 登録待ち件数を更新（常に Store が保持している登録待ち作品数を表示）
 		this.WorkSeriesCount.Value = workSeriesList.Count;
 
-		// DisplaySeries に通常表示データを初期設定
-		this.displaySeriesSource.Clear();
-		this.displaySeriesSource.AddRange(workSeriesList.Select(s => new SeriesCardViewModel(s)));
+		// DisplaySeries の再構築：既存インスタンスと新規インスタンスを照合
+		// 既存インスタンスが存在する場合は巻情報を更新、新規インスタンスの場合は追加
+		this.updateDisplaySeriesWithRefresh(workSeriesList);
 
 		// 検索結果表示フラグを false に初期化
 		this.IsSearchResultsShown.Value = false;
@@ -157,9 +166,8 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		if (string.IsNullOrEmpty(searchQuery))
 		{
-			// 検索文字列が空 → 通常表示へ戻す
-			this.displaySeriesSource.Clear();
-			this.displaySeriesSource.AddRange(this.WorkSeries.Select(s => new SeriesCardViewModel(s)));
+			// 検索文字列が空 → 通常表示へ戻す（巻情報も再同期）
+			this.updateDisplaySeriesWithRefresh(this.WorkSeries);
 			this.IsSearchResultsShown.Value = false;
 		}
 		else
@@ -167,9 +175,8 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 			// 検索実行
 			var results = this.mangaSeriesManager.Search(searchQuery);
 
-			// DisplaySeries に検索結果を設定
-			this.displaySeriesSource.Clear();
-			this.displaySeriesSource.AddRange(results.Select(s => new SeriesCardViewModel(s)));
+			// DisplaySeries に検索結果を設定（巻情報も再同期）
+			this.updateDisplaySeriesWithRefresh(results);
 
 			// 検索結果表示フラグを設定
 			this.IsSearchResultsShown.Value = true;
@@ -193,9 +200,8 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		// SearchQuery をクリア
 		this.SearchQuery.Value = string.Empty;
 
-		// DisplaySeries を通常表示へ戻す
-		this.displaySeriesSource.Clear();
-		this.displaySeriesSource.AddRange(this.WorkSeries.Select(s => new SeriesCardViewModel(s)));
+		// DisplaySeries を通常表示へ戻す（巻情報も再同期）
+		this.updateDisplaySeriesWithRefresh(this.WorkSeries);
 
 		// 検索結果表示フラグを false に設定
 		this.IsSearchResultsShown.Value = false;
@@ -216,6 +222,53 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		// NavigationHierarchy を設定
 		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
+	}
+
+	/// <summary>
+	/// 指定された作品を編集モードで EditorPage を表示します。
+	/// </summary>
+	/// <param name="series">編集対象の作品。</param>
+	private void editSeries(MangaSeries series)
+	{
+		// 編集対象を指定作品に設定
+		this.workspaceStore.EditTarget = series;
+
+		// NavigationHierarchy を設定
+		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
+	}
+
+	/// <summary>
+	/// DisplaySeries を指定された MangaSeries リストに基づいて更新します。
+	/// 既存の SeriesCardViewModel が存在する場合は巻情報を再同期し、
+	/// 新規の場合は新しい SeriesCardViewModel を作成します。
+	/// </summary>
+	/// <param name="workSeriesList">更新対象の MangaSeries リスト。</param>
+	private void updateDisplaySeriesWithRefresh(IReadOnlyList<MangaSeries> workSeriesList)
+	{
+		// 新しい SeriesCardViewModel リストを構築
+		var newDisplaySeries = new List<SeriesCardViewModel>();
+
+		foreach (var series in workSeriesList)
+		{
+			// 既存の displaySeriesSource 内で同じ WorkId を持つ SeriesCardViewModel を検索
+			var existingCard = this.displaySeriesSource.FirstOrDefault(x => x.Series.WorkId == series.WorkId);
+
+			if (existingCard != null)
+			{
+				// 既存インスタンスが存在する場合は巻情報を再同期
+				existingCard.RefreshVolumeStatus();
+				newDisplaySeries.Add(existingCard);
+			}
+			else
+			{
+				// 新規インスタンスの場合は新しい SeriesCardViewModel を作成
+				newDisplaySeries.Add(new SeriesCardViewModel(series));
+			}
+		}
+
+		// displaySeriesSource を一括更新
+		this.displaySeriesSource.Clear();
+		this.displaySeriesSource.AddRange(newDisplaySeries);
 	}
 
 	public void Dispose()
