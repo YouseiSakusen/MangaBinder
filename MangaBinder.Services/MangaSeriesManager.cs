@@ -1,6 +1,9 @@
 using HalationGhost.Utilities;
 using MangaBinder.Bindings;
+using MangaBinder.Core.Series;
+using MangaBinder.Settings;
 using MangaBinder.Tags;
+using Microsoft.Extensions.Logging;
 
 namespace MangaBinder;
 
@@ -28,6 +31,9 @@ public class MangaSeriesManager
 	/// <summary>タグを取得する Repository。</summary>
 	private readonly TagRepository tagRepository;
 
+	/// <summary>ログ出力用の Logger。</summary>
+	private readonly ILogger<MangaSeriesManager>? logger;
+
 	/// <summary>編集セッション中の編集対象 Series。</summary>
 	private MangaSeries? editingSeriesSnapshot;
 
@@ -43,13 +49,15 @@ public class MangaSeriesManager
 	/// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="tagRepository">タグを取得する Repository。</param>
+	/// <param name="logger">ログ出力用の Logger。オプション。</param>
 	public MangaSeriesManager(
 		MangaRepository mangaRepository,
 		WorkMangaSeriesRepository workMangaSeriesRepository,
 		BindingQueueRepository bindingQueueRepository,
 		BindingQueueDispatcher bindingQueueDispatcher,
 		MangaSeriesStore mangaSeriesStore,
-		TagRepository tagRepository)
+		TagRepository tagRepository,
+		ILogger<MangaSeriesManager>? logger = null)
 	{
 		this.mangaRepository = mangaRepository;
 		this.workMangaSeriesRepository = workMangaSeriesRepository;
@@ -57,6 +65,7 @@ public class MangaSeriesManager
 		this.bindingQueueDispatcher = bindingQueueDispatcher;
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.tagRepository = tagRepository;
+		this.logger = logger;
 	}
 
 	/// <summary>
@@ -227,4 +236,117 @@ public class MangaSeriesManager
 	/// <returns>編集開始時点での Series コピー、またはセッション未開始時は null。</returns>
 	public MangaSeries? GetEditingSeriesOriginal()
 		=> this.editingSeriesOriginalSnapshot;
+
+	/// <summary>
+	/// 指定された作品の素材フォルダ直下のファイル・フォルダを取得します。
+	/// 既存作品（IsWork == false）のみ対象。新規作品・登録待ち作品は空リストを返します。
+	/// 素材フォルダが見つからない場合はログ出力されます。
+	/// </summary>
+	/// <param name="series">対象となる作品。</param>
+	/// <returns>素材フォルダ直下のファイル・フォルダを表す MaterialFileItem のリスト。</returns>
+	public List<MaterialFileItem> GetMaterialFiles(MangaSeries series)
+	{
+		ArgumentNullException.ThrowIfNull(series);
+
+		// 新規作品・登録待ち作品は対象外
+		if (series.IsWork)
+			return [];
+
+		var result = new List<MaterialFileItem>();
+
+		// 素材フォルダ一覧を取得
+		var materialSources = series.MaterialSources;
+
+		foreach (var source in materialSources)
+		{
+			// フォルダの存在確認
+			if (!Directory.Exists(source.Path))
+			{
+				this.logger?.LogInformation(
+					"素材フォルダが見つかりません。SeriesId={SeriesId}, Path={Path}",
+					series.SeriesId,
+					source.Path);
+				continue;
+			}
+
+			try
+			{
+				// フォルダ直下のファイル・フォルダを列挙
+				var entries = Directory.GetFileSystemEntries(source.Path, "*", SearchOption.TopDirectoryOnly);
+
+				foreach (var entry in entries)
+				{
+					var fileAttributes = File.GetAttributes(entry);
+					var isDirectory = (fileAttributes & FileAttributes.Directory) != 0;
+
+					string name = Path.GetFileName(entry);
+					var itemType = isDirectory
+						? MaterialItemType.Folder
+						: GetItemTypeFromExtension(Path.GetExtension(entry));
+
+					long? sizeBytes = null;
+					if (!isDirectory)
+					{
+						try
+						{
+							var fileInfo = new FileInfo(entry);
+							sizeBytes = fileInfo.Length;
+						}
+						catch
+						{
+							// ファイル情報取得失敗時は null のまま
+						}
+					}
+
+					result.Add(new MaterialFileItem
+					{
+						Name = name,
+						FullPath = entry,
+						ItemType = itemType,
+						SizeBytes = sizeBytes,
+						CanRemove = false,
+					});
+				}
+			}
+			catch (Exception ex)
+			{
+				this.logger?.LogWarning(
+					ex,
+					"素材フォルダの列挙中にエラーが発生しました。SeriesId={SeriesId}, Path={Path}",
+					series.SeriesId,
+					source.Path);
+			}
+		}
+
+		return result
+			.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
+			.ToList();
+	}
+
+	/// <summary>
+	/// ファイル拡張子から MaterialItemType を判定します。
+	/// </summary>
+	/// <param name="extension">ファイル拡張子（例：".zip", ".jpg"）。</param>
+	/// <returns>判定された MaterialItemType。</returns>
+	private MaterialItemType GetItemTypeFromExtension(string extension)
+	{
+		// 拡張子が空の場合
+		if (string.IsNullOrWhiteSpace(extension))
+			return MaterialItemType.Root;
+
+		// SupportedExtensionHelper を使って判定
+		if (SupportedExtensionHelper.IsArchive(extension))
+			return MaterialItemType.Archive;
+
+		// EPUB の判定（一般的に .epub 拡張子）
+		if (extension.Equals(".epub", StringComparison.OrdinalIgnoreCase))
+			return MaterialItemType.Epub;
+
+		// 画像の判定
+		if (SupportedExtensionHelper.IsImage(extension))
+			return MaterialItemType.Folder; // 画像ファイルはアイコン表示用に Folder として返す
+
+		// その他
+		return MaterialItemType.Root;
+	}
 }

@@ -18,6 +18,11 @@
 
     <Page.Resources>
         <converters:ThumbnailPreviewOrDefaultConverter x:Key="ThumbnailPreviewOrDefaultConverter" />
+
+        <!-- 素材ファイル一覧用コンバーター -->
+        <converters:NodeTypeToSymbolConverter x:Key="NodeTypeToSymbolConverter" />
+        <converters:NodeTypeToColorConverter x:Key="NodeTypeToColorConverter" />
+        <converters:NodeTypeToFilledConverter x:Key="NodeTypeToFilledConverter" />
     </Page.Resources>
 
     <!-- ══════════════════════════════════════════════════════════════════ -->
@@ -118,7 +123,8 @@
                         <ui:Button
                             Height="40"
                             HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center">
+                            HorizontalContentAlignment="Center"
+                            Command="{Binding SelectThumbnailCommand}">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
                                 <ui:SymbolIcon Symbol="Folder20" FontSize="16" Margin="0,0,6,0" />
                                 <TextBlock Text="参照" VerticalAlignment="Center" />
@@ -129,9 +135,20 @@
             </ui:Card>
 
             <!-- ── 中央パネル：作品情報入力エリア ── -->
-            <StackPanel Grid.Column="1" Margin="0,0,12,0">
-                <!-- ── 基本情報カード ── -->
-                <ui:Card VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
+            <Grid Grid.Column="1" Margin="0,0,12,0">
+                <Grid.RowDefinitions>
+                    <!-- Row0: 編集カード（基本情報） -->
+                    <RowDefinition Height="Auto" />
+                    <!-- Row1: 巻情報 -->
+                    <RowDefinition Height="Auto" />
+                    <!-- Row2: 素材一覧（残り高さ） -->
+                    <RowDefinition Height="*" />
+                    <!-- Row3: タグ -->
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Row0: 基本情報カード ── -->
+                <ui:Card Grid.Row="0" VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
                     <Grid>
                         <Grid.RowDefinitions>
                             <!-- 基本情報エリア -->
@@ -280,120 +297,134 @@
                             PlaceholderText="メモを入力してください" />
                     </Grid>
 
-                        </Grid>
+                    </Grid>
                     </ui:Card>
 
-            <!-- ── 巻情報カード ── -->
-            <ui:Card VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
-                <StackPanel>
-                    <!-- ヘッダー -->
-                    <TextBlock
-                        Text="巻情報"
-                        FontSize="12"
-                        FontWeight="SemiBold"
-                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                        Margin="0,0,0,8" />
+                <!-- Row1: 巻情報カード ── -->
+				<ui:Card Grid.Row="1" VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="Auto" />
+						</Grid.RowDefinitions>
 
-                    <!-- 外側Grid（2列: 左 2/3 に入力項目、右 1/3 は余白） -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
+						<!-- Row0: ヘッダー -->
+						<TextBlock
+							Grid.Row="0"
+							Text="巻情報"
+							FontSize="12"
+							FontWeight="SemiBold"
+							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+							Margin="0,0,0,8" />
 
-                        <!-- Column 0: 内側Grid で入力項目を1行で配置 -->
-                        <Grid Grid.Column="0">
-                            <Grid.ColumnDefinitions>
-                                <!-- 完結巻ラベル -->
-                                <ColumnDefinition Width="Auto" />
-                                <!-- EndVolumeNumberBox -->
-                                <ColumnDefinition Width="Auto" />
-                                <!-- スペーサー -->
-                                <ColumnDefinition Width="Auto" />
-                                <!-- 全巻所持チェック -->
-                                <ColumnDefinition Width="Auto" />
-                                <!-- 全巻所持ラベル -->
-                                <ColumnDefinition Width="Auto" />
-                                <!-- スペーサー -->
-                                <ColumnDefinition Width="Auto" />
-                                <!-- 開始巻ラベル -->
-                                <ColumnDefinition Width="Auto" />
-                                <!-- StartVolumeNumberBox -->
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+						<!-- Row1: 入力フォーム -->
+						<Grid Grid.Row="1">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="2*" />
+								<ColumnDefinition Width="*" />
+							</Grid.ColumnDefinitions>
 
-                            <!-- Column 0: 完結巻ラベル -->
-                            <TextBlock
-                                Grid.Column="0"
-                                Text="完結巻"
-                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                VerticalAlignment="Center"
-                                Margin="0,0,6,0" />
+							<!-- Column 0: 内側Grid で入力項目を1行で配置 -->
+							<Grid Grid.Column="0">
+								<Grid.ColumnDefinitions>
+									<!-- 完結巻ラベル -->
+									<ColumnDefinition Width="Auto" />
+									<!-- EndVolumeNumberBox -->
+									<ColumnDefinition Width="Auto" />
+									<!-- スペーサー -->
+									<ColumnDefinition Width="Auto" />
+									<!-- 全巻所持チェック -->
+									<ColumnDefinition Width="Auto" />
+									<!-- 全巻所持ラベル -->
+									<ColumnDefinition Width="Auto" />
+									<!-- スペーサー -->
+									<ColumnDefinition Width="Auto" />
+									<!-- 開始巻ラベル -->
+									<ColumnDefinition Width="Auto" />
+									<!-- StartVolumeNumberBox -->
+									<ColumnDefinition Width="Auto" />
+								</Grid.ColumnDefinitions>
 
-                            <!-- Column 1: EndVolumeNumberBox -->
-                            <ui:NumberBox
-                                Grid.Column="1"
-                                Value="{Binding VolumeStatus.EndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                behaviors:NumberBoxTextChangedBehavior.Command="{Binding VolumeStatus.EndVolumeTextInputCommand}"
-                                Width="120"
-                                PlaceholderText="0"
-                                Minimum="1"
-                                Maximum="999"
-                                SpinButtonPlacementMode="Hidden"
-                                InputMethod.PreferredImeState="Off"
-                                Margin="0,0,18,0" />
+								<!-- Column 0: 完結巻ラベル -->
+								<TextBlock
+									Grid.Column="0"
+									Text="完結巻"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+									VerticalAlignment="Center"
+									Margin="0,0,6,0" />
 
-                            <!-- Column 2: スペーサー -->
-                            <Border Grid.Column="2" Width="0" />
+								<!-- Column 1: EndVolumeNumberBox -->
+								<ui:NumberBox
+									Grid.Column="1"
+									Value="{Binding VolumeStatus.EndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									behaviors:NumberBoxTextChangedBehavior.Command="{Binding VolumeStatus.EndVolumeTextInputCommand}"
+									Width="120"
+									PlaceholderText="0"
+									Minimum="1"
+									Maximum="999"
+									SpinButtonPlacementMode="Hidden"
+									InputMethod.PreferredImeState="Off"
+									Margin="0,0,18,0" />
 
-                            <!-- Column 3: 全巻所持チェック -->
-                            <CheckBox
-                                Grid.Column="3"
-                                IsChecked="{Binding VolumeStatus.IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding VolumeStatus.CanEditOwnedCompleted.Value}"
-                                VerticalAlignment="Center"
-                                Margin="0,0,6,0" />
+								<!-- Column 2: スペーサー -->
+								<Border Grid.Column="2" Width="0" />
 
-                            <!-- Column 4: 全巻所持ラベル -->
-                            <TextBlock
-                                Grid.Column="4"
-                                Text="全巻所持"
-                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                VerticalAlignment="Center"
-                                Margin="0,0,18,0" />
+								<!-- Column 3: 全巻所持チェック -->
+								<CheckBox
+									Grid.Column="3"
+									IsChecked="{Binding VolumeStatus.IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									IsEnabled="{Binding VolumeStatus.CanEditOwnedCompleted.Value}"
+									VerticalAlignment="Center"
+									Margin="0,0,6,0" />
 
-                            <!-- Column 5: スペーサー -->
-                            <Border Grid.Column="5" Width="0" />
+								<!-- Column 4: 全巻所持ラベル -->
+								<TextBlock
+									Grid.Column="4"
+									Text="全巻所持"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+									VerticalAlignment="Center"
+									Margin="0,0,18,0" />
 
-                            <!-- Column 6: 開始巻ラベル -->
-                            <TextBlock
-                                Grid.Column="6"
-                                Text="開始巻"
-                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                VerticalAlignment="Center"
-                                Margin="0,0,6,0" />
+								<!-- Column 5: スペーサー -->
+								<Border Grid.Column="5" Width="0" />
 
-                            <!-- Column 7: StartVolumeNumberBox -->
-                            <ui:NumberBox
-                                Grid.Column="7"
-                                Value="{Binding VolumeStatus.StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                Width="120"
-                                PlaceholderText="0"
-                                Minimum="1"
-                                Maximum="999"
-                                SpinButtonPlacementMode="Hidden"
-                                InputMethod.PreferredImeState="Off" />
-                        </Grid>
+								<!-- Column 6: 開始巻ラベル -->
+								<TextBlock
+									Grid.Column="6"
+									Text="開始巻"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+									VerticalAlignment="Center"
+									Margin="0,0,6,0" />
 
-                        <!-- Column 1: 余白 -->
-                        <Border Grid.Column="1" />
-                    </Grid>
-                </StackPanel>
-            </ui:Card>
-            <ui:Card VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
-                <StackPanel>
-                    <!-- 所持推定 -->
-					<Grid Margin="0,0,0,12">
+								<!-- Column 7: StartVolumeNumberBox -->
+								<ui:NumberBox
+									Grid.Column="7"
+									Value="{Binding VolumeStatus.StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									Width="120"
+									PlaceholderText="0"
+									Minimum="1"
+									Maximum="999"
+									SpinButtonPlacementMode="Hidden"
+									InputMethod.PreferredImeState="Off" />
+							</Grid>
+
+							<!-- Column 1: 余白 -->
+							<Border Grid.Column="1" />
+						</Grid>
+					</Grid>
+				</ui:Card>
+
+			<!-- Row2: 素材一覧カード ── -->
+			<ui:Card Grid.Row="2" Padding="12,14" Margin="0,0,0,12">
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="*" />
+					</Grid.RowDefinitions>
+
+					<!-- Row 0: 所持推定セクション -->
+					<Grid Grid.Row="0" Margin="0,0,0,12">
 						<Grid.ColumnDefinitions>
 							<ColumnDefinition Width="4*" />
 							<ColumnDefinition Width="1*" />
@@ -406,8 +437,8 @@
 
 								<!-- 所持推定ラベル -->
 								<TextBlock
-                                    Grid.Column="0"
-                                    Text="所持推定"
+									Grid.Column="0"
+									Text="所持推定"
 									VerticalAlignment="Center"
 									Margin="0,0,6,0"
 									Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -425,68 +456,76 @@
 							</Grid>
 						</Grid>
 
-						<!-- ヘッダー -->
-                    <TextBlock
-                        Text="{Binding MaterialFilesDisplay.Value}"
-                        FontSize="12"
-                        FontWeight="SemiBold"
-                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                        Margin="0,0,0,8" />
+					<!-- Row 1: ヘッダー -->
+					<TextBlock
+						Grid.Row="1"
+						Text="{Binding MaterialFilesDisplay.Value}"
+						FontSize="12"
+						FontWeight="SemiBold"
+						Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+						Margin="0,0,0,8" />
 
-                    <!-- 素材ファイル一覧 -->
-                    <ListView
-                        MinHeight="120"
-                        Margin="0"
-                        ItemsSource="{Binding MaterialFiles}">
-                        <ListView.View>
-                            <GridView>
-                                <!-- 種別アイコン列 -->
-                                <GridViewColumn Header="種別" Width="50">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <ui:SymbolIcon
-                                                Symbol="{Binding ItemType, Converter={StaticResource NodeTypeToSymbolConverter}}"
-                                                Filled="{Binding ItemType, Converter={StaticResource NodeTypeToFilledConverter}}"
-                                                Foreground="{Binding ItemType, Converter={StaticResource NodeTypeToColorConverter}}"
-                                                FontSize="16"
-                                                VerticalAlignment="Center" />
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <!-- ファイル名列 -->
-                                <GridViewColumn Header="ファイル名" Width="250">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock
-                                                Text="{Binding FileName}"
-                                                VerticalAlignment="Center"
-                                                TextTrimming="CharacterEllipsis" />
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <!-- サイズ列 -->
-                                <GridViewColumn Header="サイズ" Width="100">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock
-                                                Text="{Binding SizeText}"
-                                                VerticalAlignment="Center" />
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </StackPanel>
-            </ui:Card>
+					<!-- Row 2: 素材ファイル一覧（スクロール可能） -->
+					<ListView
+						Grid.Row="2"
+						Margin="0"
+						ItemsSource="{Binding MaterialFiles}"
+						ScrollViewer.VerticalScrollBarVisibility="Auto"
+						ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+						ScrollViewer.CanContentScroll="True">
+						<ListView.View>
+							<GridView>
+								<!-- 種別アイコン列（固定幅、右寄せ） -->
+								<GridViewColumn Header="種別" Width="60">
+									<GridViewColumn.CellTemplate>
+										<DataTemplate>
+											<Grid Width="44">
+												<ui:SymbolIcon
+													HorizontalAlignment="Right"
+													VerticalAlignment="Center"
+													Symbol="{Binding ItemType, Converter={StaticResource NodeTypeToSymbolConverter}}"
+													Filled="{Binding ItemType, Converter={StaticResource NodeTypeToFilledConverter}}"
+													Foreground="{Binding ItemType, Converter={StaticResource NodeTypeToColorConverter}}"
+													FontSize="16" />
+											</Grid>
+										</DataTemplate>
+									</GridViewColumn.CellTemplate>
+								</GridViewColumn>
+								<!-- ファイル名列（可変幅） -->
+								<GridViewColumn Header="ファイル名" Width="400">
+									<GridViewColumn.CellTemplate>
+										<DataTemplate>
+											<TextBlock
+												Text="{Binding FileName}"
+												VerticalAlignment="Center"
+												TextTrimming="CharacterEllipsis" />
+										</DataTemplate>
+									</GridViewColumn.CellTemplate>
+								</GridViewColumn>
+								<!-- サイズ列 -->
+								<GridViewColumn Header="サイズ" Width="100">
+									<GridViewColumn.CellTemplate>
+										<DataTemplate>
+											<TextBlock
+												Text="{Binding SizeText}"
+												VerticalAlignment="Center"
+												TextAlignment="Right" />
+										</DataTemplate>
+									</GridViewColumn.CellTemplate>
+								</GridViewColumn>
+							</GridView>
+						</ListView.View>
+					</ListView>
+				</Grid>
+			</ui:Card>
 
-            <!-- ── タグカード ── -->
-            <ui:Card VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+			<!-- Row3: タグカード ── -->
+			<ui:Card Grid.Row="3" VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="Auto" />
+					</Grid.RowDefinitions>
 
                     <!-- ヘッダー -->
                     <TextBlock
@@ -569,7 +608,7 @@
                     </Grid>
                 </Grid>
             </ui:Card>
-        </StackPanel>
+            </Grid>
 
             <!-- ── 右パネル：余白・補助領域 ── -->
             <Border Grid.Column="2" />

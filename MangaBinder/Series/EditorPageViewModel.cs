@@ -1,5 +1,6 @@
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
+using MangaBinder.Settings;
 using MangaBinder.Tags;
 using R3;
 using Reactive.Bindings.R3;
@@ -20,7 +21,8 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	private readonly IContentDialogService contentDialogService;
 	private readonly INavigationService navigationService;
 	private readonly MangaSeriesStore mangaSeriesStore;
-	private readonly ThumbnailPicker thumbnailManager;
+	private readonly ThumbnailPicker thumbnailPicker;
+	private readonly ISnackbarService snackbarService;
 	private DisposableBag disposableBag;
 
 	/// <summary>編集対象の Series を取得します。</summary>
@@ -118,6 +120,11 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	public ReactiveCommand<Unit> PasteThumbnailCommand { get; }
 
 	/// <summary>
+	/// ファイルから画像を選択してサムネイルを設定するコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> SelectThumbnailCommand { get; }
+
+	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="seriesManager">作品管理マネージャー。</param>
@@ -125,21 +132,26 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="mangaSeriesStore">作品タグストア。</param>
-	/// <param name="thumbnailManager">サムネイル操作マネージャー。</param>
+	/// <param name="thumbnailPicker">サムネイル操作ピッカー。</param>
+	/// <param name="thumbnailImageProcessor">サムネイル画像処理。</param>
+	/// <param name="appSettings">アプリケーション設定。</param>
+	/// <param name="snackbarService">Snackbar サービス。</param>
 	public EditorPageViewModel(
 		MangaSeriesManager seriesManager,
 		SeriesWorkspaceStore workspaceStore,
 		IContentDialogService contentDialogService,
 		INavigationService navigationService,
 		MangaSeriesStore mangaSeriesStore,
-		ThumbnailPicker thumbnailManager)
+		ThumbnailPicker thumbnailPicker,
+		ISnackbarService snackbarService)
 	{
 		this.seriesManager = seriesManager ?? throw new ArgumentNullException(nameof(seriesManager));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
 		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
 		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
-		this.thumbnailManager = thumbnailManager ?? throw new ArgumentNullException(nameof(thumbnailManager));
+		this.thumbnailPicker = thumbnailPicker ?? throw new ArgumentNullException(nameof(thumbnailPicker));
+		this.snackbarService = snackbarService ?? throw new ArgumentNullException(nameof(snackbarService));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
@@ -253,6 +265,14 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 			this.PasteThumbnailAsync();
 		});
 
+		// SelectThumbnailCommand: ファイルから画像を選択するコマンド
+		this.SelectThumbnailCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.SelectThumbnailCommand.Subscribe(async _ =>
+		{
+			await this.SelectThumbnailAsync();
+		});
+
 		// VolumeStatus: 巻情報編集用ViewModel
 		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
 			.AddTo(ref this.disposableBag);
@@ -300,6 +320,21 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 
 			// 編集対象作品のタグをコピー
 			this.EditingTagsCollection.Value = new ObservableCollection<MangaTag>(editingSeries.Tags);
+
+			// 素材ファイル一覧を初期化（既存作品のみ）
+			this.MaterialFiles.Clear();
+			if (!editingSeries.IsWork)
+			{
+				var materialFiles = this.seriesManager.GetMaterialFiles(editingSeries);
+				foreach (var item in materialFiles)
+				{
+					var viewModel = MaterialFileItemViewModel.FromDto(item);
+					this.MaterialFiles.Add(viewModel);
+				}
+			}
+
+			// ヘッダー表示用文字列を更新
+			this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
 
 			// タイトル入力欄へのフォーカスを要求
 			this.TitleFocusRequest.Value++;
@@ -515,8 +550,8 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	{
 		try
 		{
-			// ThumbnailManager からクリップボード画像を取得
-			var bitmapSource = this.thumbnailManager.GetFromClipboard();
+			// ThumbnailPicker からクリップボード画像を取得
+			var bitmapSource = this.thumbnailPicker.GetFromClipboard();
 			if (bitmapSource == null)
 			{
 				System.Diagnostics.Debug.WriteLine("[EditorPageViewModel.PasteThumbnailAsync] クリップボードに画像がありません。");
@@ -524,7 +559,7 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 			}
 
 			// BitmapSource を PNG byte[] に変換
-			var pngBytes = this.thumbnailManager.ToBytes(bitmapSource);
+			var pngBytes = this.thumbnailPicker.ToBytes(bitmapSource);
 			if (pngBytes == null || pngBytes.Length == 0)
 			{
 				System.Diagnostics.Debug.WriteLine("[EditorPageViewModel.PasteThumbnailAsync] 画像を PNG 形式に変換できませんでした。");
@@ -557,6 +592,60 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 	{
 		this.ThumbnailPreviewImageSource.Value = null;
 		this.PastedThumbnailBytes = null;
+	}
+
+	/// <summary>
+	/// ファイルから画像を選択してサムネイルを設定します。
+	/// 成功時はプレビュー画像と JPEG byte[] を更新します。
+	/// キャンセル時は何もしません。
+	/// 失敗時はログ出力と Snackbar で通知します。
+	/// </summary>
+	private async ValueTask SelectThumbnailAsync()
+	{
+		try
+		{
+			// ThumbnailPicker からファイル選択ダイアログを表示
+			var result = await this.thumbnailPicker.PickFromFileAsync(CancellationToken.None);
+
+			if (result.IsCanceled)
+			{
+				// キャンセルされた場合は何もしない
+				return;
+			}
+
+			if (!result.Success || result.PreviewImage == null || result.ThumbnailBytes == null)
+			{
+				// 読み込み失敗時：ログとユーザー通知
+				var errorMessage = result.ErrorMessage ?? "画像の読み込みに失敗しました。";
+				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SelectThumbnailAsync] {errorMessage}");
+
+				// Snackbar で通知
+				this.snackbarService.Show(
+					"エラー",
+					errorMessage,
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.FromSeconds(3));
+				return;
+			}
+
+			// 成功時：プレビュー画像と JPEG byte[] を更新
+			this.ThumbnailPreviewImageSource.Value = result.PreviewImage;
+			this.PastedThumbnailBytes = result.ThumbnailBytes;
+		}
+		catch (Exception ex)
+		{
+			// 予期しないエラーが発生した場合もログとユーザー通知
+			var errorMessage = $"サムネイル選択中にエラーが発生しました: {ex.Message}";
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SelectThumbnailAsync] 例外発生: {errorMessage}");
+
+			this.snackbarService.Show(
+				"エラー",
+				errorMessage,
+				ControlAppearance.Caution,
+				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+				TimeSpan.FromSeconds(3));
+		}
 	}
 
 	/// <inheritdoc/>

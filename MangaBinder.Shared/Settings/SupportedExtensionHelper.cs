@@ -13,6 +13,9 @@ public static class SupportedExtensionHelper
     /// <summary>拡張子（小文字・ドット正規化済み）→ RequiresConversion のマップ。</summary>
     private static Dictionary<string, bool> conversionMap = [];
 
+    /// <summary>OpenFileDialog 用の画像フィルタ文字列（キャッシュ）。</summary>
+    private static string? cachedImageOpenFileDialogFilter;
+
     /// <summary>
     /// 拡張子リストを受け取り、内部マップを初期化します。
     /// アプリ起動時に一度だけ呼び出してください。
@@ -31,6 +34,9 @@ public static class SupportedExtensionHelper
             .ToDictionary(
                 e => Normalize(e.Extension),
                 e => e.RequiresConversion);
+
+        // キャッシュを無効化（新しい拡張子リストから再生成される）
+        cachedImageOpenFileDialogFilter = null;
     }
 
     /// <summary>
@@ -65,6 +71,38 @@ public static class SupportedExtensionHelper
     /// <returns>変換が必要な場合は <c>true</c>。未登録の場合は <c>false</c>。</returns>
     public static bool RequiresConversion(string extension)
         => conversionMap.TryGetValue(Normalize(extension), out var requires) && requires;
+
+    /// <summary>
+    /// OpenFileDialog 用の画像ファイルフィルタ文字列を取得します。
+    /// 例: "画像ファイル|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp;*.avif|すべてのファイル|*.*"
+    /// </summary>
+    public static string ImageOpenFileDialogFilter
+    {
+        get
+        {
+            if (cachedImageOpenFileDialogFilter != null)
+                return cachedImageOpenFileDialogFilter;
+
+            // 拡張子マップから画像拡張子のみをフィルタリング
+            var imageExtensions = extensionMap
+                .Where(kvp => kvp.Value == FileType.Image)
+                .Select(kvp => kvp.Key)
+                .OrderBy(ext => ext)
+                .ToList();
+
+            if (imageExtensions.Count == 0)
+            {
+                cachedImageOpenFileDialogFilter = "すべてのファイル|*.*";
+                return cachedImageOpenFileDialogFilter;
+            }
+
+            // ワイルドカード形式で結合（例: *.jpg;*.jpeg;*.png;...）
+            var wildcards = string.Join(";", imageExtensions.Select(ext => $"*{ext}"));
+
+            cachedImageOpenFileDialogFilter = $"画像ファイル|{wildcards}|すべてのファイル|*.*";
+            return cachedImageOpenFileDialogFilter;
+        }
+    }
 
     /// <summary>
     /// 拡張子をドット付き小文字に正規化します。

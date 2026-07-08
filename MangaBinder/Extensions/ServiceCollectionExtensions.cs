@@ -71,7 +71,8 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>();
 		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>();
 		services.AddNavigationPage<EditorPage, EditorPageViewModel>();
-		services.AddTransient<ThumbnailPicker>();
+		services.AddScoped<ThumbnailPicker>();
+		services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();
 		services.AddSingleton<IContentDialogService, ContentDialogService>();
 		services.AddSingleton<VolumeFileNameNormalizer>();
 		services.AddSingleton<VolumeThumbnailImageProcessor>();
