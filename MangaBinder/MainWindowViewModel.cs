@@ -149,6 +149,7 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 
 	/// <summary>
 	/// ナビゲーション遷移時に呼び出されます。直前ページが <see cref="ISavable"/> を実装していれば保存を実行します。
+	/// また、現在ページが <see cref="INavigationLeavingAware"/> を実装していれば、退場処理を実行します。
 	/// </summary>
 	/// <param name="e">ナビゲーションイベント引数。</param>
 	internal async ValueTask OnNavigated(NavigatedEventArgs e)
@@ -156,6 +157,13 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		Debug.WriteLine("===== Navigated =====");
 		Debug.WriteLine($"PageType={e.Page?.GetType().FullName}");
 		Debug.WriteLine($"DataContext={((FrameworkElement)e.Page!).DataContext?.GetType().FullName}");
+
+		// 前ページが INavigationLeavingAware を実装していれば退場処理を実行
+		if (this.currentViewModel is INavigationLeavingAware leavingAware)
+		{
+			Debug.WriteLine("OnNavigatingFromAsync CALL");
+			await leavingAware.OnNavigatingFromAsync();
+		}
 
 		await this.saveCurrentViewModelAsync();
 		this.currentViewModel = ((FrameworkElement)e.Page!).DataContext;

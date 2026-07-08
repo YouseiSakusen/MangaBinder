@@ -16,7 +16,7 @@ namespace MangaBinder.Series;
 /// <summary>
 /// 編集ページの ViewModel です。
 /// </summary>
-public class EditorPageViewModel : IDataInitializable, IDisposable
+public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, IDisposable
 {
 	private readonly MangaSeriesManager seriesManager;
 	private readonly SeriesWorkspaceStore workspaceStore;
@@ -531,6 +531,16 @@ public class EditorPageViewModel : IDataInitializable, IDisposable
 			this.StartEdit(editTarget);
 		}
 
+		return ValueTask.CompletedTask;
+	}
+
+	/// <summary>
+	/// 画面から離れる際の後処理。
+	/// 編集対象の参照をクリアします。
+	/// </summary>
+	public ValueTask OnNavigatingFromAsync()
+	{
+		this.workspaceStore.EditTarget = null;
 		return ValueTask.CompletedTask;
 	}
 
