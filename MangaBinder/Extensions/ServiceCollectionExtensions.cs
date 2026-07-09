@@ -63,6 +63,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<TagRepository>();
 		services.AddScoped<TagEditor>();
 		services.AddScoped<SeriesTagDispatcher>();
+		services.AddScoped<ThumbnailManager>();
 		services.AddScoped<MangaSeriesManager>();
 		services.AddNavigationPageWithSingletonViewModel<StartPage, StartPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<VolumeSelectionPage, VolumeSelectionPageViewModel>();
@@ -103,6 +104,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<AppSettings>().ConnectionString));
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<MaterialFolderOpener>();
+		services.AddScoped<MaterialManager>();
 
 		return services;
 	}

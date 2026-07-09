@@ -1,5 +1,6 @@
 using HalationGhost.Wpf.Ui.Navigation;
 using MangaBinder.Bindings;
+using MangaBinder.Series;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;

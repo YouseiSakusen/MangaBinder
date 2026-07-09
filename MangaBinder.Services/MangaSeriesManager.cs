@@ -1,6 +1,7 @@
 using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Core.Series;
+using MangaBinder.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using Microsoft.Extensions.Logging;
@@ -35,6 +36,9 @@ public class MangaSeriesManager
 	/// <summary>アプリケーション設定。</summary>
 	private readonly AppSettings appSettings;
 
+	/// <summary>サムネイル操作を管理する Manager。</summary>
+	private readonly ThumbnailManager thumbnailManager;
+
 	/// <summary>ログ出力用の Logger。</summary>
 	private readonly ILogger<MangaSeriesManager>? logger;
 
@@ -54,6 +58,7 @@ public class MangaSeriesManager
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="tagRepository">タグを取得する Repository。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
+	/// <param name="thumbnailManager">サムネイル操作を管理する Manager。</param>
 	/// <param name="logger">ログ出力用の Logger。オプション。</param>
 	public MangaSeriesManager(
 		MangaRepository mangaRepository,
@@ -63,6 +68,7 @@ public class MangaSeriesManager
 		MangaSeriesStore mangaSeriesStore,
 		TagRepository tagRepository,
 		AppSettings appSettings,
+		ThumbnailManager thumbnailManager,
 		ILogger<MangaSeriesManager>? logger = null)
 	{
 		this.mangaRepository = mangaRepository;
@@ -72,6 +78,7 @@ public class MangaSeriesManager
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.tagRepository = tagRepository;
 		this.appSettings = appSettings;
+		this.thumbnailManager = thumbnailManager;
 		this.logger = logger;
 	}
 
@@ -383,7 +390,16 @@ public class MangaSeriesManager
 			// サムネイル JPEG を保存（存在する場合のみ）
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 			{
-				await this.saveThumbnailAsync(series, thumbnailBytes);
+				// ファイル名を決定（WorkThumbnailFileNameBase を使用）
+				var fileName = $"{series.WorkThumbnailFileNameBase}.jpg";
+
+				// ThumbnailManager で保存
+				await this.thumbnailManager.SaveWorkThumbnailAsync(fileName, thumbnailBytes);
+
+				// series の ThumbnailFileName と ThumbnailStatus を更新
+				series.ThumbnailFileName = fileName;
+				series.ThumbnailStatus = ThumbnailStatus.Completed;
+
 				// ファイル保存後、DB に反映
 				await this.workMangaSeriesRepository.UpdateAsync(series);
 			}
@@ -399,7 +415,15 @@ public class MangaSeriesManager
 			// サムネイル JPEG を保存（存在する場合のみ）
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 			{
-				await this.saveThumbnailAsync(series, thumbnailBytes);
+				// ファイル名を決定（WorkThumbnailFileNameBase を使用）
+				var fileName = $"{series.WorkThumbnailFileNameBase}.jpg";
+
+				// ThumbnailManager で保存
+				await this.thumbnailManager.SaveWorkThumbnailAsync(fileName, thumbnailBytes);
+
+				// series の ThumbnailFileName と ThumbnailStatus を更新
+				series.ThumbnailFileName = fileName;
+				series.ThumbnailStatus = ThumbnailStatus.Completed;
 			}
 
 			// DB へ反映
@@ -409,37 +433,6 @@ public class MangaSeriesManager
 			this.mangaSeriesStore.UpdateWorkSeries(series);
 
 			return series.WorkId;
-		}
-	}
-
-	/// <summary>
-	/// サムネイル JPEG byte[] をファイルとして WorkThumbnail フォルダへ保存し、
-	/// series.ThumbnailFileName と series.ThumbnailStatus を更新します。
-	/// </summary>
-	/// <param name="series">保存対象の作品。WorkId が設定されていること。</param>
-	/// <param name="thumbnailBytes">JPEG byte[] データ。</param>
-	private async ValueTask saveThumbnailAsync(MangaSeries series, byte[] thumbnailBytes)
-	{
-		try
-		{
-			// ファイル名を決定（WorkThumbnailFileNameBase を使用）
-			var fileName = $"{series.WorkThumbnailFileNameBase}.jpg";
-
-			// 保存先パスを取得
-			var filePath = this.appSettings.GetWorkThumbnailFullPath(fileName);
-
-			// JPEG を保存
-			await File.WriteAllBytesAsync(filePath, thumbnailBytes);
-
-			// series の ThumbnailFileName と ThumbnailStatus を更新
-			series.ThumbnailFileName = fileName;
-			series.ThumbnailStatus = ThumbnailStatus.Completed;
-		}
-		catch (Exception ex)
-		{
-			// ファイル保存失敗時はログとともに例外を投げる
-			this.logger?.LogError(ex, "サムネイル JPEG 保存に失敗しました。WorkId={WorkId}", series.WorkId);
-			throw;
 		}
 	}
 }

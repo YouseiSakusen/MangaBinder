@@ -16,6 +16,9 @@ public static class SupportedExtensionHelper
     /// <summary>OpenFileDialog 用の画像フィルタ文字列（キャッシュ）。</summary>
     private static string? cachedImageOpenFileDialogFilter;
 
+    /// <summary>OpenFileDialog 用のアーカイブフィルタ文字列（キャッシュ）。</summary>
+    private static string? cachedArchiveOpenFileDialogFilter;
+
     /// <summary>
     /// 拡張子リストを受け取り、内部マップを初期化します。
     /// アプリ起動時に一度だけ呼び出してください。
@@ -37,6 +40,7 @@ public static class SupportedExtensionHelper
 
         // キャッシュを無効化（新しい拡張子リストから再生成される）
         cachedImageOpenFileDialogFilter = null;
+        cachedArchiveOpenFileDialogFilter = null;
     }
 
     /// <summary>
@@ -101,6 +105,42 @@ public static class SupportedExtensionHelper
 
             cachedImageOpenFileDialogFilter = $"画像ファイル|{wildcards}|すべてのファイル|*.*";
             return cachedImageOpenFileDialogFilter;
+        }
+    }
+
+    /// <summary>
+    /// OpenFileDialog 用のアーカイブファイルフィルタ文字列を取得します。
+    /// 例: "アーカイブファイル|*.zip;*.rar;*.cbz;*.cbr;*.7z|すべてのファイル|*.*"
+    /// </summary>
+    public static string ArchiveOpenFileDialogFilter
+    {
+        get
+        {
+            if (cachedArchiveOpenFileDialogFilter != null)
+                return cachedArchiveOpenFileDialogFilter;
+
+            // 拡張子マップからアーカイブ拡張子のみをフィルタリング
+            var archiveExtensions = extensionMap
+                .Where(kvp => kvp.Value == FileType.Archive)
+                .Select(kvp => kvp.Key)
+                .OrderBy(ext => ext)
+                .ToList();
+
+            if (archiveExtensions.Count == 0)
+            {
+                cachedArchiveOpenFileDialogFilter = "すべてのファイル|*.*";
+                return cachedArchiveOpenFileDialogFilter;
+            }
+
+            // ワイルドカード形式で結合（例: *.zip;*.rar;*.cbz;...）
+            var wildcards = string.Join(";", archiveExtensions.Select(ext => $"*{ext}"));
+
+            // 拡張子一覧を含む説明文を生成（例: "アーカイブファイル (*.zip;*.rar;*.cbz;*.cbr;*.7z)"）
+            var extensionList = string.Join(";", archiveExtensions.Select(ext => $"*{ext}"));
+            var description = $"アーカイブファイル ({extensionList})";
+
+            cachedArchiveOpenFileDialogFilter = $"{description}|{wildcards}|すべてのファイル|*.*";
+            return cachedArchiveOpenFileDialogFilter;
         }
     }
 

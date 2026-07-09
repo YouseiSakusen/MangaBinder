@@ -148,8 +148,9 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	}
 
 	/// <summary>
-	/// ナビゲーション遷移時に呼び出されます。直前ページが <see cref="ISavable"/> を実装していれば保存を実行します。
-	/// また、現在ページが <see cref="INavigationLeavingAware"/> を実装していれば、退場処理を実行します。
+	/// ナビゲーション遷移時に呼び出されます。
+	/// 前ページに対して ISavable 保存と INavigationLeavingAware 退場処理を行い、
+	/// その後、新ページに対して IDataInitializable 初期化処理を実行します。
 	/// </summary>
 	/// <param name="e">ナビゲーションイベント引数。</param>
 	internal async ValueTask OnNavigated(NavigatedEventArgs e)
@@ -158,18 +159,22 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		Debug.WriteLine($"PageType={e.Page?.GetType().FullName}");
 		Debug.WriteLine($"DataContext={((FrameworkElement)e.Page!).DataContext?.GetType().FullName}");
 
-		// 前ページが INavigationLeavingAware を実装していれば退場処理を実行
+		// 1. 前ページの保存処理
+		await this.saveCurrentViewModelAsync();
+
+		// 2. 前ページの退場処理
 		if (this.currentViewModel is INavigationLeavingAware leavingAware)
 		{
 			Debug.WriteLine("OnNavigatingFromAsync CALL");
 			await leavingAware.OnNavigatingFromAsync();
 		}
 
-		await this.saveCurrentViewModelAsync();
+		// 3. 新ページの ViewModel を currentViewModel に設定
 		this.currentViewModel = ((FrameworkElement)e.Page!).DataContext;
 
 		Debug.WriteLine($"CurrentViewModel={this.currentViewModel?.GetType().FullName}");
 
+		// 4. 新ページの初期化処理
 		if (this.currentViewModel is IDataInitializable initializable)
 		{
 			Debug.WriteLine("InitializeDataAsync CALL");

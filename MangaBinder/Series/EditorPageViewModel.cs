@@ -6,10 +6,12 @@ using MangaBinder.Tags;
 using R3;
 using Reactive.Bindings.R3;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.IO;
 using System.Windows.Media.Imaging;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
+using Microsoft.Win32;
 
 namespace MangaBinder.Series;
 
@@ -25,6 +27,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	private readonly MangaSeriesStore mangaSeriesStore;
 	private readonly ThumbnailPicker thumbnailPicker;
 	private readonly ISnackbarService snackbarService;
+	private readonly AppSettings appSettings;
+	private readonly MaterialManager materialManager;
 	private DisposableBag disposableBag;
 
 	/// <summary>編集対象の Series を取得します。</summary>
@@ -71,6 +75,15 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 	/// <summary>素材ファイル一覧のヘッダー表示用文字列を取得します。</summary>
 	public BindableReactiveProperty<string> MaterialFilesDisplay { get; }
+
+	/// <summary>サマリカード用の素材ファイル数表示テキストを取得します。</summary>
+	public BindableReactiveProperty<string> MaterialFileCountText { get; }
+
+	/// <summary>素材ファイルが空かどうかを取得します。EmptyState の表示制御に使用します。</summary>
+	public BindableReactiveProperty<bool> IsMaterialFilesEmpty { get; }
+
+	/// <summary>素材ファイルが存在するかどうかを取得します。ListView の表示制御に使用します。</summary>
+	public BindableReactiveProperty<bool> HasMaterialFiles { get; }
 
 	/// <summary>完結巻入力中テキストを処理し、CanEditOwnedCompleted を制御するコマンドを取得します。</summary>
 	public ReactiveCommand<string?> EndVolumeTextInputCommand { get; }
@@ -165,6 +178,26 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	public ReactiveCommand<Unit> RegisterSeriesCommand { get; }
 
 	/// <summary>
+	/// 登録先に選択可能な素材フォルダ一覧を取得します。
+	/// </summary>
+	public ObservableCollection<SourceFolder> MaterialSourceFolders { get; }
+
+	/// <summary>
+	/// 登録先に選択された素材フォルダを取得または設定します。
+	/// </summary>
+	public BindableReactiveProperty<SourceFolder?> SelectedMaterialSourceFolder { get; }
+
+	/// <summary>
+	/// ファイル選択ダイアログから素材ファイルを追加するコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> AddMaterialFileCommand { get; }
+
+	/// <summary>
+	/// フォルダ選択ダイアログから素材フォルダを追加するコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> AddMaterialFolderCommand { get; }
+
+	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="seriesManager">作品管理マネージャー。</param>
@@ -174,6 +207,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// <param name="mangaSeriesStore">作品タグストア。</param>
 	/// <param name="thumbnailPicker">サムネイル操作ピッカー。</param>
 	/// <param name="snackbarService">Snackbar サービス。</param>
+	/// <param name="appSettings">アプリケーション設定。</param>
+	/// <param name="materialManager">素材パス解析マネージャー。</param>
 	public EditorPageViewModel(
 		MangaSeriesManager seriesManager,
 		SeriesWorkspaceStore workspaceStore,
@@ -181,7 +216,9 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		INavigationService navigationService,
 		MangaSeriesStore mangaSeriesStore,
 		ThumbnailPicker thumbnailPicker,
-		ISnackbarService snackbarService)
+		ISnackbarService snackbarService,
+		AppSettings appSettings,
+		MaterialManager materialManager)
 	{
 		this.seriesManager = seriesManager ?? throw new ArgumentNullException(nameof(seriesManager));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
@@ -190,6 +227,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
 		this.thumbnailPicker = thumbnailPicker ?? throw new ArgumentNullException(nameof(thumbnailPicker));
 		this.snackbarService = snackbarService ?? throw new ArgumentNullException(nameof(snackbarService));
+		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
+		this.materialManager = materialManager ?? throw new ArgumentNullException(nameof(materialManager));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
@@ -271,9 +310,32 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.MaterialFiles = new ObservableCollection<MaterialFileItemViewModel>();
 
 		// MaterialFilesDisplay: MaterialFiles.Count に基づいて表示文字列を生成
-		// 初期値を設定し、XAML で Count にバインドして表示内容を切り替えるアプローチに変更
 		this.MaterialFilesDisplay = new BindableReactiveProperty<string>(this.getMaterialFilesDisplayText())
 			.AddTo(ref this.disposableBag);
+
+		// MaterialFileCountText: サマリカード用の素材ファイル数表示テキスト
+		this.MaterialFileCountText = new BindableReactiveProperty<string>(this.getMaterialFileCountText())
+			.AddTo(ref this.disposableBag);
+
+		// IsMaterialFilesEmpty: EmptyState 表示制御用
+		this.IsMaterialFilesEmpty = new BindableReactiveProperty<bool>(true)
+			.AddTo(ref this.disposableBag);
+
+		// HasMaterialFiles: ListView 表示制御用
+		this.HasMaterialFiles = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		// MaterialFiles の変更を監視して更新
+		void OnMaterialFilesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+		{
+			var isEmpty = this.MaterialFiles.Count == 0;
+			this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
+			this.MaterialFileCountText.Value = this.getMaterialFileCountText();
+			this.IsMaterialFilesEmpty.Value = isEmpty;
+			this.HasMaterialFiles.Value = !isEmpty;
+		}
+
+		this.MaterialFiles.CollectionChanged += OnMaterialFilesCollectionChanged;
 
 		// EndVolumeTextInputCommand: 完結巻入力中テキストを処理するコマンド
 		this.EndVolumeTextInputCommand = new ReactiveCommand<string?>()
@@ -355,6 +417,29 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			// TODO: 正式登録処理は後続で実装
 		});
 
+		// MaterialSourceFolders: 登録先に選択可能な素材フォルダ一覧
+		this.MaterialSourceFolders = new ObservableCollection<SourceFolder>();
+
+		// SelectedMaterialSourceFolder: 選択された素材フォルダ
+		this.SelectedMaterialSourceFolder = new BindableReactiveProperty<SourceFolder?>(null)
+			.AddTo(ref this.disposableBag);
+
+		// AddMaterialFileCommand: ファイル選択コマンド
+		this.AddMaterialFileCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.AddMaterialFileCommand.Subscribe(_ =>
+		{
+			this.AddMaterialFileAsync();
+		});
+
+		// AddMaterialFolderCommand: フォルダ選択コマンド
+		this.AddMaterialFolderCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.AddMaterialFolderCommand.Subscribe(_ =>
+		{
+			this.AddMaterialFolderAsync();
+		});
+
 		// VolumeStatus: 巻情報編集用ViewModel
 		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
 			.AddTo(ref this.disposableBag);
@@ -363,12 +448,23 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// <summary>
 	/// 素材ファイル一覧のヘッダー表示文字列を取得します。
 	/// </summary>
-	/// <returns>0件の場合は "素材ファイル　無し"、1件以上の場合は "素材ファイル　{Count}件"。</returns>
+	/// <returns>0件の場合は "無し"、1件以上の場合は "{Count}件"。</returns>
 	private string getMaterialFilesDisplayText()
 	{
 		return this.MaterialFiles.Count == 0
-			? "素材ファイル　無し"
-			: $"素材ファイル　{this.MaterialFiles.Count}件";
+			? "無し"
+			: $"{this.MaterialFiles.Count}件";
+	}
+
+	/// <summary>
+	/// サマリカード用の素材ファイル数表示テキストを取得します。
+	/// </summary>
+	/// <returns>0件の場合は "0件"、1件以上の場合は "{Count}件"。</returns>
+	private string getMaterialFileCountText()
+	{
+		return this.MaterialFiles.Count == 0
+			? "0件"
+			: $"{this.MaterialFiles.Count}件";
 	}
 
 	/// <summary>
@@ -417,6 +513,14 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 			// ヘッダー表示用文字列を更新
 			this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
+
+			// サマリカード用の素材ファイル数表示テキストを更新
+			this.MaterialFileCountText.Value = this.getMaterialFileCountText();
+
+			// EmptyState 表示制御を更新
+			var isEmpty = this.MaterialFiles.Count == 0;
+			this.IsMaterialFilesEmpty.Value = isEmpty;
+			this.HasMaterialFiles.Value = !isEmpty;
 
 			// タイトル入力欄へのフォーカスを要求
 			this.TitleFocusRequest.Value++;
@@ -521,9 +625,26 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// <summary>
 	/// ナビゲーション完了後に呼ばれる初期データ読み込み処理。
 	/// workspaceStore.EditTarget から編集対象を取得し、StartEdit を実行します。
+	/// また、AppSettings から素材フォルダ一覧を取得します。
 	/// </summary>
 	public ValueTask InitializeDataAsync()
 	{
+		// Material フォルダ一覧を取得・設定
+		var materialFolders = this.appSettings.SourceFolders
+			.Where(f => f.Role.Value == FolderRole.Material)
+			.ToList();
+		this.MaterialSourceFolders.Clear();
+		foreach (var folder in materialFolders)
+		{
+			this.MaterialSourceFolders.Add(folder);
+		}
+
+		// 初期選択（一番目のフォルダ）
+		if (this.MaterialSourceFolders.Count > 0)
+		{
+			this.SelectedMaterialSourceFolder.Value = this.MaterialSourceFolders[0];
+		}
+
 		var editTarget = this.workspaceStore.EditTarget;
 
 		if (editTarget is not null)
@@ -940,114 +1061,23 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 		try
 		{
+			var existingFullPaths = this.MaterialFiles.Select(m => m.FullPath).ToList();
+			var candidates = this.materialManager.AnalyzePaths(droppedPaths, existingFullPaths);
+
 			var addedAny = false;
-
-			foreach (var path in droppedPaths)
+			foreach (var candidate in candidates)
 			{
-				if (string.IsNullOrWhiteSpace(path))
+				var item = new MaterialFileItem
 				{
-					continue;
-				}
-
-				var fullPath = Path.GetFullPath(path);
-
-				// 既存の素材に同じパスがあるかチェック
-				if (this.MaterialFiles.Any(m => m.FullPath == fullPath))
-				{
-					continue;
-				}
-
-				if (File.Exists(fullPath))
-				{
-					// ファイルの場合：拡張子をチェック
-					var ext = Path.GetExtension(fullPath);
-					if (SupportedExtensionHelper.IsArchive(ext))
-					{
-						// アーカイブファイルを追加
-						var item = new MaterialFileItem
-						{
-							Name = Path.GetFileName(fullPath),
-							FullPath = fullPath,
-							ItemType = MaterialItemType.Archive,
-							SizeBytes = new FileInfo(fullPath).Length,
-							CanRemove = true,
-						};
-						var viewModel = MaterialFileItemViewModel.FromDto(item);
-						this.MaterialFiles.Add(viewModel);
-						addedAny = true;
-					}
-				}
-				else if (Directory.Exists(fullPath))
-				{
-					// フォルダの場合：内容を解析
-					var epubFiles = new List<string>();
-					var imageFiles = new List<string>();
-					var otherFiles = new List<string>();
-
-					// フォルダ直下のファイルのみを分析（サブフォルダは見ない）
-					foreach (var file in Directory.GetFiles(fullPath))
-					{
-						var fileExt = Path.GetExtension(file);
-
-						if (string.Equals(fileExt, ".epub", StringComparison.OrdinalIgnoreCase))
-						{
-							epubFiles.Add(file);
-						}
-						else if (SupportedExtensionHelper.IsImage(fileExt))
-						{
-							imageFiles.Add(file);
-						}
-						else
-						{
-							otherFiles.Add(file);
-						}
-					}
-
-					// フォルダの種類を判定
-					var hasOnlyEpub = epubFiles.Count > 0 && imageFiles.Count == 0 && otherFiles.Count == 0;
-					var hasOnlyImages = imageFiles.Count > 0 && epubFiles.Count == 0 && otherFiles.Count == 0;
-
-					if (hasOnlyEpub)
-					{
-						// epub のみが入っているフォルダ：epub ファイルを個別に追加
-						foreach (var epubFile in epubFiles)
-						{
-							// 重複チェック
-							if (this.MaterialFiles.Any(m => m.FullPath == epubFile))
-							{
-								continue;
-							}
-
-							var item = new MaterialFileItem
-							{
-								Name = Path.GetFileName(epubFile),
-								FullPath = epubFile,
-								ItemType = MaterialItemType.Epub,
-								SizeBytes = new FileInfo(epubFile).Length,
-								CanRemove = true,
-							};
-							var viewModel = MaterialFileItemViewModel.FromDto(item);
-							this.MaterialFiles.Add(viewModel);
-							addedAny = true;
-						}
-					}
-					else if (hasOnlyImages)
-					{
-						// 画像のみが入っているフォルダ：フォルダ自体を追加
-						var item = new MaterialFileItem
-						{
-							Name = Path.GetFileName(fullPath),
-							FullPath = fullPath,
-							ItemType = MaterialItemType.Folder,
-							SizeBytes = null,
-							CanRemove = true,
-						};
-						var viewModel = MaterialFileItemViewModel.FromDto(item);
-						this.MaterialFiles.Add(viewModel);
-						addedAny = true;
-					}
-					// それ以外は追加しない
-				}
+					Name = candidate.FileName,
+					FullPath = candidate.FullPath,
+					ItemType = candidate.Type,
+					SizeBytes = candidate.Size,
+					CanRemove = true,
+				};
+				var viewModel = MaterialFileItemViewModel.FromDto(item);
+				this.MaterialFiles.Add(viewModel);
+				addedAny = true;
 			}
 
 			if (addedAny)
@@ -1066,6 +1096,61 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		}
 	}
 
+	/// <summary>
+	/// ファイル選択ダイアログを表示して素材ファイルを追加します。
+	/// </summary>
+	private void AddMaterialFileAsync()
+	{
+		try
+		{
+			var dialog = new OpenFileDialog
+			{
+				Title = "素材ファイルを選択してください",
+				Multiselect = true,
+				Filter = SupportedExtensionHelper.ArchiveOpenFileDialogFilter,
+				FilterIndex = 1,
+			};
+
+			if (dialog.ShowDialog() ?? false)
+			{
+				if (dialog.FileNames != null && dialog.FileNames.Length > 0)
+				{
+					_ = this.AddMaterialFilesFromDropAsync(dialog.FileNames);
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.AddMaterialFileAsync] 例外発生: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// フォルダ選択ダイアログを表示して素材フォルダを追加します。
+	/// </summary>
+	private void AddMaterialFolderAsync()
+	{
+		try
+		{
+			var dialog = new OpenFolderDialog
+			{
+				Title = "素材フォルダを選択してください",
+			};
+
+			if (dialog.ShowDialog() ?? false)
+			{
+				if (!string.IsNullOrWhiteSpace(dialog.FolderName))
+				{
+					_ = this.AddMaterialFilesFromDropAsync(new[] { dialog.FolderName });
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.AddMaterialFolderAsync] 例外発生: {ex.Message}");
+		}
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{
@@ -1073,3 +1158,4 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.disposableBag.Dispose();
 	}
 }
+
