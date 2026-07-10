@@ -24,6 +24,7 @@ public sealed class TagRepository
 
 	/// <summary>
 	/// 登録済みタグ一覧を DB から取得します。
+	/// タグ一覧の並び順は MangaSeriesStore が管理するため、ここでは並び順を指定しません。
 	/// </summary>
 	/// <returns>タグ定義の読み取り専用リスト。</returns>
 	public IReadOnlyList<MangaTag> GetAll()
@@ -35,10 +36,7 @@ public sealed class TagRepository
 		sql.AppendLine(" 	, DisplayOrder ");
 		sql.AppendLine(" 	, ShowOnSeriesCard ");
 		sql.AppendLine(" FROM ");
-		sql.AppendLine(" 	MangaTags ");
-		sql.AppendLine(" ORDER BY ");
-		sql.AppendLine(" 	  DisplayOrder ");
-		sql.AppendLine(" 	, Name; ");
+		sql.AppendLine(" 	MangaTags; ");
 
 		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
 		connection.Open();

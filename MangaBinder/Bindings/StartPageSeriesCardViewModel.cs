@@ -1,4 +1,6 @@
 using MangaBinder.Controls;
+using MangaBinder.Core.Formatters;
+using R3;
 
 namespace MangaBinder.Bindings;
 
@@ -30,7 +32,7 @@ public class StartPageSeriesCardViewModel
 	/// <summary>
 	/// 製本開始キュー内での表示用タグテキスト。
 	/// </summary>
-	public string TagDisplayText => this.BindingSeries.TagDisplayText;
+	public BindableReactiveProperty<string> TagDisplayText { get; }
 
 	/// <summary>
 	/// 製本開始キューの進行状態を取得します。
@@ -60,5 +62,15 @@ public class StartPageSeriesCardViewModel
 	{
 		this.BindingSeries = bindingSeries;
 		this.VolumeStatus = SeriesVolumeStatusViewModel.FromSeries(bindingSeries.Series);
+
+		// TagDisplayText の初期化と Tags.CollectionChanged 購読
+		this.TagDisplayText = new BindableReactiveProperty<string>(
+			SeriesTagDisplayFormatter.FormatForStartPage(bindingSeries.Series.Tags)
+		);
+
+		bindingSeries.Series.Tags.CollectionChanged += (_, _) =>
+		{
+			this.TagDisplayText.Value = SeriesTagDisplayFormatter.FormatForStartPage(bindingSeries.Series.Tags);
+		};
 	}
 }

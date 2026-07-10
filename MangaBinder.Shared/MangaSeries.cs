@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using MangaBinder.Bindings;
 using MangaBinder.Tags;
 
@@ -9,7 +7,7 @@ namespace MangaBinder;
 /// <summary>
 /// 漫画作品のドメインモデルです。
 /// </summary>
-public class MangaSeries : INotifyPropertyChanged
+public class MangaSeries
 {
     /// <summary>DBの主キーです。</summary>
     public long SeriesId { get; set; }
@@ -116,47 +114,7 @@ public class MangaSeries : INotifyPropertyChanged
     /// <summary>この作品に付与されたタグ一覧を取得します。</summary>
     public ObservableCollection<MangaTag> Tags { get; } = new();
 
-    /// <summary>タグ表示用テキストを取得します。</summary>
-    public string TagDisplayText
-    {
-        get
-        {
-            if (this.Tags.Count == 0)
-                return "⊕ タグを付ける";
-            if (this.Tags.Count == 1)
-                return $"🏷 {this.Tags[0].Name}";
-            return $"🏷 {this.Tags[0].Name} +{this.Tags.Count - 1}";
-        }
-    }
 
-    /// <summary>
-    /// <see cref="MangaSeries"/> の新しいインスタンスを初期化します。
-    /// </summary>
-    public MangaSeries()
-    {
-        this.Tags.CollectionChanged += (_, _) => this.OnPropertyChanged(nameof(TagDisplayText));
-    }
-
-    /// <summary>製本対象として選択されているかどうかを示します。</summary>
-    public bool IsSelected
-    {
-        get => this.isSelected;
-        set
-        {
-            if (this.isSelected == value)
-                return;
-            this.isSelected = value;
-            this.OnPropertyChanged();
-        }
-    }
-
-    private bool isSelected;
-
-    /// <inheritdoc/>
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        => this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
     /// <summary>作品の所在情報リストです。</summary>
     public List<MangaSource> Sources { get; } = new();

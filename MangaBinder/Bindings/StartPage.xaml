@@ -241,7 +241,7 @@
 												   VerticalAlignment="Center" Margin="0,0,16,0" />
 
 										<!-- タグ表示（読み取り専用） -->
-										<TextBlock Grid.Column="1" Text="{Binding TagDisplayText}"
+										<TextBlock Grid.Column="1" Text="{Binding TagDisplayText.Value}"
 												   FontSize="11" Opacity="0.7"
 												   VerticalAlignment="Center"
 												   HorizontalAlignment="Right"

@@ -245,7 +245,7 @@
                         <!-- 製本対象選択 CheckBox -->
                         <CheckBox
                             Grid.Column="0"
-                            IsChecked="{Binding Series.IsSelected}"
+                            IsChecked="{Binding IsSelected.Value}"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center" />
 
@@ -497,7 +497,7 @@
                                                 x:Name="TagToggleButton"
                                                 Padding="6,2"
                                                 FontSize="11"
-                                                Content="{Binding Series.TagDisplayText}"
+                                                Content="{Binding TagDisplayText.Value}"
                                                 Cursor="Hand"
                                                 Background="{DynamicResource ControlFillColorDefaultBrush}"
                                                 BorderThickness="0"
@@ -525,8 +525,8 @@
                                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                                         <controls:SeriesTagSelector
                                                             ItemsSource="{Binding Data.SelectableTagsForPopup, Source={StaticResource VmProxy}}"
-                                                            Columns="{Binding Data.TagSelectionColumns, Source={StaticResource VmProxy}}"
-                                                            Rows="{Binding Data.TagSelectionRows, Source={StaticResource VmProxy}}"/>
+                                                            Columns="{Binding Data.TagSelectionColumns.Value, Source={StaticResource VmProxy}}"
+                                                            Rows="{Binding Data.TagSelectionRows.Value, Source={StaticResource VmProxy}}"/>
                                                     </ScrollViewer>
                                                 </Border>
                                             </Popup>

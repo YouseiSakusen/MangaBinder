@@ -1,6 +1,6 @@
-using System.Collections.ObjectModel;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using ObservableCollections;
 using R3;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -12,12 +12,13 @@ namespace MangaBinder.Tags;
 /// </summary>
 public class TagPageViewModel : IDataInitializable, IDisposable
 {
+	private readonly MangaSeriesStore mangaSeriesStore;
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly ISnackbarService snackbarService;
 	private DisposableBag disposableBag;
 
-	/// <summary>タグ定義一覧を取得します。</summary>
-	public ObservableCollection<MangaTag> Tags { get; }
+	/// <summary>タグ定義一覧を取得します。Store から直接参照します。</summary>
+	public NotifyCollectionChangedSynchronizedViewList<MangaTag> Tags { get; }
 
 	/// <summary>登録タグ数を取得します。</summary>
 	public int TagCount => this.Tags.Count;
@@ -66,10 +67,14 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 	/// <param name="snackbarService">スナックバーサービス。</param>
 	public TagPageViewModel(MangaSeriesStore mangaSeriesStore, IServiceScopeFactory serviceScopeFactory, ISnackbarService snackbarService)
 	{
+		this.mangaSeriesStore = mangaSeriesStore;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.snackbarService = snackbarService;
 
-		this.Tags = new ObservableCollection<MangaTag>(mangaSeriesStore.GetTags());
+		// Store のタグ一覧を View として公開（コピーしない）
+		this.Tags = this.mangaSeriesStore.Tags
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
 
 		this.NewTagName = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
@@ -132,6 +137,7 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 
 	/// <summary>
 	/// タグ名変更を確定します。
+	/// Store が更新されるのを待って画面が自動反映されます。
 	/// </summary>
 	private void commitRenameTag()
 	{
@@ -164,13 +170,8 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 			return;
 		}
 
-		// ObservableCollection を更新して画面に反映
-		// TagRepository.Rename が返した同一インスタンスを使うことで
-		// MangaSeriesStore.GetTags() と ViewModel.Tags が常に同じオブジェクトを参照する
-		var index = this.Tags.IndexOf(target);
-		if (index >= 0)
-			this.Tags[index] = result.RenamedTag!;
-
+		// Store が TagEditor.Rename で更新される。画面はView経由で自動反映。
+		// Tags[index] = は行わない。
 		this.EditingTag.Value = null;
 		this.EditingTagName.Value = string.Empty;
 	}
@@ -186,6 +187,7 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 
 	/// <summary>
 	/// タグを削除します。
+	/// Store が更新されるのを待って画面が自動反映されます。
 	/// </summary>
 	/// <param name="tag">削除するタグ。</param>
 	private void deleteTag(MangaTag tag)
@@ -194,11 +196,13 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 		var editor = scope.ServiceProvider.GetRequiredService<TagEditor>();
 
 		editor.Delete(tag.TagId);
-		this.Tags.Remove(tag);
+		// Store が TagEditor.Delete で更新される。画面はView経由で自動反映。
+		// Tags.Remove() は行わない。
 	}
 
 	/// <summary>
 	/// タグを追加します。
+	/// Store が更新されるのを待って画面が自動反映されます。
 	/// </summary>
 	private void addTag()
 	{
@@ -226,7 +230,8 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 			return;
 		}
 
-		this.Tags.Add(result.AddedTag!);
+		// Store が TagEditor.Add で更新される。画面はView経由で自動反映。
+		// Tags.Add() は行わない。
 		this.NewTagName.Value = string.Empty;
 		this.TagNameFocusRequest.Value++;
 	}
