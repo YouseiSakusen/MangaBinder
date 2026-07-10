@@ -80,6 +80,33 @@ public class MangaSeries : INotifyPropertyChanged
     /// <summary>あらすじ取得元の実タイトルです（GoogleBooks で採用した書籍タイトル等）。</summary>
     public string DescriptionSourceTitle { get; set; } = string.Empty;
 
+    /// <summary>素材移動時に使用する作品フォルダ名を取得します。</summary>
+    /// <remarks>
+    /// 連載中: Title
+    /// 完結済み + 全巻所持: Title 全{EndVolume}巻
+    /// 完結済み + 抜けあり: Title （全{EndVolume}巻）
+    /// </remarks>
+    public string MaterialFolderName
+    {
+        get
+        {
+            if (!this.SeriesCompleted)
+            {
+                // 連載中
+                return this.Title;
+            }
+
+            if (this.IsOwnedCompleted)
+            {
+                // 完結済み + 全巻所持
+                return $"{this.Title} 全{this.EndVolume}巻";
+            }
+
+            // 完結済み + 抜けあり
+            return $"{this.Title} （全{this.EndVolume}巻）";
+        }
+    }
+
     /// <summary>サムネイル画像のファイル名（拡張子なし）を取得します。</summary>
     public string ThumbnailFileNameBase => $"{this.SeriesId:D6}_{this.ShortTitle}";
 

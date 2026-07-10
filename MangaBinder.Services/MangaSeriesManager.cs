@@ -5,7 +5,10 @@ using MangaBinder.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using Microsoft.Extensions.Logging;
+using System.Data.SQLite;
 using System.IO;
+using System.Text;
+using Dapper;
 
 namespace MangaBinder;
 
@@ -39,6 +42,9 @@ public class MangaSeriesManager
 	/// <summary>サムネイル操作を管理する Manager。</summary>
 	private readonly ThumbnailManager thumbnailManager;
 
+	/// <summary>素材操作を管理する Manager。</summary>
+	private readonly MaterialManager materialManager;
+
 	/// <summary>ログ出力用の Logger。</summary>
 	private readonly ILogger<MangaSeriesManager>? logger;
 
@@ -59,6 +65,7 @@ public class MangaSeriesManager
 	/// <param name="tagRepository">タグを取得する Repository。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="thumbnailManager">サムネイル操作を管理する Manager。</param>
+	/// <param name="materialManager">素材操作を管理する Manager。</param>
 	/// <param name="logger">ログ出力用の Logger。オプション。</param>
 	public MangaSeriesManager(
 		MangaRepository mangaRepository,
@@ -69,6 +76,7 @@ public class MangaSeriesManager
 		TagRepository tagRepository,
 		AppSettings appSettings,
 		ThumbnailManager thumbnailManager,
+		MaterialManager materialManager,
 		ILogger<MangaSeriesManager>? logger = null)
 	{
 		this.mangaRepository = mangaRepository;
@@ -79,6 +87,7 @@ public class MangaSeriesManager
 		this.tagRepository = tagRepository;
 		this.appSettings = appSettings;
 		this.thumbnailManager = thumbnailManager;
+		this.materialManager = materialManager;
 		this.logger = logger;
 	}
 
@@ -151,6 +160,20 @@ public class MangaSeriesManager
 	/// <returns>検索結果の MangaSeries リスト。</returns>
 	public IReadOnlyList<MangaSeries> Search(string searchText)
 	{
+		// Store から MergedSeries を取得して検索
+		var mergedSeries = this.mangaSeriesStore.GetMergedSeries();
+		return this.Search(searchText, mergedSeries);
+	}
+
+	/// <summary>
+	/// 指定されたリストに対して、検索文字列を利用して MangaSeries を検索します。
+	/// 検索は Google 風の複数ワード AND 検索です。
+	/// </summary>
+	/// <param name="searchText">検索文字列。</param>
+	/// <param name="targetSeries">検索対象となる MangaSeries リスト。</param>
+	/// <returns>検索結果の MangaSeries リスト。</returns>
+	public IReadOnlyList<MangaSeries> Search(string searchText, IReadOnlyList<MangaSeries> targetSeries)
+	{
 		// searchText が null、空文字、または空白のみの場合は空リストを返す
 		if (string.IsNullOrWhiteSpace(searchText))
 			return new List<MangaSeries>();
@@ -166,14 +189,11 @@ public class MangaSeriesManager
 		if (words.Count == 0)
 			return new List<MangaSeries>();
 
-		// MergedSeriesList から検索
-		var mergedSeries = this.mangaSeriesStore.GetMergedSeries();
-
 		// デバッグ出力
-		System.Diagnostics.Debug.WriteLine($"[MangaSeriesManager.Search] Input: {searchText}, Words: {string.Join(", ", words)}, MergedCount: {mergedSeries.Count}");
+		System.Diagnostics.Debug.WriteLine($"[MangaSeriesManager.Search] Input: {searchText}, Words: {string.Join(", ", words)}, TargetCount: {targetSeries.Count}");
 
 		// AND 検索：すべてのワードが Title OR Author OR Memo に含まれた作品のみヒット
-		var results = mergedSeries
+		var results = targetSeries
 			.Where(series => words.All(word =>
 				series.NormalizedTitleInternal.Contains(word, StringComparison.OrdinalIgnoreCase) ||
 				series.Author.Contains(word, StringComparison.OrdinalIgnoreCase) ||
@@ -433,6 +453,234 @@ public class MangaSeriesManager
 			this.mangaSeriesStore.UpdateWorkSeries(series);
 
 			return series.WorkId;
+		}
+	}
+
+	/// <summary>
+	/// 編集中の作品を正式な MangaSeries として登録します。
+	/// 新規作品（SeriesId == 0）および登録待ち作品（WorkId != 0）が対象です。
+	/// 既存作品の更新は対象外です。
+	/// </summary>
+	/// <remarks>
+	/// 処理順序：
+	/// 1. 入力値検証
+	/// 2. MangaSeries INSERT
+	/// 3. 採番された SeriesId を editingSeries へ反映
+	/// 4. サムネイル保存
+	/// 5. 素材移動
+	/// 6. 登録待ち作品の場合は WorkMangaSeries を削除
+	/// 7. DB Commit
+	/// </remarks>
+	/// <param name="editingSeries">登録対象の MangaSeries。SeriesId == 0 または WorkId != 0 である必要があります。</param>
+	/// <param name="materialFiles">移動対象の素材。CanRemove プロパティ付き。</param>
+	/// <param name="destinationSourceFolder">登録先の素材フォルダ。</param>
+	/// <param name="thumbnailBytes">アップロード済みサムネイル JPEG。null の場合は WorkThumbnail からコピーまたは作成なし。</param>
+	/// <returns>登録後の MangaSeries。</returns>
+	public async ValueTask<MangaSeries> RegisterSeriesAsync(
+		MangaSeries editingSeries,
+		IReadOnlyList<MaterialFile> materialFiles,
+		SourceFolder destinationSourceFolder,
+		byte[]? thumbnailBytes)
+	{
+		// 入力値検証
+		ArgumentNullException.ThrowIfNull(editingSeries);
+		ArgumentNullException.ThrowIfNull(materialFiles);
+		ArgumentNullException.ThrowIfNull(destinationSourceFolder);
+
+		// 登録対象外の作品は例外
+		if (editingSeries.SeriesId != 0 && editingSeries.WorkId == 0)
+		{
+			throw new InvalidOperationException("既存作品（SeriesId != 0 かつ WorkId == 0）の更新は対象外です。");
+		}
+
+		var isWorkSeries = editingSeries.IsWork;
+		var workId = editingSeries.WorkId;
+
+		// DB 接続
+		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+		await connection.OpenAsync();
+		using var tx = connection.BeginTransaction();
+
+		try
+		{
+			// MangaSeries INSERT
+			var insertSql = new StringBuilder();
+			insertSql.AppendLine(" INSERT INTO MangaSeries ( ");
+			insertSql.AppendLine(" 	  NormalizedTitleInternal ");
+			insertSql.AppendLine(" 	, Title ");
+			insertSql.AppendLine(" 	, ShortTitle ");
+			insertSql.AppendLine(" 	, Author ");
+			insertSql.AppendLine(" 	, Description ");
+			insertSql.AppendLine(" 	, SeriesCompleted ");
+			insertSql.AppendLine(" 	, IsOwnedCompleted ");
+			insertSql.AppendLine(" 	, StartVolume ");
+			insertSql.AppendLine(" 	, EndVolume ");
+			insertSql.AppendLine(" 	, OwnedMaxVolume ");
+			insertSql.AppendLine(" 	, NormalizedTitleExternal ");
+			insertSql.AppendLine(" 	, ThumbnailFileName ");
+			insertSql.AppendLine(" 	, ThumbnailStatus ");
+			insertSql.AppendLine(" 	, Publisher ");
+			insertSql.AppendLine(" 	, GoogleBooksImportStatus ");
+			insertSql.AppendLine(" 	, DescriptionSource ");
+			insertSql.AppendLine(" 	, Memo ");
+			insertSql.AppendLine(" 	, HasNestedArchive ");
+			insertSql.AppendLine(" ) VALUES ( ");
+			insertSql.AppendLine(" 	  :NormalizedTitleInternal ");
+			insertSql.AppendLine(" 	, :Title ");
+			insertSql.AppendLine(" 	, :ShortTitle ");
+			insertSql.AppendLine(" 	, :Author ");
+			insertSql.AppendLine(" 	, :Description ");
+			insertSql.AppendLine(" 	, :SeriesCompleted ");
+			insertSql.AppendLine(" 	, :IsOwnedCompleted ");
+			insertSql.AppendLine(" 	, :StartVolume ");
+			insertSql.AppendLine(" 	, :EndVolume ");
+			insertSql.AppendLine(" 	, :OwnedMaxVolume ");
+			insertSql.AppendLine(" 	, :NormalizedTitleExternal ");
+			insertSql.AppendLine(" 	, :ThumbnailFileName ");
+			insertSql.AppendLine(" 	, :ThumbnailStatus ");
+			insertSql.AppendLine(" 	, :Publisher ");
+			insertSql.AppendLine(" 	, :GoogleBooksImportStatus ");
+			insertSql.AppendLine(" 	, :DescriptionSource ");
+			insertSql.AppendLine(" 	, :Memo ");
+			insertSql.AppendLine(" 	, :HasNestedArchive ");
+			insertSql.AppendLine(" ) ");
+			insertSql.AppendLine(" RETURNING SeriesId; ");
+
+			var seriesId = await connection.QuerySingleAsync<long>(insertSql.ToString(), new
+			{
+				NormalizedTitleInternal = MangaTitleHelper.NormalizeTitleInternal(editingSeries.Title),
+				editingSeries.Title,
+				editingSeries.ShortTitle,
+				editingSeries.Author,
+				editingSeries.Description,
+				editingSeries.SeriesCompleted,
+				editingSeries.IsOwnedCompleted,
+				editingSeries.StartVolume,
+				editingSeries.EndVolume,
+				editingSeries.OwnedMaxVolume,
+				editingSeries.NormalizedTitleExternal,
+				ThumbnailFileName = string.Empty,
+				ThumbnailStatus = (int)ThumbnailStatus.None,
+				editingSeries.Publisher,
+				GoogleBooksImportStatus = (int)GoogleBooksImportStatus.NotImported,
+				DescriptionSource = (int)DescriptionSource.None,
+				editingSeries.Memo,
+				editingSeries.HasNestedArchive,
+			}, tx);
+
+			// SeriesId を editingSeries に反映
+			editingSeries.SeriesId = seriesId;
+
+			// サムネイル保存
+			await this.SaveSeriesThumbnailAsync(connection, tx, editingSeries, thumbnailBytes, isWorkSeries, workId);
+
+			// 素材移動
+			var moveResult = await this.materialManager.MoveMaterialsAsync(
+				destinationSourceFolder,
+				editingSeries.MaterialFolderName,
+				materialFiles);
+
+			// 登録待ち作品の場合は WorkMangaSeries を削除
+			if (isWorkSeries)
+			{
+				var deleteSql = new StringBuilder();
+				deleteSql.AppendLine(" DELETE FROM WorkMangaSeries ");
+				deleteSql.AppendLine(" WHERE ");
+				deleteSql.AppendLine(" 	WorkId = :WorkId; ");
+
+				await connection.ExecuteAsync(deleteSql.ToString(), new { WorkId = workId }, tx);
+			}
+
+			// Commit
+			tx.Commit();
+
+			// Store へ反映
+			this.mangaSeriesStore.Add(editingSeries);
+
+			return editingSeries;
+		}
+		catch
+		{
+			tx.Rollback();
+			throw;
+		}
+	}
+
+	/// <summary>
+	/// 正式登録時のサムネイル保存を実施します。
+	/// 優先順位：thumbnailBytes → WorkThumbnail → なし
+	/// </summary>
+	private async ValueTask SaveSeriesThumbnailAsync(
+		SQLiteConnection connection,
+		SQLiteTransaction tx,
+		MangaSeries editingSeries,
+		byte[]? thumbnailBytes,
+		bool isWorkSeries,
+		int workId)
+	{
+		if (thumbnailBytes != null && thumbnailBytes.Length > 0)
+		{
+			// 1. thumbnailBytes を正式 Thumbnail へ保存
+			var fileName = $"{editingSeries.ThumbnailFileNameBase}.jpg";
+			await this.thumbnailManager.SaveThumbnailAsync(fileName, thumbnailBytes);
+
+			editingSeries.ThumbnailFileName = fileName;
+			editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
+
+			// DB に反映
+			var updateSql = new StringBuilder();
+			updateSql.AppendLine(" UPDATE MangaSeries ");
+			updateSql.AppendLine(" SET ");
+			updateSql.AppendLine(" 	  ThumbnailFileName = :ThumbnailFileName ");
+			updateSql.AppendLine(" 	, ThumbnailStatus = :ThumbnailStatus ");
+			updateSql.AppendLine(" WHERE ");
+			updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+			await connection.ExecuteAsync(updateSql.ToString(), new
+			{
+				ThumbnailFileName = fileName,
+				ThumbnailStatus = (int)ThumbnailStatus.Completed,
+				SeriesId = editingSeries.SeriesId,
+			}, tx);
+		}
+		else if (isWorkSeries)
+		{
+			// 2. WorkThumbnail が存在する場合、正式 Thumbnail へコピー
+			var workThumbnailFileName = $"{editingSeries.WorkThumbnailFileNameBase}.jpg";
+			var copied = await this.thumbnailManager.CopyWorkThumbnailToThumbnailAsync(
+				workThumbnailFileName,
+				$"{editingSeries.ThumbnailFileNameBase}.jpg");
+
+			if (copied)
+			{
+				editingSeries.ThumbnailFileName = $"{editingSeries.ThumbnailFileNameBase}.jpg";
+				editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
+
+				// DB に反映
+				var updateSql = new StringBuilder();
+				updateSql.AppendLine(" UPDATE MangaSeries ");
+				updateSql.AppendLine(" SET ");
+				updateSql.AppendLine(" 	  ThumbnailFileName = :ThumbnailFileName ");
+				updateSql.AppendLine(" 	, ThumbnailStatus = :ThumbnailStatus ");
+				updateSql.AppendLine(" WHERE ");
+				updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+				await connection.ExecuteAsync(updateSql.ToString(), new
+				{
+					ThumbnailFileName = editingSeries.ThumbnailFileName,
+					ThumbnailStatus = (int)ThumbnailStatus.Completed,
+					SeriesId = editingSeries.SeriesId,
+				}, tx);
+			}
+
+			// WorkThumbnail を削除
+			this.thumbnailManager.DeleteWorkThumbnailIfExists(workThumbnailFileName);
+		}
+		else
+		{
+			// 3. どちらもない場合、ThumbnailFileName は空
+			editingSeries.ThumbnailFileName = string.Empty;
+			editingSeries.ThumbnailStatus = ThumbnailStatus.None;
 		}
 	}
 }

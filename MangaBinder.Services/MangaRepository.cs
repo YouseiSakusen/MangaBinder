@@ -26,8 +26,9 @@ public class MangaRepository
 
     /// <summary>
     /// 全 <see cref="MangaSeries"/> を <see cref="MangaSource"/> 込みで取得します。
+    /// 並び順は MangaSeriesStore が管理するため、ORDER BY は使用しません。
     /// </summary>
-    /// <returns>タイトル昇順で並んだ <see cref="MangaSeries"/> の読み取り専用リスト。</returns>
+    /// <returns><see cref="MangaSeries"/> の読み取り専用リスト。</returns>
     public async ValueTask<IReadOnlyList<MangaSeries>> GetAllSeriesAsync()
     {
         var seriesSql = new StringBuilder();
@@ -60,9 +61,7 @@ public class MangaRepository
         seriesSql.AppendLine(" 	, ManuallyEditedAt ");
         seriesSql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
         seriesSql.AppendLine(" FROM ");
-        seriesSql.AppendLine(" 	MangaSeries ");
-        seriesSql.AppendLine(" ORDER BY ");
-        seriesSql.AppendLine(" 	NormalizedTitleInternal; ");
+        seriesSql.AppendLine(" 	MangaSeries; ");
 
         var sourcesSql = new StringBuilder();
         sourcesSql.AppendLine(" SELECT ");

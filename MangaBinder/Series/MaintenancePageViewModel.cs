@@ -118,6 +118,97 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		// EditSeriesCommand の実装
 		this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
+
+		// MangaSeriesStore.WorkSeries の変更を監視
+		this.mangaSeriesStore.WorkSeries.ObserveAdd()
+			.Subscribe(x =>
+			{
+				if (!this.IsSearchResultsShown.Value)
+				{
+					// 通常表示中：WorkSeries に追加された作品を displaySeriesSource へ追加
+					var cardViewModel = new SeriesCardViewModel(x.Value);
+					this.displaySeriesSource.Insert(x.Index, cardViewModel);
+					this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
+					this.UpdateEmptyState();
+				}
+				else
+				{
+					// 検索中：現在の検索条件で再検索
+					this.onStoreChangedWhileSearching();
+				}
+			})
+			.AddTo(ref this.disposableBag);
+
+		this.mangaSeriesStore.WorkSeries.ObserveRemove()
+			.Subscribe(x =>
+			{
+				if (!this.IsSearchResultsShown.Value)
+				{
+					// 通常表示中：displaySeriesSource から削除
+					if (x.Index >= 0 && x.Index < this.displaySeriesSource.Count)
+						this.displaySeriesSource.RemoveAt(x.Index);
+					this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
+					this.UpdateEmptyState();
+				}
+				else
+				{
+					// 検索中：現在の検索条件で再検索
+					this.onStoreChangedWhileSearching();
+				}
+			})
+			.AddTo(ref this.disposableBag);
+
+		this.mangaSeriesStore.WorkSeries.ObserveReset()
+			.Subscribe(_ =>
+			{
+				if (!this.IsSearchResultsShown.Value)
+				{
+					// 通常表示中：displaySeriesSource を再構築
+					this.updateDisplaySeriesWithRefresh(this.mangaSeriesStore.WorkSeries.AsReadOnly());
+					this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
+					this.UpdateEmptyState();
+				}
+				else
+				{
+					// 検索中：現在の検索条件で再検索
+					this.onStoreChangedWhileSearching();
+				}
+			})
+			.AddTo(ref this.disposableBag);
+
+		// MangaSeriesStore.Merged の変更を監視（検索中のみ使用）
+		this.mangaSeriesStore.Merged.ObserveAdd()
+			.Subscribe(x =>
+			{
+				if (this.IsSearchResultsShown.Value)
+				{
+					// 検索中：現在の検索条件で再検索
+					this.onStoreChangedWhileSearching();
+				}
+			})
+			.AddTo(ref this.disposableBag);
+
+		this.mangaSeriesStore.Merged.ObserveRemove()
+			.Subscribe(x =>
+			{
+				if (this.IsSearchResultsShown.Value)
+				{
+					// 検索中：現在の検索条件で再検索
+					this.onStoreChangedWhileSearching();
+				}
+			})
+			.AddTo(ref this.disposableBag);
+
+		this.mangaSeriesStore.Merged.ObserveReset()
+			.Subscribe(_ =>
+			{
+				if (this.IsSearchResultsShown.Value)
+				{
+					// 検索中：現在の検索条件で再検索
+					this.onStoreChangedWhileSearching();
+				}
+			})
+			.AddTo(ref this.disposableBag);
 	}
 
 	/// <summary>
@@ -159,6 +250,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>
 	/// 検索を実行します。
 	/// 検索文字列が空の場合は通常表示へ戻します。
+	/// Store.Merged に対して検索を実行し、検索文字列は維持したまま結果をリアルタイム更新します。
 	/// </summary>
 	private async ValueTask executeSearchAsync()
 	{
@@ -166,16 +258,16 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		if (string.IsNullOrEmpty(searchQuery))
 		{
-			// 検索文字列が空 → 通常表示へ戻す（巻情報も再同期）
-			this.updateDisplaySeriesWithRefresh(this.WorkSeries);
+			// 検索文字列が空 → 通常表示へ戻す
+			this.updateDisplaySeriesWithRefresh(this.mangaSeriesStore.WorkSeries.AsReadOnly());
 			this.IsSearchResultsShown.Value = false;
 		}
 		else
 		{
-			// 検索実行
-			var results = this.mangaSeriesManager.Search(searchQuery);
+			// Store.Merged を対象に検索実行
+			var results = this.mangaSeriesManager.Search(searchQuery, this.mangaSeriesStore.Merged.AsReadOnly());
 
-			// DisplaySeries に検索結果を設定（巻情報も再同期）
+			// DisplaySeries に検索結果を設定
 			this.updateDisplaySeriesWithRefresh(results);
 
 			// 検索結果表示フラグを設定
@@ -200,8 +292,8 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		// SearchQuery をクリア
 		this.SearchQuery.Value = string.Empty;
 
-		// DisplaySeries を通常表示へ戻す（巻情報も再同期）
-		this.updateDisplaySeriesWithRefresh(this.WorkSeries);
+		// DisplaySeries を通常表示へ戻す
+		this.updateDisplaySeriesWithRefresh(this.mangaSeriesStore.WorkSeries.AsReadOnly());
 
 		// 検索結果表示フラグを false に設定
 		this.IsSearchResultsShown.Value = false;
@@ -271,8 +363,17 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.displaySeriesSource.AddRange(newDisplaySeries);
 	}
 
+	/// <summary>
+	/// Store の変更により、検索中に再検索が必要な場合に実行される非同期メソッドです。
+	/// </summary>
+	private async void onStoreChangedWhileSearching()
+	{
+		await this.executeSearchAsync();
+	}
+
 	public void Dispose()
 	{
 		this.disposableBag.Dispose();
 	}
 }
+

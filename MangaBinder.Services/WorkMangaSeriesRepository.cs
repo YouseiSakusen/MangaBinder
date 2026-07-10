@@ -27,8 +27,9 @@ public class WorkMangaSeriesRepository
 	/// 全 WorkMangaSeries を取得します。
 	/// WorkMangaSeries は MangaSeries へマッピングされ、WorkId のみ値が設定されます。
 	/// SeriesId は 0 のままとなります。
+	/// 並び順は MangaSeriesStore が管理するため、ORDER BY は使用しません。
 	/// </summary>
-	/// <returns>タイトル昇順で並んだ <see cref="MangaSeries"/> の読み取り専用リスト。</returns>
+	/// <returns><see cref="MangaSeries"/> の読み取り専用リスト。</returns>
 	public async ValueTask<IReadOnlyList<MangaSeries>> GetAllAsync()
 	{
 		var seriesSql = new StringBuilder();
@@ -60,9 +61,7 @@ public class WorkMangaSeriesRepository
 		seriesSql.AppendLine(" 	, Memo ");
 		seriesSql.AppendLine(" 	, WorkId ");
 		seriesSql.AppendLine(" FROM ");
-		seriesSql.AppendLine(" 	WorkMangaSeries ");
-		seriesSql.AppendLine(" ORDER BY ");
-		seriesSql.AppendLine(" 	NormalizedTitleInternal; ");
+		seriesSql.AppendLine(" 	WorkMangaSeries; ");
 
 		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
 		await connection.OpenAsync();

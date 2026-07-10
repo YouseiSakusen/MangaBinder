@@ -1,6 +1,7 @@
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
 using MangaBinder.Core.Series;
+using MangaBinder.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using R3;
@@ -409,12 +410,12 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.RegisterSeriesCommandCanExecute = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
-		// RegisterSeriesCommand: 正式登録コマンド（実装は後続）
+		// RegisterSeriesCommand: 正式登録コマンド
 		this.RegisterSeriesCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
 		this.RegisterSeriesCommand.Subscribe(async _ =>
 		{
-			// TODO: 正式登録処理は後続で実装
+			await this.RegisterSeriesAsync();
 		});
 
 		// MaterialSourceFolders: 登録先に選択可能な素材フォルダ一覧
@@ -1148,6 +1149,99 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		catch (Exception ex)
 		{
 			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.AddMaterialFolderAsync] 例外発生: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// 編集中の作品を正式な MangaSeries として登録します。
+	/// </summary>
+	private async ValueTask RegisterSeriesAsync()
+	{
+		try
+		{
+			// 入力値の検証
+			var editingSeries = this.EditingSeries.Value;
+			if (editingSeries == null)
+			{
+				this.snackbarService.Show(
+					"エラー",
+					"編集中の作品情報がありません。",
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.FromSeconds(3));
+				return;
+			}
+
+			if (string.IsNullOrWhiteSpace(editingSeries.Title))
+			{
+				this.snackbarService.Show(
+					"エラー",
+					"タイトルを入力してください。",
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.FromSeconds(3));
+				return;
+			}
+
+			if (this.MaterialFiles.Count == 0)
+			{
+				this.snackbarService.Show(
+					"エラー",
+					"素材ファイルが登録されていません。",
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.FromSeconds(3));
+				return;
+			}
+
+			if (this.SelectedMaterialSourceFolder.Value == null)
+			{
+				this.snackbarService.Show(
+					"エラー",
+					"登録先の素材フォルダを選択してください。",
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.FromSeconds(3));
+				return;
+			}
+
+			// 素材 DTO に変換
+			var materialFileDtos = this.MaterialFiles
+				.Select(item => new MaterialFile
+				{
+					FullPath = item.FullPath,
+					Type = item.ItemType,
+					CanRemove = item.CanRemove,
+				})
+				.ToList();
+
+			// 登録を実行
+			var registeredSeries = await this.seriesManager.RegisterSeriesAsync(
+				editingSeries,
+				materialFileDtos,
+				this.SelectedMaterialSourceFolder.Value,
+				this.PastedThumbnailBytes);
+
+			// 登録成功
+			this.snackbarService.Show(
+				"成功",
+				$"『{registeredSeries.Title}』を登録しました。",
+				ControlAppearance.Success,
+				new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
+				TimeSpan.FromSeconds(3));
+
+			// 作品管理画面へ戻る
+			this.navigationService.Navigate(typeof(MaintenancePage));
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RegisterSeriesAsync] 例外発生: {ex.Message}");
+			this.snackbarService.Show(
+				"エラー",
+				$"登録に失敗しました: {ex.Message}",
+				ControlAppearance.Caution,
+				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+				TimeSpan.FromSeconds(3));
 		}
 	}
 

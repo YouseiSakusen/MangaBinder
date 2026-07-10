@@ -10,6 +10,7 @@ public sealed class MaterialManager
 {
 	/// <summary>
 	/// 指定された素材ファイル/フォルダを、登録先の作品フォルダへ移動します。
+	/// CanRemove == true のもの（編集画面で追加された素材）のみを移動対象にします。
 	/// 移動元フォルダと登録先作品フォルダが同一の場合は移動を行いません。
 	/// </summary>
 	/// <remarks>
@@ -20,6 +21,10 @@ public sealed class MaterialManager
 	/// 
 	/// 同一フォルダの判定：
 	/// - Path.GetFullPath() で正規化した上でパス文字列で比較
+	/// 
+	/// 移動対象の選別：
+	/// - CanRemove == true のみが移動対象
+	/// - CanRemove == false（既存素材）は SkippedItems に追加される
 	/// </remarks>
 	/// <param name="destinationSourceFolder">登録先の素材フォルダ（SourceFolder）。</param>
 	/// <param name="materialFolderName">作品フォルダ名。</param>
@@ -41,8 +46,11 @@ public sealed class MaterialManager
 		var seriesFolderPath = Path.Combine(destinationSourcePath, materialFolderName);
 		var seriesFolderPathFull = Path.GetFullPath(seriesFolderPath);
 
+		// 作品フォルダが存在するかチェック（作成フラグ用）
+		var createdSeriesFolder = !Directory.Exists(seriesFolderPathFull);
+
 		// 作品フォルダが存在しない場合は作成
-		if (!Directory.Exists(seriesFolderPathFull))
+		if (createdSeriesFolder)
 		{
 			Directory.CreateDirectory(seriesFolderPathFull);
 		}
@@ -53,6 +61,20 @@ public sealed class MaterialManager
 		foreach (var materialFile in materialFiles)
 		{
 			var sourcePath = Path.GetFullPath(materialFile.FullPath);
+
+			// CanRemove == false の既存素材はスキップ対象に追加
+			if (!materialFile.CanRemove)
+			{
+				var destinationPath = Path.Combine(seriesFolderPathFull, Path.GetFileName(sourcePath));
+
+				skippedItems.Add(new MaterialMoveItem
+				{
+					SourcePath = sourcePath,
+					DestinationPath = destinationPath,
+					Type = materialFile.Type,
+				});
+				continue;
+			}
 
 			// 移動元フォルダと登録先作品フォルダが同一かチェック
 			var sourceDir = Directory.Exists(sourcePath)
@@ -113,6 +135,7 @@ public sealed class MaterialManager
 		return new MaterialMoveResult
 		{
 			SeriesFolderPath = seriesFolderPathFull,
+			CreatedSeriesFolder = createdSeriesFolder,
 			MovedItems = movedItems.AsReadOnly(),
 			SkippedItems = skippedItems.AsReadOnly(),
 		};
@@ -120,7 +143,9 @@ public sealed class MaterialManager
 
 	/// <summary>
 	/// アーカイブファイルを指定された作品フォルダ直下へ移動します。
+	/// 移動先に同名ファイルが既に存在する場合は例外を投げます。
 	/// </summary>
+	/// <exception cref="InvalidOperationException">移動先に同名ファイルが既に存在する場合。</exception>
 	private async ValueTask MoveArchiveFileAsync(
 		string sourceFilePath,
 		string destinationFolderPath,
@@ -130,14 +155,14 @@ public sealed class MaterialManager
 		var fileName = Path.GetFileName(sourceFilePath);
 		var destinationFilePath = Path.Combine(destinationFolderPath, fileName);
 
-		// 既に存在する場合は削除
+		// 移動先に同名ファイルが存在する場合は例外を投げる
 		if (File.Exists(destinationFilePath))
 		{
-			File.Delete(destinationFilePath);
+			throw new InvalidOperationException($"移動先に同名ファイルが既に存在しています: {destinationFilePath}");
 		}
 
 		// ファイルを移動
-		File.Move(sourceFilePath, destinationFilePath, overwrite: true);
+		File.Move(sourceFilePath, destinationFilePath);
 
 		movedItems.Add(new MaterialMoveItem
 		{
@@ -151,7 +176,9 @@ public sealed class MaterialManager
 
 	/// <summary>
 	/// 画像フォルダをフォルダごと指定された作品フォルダ直下へ移動します。
+	/// 移動先に同名フォルダが既に存在する場合は例外を投げます。
 	/// </summary>
+	/// <exception cref="InvalidOperationException">移動先に同名フォルダが既に存在する場合。</exception>
 	private async ValueTask MoveFolderAsync(
 		string sourceFolderPath,
 		string destinationFolderPath,
@@ -161,10 +188,10 @@ public sealed class MaterialManager
 		var folderName = Path.GetFileName(sourceFolderPath);
 		var destinationPath = Path.Combine(destinationFolderPath, folderName);
 
-		// 既に存在する場合は削除
+		// 移動先に同名フォルダが存在する場合は例外を投げる
 		if (Directory.Exists(destinationPath))
 		{
-			Directory.Delete(destinationPath, recursive: true);
+			throw new InvalidOperationException($"移動先に同名フォルダが既に存在しています: {destinationPath}");
 		}
 
 		// フォルダを移動
@@ -182,7 +209,9 @@ public sealed class MaterialManager
 
 	/// <summary>
 	/// epub ファイルを指定された作品フォルダ直下へ移動します。
+	/// 移動先に同名ファイルが既に存在する場合は例外を投げます。
 	/// </summary>
+	/// <exception cref="InvalidOperationException">移動先に同名ファイルが既に存在する場合。</exception>
 	private async ValueTask MoveEpubFileAsync(
 		string sourceFilePath,
 		string destinationFolderPath,
@@ -192,14 +221,14 @@ public sealed class MaterialManager
 		var fileName = Path.GetFileName(sourceFilePath);
 		var destinationFilePath = Path.Combine(destinationFolderPath, fileName);
 
-		// 既に存在する場合は削除
+		// 移動先に同名ファイルが存在する場合は例外を投げる
 		if (File.Exists(destinationFilePath))
 		{
-			File.Delete(destinationFilePath);
+			throw new InvalidOperationException($"移動先に同名ファイルが既に存在しています: {destinationFilePath}");
 		}
 
 		// ファイルを移動
-		File.Move(sourceFilePath, destinationFilePath, overwrite: true);
+		File.Move(sourceFilePath, destinationFilePath);
 
 		movedItems.Add(new MaterialMoveItem
 		{
@@ -359,67 +388,4 @@ public sealed class MaterialManager
 
 		return result;
 	}
-}
-
-/// <summary>
-/// 素材候補ファイル/フォルダを表すDTO。
-/// MaterialFileItemViewModel に変換する前のデータ転送用です。
-/// </summary>
-public sealed class MaterialFileCandidate
-{
-	/// <summary>実ファイルまたは実フォルダのフルパスを取得します。</summary>
-	public required string FullPath { get; init; }
-
-	/// <summary>ファイル名またはフォルダ名を取得します。</summary>
-	public required string FileName { get; init; }
-
-	/// <summary>ファイルサイズ（バイト）。フォルダの場合は null。</summary>
-	public long? Size { get; init; }
-
-	/// <summary>素材アイテムの種別を取得します。</summary>
-	public required MaterialItemType Type { get; init; }
-}
-
-/// <summary>
-/// 素材移動用のDTO。
-/// ViewModel から受け取る情報の最小化を目的としています。
-/// </summary>
-public sealed class MaterialFile
-{
-	/// <summary>実ファイルまたは実フォルダのフルパスを取得します。</summary>
-	public required string FullPath { get; init; }
-
-	/// <summary>素材アイテムの種別を取得します。</summary>
-	public required MaterialItemType Type { get; init; }
-}
-
-/// <summary>
-/// 素材移動の結果を表すDTO。
-/// 後続の補償処理で利用できるように、移動した素材と移動不要だった素材を保持します。
-/// </summary>
-public sealed class MaterialMoveResult
-{
-	/// <summary>作成または利用した作品フォルダのパスを取得します。</summary>
-	public required string SeriesFolderPath { get; init; }
-
-	/// <summary>実際に移動した素材アイテム一覧を取得します。</summary>
-	public required IReadOnlyList<MaterialMoveItem> MovedItems { get; init; }
-
-	/// <summary>移動不要だった素材アイテム一覧を取得します（移動元と登録先が同一の場合など）。</summary>
-	public required IReadOnlyList<MaterialMoveItem> SkippedItems { get; init; }
-}
-
-/// <summary>
-/// 移動結果に含まれる素材アイテムを表すDTO。
-/// </summary>
-public sealed class MaterialMoveItem
-{
-	/// <summary>移動元のフルパスを取得します。</summary>
-	public required string SourcePath { get; init; }
-
-	/// <summary>移動先のフルパスを取得します。</summary>
-	public required string DestinationPath { get; init; }
-
-	/// <summary>素材アイテムの種別を取得します。</summary>
-	public required MaterialItemType Type { get; init; }
 }

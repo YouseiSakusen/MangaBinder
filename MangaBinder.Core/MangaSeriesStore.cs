@@ -1,3 +1,5 @@
+using ObservableCollections;
+
 namespace MangaBinder;
 
 using MangaBinder.Tags;
@@ -9,10 +11,15 @@ using MangaBinder.Tags;
 /// </summary>
 public sealed class MangaSeriesStore
 {
-	private readonly List<MangaSeries> series = new();
-	private readonly List<MangaSeries> workSeries = new();
-	private readonly List<MangaSeries> mergedSeries = new();
+	private readonly ObservableList<MangaSeries> series = new();
+	private readonly ObservableList<MangaSeries> workSeries = new();
+	private readonly ObservableList<MangaSeries> mergedSeries = new();
 	private readonly List<MangaTag> tags = new();
+
+	/// <summary>
+	/// 正式作品一覧を取得します。
+	/// </summary>
+	public ObservableList<MangaSeries> All => this.series;
 
 	/// <summary>
 	/// 全ての MangaSeries を取得します。
@@ -20,6 +27,16 @@ public sealed class MangaSeriesStore
 	/// <returns>MangaSeries の読み取り専用リスト。</returns>
 	public IReadOnlyList<MangaSeries> GetAll()
 		=> this.series.AsReadOnly();
+
+	/// <summary>
+	/// 登録待ち作品一覧を取得します。
+	/// </summary>
+	public ObservableList<MangaSeries> WorkSeries => this.workSeries;
+
+	/// <summary>
+	/// 統合作品一覧（正式作品＋登録待ち作品）を取得します。
+	/// </summary>
+	public ObservableList<MangaSeries> Merged => this.mergedSeries;
 
 	/// <summary>
 	/// 検索用に統合した MangaSeries 一覧を取得します。
@@ -39,12 +56,14 @@ public sealed class MangaSeriesStore
 
 	/// <summary>
 	/// MangaSeries の一覧を指定したリストで一括置換します。
+	/// 自動的に NormalizedTitleInternal 昇順でソートされます。
 	/// </summary>
 	/// <param name="newSeries">新しい MangaSeries 一覧。</param>
 	public void ReplaceAll(IEnumerable<MangaSeries> newSeries)
 	{
 		this.series.Clear();
-		this.series.AddRange(newSeries);
+		var sorted = newSeries.OrderBy(s => s.NormalizedTitleInternal).ToList();
+		this.series.AddRange(sorted);
 		this.RebuildMergedSeries();
 	}
 
@@ -55,7 +74,8 @@ public sealed class MangaSeriesStore
 	public void ReplaceWorkSeries(IEnumerable<MangaSeries> newWorkSeries)
 	{
 		this.workSeries.Clear();
-		this.workSeries.AddRange(newWorkSeries);
+		var sorted = newWorkSeries.OrderBy(s => s.NormalizedTitleInternal).ToList();
+		this.workSeries.AddRange(sorted);
 		this.RebuildMergedSeries();
 	}
 
@@ -73,13 +93,12 @@ public sealed class MangaSeriesStore
 			return;
 
 		// 既存の登録待ち作品を検索
-		var existingIndex = this.workSeries.FindIndex(x => x.WorkId == workSeries.WorkId);
+		var existing = this.workSeries.FirstOrDefault(x => x.WorkId == workSeries.WorkId);
 
-		if (existingIndex >= 0)
+		if (existing is not null)
 		{
 			// 既存する場合は、そのインスタンスのプロパティを更新（差し替えない）
 			// WorkMangaSeries UPDATE 対象のプロパティをコピー
-			var existing = this.workSeries[existingIndex];
 			existing.Title = workSeries.Title;
 			existing.ThumbnailFileName = workSeries.ThumbnailFileName;
 			existing.Author = workSeries.Author;
@@ -114,6 +133,7 @@ public sealed class MangaSeriesStore
 	/// <summary>
 	/// 指定した MangaSeries を追加します。
 	/// 同一 SeriesId は重複登録しません。
+	/// 自動的に NormalizedTitleInternal 昇順が保たれます。
 	/// </summary>
 	/// <param name="item">追加する MangaSeries。</param>
 	public void Add(MangaSeries item)
@@ -121,7 +141,19 @@ public sealed class MangaSeriesStore
 		if (this.series.Any(x => x.SeriesId == item.SeriesId))
 			return;
 
-		this.series.Add(item);
+		// NormalizedTitleInternal 昇順を保つため、挿入位置を検索
+		var insertIndex = 0;
+		for (var i = 0; i < this.series.Count; i++)
+		{
+			if (string.Compare(item.NormalizedTitleInternal, this.series[i].NormalizedTitleInternal, StringComparison.Ordinal) < 0)
+			{
+				insertIndex = i;
+				break;
+			}
+			insertIndex = i + 1;
+		}
+
+		this.series.Insert(insertIndex, item);
 	}
 
 	/// <summary>
@@ -133,10 +165,27 @@ public sealed class MangaSeriesStore
 		=> this.series.FirstOrDefault(x => x.SeriesId == seriesId);
 
 	/// <summary>
+	/// 指定した SeriesId の MangaSeries を削除します。
+	/// </summary>
+	/// <param name="seriesId">削除対象の SeriesId。</param>
+	public void Remove(long seriesId)
+	{
+		var target = this.series.FirstOrDefault(x => x.SeriesId == seriesId);
+		if (target is not null)
+		{
+			this.series.Remove(target);
+			this.RebuildMergedSeries();
+		}
+	}
+
+	/// <summary>
 	/// ストア内の全ての MangaSeries をクリアします。
 	/// </summary>
 	public void Clear()
-		=> this.series.Clear();
+	{
+		this.series.Clear();
+		this.RebuildMergedSeries();
+	}
 
 	/// <summary>
 	/// 全てのタグを取得します。
