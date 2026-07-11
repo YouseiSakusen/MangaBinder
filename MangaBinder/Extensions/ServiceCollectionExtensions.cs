@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPage<EditorPage, EditorPageViewModel>();
 		services.AddScoped<ThumbnailPicker>();
 		services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();
+		services.AddScoped<OwnedVolumeEstimator>();
 		services.AddSingleton<IContentDialogService, ContentDialogService>();
 		services.AddSingleton<VolumeFileNameNormalizer>();
 		services.AddSingleton<VolumeThumbnailImageProcessor>();

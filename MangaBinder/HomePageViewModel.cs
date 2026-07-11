@@ -77,6 +77,11 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     public ReactiveCommand<MangaSource> OpenMaterialFolderCommand { get; }
 
     /// <summary>
+    /// 既存作品を編集画面で編集するコマンドです。<see cref="MangaSeries"/> をパラメータとして受け取ります。
+    /// </summary>
+    public ReactiveCommand<MangaSeries> EditSeriesCommand { get; }
+
+    /// <summary>
     /// <see cref="HomePageViewModel"/> の新しいインスタンスを初期化します。
     /// </summary>
     /// <param name="serviceScopeFactory">スコープファクトリー。</param>
@@ -176,6 +181,10 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         {
             _ = this.openMaterialFolderAsync(source);
         });
+
+        this.EditSeriesCommand = new ReactiveCommand<MangaSeries>()
+            .AddTo(ref this.disposableBag);
+        this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
 
         // DEBUG: スクロール復元調査用
         // this.SavedSeriesListVerticalOffset
@@ -293,4 +302,18 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         var opener = scope.ServiceProvider.GetRequiredService<MaterialFolderOpener>();
         await opener.OpenAsync(source);
     }
+
+    /// <summary>
+    /// 指定した作品を編集対象として設定し、EditorPage へ遷移します。
+    /// </summary>
+    /// <param name="series">編集対象の作品。</param>
+    private void editSeries(MangaSeries series)
+    {
+        // 編集対象を指定作品に設定
+        this.workspaceStore.EditTarget = series;
+
+        // NavigationHierarchy を使用して遷移
+        this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
+    }
 }
+

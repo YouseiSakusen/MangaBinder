@@ -1,4 +1,5 @@
 using Dapper;
+using MangaBinder.Bindings;
 using MangaBinder.Jobs;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
@@ -353,7 +354,18 @@ public class MangaRepository
     /// システム管理項目は更新されません。
     /// </summary>
     /// <param name="series">更新対象の MangaSeries。SeriesId != 0 である必要があります。</param>
-    public async ValueTask UpdateSeriesAsync(MangaSeries series)
+    /// <summary>
+    /// MangaSeries テーブルのレコードを更新します。
+    /// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
+    /// </summary>
+    /// <param name="connection">DB接続。</param>
+    /// <param name="transaction">トランザクション。</param>
+    /// <param name="series">更新対象の MangaSeries。</param>
+    /// <returns>完了時にコンプリートする ValueTask。</returns>
+    public async ValueTask UpdateSeriesAsync(
+        SQLiteConnection connection,
+        SQLiteTransaction transaction,
+        MangaSeries series)
     {
         if (series.SeriesId == 0)
             throw new InvalidOperationException("UpdateSeriesAsync は新規作品（SeriesId=0）では実行できません。");
@@ -370,11 +382,10 @@ public class MangaRepository
         sql.AppendLine(" 	, EndVolume = :EndVolume ");
         sql.AppendLine(" 	, SeriesCompleted = :SeriesCompleted ");
         sql.AppendLine(" 	, IsOwnedCompleted = :IsOwnedCompleted ");
+        sql.AppendLine(" 	, OwnedMaxVolume = :OwnedMaxVolume ");
+        sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited = :IsOwnedMaxVolumeManuallyEdited ");
         sql.AppendLine(" WHERE ");
         sql.AppendLine(" 	SeriesId = :SeriesId; ");
-
-        using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
-        await connection.OpenAsync();
 
         await connection.ExecuteAsync(
             sql.ToString(),
@@ -390,7 +401,10 @@ public class MangaRepository
                 EndVolume = series.EndVolume,
                 SeriesCompleted = series.SeriesCompleted,
                 IsOwnedCompleted = series.IsOwnedCompleted,
-            });
+                OwnedMaxVolume = series.OwnedMaxVolume,
+                IsOwnedMaxVolumeManuallyEdited = series.IsOwnedMaxVolumeManuallyEdited,
+            },
+            transaction: transaction);
     }
 
     /// <summary>
@@ -428,6 +442,85 @@ public class MangaRepository
                 SeriesId = seriesId,
                 Path = path,
                 Role = (int)role,
+            },
+            transaction);
+    }
+
+    /// <summary>
+    /// MangaSeriesTags テーブルのレコードを置換します（DELETE → INSERT）。
+    /// 既存作品更新時の使用を想定しており、外部から接続とトランザクションを受け取ります。
+    /// </summary>
+    /// <param name="connection">DB接続。</param>
+    /// <param name="transaction">トランザクション。</param>
+    /// <param name="seriesId">親の MangaSeries の SeriesId。</param>
+    /// <param name="tags">保存するタグ一覧。TagId > 0 のもののみが対象。</param>
+    /// <returns>完了時にコンプリートする ValueTask。</returns>
+    public async ValueTask ReplaceSeriesTagsInTransactionAsync(
+        SQLiteConnection connection,
+        SQLiteTransaction transaction,
+        long seriesId,
+        IEnumerable<MangaTag> tags)
+    {
+        // 既存タグを削除
+        var deleteSql = " DELETE FROM MangaSeriesTags WHERE SeriesId = :SeriesId; ";
+        await connection.ExecuteAsync(
+            deleteSql,
+            new { SeriesId = seriesId },
+            transaction);
+
+        // 新しいタグを挿入
+        var insertSql = new StringBuilder();
+        insertSql.AppendLine(" INSERT INTO MangaSeriesTags ( ");
+        insertSql.AppendLine(" 	  SeriesId ");
+        insertSql.AppendLine(" 	, TagId ");
+        insertSql.AppendLine(" ) VALUES ( ");
+        insertSql.AppendLine(" 	  :SeriesId ");
+        insertSql.AppendLine(" 	, :TagId ");
+        insertSql.AppendLine(" ); ");
+
+        // TagId > 0 のタグのみ保存（未保存タグ TagId=0 は除外）
+        var validTags = tags.Where(t => t.TagId > 0).ToList();
+        foreach (var tag in validTags)
+        {
+            await connection.ExecuteAsync(
+                insertSql.ToString(),
+                new { SeriesId = seriesId, TagId = tag.TagId },
+                transaction);
+        }
+    }
+
+    /// <summary>
+    /// MangaSeries のサムネイル情報（ThumbnailFileName, ThumbnailStatus）を更新します。
+    /// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
+    /// </summary>
+    /// <param name="connection">DB接続。</param>
+    /// <param name="transaction">トランザクション。</param>
+    /// <param name="seriesId">更新対象の SeriesId。</param>
+    /// <param name="thumbnailFileName">新しいサムネイルファイル名。</param>
+    /// <param name="thumbnailStatus">新しいサムネイル状態。</param>
+    /// <returns>完了時にコンプリートする ValueTask。</returns>
+    public async ValueTask UpdateSeriesThumbnailAsync(
+        SQLiteConnection connection,
+        SQLiteTransaction transaction,
+        long seriesId,
+        string thumbnailFileName,
+        MangaBinder.Bindings.ThumbnailStatus thumbnailStatus)
+    {
+        var updateSql = new StringBuilder();
+        updateSql.AppendLine(" UPDATE MangaSeries ");
+        updateSql.AppendLine(" SET ");
+        updateSql.AppendLine(" 	  ThumbnailFileName = :ThumbnailFileName ");
+        updateSql.AppendLine(" 	, ThumbnailStatus = :ThumbnailStatus ");
+        updateSql.AppendLine(" WHERE ");
+        updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+        await connection.ExecuteAsync(
+            updateSql.ToString(),
+            new
+            {
+                ThumbnailFileName = thumbnailFileName,
+                ThumbnailStatus = (int)thumbnailStatus,
+                SeriesId = seriesId,
             },
             transaction);
     }

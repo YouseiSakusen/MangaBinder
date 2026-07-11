@@ -842,7 +842,11 @@ public class MangaSeriesManager
 				/// <param name="editingSeries">更新対象の編集中作品。SeriesId != 0 かつ IsWork == false である必要があります。</param>
 				/// <returns>更新後の正式作品（Store 内インスタンス）。</returns>
 				/// <exception cref="InvalidOperationException">タイトル判定が不一致の場合または作品が見つからない場合にスローされます。</exception>
-				public async ValueTask<MangaSeries> UpdateExistingSeriesAsync(MangaSeries editingSeries)
+				public async ValueTask<MangaSeries> UpdateExistingSeriesAsync(
+					MangaSeries editingSeries,
+					IReadOnlyList<MaterialFile> materialFiles,
+					SourceFolder? selectedMaterialSourceFolder,
+					byte[]? thumbnailBytes)
 				{
 					// 入力値の検証
 					if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
@@ -878,10 +882,55 @@ public class MangaSeriesManager
 					try
 					{
 						// === DB UPDATE（DeepCopy を対象） ===
-						await this.mangaRepository.UpdateSeriesAsync(originalSeries);
+						await this.mangaRepository.UpdateSeriesAsync(connection, tx, originalSeries);
 
 						// === MangaSeriesTags の更新（DELETE → INSERT） ===
-						await this.SaveSeriesTagsInTransactionAsync(connection, tx, originalSeries.SeriesId, originalSeries.Tags);
+						await this.mangaRepository.ReplaceSeriesTagsInTransactionAsync(connection, tx, originalSeries.SeriesId, originalSeries.Tags);
+
+						// === 追加素材の移動処理 ===
+						// CanRemove=true の追加素材を既存の作品素材フォルダへ移動
+						if (materialFiles != null && materialFiles.Count > 0 && selectedMaterialSourceFolder != null)
+						{
+							var materialSource = originalSeries.SingleMaterialSource;
+							if (materialSource != null)
+							{
+								// CanRemove=true の追加素材のみを抽出
+								var addedMaterials = materialFiles
+									.Where(m => m.CanRemove)
+									.ToList();
+
+								if (addedMaterials.Count > 0)
+								{
+									// 既存の MoveMaterialsAsync を使用して素材を移動
+									// selectedMaterialSourceFolder は既存のMangaSource.Pathに対応する素材ルート
+									await this.materialManager.MoveMaterialsAsync(
+										selectedMaterialSourceFolder,
+										originalSeries.MaterialFolderName,
+										addedMaterials);
+								}
+							}
+						}
+
+						// === サムネイル差し替え処理 ===
+						// thumbnailBytes が存在する場合だけ新しいサムネイルで差し替え
+						if (thumbnailBytes != null && thumbnailBytes.Length > 0)
+						{
+							// サムネイルファイルを保存
+							var fileName = $"{originalSeries.ThumbnailFileNameBase}.jpg";
+							await this.thumbnailManager.SaveThumbnailAsync(fileName, thumbnailBytes);
+
+							// DeepCopy へサムネイル情報を反映
+							originalSeries.ThumbnailFileName = fileName;
+							originalSeries.ThumbnailStatus = ThumbnailStatus.Completed;
+
+							// DB へサムネイル情報を反映
+							await this.mangaRepository.UpdateSeriesThumbnailAsync(
+								connection,
+								tx,
+								originalSeries.SeriesId,
+								fileName,
+								ThumbnailStatus.Completed);
+						}
 
 						// === Commit ===
 						tx.Commit();
@@ -893,6 +942,13 @@ public class MangaSeriesManager
 
 						// DeepCopy から Store インスタンスへ編集可能項目をコピー
 						this.CopyEditableFieldsFromToEditableToStore(originalSeries, storeInstance);
+
+						// サムネイル差し替え時の情報反映
+						if (thumbnailBytes != null && thumbnailBytes.Length > 0)
+						{
+							storeInstance.ThumbnailFileName = originalSeries.ThumbnailFileName;
+							storeInstance.ThumbnailStatus = originalSeries.ThumbnailStatus;
+						}
 
 						return storeInstance;
 					}

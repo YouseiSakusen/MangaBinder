@@ -390,13 +390,15 @@
                             <controls:SeriesVolumeStatus Grid.Row="1" Margin="0,0,0,8" VerticalAlignment="Center"
                                 DataContext="{Binding VolumeStatus.Value}" />
 
-                            <!-- Row2: Grid（あらすじ領域 + 補助情報領域） -->
+                            <!-- Row2: Grid（あらすじ領域 + 補助情報領域 + 編集ボタン） -->
                             <Grid Grid.Row="2" Margin="0,0,0,4">
                                 <Grid.ColumnDefinitions>
                                     <!-- Col0: あらすじ領域（2*） -->
                                     <ColumnDefinition Width="3*" />
                                     <!-- Col1: 補助情報領域（1*） -->
                                     <ColumnDefinition Width="1*" />
+                                    <!-- Col2: 編集ボタン（Auto） -->
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
                                 <!-- Col0: あらすじ領域 -->
@@ -532,6 +534,28 @@
                                         </Grid>
                                     </Grid>
                                 </Grid>
+
+                                <!-- Col2: 編集ボタン -->
+                                <ui:Button
+                                    Grid.Column="2"
+                                    Appearance="Transparent"
+                                    Width="28"
+                                    Height="28"
+                                    Padding="0"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Background="Transparent"
+                                    BorderBrush="Transparent"
+                                    ToolTip="作品を編集"
+                                    Command="{Binding DataContext.EditSeriesCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                    CommandParameter="{Binding Series}">
+                                    <TextBlock Text="▶"
+                                        FontSize="12"
+                                        Opacity="0.6"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Center"
+                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </ui:Button>
                             </Grid>
 
                         </Grid>

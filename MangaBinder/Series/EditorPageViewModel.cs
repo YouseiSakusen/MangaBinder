@@ -31,6 +31,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	private readonly ISnackbarService snackbarService;
 	private readonly AppSettings appSettings;
 	private readonly MaterialManager materialManager;
+	private readonly OwnedVolumeEstimator ownedVolumeEstimator;
 	private SeriesTagSelectorViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
 
@@ -198,6 +199,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// <param name="snackbarService">Snackbar サービス。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="materialManager">素材パス解析マネージャー。</param>
+	/// <param name="ownedVolumeEstimator">所持推定計算機。</param>
 	public EditorPageViewModel(
 		MangaSeriesManager seriesManager,
 		SeriesWorkspaceStore workspaceStore,
@@ -207,7 +209,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		ThumbnailPicker thumbnailPicker,
 		ISnackbarService snackbarService,
 		AppSettings appSettings,
-		MaterialManager materialManager)
+		MaterialManager materialManager,
+		OwnedVolumeEstimator ownedVolumeEstimator)
 	{
 		this.seriesManager = seriesManager ?? throw new ArgumentNullException(nameof(seriesManager));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
@@ -218,6 +221,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.snackbarService = snackbarService ?? throw new ArgumentNullException(nameof(snackbarService));
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
 		this.materialManager = materialManager ?? throw new ArgumentNullException(nameof(materialManager));
+		this.ownedVolumeEstimator = ownedVolumeEstimator ?? throw new ArgumentNullException(nameof(ownedVolumeEstimator));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
@@ -360,7 +364,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			.AddTo(ref this.disposableBag);
 		this.BackCommand.Subscribe(_ =>
 		{
-			this.navigationService.Navigate(typeof(MaintenancePage));
+			this.navigationService.GoBack();
 		});
 
 		// SaveWorkSeriesCommandCanExecute: 一時保存ボタンの有効/無効状態
@@ -1106,12 +1110,41 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 				// ボタン有効制御を更新
 				this.UpdateSaveWorkSeriesCommandCanExecute();
+
+				// 所持推定を再計算
+				this.RecalculateOwnedVolumeEstimate();
 			}
 		}
 		catch (Exception ex)
 		{
 			// ドラッグアンドドロップ処理中のエラーをログ出力
 			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.AddMaterialFilesFromDropAsync] 例外発生: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// 現在の MaterialFiles から所持推定を再計算し、有効な結果の場合のみ OwnedMaxVolume を更新します。
+	/// 推定不能の場合は現在の所持推定値を変更しません。
+	/// </summary>
+	private void RecalculateOwnedVolumeEstimate()
+	{
+		try
+		{
+			var entryNames = this.MaterialFiles.Select(m => m.FileName).ToList();
+			if (entryNames.Count == 0)
+			{
+				return;
+			}
+
+			var result = this.ownedVolumeEstimator.Estimate(entryNames);
+			if (result.OwnedMaxVolume > 0)
+			{
+				this.VolumeStatus.OwnedMaxVolume.Value = result.OwnedMaxVolume;
+			}
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RecalculateOwnedVolumeEstimate] 例外発生: {ex.Message}");
 		}
 	}
 
@@ -1189,6 +1222,9 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 					TimeSpan.FromSeconds(3));
 				return;
 			}
+
+			// UI から編集対象へ最新値を反映
+			this.UpdateEditingSeriesFromUI(editingSeries);
 
 			if (string.IsNullOrWhiteSpace(editingSeries.Title))
 			{
@@ -1283,23 +1319,33 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			if (editingSeries == null)
 				return;
 
-			// UI から編集対象へ最新値を反映
-			// 既存作品のため、共通処理のみが実施される
-			this.UpdateEditingSeriesFromUI(editingSeries);
+			// 素材 DTO に変換
+			var materialFileDtos = this.MaterialFiles
+				.Select(item => new MaterialFile
+				{
+					FullPath = item.FullPath,
+					Type = item.ItemType,
+					CanRemove = item.CanRemove,
+				})
+				.ToList();
 
 			// MangaSeriesManager.UpdateExistingSeriesAsync() を呼び出し
-			var updatedSeries = await this.seriesManager.UpdateExistingSeriesAsync(editingSeries);
+			var updatedSeries = await this.seriesManager.UpdateExistingSeriesAsync(
+				editingSeries,
+				materialFileDtos,
+				this.SelectedMaterialSourceFolder.Value,
+				this.PastedThumbnailBytes);
 
 			// 更新成功
-			this.snackbarService.Show(
-				"成功",
-				$"『{updatedSeries.Title}』を更新しました。",
-				ControlAppearance.Success,
-				new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
-				TimeSpan.FromSeconds(3));
+				this.snackbarService.Show(
+					"成功",
+					$"『{updatedSeries.Title}』を更新しました。",
+					ControlAppearance.Success,
+					new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
+					TimeSpan.FromSeconds(3));
 
-			// 作品管理画面へ戻る
-			this.navigationService.Navigate(typeof(MaintenancePage));
+				// NavigationHierarchy に従って前画面へ戻る
+				this.navigationService.GoBack();
 		}
 		catch (Exception ex)
 		{
