@@ -1,4 +1,4 @@
-namespace MangaBinder.Jobs.FolderScanners;
+namespace MangaBinder.Series;
 
 /// <summary>
 /// 巻数候補の抽出結果を表すモデルです。

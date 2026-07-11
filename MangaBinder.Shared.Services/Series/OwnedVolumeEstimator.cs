@@ -1,4 +1,4 @@
-namespace MangaBinder.Jobs.FolderScanners;
+namespace MangaBinder.Series;
 
 /// <summary>
 /// 素材フォルダ内のファイル名・サブフォルダ名から手持ちの最大巻数を推定するクラスです。

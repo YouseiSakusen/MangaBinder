@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text;
-using MangaBinder.Jobs.FolderScanners;
+using MangaBinder.Series;
 
 namespace MangaBinder.Jobs.FolderScanners;
 

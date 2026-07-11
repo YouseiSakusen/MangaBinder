@@ -7,6 +7,7 @@ using MangaBinder.Tags;
 using ObservableCollections;
 using R3;
 using Reactive.Bindings.R3;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.IO;
 using System.Windows.Media.Imaging;
@@ -78,7 +79,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	public BindableReactiveProperty<int> TitleFocusRequest { get; }
 
 	/// <summary>素材ファイル一覧を取得します。</summary>
-	public ObservableList<MaterialFileItemViewModel> MaterialFiles { get; }
+	public ObservableCollection<MaterialFileItemViewModel> MaterialFiles { get; }
 
 	/// <summary>素材ファイル一覧のヘッダー表示用文字列を取得します。</summary>
 	public BindableReactiveProperty<string> MaterialFilesDisplay { get; }
@@ -295,7 +296,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.TitleFocusRequest = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
-		var materialFilesSource = new ObservableList<MaterialFileItemViewModel>();
+		var materialFilesSource = new ObservableCollection<MaterialFileItemViewModel>();
 		this.MaterialFiles = materialFilesSource;
 
 		// MaterialFilesDisplay: MaterialFiles.Count に基づいて表示文字列を生成
@@ -315,7 +316,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			.AddTo(ref this.disposableBag);
 
 		// MaterialFiles の変更を監視して更新
-		void OnMaterialFilesCollectionChanged(in NotifyCollectionChangedEventArgs<MaterialFileItemViewModel> e)
+		void OnMaterialFilesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
 		{
 			var isEmpty = this.MaterialFiles.Count == 0;
 			this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();

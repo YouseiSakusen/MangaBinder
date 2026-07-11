@@ -665,6 +665,14 @@ public class MangaSeriesManager
 				editingSeries.MaterialFolderName,
 				materialFiles);
 
+			// MangaSources へ作品フォルダ情報を登録
+			await this.mangaRepository.InsertMangaSourceAsync(
+				connection,
+				tx,
+				seriesId,
+				moveResult.SeriesFolderPath,
+				FolderRole.Material);
+
 			// 登録待ち作品の場合は WorkMangaSeriesTags と WorkMangaSeries を削除
 			if (isWorkSeries)
 			{

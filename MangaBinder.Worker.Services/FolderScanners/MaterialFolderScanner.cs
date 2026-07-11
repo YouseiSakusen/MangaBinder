@@ -1,6 +1,7 @@
 using System.IO;
 using MangaBinder;
 using MangaBinder.Jobs.Contexts;
+using MangaBinder.Series;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

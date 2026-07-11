@@ -1,4 +1,4 @@
-namespace MangaBinder.Jobs.FolderScanners;
+namespace MangaBinder.Series;
 
 /// <summary>
 /// 手持ち最大巻数の推定結果を表すモデルです。

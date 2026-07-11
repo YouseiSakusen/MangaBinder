@@ -392,4 +392,43 @@ public class MangaRepository
                 IsOwnedCompleted = series.IsOwnedCompleted,
             });
     }
+
+    /// <summary>
+    /// MangaSources テーブルへ新規レコードを挿入します。
+    /// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
+    /// </summary>
+    /// <param name="connection">DB接続。</param>
+    /// <param name="transaction">トランザクション。</param>
+    /// <param name="seriesId">親の MangaSeries の SeriesId。</param>
+    /// <param name="path">素材フォルダまたはファイルの物理フルパス。</param>
+    /// <param name="role">フォルダの役割。</param>
+    /// <returns>完了時にコンプリートする ValueTask。</returns>
+    public async ValueTask InsertMangaSourceAsync(
+        SQLiteConnection connection,
+        SQLiteTransaction transaction,
+        long seriesId,
+        string path,
+        FolderRole role)
+    {
+        var insertSql = new StringBuilder();
+        insertSql.AppendLine(" INSERT INTO MangaSources ( ");
+        insertSql.AppendLine(" 	  SeriesId ");
+        insertSql.AppendLine(" 	, Path ");
+        insertSql.AppendLine(" 	, Role ");
+        insertSql.AppendLine(" ) VALUES ( ");
+        insertSql.AppendLine(" 	  :SeriesId ");
+        insertSql.AppendLine(" 	, :Path ");
+        insertSql.AppendLine(" 	, :Role ");
+        insertSql.AppendLine(" ); ");
+
+        await connection.ExecuteAsync(
+            insertSql.ToString(),
+            new
+            {
+                SeriesId = seriesId,
+                Path = path,
+                Role = (int)role,
+            },
+            transaction);
+    }
 }

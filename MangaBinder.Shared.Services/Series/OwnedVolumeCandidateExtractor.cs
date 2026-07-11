@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace MangaBinder.Jobs.FolderScanners;
+namespace MangaBinder.Series;
 
 /// <summary>
 /// 1つのファイル名またはフォルダ名から巻数候補を抽出する static クラスです。
