@@ -26,7 +26,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	private readonly MangaSeriesManager mangaSeriesManager;
 
 	/// <summary>表示用作品一覧の内部バッファ。</summary>
-	private readonly ObservableList<SeriesCardViewModel> displaySeriesSource = new();
+	private readonly ObservableList<MaintenanceSeriesCardViewModel> displaySeriesSource = new();
 
 	/// <summary>検索文字列を取得します。</summary>
 	public BindableReactiveProperty<string> SearchQuery { get; }
@@ -39,7 +39,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		=> this.mangaSeriesStore.GetWorkSeries();
 
 	/// <summary>表示する作品一覧を取得します。通常表示時は WorkSeries、検索表示時は検索結果。</summary>
-	public NotifyCollectionChangedSynchronizedViewList<SeriesCardViewModel> DisplaySeries { get; }
+	public NotifyCollectionChangedSynchronizedViewList<MaintenanceSeriesCardViewModel> DisplaySeries { get; }
 
 	/// <summary>検索結果が空であるかを取得します。</summary>
 	public BindableReactiveProperty<bool> IsSearchResultsEmpty { get; }
@@ -126,7 +126,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 				if (!this.IsSearchResultsShown.Value)
 				{
 					// 通常表示中：WorkSeries に追加された作品を displaySeriesSource へ追加
-					var cardViewModel = new SeriesCardViewModel(x.Value);
+					var cardViewModel = new MaintenanceSeriesCardViewModel(x.Value);
 					this.displaySeriesSource.Insert(x.Index, cardViewModel);
 					this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
 					this.UpdateEmptyState();
@@ -146,7 +146,11 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 				{
 					// 通常表示中：displaySeriesSource から削除
 					if (x.Index >= 0 && x.Index < this.displaySeriesSource.Count)
+					{
+						var removedCard = this.displaySeriesSource[x.Index];
 						this.displaySeriesSource.RemoveAt(x.Index);
+						removedCard.Dispose();
+					}
 					this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
 					this.UpdateEmptyState();
 				}
@@ -331,18 +335,18 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 	/// <summary>
 	/// DisplaySeries を指定された MangaSeries リストに基づいて更新します。
-	/// 既存の SeriesCardViewModel が存在する場合は巻情報を再同期し、
-	/// 新規の場合は新しい SeriesCardViewModel を作成します。
+	/// 既存の MaintenanceSeriesCardViewModel が存在する場合は巻情報を再同期し、
+	/// 新規の場合は新しい MaintenanceSeriesCardViewModel を作成します。
 	/// </summary>
 	/// <param name="workSeriesList">更新対象の MangaSeries リスト。</param>
 	private void updateDisplaySeriesWithRefresh(IReadOnlyList<MangaSeries> workSeriesList)
 	{
-		// 新しい SeriesCardViewModel リストを構築
-		var newDisplaySeries = new List<SeriesCardViewModel>();
+		// 新しい MaintenanceSeriesCardViewModel リストを構築
+		var newDisplaySeries = new List<MaintenanceSeriesCardViewModel>();
 
 		foreach (var series in workSeriesList)
 		{
-			// 既存の displaySeriesSource 内で同じ WorkId を持つ SeriesCardViewModel を検索
+			// 既存の displaySeriesSource 内で同じ WorkId を持つ MaintenanceSeriesCardViewModel を検索
 			var existingCard = this.displaySeriesSource.FirstOrDefault(x => x.Series.WorkId == series.WorkId);
 
 			if (existingCard != null)
@@ -353,12 +357,20 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 			}
 			else
 			{
-				// 新規インスタンスの場合は新しい SeriesCardViewModel を作成
-				newDisplaySeries.Add(new SeriesCardViewModel(series));
+				// 新規インスタンスの場合は新しい MaintenanceSeriesCardViewModel を作成
+				newDisplaySeries.Add(new MaintenanceSeriesCardViewModel(series));
 			}
 		}
 
 		// displaySeriesSource を一括更新
+		// 不要になったカードを Dispose
+		foreach (var card in this.displaySeriesSource)
+		{
+			if (!newDisplaySeries.Contains(card))
+			{
+				card.Dispose();
+			}
+		}
 		this.displaySeriesSource.Clear();
 		this.displaySeriesSource.AddRange(newDisplaySeries);
 	}
@@ -373,6 +385,12 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 	public void Dispose()
 	{
+		// displaySeriesSource に残っているカードをすべて Dispose
+		foreach (var card in this.displaySeriesSource)
+		{
+			card.Dispose();
+		}
+		this.displaySeriesSource.Clear();
 		this.disposableBag.Dispose();
 	}
 }

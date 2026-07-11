@@ -72,26 +72,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     public BindableReactiveProperty<double> SavedSeriesListVerticalOffset { get; }
 
     /// <summary>
-    /// Home で選択可能なタグ一覧（ポップアップ用チェックボックスリスト）を取得します。
-    /// </summary>
-    public NotifyCollectionChangedSynchronizedViewList<SeriesTagSelectionItem> SelectableTagsForPopup { get; }
-
-    /// <summary>
-    /// タグ選択ポップアップの列数を取得します。
-    /// </summary>
-    public BindableReactiveProperty<int> TagSelectionColumns { get; }
-
-    /// <summary>
-    /// タグ選択ポップアップの行数を取得します。
-    /// </summary>
-    public BindableReactiveProperty<int> TagSelectionRows { get; }
-
-    /// <summary>
-    /// タグポップアップを開く前に、対象作品のチェック状態を準備するコマンドです。
-    /// </summary>
-    public ReactiveCommand<MangaSeries> PrepareTagPopupCommand { get; }
-
-    /// <summary>
     /// 素材フォルダを開くコマンドです。<see cref="MangaSource"/> をパラメータとして受け取ります。
     /// </summary>
     public ReactiveCommand<MangaSource> OpenMaterialFolderCommand { get; }
@@ -133,26 +113,11 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
             .AddTo(ref this.disposableBag);
         this.SelectedCount = selectedCount;
 
-        // タグ選択UI の列数・行数
-        var tagSelectionColumns = new BindableReactiveProperty<int>(2)
-            .AddTo(ref this.disposableBag);
-        this.TagSelectionColumns = tagSelectionColumns;
-
-        var tagSelectionRows = new BindableReactiveProperty<int>(0)
-            .AddTo(ref this.disposableBag);
-        this.TagSelectionRows = tagSelectionRows;
-
-        // タグポップアップ用の選択可能タグ一覧（WPF互換に変換）
-        var selectableTagsForPopupSource = new ObservableList<SeriesTagSelectionItem>();
-        this.SelectableTagsForPopup = selectableTagsForPopupSource
-            .ToWritableNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
-            .AddTo(ref this.disposableBag);
-
         // mangaSeriesStore.All の変更を監視して cardSeries へ反映
         this.mangaSeriesStore.All.ObserveAdd()
             .Subscribe(x =>
             {
-                var cardViewModel = new SeriesCardViewModel(x.Value, this.bindingQueueStore);
+                var cardViewModel = new SeriesCardViewModel(x.Value, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore);
                 this.subscribeIsSelectedForSeries(cardViewModel);
                 cardSeries.Insert(x.Index, cardViewModel);
             })
@@ -172,7 +137,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
                 cardSeries.Clear();
                 foreach (var series in this.mangaSeriesStore.All)
                 {
-                    var cardViewModel = new SeriesCardViewModel(series, this.bindingQueueStore);
+                    var cardViewModel = new SeriesCardViewModel(series, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore);
                     this.subscribeIsSelectedForSeries(cardViewModel);
                     cardSeries.Add(cardViewModel);
                 }
@@ -182,7 +147,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         // 初期要素を追加
         foreach (var series in this.mangaSeriesStore.All)
         {
-            var cardViewModel = new SeriesCardViewModel(series, this.bindingQueueStore);
+            var cardViewModel = new SeriesCardViewModel(series, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore);
             this.subscribeIsSelectedForSeries(cardViewModel);
             cardSeries.Add(cardViewModel);
         }
@@ -204,51 +169,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.NavigateToSettingsCommand = new ReactiveCommand<Unit>()
             .AddTo(ref this.disposableBag);
         this.NavigateToSettingsCommand.Subscribe(_ => this.navigationService.Navigate(typeof(SettingsPage)));
-
-        this.PrepareTagPopupCommand = new ReactiveCommand<MangaSeries>()
-            .AddTo(ref this.disposableBag);
-        this.PrepareTagPopupCommand.Subscribe(series =>
-        {
-            this.SelectableTagsForPopup.Clear();
-            var tags = this.mangaSeriesStore.GetTags()
-                         .OrderByDescending(t => t.DisplayOrder)
-                         .ThenByDescending(t => t.TagId)
-                         .ToList();
-
-            // プレースホルダーセルを計算
-            var tagCount = tags.Count;
-            var columns = this.TagSelectionColumns.Value;
-            var placeholderCount = (columns - (tagCount % columns)) % columns;
-
-            // プレースホルダーを先頭に追加
-            for (var i = 0; i < placeholderCount; i++)
-            {
-                var placeholderItem = new SeriesTagSelectionItem(null!, false)
-                {
-                    IsPlaceholder = true
-                };
-                this.SelectableTagsForPopup.Add(placeholderItem);
-            }
-
-            // 実際のタグを追加
-            foreach (var tag in tags)
-            {
-                var isChecked = series.Tags.Any(t => t.TagId == tag.TagId);
-                var item = new SeriesTagSelectionItem(tag, isChecked);
-                item.PropertyChanged += (_, e) =>
-                {
-                    if (e.PropertyName != nameof(SeriesTagSelectionItem.IsChecked))
-                        return;
-                    using var scope = this.serviceScopeFactory.CreateScope();
-                    var dispatcher = scope.ServiceProvider.GetRequiredService<SeriesTagDispatcher>();
-                    dispatcher.ApplyTag(series, item.Tag, item.IsChecked);
-                };
-                this.SelectableTagsForPopup.Add(item);
-            }
-
-            // 行数を計算して通知
-            this.TagSelectionRows.Value = (tagCount + placeholderCount + columns - 1) / columns;
-        });
 
         this.OpenMaterialFolderCommand = new ReactiveCommand<MangaSource>()
             .AddTo(ref this.disposableBag);
@@ -335,9 +255,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.HomeStateInformation.HasMaterialSourceFolder.Value           = homeState.HasMaterialSourceFolder.Value;
         this.HomeStateInformation.HasCompletedMaterialFolderScanJob.Value = homeState.HasCompletedMaterialFolderScanJob.Value;
         this.HomeStateInformation.EmptyStateKind.Value                    = homeState.EmptyStateKind.Value;
-
-        // タグマスタをポップアップ用リストに反映（再同期）
-        this.SelectableTagsForPopup.Clear();
     }
 
     /// <inheritdoc/>

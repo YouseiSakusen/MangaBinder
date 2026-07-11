@@ -150,7 +150,7 @@
 									</Grid>
 
 									<!-- Row1: 巻数情報 -->
-									<controls:SeriesVolumeStatus Grid.Row="1" DataContext="{Binding VolumeStatus.Value}" Margin="0,0,0,8" />
+									<controls:SeriesVolumeStatus Grid.Row="1" DataContext="{Binding VolumeStatus}" Margin="0,0,0,8" />
 
 									<!-- Row2: あらすじボタン -->
 									<ui:Button Grid.Row="2" 

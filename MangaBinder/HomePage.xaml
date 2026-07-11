@@ -388,7 +388,7 @@
 
                             <!-- Row1: 巻数情報 -->
                             <controls:SeriesVolumeStatus Grid.Row="1" Margin="0,0,0,8" VerticalAlignment="Center"
-                                DataContext="{Binding VolumeStatus}" />
+                                DataContext="{Binding VolumeStatus.Value}" />
 
                             <!-- Row2: Grid（あらすじ領域 + 補助情報領域） -->
                             <Grid Grid.Row="2" Margin="0,0,0,4">
@@ -497,12 +497,11 @@
                                                 x:Name="TagToggleButton"
                                                 Padding="6,2"
                                                 FontSize="11"
-                                                Content="{Binding TagDisplayText.Value}"
+                                                Content="{Binding TagSelector.CompactDisplayText.Value}"
                                                 Cursor="Hand"
                                                 Background="{DynamicResource ControlFillColorDefaultBrush}"
                                                 BorderThickness="0"
-                                                Command="{Binding DataContext.PrepareTagPopupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                CommandParameter="{Binding Series}" />
+                                                Command="{Binding TagSelector.PreparePopupCommand}" />
 
                                             <!-- Popup: タグ選択チェックボックス一覧 -->
                                             <Popup
@@ -524,9 +523,9 @@
                                                     MaxHeight="250">
                                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                                         <controls:SeriesTagSelector
-                                                            ItemsSource="{Binding Data.SelectableTagsForPopup, Source={StaticResource VmProxy}}"
-                                                            Columns="{Binding Data.TagSelectionColumns.Value, Source={StaticResource VmProxy}}"
-                                                            Rows="{Binding Data.TagSelectionRows.Value, Source={StaticResource VmProxy}}"/>
+                                                            ItemsSource="{Binding TagSelector.SelectableTagItems}"
+                                                            Columns="{Binding TagSelector.Columns.Value}"
+                                                            Rows="{Binding TagSelector.Rows.Value}"/>
                                                     </ScrollViewer>
                                                 </Border>
                                             </Popup>

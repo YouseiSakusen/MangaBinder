@@ -52,7 +52,7 @@
             <!-- 巻情報 -->
             <local:SeriesVolumeStatus
                 Grid.Row="1"
-                DataContext="{Binding VolumeStatus}" />
+                DataContext="{Binding VolumeStatus.Value}" />
         </Grid>
     </Grid>
 </UserControl>

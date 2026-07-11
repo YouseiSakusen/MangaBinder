@@ -1,8 +1,5 @@
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
-using MangaBinder.Core.Formatters;
-using MangaBinder.Tags;
-using ObservableCollections;
 using R3;
 
 namespace MangaBinder;
@@ -13,8 +10,8 @@ namespace MangaBinder;
 public class SeriesCardViewModel : IDisposable
 {
 	private DisposableBag disposableBag = new();
-	private NotifyCollectionChangedEventHandler<MangaTag>? collectionChangedHandler;
 	private MangaSeries series = null!;
+	private SeriesTagSelectorViewModel tagSelector = null!;
 
 	/// <summary>
 	/// 基になった MangaSeries です。
@@ -33,17 +30,18 @@ public class SeriesCardViewModel : IDisposable
 	public BindableReactiveProperty<bool> IsSelected { get; }
 
 	/// <summary>
-	/// タグ表示用テキスト。
-	/// Series.Tags の変更に応じて自動更新されます。
+	/// タグ選択・表示状態を管理する ViewModel です。
 	/// </summary>
-	public BindableReactiveProperty<string> TagDisplayText { get; }
+	public SeriesTagSelectorViewModel TagSelector => this.tagSelector;
 
 	/// <summary>
 	/// <see cref="SeriesCardViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="series">ラップする MangaSeries。</param>
 	/// <param name="bindingQueueStore">製本開始キュー ストア。初期値決定用。</param>
-	public SeriesCardViewModel(MangaSeries series, BindingQueueStore? bindingQueueStore = null)
+	/// <param name="mangaSeriesStore">MangaSeries ストア。タグマスタ取得用。</param>
+	/// <param name="seriesTagStore">タグ変更追跡ストア。Dirty 管理用。</param>
+	public SeriesCardViewModel(MangaSeries series, BindingQueueStore? bindingQueueStore = null, MangaSeriesStore? mangaSeriesStore = null, SeriesTagStore? seriesTagStore = null)
 	{
 		this.Series = series;
 		this.series = series;
@@ -58,22 +56,15 @@ public class SeriesCardViewModel : IDisposable
 		this.IsSelected = new BindableReactiveProperty<bool>(isInQueue)
 			.AddTo(ref this.disposableBag);
 
-		// TagDisplayText の初期化とタグ変更購読
-		this.TagDisplayText = new BindableReactiveProperty<string>(
-			SeriesTagDisplayFormatter.Format(series.Tags))
+		// TagSelector の初期化
+		this.tagSelector = new SeriesTagSelectorViewModel(mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore)))
 			.AddTo(ref this.disposableBag);
 
-		// Tags の変更を購読
-		this.collectionChangedHandler = this.OnTagsCollectionChanged;
-		series.Tags.CollectionChanged += this.collectionChangedHandler;
-	}
-
-	/// <summary>
-	/// Tags コレクション変更時のハンドラー。
-	/// </summary>
-	private void OnTagsCollectionChanged(in NotifyCollectionChangedEventArgs<MangaTag> e)
-	{
-		this.TagDisplayText.Value = SeriesTagDisplayFormatter.Format(this.series.Tags);
+		// 対象作品を設定し、タグ変更時の Dirty 登録処理を接続
+		var onTagsChanged = seriesTagStore != null
+			? (Action<MangaSeries>)(s => seriesTagStore.MarkDirty(s))
+			: null;
+		this.tagSelector.SetTarget(series, onTagsChanged);
 	}
 
 	/// <summary>
@@ -87,10 +78,7 @@ public class SeriesCardViewModel : IDisposable
 	/// <inheritdoc/>
 	public void Dispose()
 	{
-		if (this.collectionChangedHandler != null)
-		{
-			this.Series.Tags.CollectionChanged -= this.collectionChangedHandler;
-		}
+		this.tagSelector.Dispose();
 		this.disposableBag.Dispose();
 	}
 }

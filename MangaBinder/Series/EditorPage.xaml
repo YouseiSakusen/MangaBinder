@@ -704,7 +704,7 @@
                                 Cursor="Hand"
                                 Background="{DynamicResource ControlFillColorDefaultBrush}"
                                 BorderThickness="0"
-                                Command="{Binding PrepareTagPopupCommand}" />
+                                Command="{Binding TagSelector.PreparePopupCommand}" />
 
                             <!-- Popup: タグ選択チェックボックス一覧 -->
                             <Popup
@@ -726,16 +726,16 @@
                                     MaxHeight="250">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                         <controls:SeriesTagSelector
-                                            ItemsSource="{Binding SelectableTagsForPopup}"
-                                            Columns="{Binding TagSelectionColumns.Value}"
-                                            Rows="{Binding TagSelectionRows.Value}"/>
+                                            ItemsSource="{Binding TagSelector.SelectableTagItems}"
+                                            Columns="{Binding TagSelector.Columns.Value}"
+                                            Rows="{Binding TagSelector.Rows.Value}"/>
                                     </ScrollViewer>
                                 </Border>
                             </Popup>
                         </StackPanel>
 
                         <!-- 選択済みタグ表示エリア -->
-                        <ItemsControl Grid.Column="1" ItemsSource="{Binding EditingTagsCollection.Value}">
+                        <ItemsControl Grid.Column="1" ItemsSource="{Binding TagSelector.SelectedTags}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel />

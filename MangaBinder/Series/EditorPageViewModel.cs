@@ -30,10 +30,16 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	private readonly ISnackbarService snackbarService;
 	private readonly AppSettings appSettings;
 	private readonly MaterialManager materialManager;
+	private SeriesTagSelectorViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
 
 	/// <summary>編集対象の Series を取得します。</summary>
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
+
+	/// <summary>
+	/// タグ選択・表示状態を管理する ViewModel です。
+	/// </summary>
+	public SeriesTagSelectorViewModel TagSelector => this.tagSelector;
 
 	/// <summary>タイトルを取得または設定します。バリデーション機能付き。</summary>
 	public ValidatableReactiveProperty<string?> Title { get; }
@@ -91,31 +97,6 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 	/// <summary>巻情報編集用の ViewModel を取得します。</summary>
 	public EditorSeriesVolumeStatusViewModel VolumeStatus { get; }
-
-	/// <summary>
-	/// Editor で選択可能なタグ一覧（ポップアップ用チェックボックスリスト）を取得します。
-	/// </summary>
-	public ObservableList<SeriesTagSelectionItem> SelectableTagsForPopup { get; } = new();
-
-	/// <summary>
-	/// タグ選択ポップアップの列数を取得します。
-	/// </summary>
-	public BindableReactiveProperty<int> TagSelectionColumns { get; }
-
-	/// <summary>
-	/// タグ選択ポップアップの行数を取得します。
-	/// </summary>
-	public BindableReactiveProperty<int> TagSelectionRows { get; }
-
-	/// <summary>
-	/// 編集中の作品に付与されているタグを取得します。
-	/// </summary>
-	public BindableReactiveProperty<ObservableList<MangaTag>> EditingTagsCollection { get; }
-
-	/// <summary>
-	/// タグポップアップを開く前に、対象作品のチェック状態を準備するコマンドです。
-	/// </summary>
-	public ReactiveCommand<Unit> PrepareTagPopupCommand { get; }
 
 	/// <summary>
 	/// サムネイルプレビュー画像を取得または設定します。
@@ -240,8 +221,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
 
-		// 編集中タグコレクションの初期化
-		this.EditingTagsCollection = new BindableReactiveProperty<ObservableList<MangaTag>>(new ObservableList<MangaTag>())
+		// TagSelector の初期化
+		this.tagSelector = new SeriesTagSelectorViewModel(mangaSeriesStore)
 			.AddTo(ref this.disposableBag);
 
 		this.DuplicateSeriesFound = new BindableReactiveProperty<MangaSeries?>(null)
@@ -351,23 +332,6 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.EndVolumeTextInputCommand.Subscribe(text =>
 		{
 			this.HandleEndVolumeTextInput(text);
-		});
-
-		// タグ選択UI の列数・行数
-		var tagSelectionColumns = new BindableReactiveProperty<int>(2)
-			.AddTo(ref this.disposableBag);
-		this.TagSelectionColumns = tagSelectionColumns;
-
-		var tagSelectionRows = new BindableReactiveProperty<int>(0)
-			.AddTo(ref this.disposableBag);
-		this.TagSelectionRows = tagSelectionRows;
-
-		// タグポップアップコマンド
-		this.PrepareTagPopupCommand = new ReactiveCommand<Unit>()
-			.AddTo(ref this.disposableBag);
-		this.PrepareTagPopupCommand.Subscribe(_ =>
-		{
-			this.PrepareTagPopup();
 		});
 
 		// ThumbnailPreviewImageSource: プレビュー用画像ソース
@@ -517,8 +481,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			// 巻情報を VolumeStatus に読み込み
 			this.VolumeStatus.LoadFromSeries(editingSeries);
 
-			// 編集対象作品のタグをコピー
-			this.EditingTagsCollection.Value = new ObservableList<MangaTag>(editingSeries.Tags);
+			// TagSelector へ対象作品を設定（onTagsChanged は不要）
+			this.tagSelector.SetTarget(editingSeries);
 
 			// 素材ファイル一覧を初期化（既存作品のみ）
 			this.MaterialFiles.Clear();
@@ -812,8 +776,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// <param name="duplicateSeries">既存の作品。</param>
 	private async ValueTask showExistingSeriesDialogAsync(MangaSeries duplicateSeries)
 	{
-		// ダイアログ用に SeriesCardViewModel を生成
-		var cardViewModel = new SeriesCardViewModel(duplicateSeries);
+		// ダイアログ用に MaintenanceSeriesCardViewModel を生成
+		var cardViewModel = new MaintenanceSeriesCardViewModel(duplicateSeries);
 
 		// ダイアログコンテンツを作成
 		var content = new ExistingSeriesDialogContent
@@ -849,81 +813,9 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			// ナビゲーションで MaintenancePage へ戻る
 			this.navigationService.Navigate(typeof(MaintenancePage));
 		}
-	}
 
-	/// <summary>
-	/// タグポップアップ用のタグ一覧を準備します。
-	/// </summary>
-	private void PrepareTagPopup()
-	{
-		this.SelectableTagsForPopup.Clear();
-		var tags = this.mangaSeriesStore.GetTags()
-			.OrderByDescending(t => t.DisplayOrder)
-			.ThenByDescending(t => t.TagId)
-			.ToList();
-
-		// プレースホルダーセルを計算
-		var tagCount = tags.Count;
-		var columns = this.TagSelectionColumns.Value;
-		var placeholderCount = (columns - (tagCount % columns)) % columns;
-
-		// プレースホルダーを先頭に追加
-		for (var i = 0; i < placeholderCount; i++)
-		{
-			var placeholderItem = new SeriesTagSelectionItem(null!, false)
-			{
-				IsPlaceholder = true
-			};
-			this.SelectableTagsForPopup.Add(placeholderItem);
-		}
-
-		// 実際のタグを追加
-		foreach (var tag in tags)
-		{
-			var isChecked = this.EditingTagsCollection.Value.Any(t => t.TagId == tag.TagId);
-			var item = new SeriesTagSelectionItem(tag, isChecked);
-			item.PropertyChanged += (_, e) =>
-			{
-				if (e.PropertyName != nameof(SeriesTagSelectionItem.IsChecked))
-					return;
-				this.ApplyTagToEditingSeries(tag, item.IsChecked);
-			};
-			this.SelectableTagsForPopup.Add(item);
-		}
-
-		// 行数を計算して通知
-		this.TagSelectionRows.Value = (tagCount + placeholderCount + columns - 1) / columns;
-	}
-
-	/// <summary>
-	/// タグの選択状態を編集中の作品に反映します。
-	/// </summary>
-	/// <param name="tag">対象タグ。</param>
-	/// <param name="isChecked">チェック状態。</param>
-	private void ApplyTagToEditingSeries(MangaTag tag, bool isChecked)
-	{
-		if (this.EditingSeries.Value == null)
-			return;
-
-		if (isChecked)
-		{
-			// タグを追加
-			if (!this.EditingTagsCollection.Value.Any(t => t.TagId == tag.TagId))
-			{
-				this.EditingTagsCollection.Value.Add(tag);
-				this.EditingSeries.Value.Tags.Add(tag);
-			}
-		}
-		else
-		{
-			// タグを削除
-			var tagToRemove = this.EditingTagsCollection.Value.FirstOrDefault(t => t.TagId == tag.TagId);
-			if (tagToRemove != null)
-			{
-				this.EditingTagsCollection.Value.Remove(tagToRemove);
-				this.EditingSeries.Value.Tags.Remove(tagToRemove);
-			}
-		}
+		// ダイアログ終了後にカード ViewModel を Dispose
+		cardViewModel.Dispose();
 	}
 
 	/// <summary>
@@ -1424,6 +1316,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	public void Dispose()
 	{
 		this.ClearPastedThumbnail();
+		this.tagSelector.Dispose();
 		this.disposableBag.Dispose();
 	}
 }
