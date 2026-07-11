@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+using ObservableCollections;
 using MangaBinder.Bindings;
 using MangaBinder.Tags;
 
@@ -112,7 +112,7 @@ public class MangaSeries
     public string WorkThumbnailFileNameBase => $"{this.WorkId:D6}_{this.ShortTitle}";
 
     /// <summary>この作品に付与されたタグ一覧を取得します。</summary>
-    public ObservableCollection<MangaTag> Tags { get; } = new();
+    public ObservableList<MangaTag> Tags { get; } = new();
 
 
 

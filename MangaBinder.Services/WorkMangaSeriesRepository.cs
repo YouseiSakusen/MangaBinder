@@ -1,5 +1,6 @@
 using Dapper;
 using MangaBinder.Settings;
+using MangaBinder.Tags;
 using System.Data.SQLite;
 using System.Text;
 
@@ -27,6 +28,7 @@ public class WorkMangaSeriesRepository
 	/// 全 WorkMangaSeries を取得します。
 	/// WorkMangaSeries は MangaSeries へマッピングされ、WorkId のみ値が設定されます。
 	/// SeriesId は 0 のままとなります。
+	/// WorkMangaSeriesTags も読み込み、series.Tags へ設定されます。
 	/// 並び順は MangaSeriesStore が管理するため、ORDER BY は使用しません。
 	/// </summary>
 	/// <returns><see cref="MangaSeries"/> の読み取り専用リスト。</returns>
@@ -63,10 +65,48 @@ public class WorkMangaSeriesRepository
 		seriesSql.AppendLine(" FROM ");
 		seriesSql.AppendLine(" 	WorkMangaSeries; ");
 
+		var workTagsSql = new StringBuilder();
+		workTagsSql.AppendLine(" SELECT ");
+		workTagsSql.AppendLine(" 	  wt.WorkId ");
+		workTagsSql.AppendLine(" 	, t.TagId ");
+		workTagsSql.AppendLine(" 	, t.Name ");
+		workTagsSql.AppendLine(" 	, t.DisplayOrder ");
+		workTagsSql.AppendLine(" 	, t.ShowOnSeriesCard ");
+		workTagsSql.AppendLine(" FROM ");
+		workTagsSql.AppendLine(" 	WorkMangaSeriesTags wt ");
+		workTagsSql.AppendLine(" INNER JOIN MangaTags t ON ");
+		workTagsSql.AppendLine(" 	t.TagId = wt.TagId ");
+		workTagsSql.AppendLine(" ORDER BY ");
+		workTagsSql.AppendLine(" 	  wt.WorkId ");
+		workTagsSql.AppendLine(" 	, t.DisplayOrder ");
+		workTagsSql.AppendLine(" 	, t.TagId; ");
+
 		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
 		await connection.OpenAsync();
 
 		var seriesList = (await connection.QueryAsync<MangaSeries>(seriesSql.ToString())).AsList();
+
+		// WorkMangaSeriesTags + MangaTags を一括取得（N+1禁止）
+		var workTags = await connection.QueryAsync<(int WorkId, long TagId, string Name, int DisplayOrder, bool ShowOnSeriesCard)>(
+			workTagsSql.ToString());
+
+		var seriesDict = seriesList.ToDictionary(s => s.WorkId);
+
+		// メモリ上でタグを紐付け
+		foreach (var row in workTags)
+		{
+			if (!seriesDict.TryGetValue(row.WorkId, out var series))
+				continue;
+
+			var tag = new MangaTag
+			{
+				TagId = row.TagId,
+				Name = row.Name,
+				DisplayOrder = row.DisplayOrder,
+				ShowOnSeriesCard = row.ShowOnSeriesCard,
+			};
+			series.Tags.Add(tag);
+		}
 
 		return seriesList;
 	}
@@ -235,5 +275,62 @@ public class WorkMangaSeriesRepository
 			WorkId = series.WorkId,
 		});
 	}
-}
 
+	/// <summary>
+	/// 指定した登録待ち作品一覧のタグを WorkMangaSeriesTags テーブルへ保存します。
+	/// 各作品の既存レコードを DELETE してから series.Tags を INSERT します。
+	/// TagId &lt;= 0 のタグは保存対象外となります（未保存タグの防御）。
+	/// </summary>
+	/// <param name="seriesList">保存対象の登録待ち作品一覧。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	public async ValueTask SaveWorkTagsAsync(
+		IEnumerable<MangaSeries> seriesList,
+		CancellationToken cancellationToken = default)
+	{
+		var deleteSql = new StringBuilder();
+		deleteSql.AppendLine(" DELETE FROM WorkMangaSeriesTags ");
+		deleteSql.AppendLine(" WHERE ");
+		deleteSql.AppendLine(" 	WorkId = :WorkId; ");
+
+		var insertSql = new StringBuilder();
+		insertSql.AppendLine(" INSERT INTO WorkMangaSeriesTags ( ");
+		insertSql.AppendLine(" 	  WorkId ");
+		insertSql.AppendLine(" 	, TagId ");
+		insertSql.AppendLine(" ) VALUES ( ");
+		insertSql.AppendLine(" 	  :WorkId ");
+		insertSql.AppendLine(" 	, :TagId ");
+		insertSql.AppendLine(" ); ");
+
+		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+		await connection.OpenAsync(cancellationToken);
+
+		using var transaction = connection.BeginTransaction();
+		try
+		{
+			foreach (var series in seriesList)
+			{
+				await connection.ExecuteAsync(
+					deleteSql.ToString(),
+					new { WorkId = series.WorkId },
+					transaction);
+
+				// TagId > 0 のタグのみ保存（未保存タグ TagId=0 は除外）
+				var validTags = series.Tags.Where(t => t.TagId > 0).ToList();
+				foreach (var tag in validTags)
+				{
+					await connection.ExecuteAsync(
+						insertSql.ToString(),
+						new { WorkId = series.WorkId, TagId = tag.TagId },
+						transaction);
+				}
+			}
+
+			transaction.Commit();
+		}
+		catch
+		{
+			transaction.Rollback();
+			throw;
+		}
+	}
+}

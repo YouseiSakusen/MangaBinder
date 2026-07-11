@@ -209,6 +209,24 @@ namespace MangaBinder
 	}
 }
 
+namespace MangaBinder
+{
+	/// <summary>
+	/// 既存作品の編集中タイトルと同一性判定結果を表す列挙型です。
+	/// </summary>
+	public enum ExistingSeriesTitleMatchResult
+	{
+		/// <summary>編集中作品自身と同一タイトルです。</summary>
+		SameAsEditingSeriesSelf,
+
+		/// <summary>同一タイトルの作品が見つかりません。</summary>
+		NoMatchFound,
+
+		/// <summary>別の SeriesId を持つ作品と同一タイトルです。</summary>
+		DifferentSeriesMatched,
+	}
+}
+
 namespace MangaBinder.Settings
 {
 	/// <summary>

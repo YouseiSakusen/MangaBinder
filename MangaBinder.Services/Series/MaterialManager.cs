@@ -388,4 +388,89 @@ public sealed class MaterialManager
 
 		return result;
 	}
+
+	/// <summary>
+	/// 指定された素材フォルダ（MangaSource のうち FolderRole.Material のみ）を、新しいタイトルへリネームします。
+	/// 複数の MaterialSource が存在する場合はすべてを対象にします。
+	/// 物理フォルダのリネームのみを実行し、DB やメモリ上の Path は更新しません。
+	/// </summary>
+	/// <remarks>
+	/// リネーム処理：
+	/// - 対象は FolderRole.Material のフォルダのみ（BindingSource は対象外）
+	/// - 各フォルダについて：
+	///   - 現在パスが存在しない場合 → InvalidOperationException を投げる
+	///   - 変更後パスが既に存在する場合 → InvalidOperationException を投げる
+	///   - 現在パスと変更後パスが同一の場合 → 何もしない
+	///   - 上記以外の場合 → Directory.Move() でリネーム
+	/// 
+	/// パスの正規化：
+	/// - Path.GetFullPath() でパス文字列を正規化した上で比較・操作
+	/// - 大文字小文字の区別：OrdinalIgnoreCase で比較
+	/// 
+	/// DB 更新：
+	/// - このメソッドでは DB の MangaSources.Path は更新しません
+	/// - 呼び出し元（将来の保存処理）で Path 更新を扱うことを想定
+	/// </remarks>
+	/// <param name="materialSources">リネーム対象の MangaSource の列挙。FolderRole.Material のみが処理対象。</param>
+	/// <param name="newTitle">新しい作品タイトル。</param>
+	/// <exception cref="ArgumentNullException">materialSources または newTitle が null の場合。</exception>
+	/// <exception cref="ArgumentException">newTitle が空文字または空白のみの場合。</exception>
+	/// <exception cref="InvalidOperationException">
+	/// 以下の場合に投げられます：
+	/// - 現在パスが存在しない
+	/// - 変更後パスが既に存在する
+	/// </exception>
+	public ValueTask RenameMaterialFoldersAsync(
+		IEnumerable<MangaSource> materialSources,
+		string newTitle)
+	{
+		ArgumentNullException.ThrowIfNull(materialSources);
+		ArgumentException.ThrowIfNullOrEmpty(newTitle);
+
+		// Material ロールのみを対象にする
+		var targetSources = materialSources
+			.Where(s => s.Role == FolderRole.Material)
+			.ToList();
+
+		// 各ソースについてリネーム処理を実行
+		foreach (var source in targetSources)
+		{
+			var currentPath = Path.GetFullPath(source.Path);
+			var currentParentPath = Path.GetDirectoryName(currentPath);
+
+			if (string.IsNullOrEmpty(currentParentPath))
+			{
+				throw new InvalidOperationException(
+					$"親フォルダの取得に失敗しました。現在パス: {currentPath}");
+			}
+
+			var newPath = Path.Combine(currentParentPath, newTitle);
+			var newPathFull = Path.GetFullPath(newPath);
+
+			// 現在パスが存在しない場合は例外を投げる
+			if (!Directory.Exists(currentPath))
+			{
+				throw new InvalidOperationException(
+					$"現在の素材フォルダが存在しません。パス: {currentPath}");
+			}
+
+			// 変更後パスが既に存在する場合は例外を投げる
+			if (Directory.Exists(newPathFull))
+			{
+				throw new InvalidOperationException(
+					$"変更後のパスが既に存在しています。パス: {newPathFull}");
+			}
+
+			// 現在パスと変更後パスが同一の場合は何もしない
+			if (string.Equals(currentPath, newPathFull, StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
+			// フォルダをリネーム
+			Directory.Move(currentPath, newPathFull);
+		}
+
+		return ValueTask.CompletedTask;
+	}
 }

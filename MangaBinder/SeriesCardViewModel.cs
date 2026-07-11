@@ -1,8 +1,8 @@
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
 using MangaBinder.Core.Formatters;
+using MangaBinder.Tags;
+using ObservableCollections;
 using R3;
 
 namespace MangaBinder;
@@ -10,10 +10,11 @@ namespace MangaBinder;
 /// <summary>
 /// Home 画面の ListView アイテム表示用 ViewModel です。MangaSeries をラップしています。
 /// </summary>
-public class SeriesCardViewModel : INotifyPropertyChanged
+public class SeriesCardViewModel : IDisposable
 {
-	private SeriesVolumeStatusViewModel volumeStatus;
 	private DisposableBag disposableBag = new();
+	private NotifyCollectionChangedEventHandler<MangaTag>? collectionChangedHandler;
+	private MangaSeries series = null!;
 
 	/// <summary>
 	/// 基になった MangaSeries です。
@@ -23,17 +24,7 @@ public class SeriesCardViewModel : INotifyPropertyChanged
 	/// <summary>
 	/// 巻情報表示用の ViewModel です。
 	/// </summary>
-	public SeriesVolumeStatusViewModel VolumeStatus
-	{
-		get => this.volumeStatus;
-		private set
-		{
-			if (this.volumeStatus == value)
-				return;
-			this.volumeStatus = value;
-			this.OnPropertyChanged();
-		}
-	}
+	public BindableReactiveProperty<SeriesVolumeStatusViewModel> VolumeStatus { get; }
 
 	/// <summary>
 	/// 製本対象として選択されているかどうかを示します。
@@ -55,21 +46,34 @@ public class SeriesCardViewModel : INotifyPropertyChanged
 	public SeriesCardViewModel(MangaSeries series, BindingQueueStore? bindingQueueStore = null)
 	{
 		this.Series = series;
-		this.volumeStatus = SeriesVolumeStatusViewModel.FromSeries(series);
+		this.series = series;
+
+		// VolumeStatus の初期化
+		this.VolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel>(
+			SeriesVolumeStatusViewModel.FromSeries(series))
+			.AddTo(ref this.disposableBag);
 
 		// IsSelected の初期値を BindingQueueStore から決定
 		var isInQueue = bindingQueueStore?.Contains(series.SeriesId) ?? false;
-		this.IsSelected = new BindableReactiveProperty<bool>(isInQueue);
+		this.IsSelected = new BindableReactiveProperty<bool>(isInQueue)
+			.AddTo(ref this.disposableBag);
 
-		// TagDisplayText の初期化と Tags.CollectionChanged 購読
+		// TagDisplayText の初期化とタグ変更購読
 		this.TagDisplayText = new BindableReactiveProperty<string>(
-			SeriesTagDisplayFormatter.Format(series.Tags)
-		);
+			SeriesTagDisplayFormatter.Format(series.Tags))
+			.AddTo(ref this.disposableBag);
 
-		series.Tags.CollectionChanged += (_, _) =>
-		{
-			this.TagDisplayText.Value = SeriesTagDisplayFormatter.Format(series.Tags);
-		};
+		// Tags の変更を購読
+		this.collectionChangedHandler = this.OnTagsCollectionChanged;
+		series.Tags.CollectionChanged += this.collectionChangedHandler;
+	}
+
+	/// <summary>
+	/// Tags コレクション変更時のハンドラー。
+	/// </summary>
+	private void OnTagsCollectionChanged(in NotifyCollectionChangedEventArgs<MangaTag> e)
+	{
+		this.TagDisplayText.Value = SeriesTagDisplayFormatter.Format(this.series.Tags);
 	}
 
 	/// <summary>
@@ -77,16 +81,16 @@ public class SeriesCardViewModel : INotifyPropertyChanged
 	/// </summary>
 	public void RefreshVolumeStatus()
 	{
-		this.VolumeStatus = SeriesVolumeStatusViewModel.FromSeries(this.Series);
+		this.VolumeStatus.Value = SeriesVolumeStatusViewModel.FromSeries(this.Series);
 	}
 
 	/// <inheritdoc/>
-	public event PropertyChangedEventHandler? PropertyChanged;
-
-	/// <summary>
-	/// PropertyChanged イベントを発火させます。
-	/// </summary>
-	/// <param name="propertyName">プロパティ名。省略時は呼び出し元のプロパティ名。</param>
-	private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-		=> this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+	public void Dispose()
+	{
+		if (this.collectionChangedHandler != null)
+		{
+			this.Series.Tags.CollectionChanged -= this.collectionChangedHandler;
+		}
+		this.disposableBag.Dispose();
+	}
 }

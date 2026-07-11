@@ -660,6 +660,7 @@
 								ItemsSource="{Binding MaterialSourceFolders}"
 								SelectedItem="{Binding SelectedMaterialSourceFolder.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 								DisplayMemberPath="DisplayName.Value"
+								IsEnabled="{Binding CanSelectMaterialSourceFolder.Value}"
 								VerticalAlignment="Center" />
 						</Grid>
 
@@ -726,8 +727,8 @@
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                         <controls:SeriesTagSelector
                                             ItemsSource="{Binding SelectableTagsForPopup}"
-                                            Columns="{Binding TagSelectionColumns}"
-                                            Rows="{Binding TagSelectionRows}"/>
+                                            Columns="{Binding TagSelectionColumns.Value}"
+                                            Rows="{Binding TagSelectionRows.Value}"/>
                                     </ScrollViewer>
                                 </Border>
                             </Popup>

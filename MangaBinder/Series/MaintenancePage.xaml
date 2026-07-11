@@ -250,7 +250,7 @@
                                         Margin="0,0,0,4" />
 
                                     <!-- 巻数情報 -->
-                                    <controls:SeriesVolumeStatus DataContext="{Binding VolumeStatus}" Margin="0,0,0,4" />
+                                    <controls:SeriesVolumeStatus DataContext="{Binding VolumeStatus.Value}" Margin="0,0,0,4" />
 
                                     <!-- あらすじ（省略） -->
                                     <TextBlock

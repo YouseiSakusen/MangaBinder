@@ -119,6 +119,13 @@ public sealed class MangaSeriesStore
 			existing.DescriptionSourceTitle = workSeries.DescriptionSourceTitle;
 			existing.HasNestedArchive = workSeries.HasNestedArchive;
 			existing.Memo = workSeries.Memo;
+
+			// タグも更新
+			existing.Tags.Clear();
+			foreach (var tag in workSeries.Tags)
+			{
+				existing.Tags.Add(tag);
+			}
 		}
 		else
 		{
@@ -186,6 +193,22 @@ public sealed class MangaSeriesStore
 	{
 		this.series.Clear();
 		this.RebuildMergedSeries();
+	}
+
+	/// <summary>
+	/// 指定した WorkId の登録待ち作品をストアから削除します。
+	/// 同時に MergedSeries を再構築します。
+	/// 正式作品一覧には影響を与えません。
+	/// </summary>
+	/// <param name="workId">削除対象の WorkId。</param>
+	public void RemoveWorkSeries(int workId)
+	{
+		var target = this.workSeries.FirstOrDefault(x => x.WorkId == workId);
+		if (target is not null)
+		{
+			this.workSeries.Remove(target);
+			this.RebuildMergedSeries();
+		}
 	}
 
 	/// <summary>

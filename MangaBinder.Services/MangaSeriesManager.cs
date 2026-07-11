@@ -237,6 +237,81 @@ public class MangaSeriesManager
 	}
 
 	/// <summary>
+	/// 編集中の正式作品に対して、編集後タイトルが同一タイトルの作品と一致するかを判定します。
+	/// 既存作品の保存処理で使用されることを想定しています。
+	/// </summary>
+	/// <remarks>
+	/// 処理フロー：
+	/// 1. 入力タイトルを正規化
+	/// 2. 正規化タイトルで完全一致検索を実行
+	/// 3. 検索結果から以下を判定：
+	///    - 編集中作品自身のみ一致 → SameAsEditingSeriesSelf
+	///    - 一致作品なし → NoMatchFound
+	///    - 別の SeriesId の作品が一致 → DifferentSeriesMatched
+	/// 
+	/// 編集中作品とは、GetEditingSeries() が返す作品を指します。
+	/// 既存作品（SeriesId != 0 かつ IsWork == false）対象です。
+	/// </remarks>
+	/// <param name="newTitle">編集後の新しいタイトル。</param>
+	/// <returns>タイトル一致結果を表す ExistingSeriesTitleMatchResult。タイトルが null / 空白の場合は NoMatchFound を返します。</returns>
+	public ExistingSeriesTitleMatchResult CheckExistingSeriesTitleMatch(string? newTitle)
+	{
+		// 編集中の作品を取得
+		var editingSeries = this.GetEditingSeries();
+
+		// 編集セッションが開始していない場合や、新しいタイトルが空白の場合は一致なしとして扱う
+		if (editingSeries == null || string.IsNullOrWhiteSpace(newTitle))
+			return ExistingSeriesTitleMatchResult.NoMatchFound;
+
+		// 新しいタイトルを正規化
+		var normalizedNewTitle = MangaTitleHelper.NormalizeTitleInternal(newTitle);
+
+		// 正規化後に空になった場合は一致なしとして扱う
+		if (string.IsNullOrEmpty(normalizedNewTitle))
+			return ExistingSeriesTitleMatchResult.NoMatchFound;
+
+		// 正規化タイトルで完全一致検索を実行
+		var matchedSeries = this.FindSameTitle(newTitle);
+
+		// 一致作品がない場合
+		if (matchedSeries.Count == 0)
+			return ExistingSeriesTitleMatchResult.NoMatchFound;
+
+		// 一致作品から編集中作品を特定
+		var editingSeriesInMatch = matchedSeries.FirstOrDefault(s =>
+		{
+			// 編集中の正式作品の場合、SeriesId で判定
+			if (editingSeries.SeriesId != 0 && editingSeries.IsWork == false)
+			{
+				return s.SeriesId == editingSeries.SeriesId;
+			}
+
+			// 編集中の登録待ち作品の場合、WorkId で判定
+			if (editingSeries.WorkId != 0)
+			{
+				return s.WorkId == editingSeries.WorkId;
+			}
+
+			// 新規作品の場合は該当なし
+			return false;
+		});
+
+		// 編集中作品が一致に含まれている場合
+		if (editingSeriesInMatch != null)
+		{
+			// 一致作品がちょうど1件（編集中作品のみ）の場合
+			if (matchedSeries.Count == 1)
+				return ExistingSeriesTitleMatchResult.SameAsEditingSeriesSelf;
+
+			// 編集中作品以外にも一致作品が存在する場合
+			return ExistingSeriesTitleMatchResult.DifferentSeriesMatched;
+		}
+
+		// 編集中作品が一致に含まれていない場合は、別の SeriesId と一致
+		return ExistingSeriesTitleMatchResult.DifferentSeriesMatched;
+	}
+
+	/// <summary>
 	/// 指定された作品の編集セッションを開始します。
 	/// 編集開始時点の作品状態を DeepCopy して保持し、
 	/// 後で変更判定や比較処理などに使用できるようにします。
@@ -390,6 +465,7 @@ public class MangaSeriesManager
 	/// series.WorkId != 0 の場合は UPDATE を行います。
 	/// サムネイル byte[] が指定されている場合、WorkThumbnail フォルダへ JPEG ファイルとして保存し、
 	/// 保存後に series.ThumbnailFileName と series.ThumbnailStatus を更新してから DB へ反映します。
+	/// タグ（series.Tags）も WorkMangaSeriesTags テーブルへ保存します。
 	/// 保存成功後、MangaSeriesStore の登録待ち作品一覧へ即座に反映されます。
 	/// </summary>
 	/// <param name="series">保存対象の作品。</param>
@@ -406,6 +482,9 @@ public class MangaSeriesManager
 			// series.WorkId は InsertAsync 内で既に設定されているが、念のため保証
 			if (series.WorkId == 0)
 				series.WorkId = workId;
+
+			// タグを保存
+			await this.workMangaSeriesRepository.SaveWorkTagsAsync(new[] { series });
 
 			// サムネイル JPEG を保存（存在する場合のみ）
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
@@ -432,6 +511,9 @@ public class MangaSeriesManager
 		else
 		{
 			// UPDATE（既存の登録待ち作品の更新）
+			// タグを保存
+			await this.workMangaSeriesRepository.SaveWorkTagsAsync(new[] { series });
+
 			// サムネイル JPEG を保存（存在する場合のみ）
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 			{
@@ -571,6 +653,9 @@ public class MangaSeriesManager
 			// SeriesId を editingSeries に反映
 			editingSeries.SeriesId = seriesId;
 
+			// タグを MangaSeriesTags へ保存
+			await this.SaveSeriesTagsInTransactionAsync(connection, tx, seriesId, editingSeries.Tags);
+
 			// サムネイル保存
 			await this.SaveSeriesThumbnailAsync(connection, tx, editingSeries, thumbnailBytes, isWorkSeries, workId);
 
@@ -580,29 +665,84 @@ public class MangaSeriesManager
 				editingSeries.MaterialFolderName,
 				materialFiles);
 
-			// 登録待ち作品の場合は WorkMangaSeries を削除
+			// 登録待ち作品の場合は WorkMangaSeriesTags と WorkMangaSeries を削除
 			if (isWorkSeries)
 			{
-				var deleteSql = new StringBuilder();
-				deleteSql.AppendLine(" DELETE FROM WorkMangaSeries ");
-				deleteSql.AppendLine(" WHERE ");
-				deleteSql.AppendLine(" 	WorkId = :WorkId; ");
+				// WorkMangaSeriesTags を削除
+				var deleteWorkTagsSql = new StringBuilder();
+				deleteWorkTagsSql.AppendLine(" DELETE FROM WorkMangaSeriesTags ");
+				deleteWorkTagsSql.AppendLine(" WHERE ");
+				deleteWorkTagsSql.AppendLine(" 	WorkId = :WorkId; ");
 
-				await connection.ExecuteAsync(deleteSql.ToString(), new { WorkId = workId }, tx);
+				await connection.ExecuteAsync(deleteWorkTagsSql.ToString(), new { WorkId = workId }, tx);
+
+				// WorkMangaSeries を削除
+				var deleteWorkSeriesSql = new StringBuilder();
+				deleteWorkSeriesSql.AppendLine(" DELETE FROM WorkMangaSeries ");
+				deleteWorkSeriesSql.AppendLine(" WHERE ");
+				deleteWorkSeriesSql.AppendLine(" 	WorkId = :WorkId; ");
+
+				await connection.ExecuteAsync(deleteWorkSeriesSql.ToString(), new { WorkId = workId }, tx);
 			}
 
 			// Commit
 			tx.Commit();
 
-			// Store へ反映
-			this.mangaSeriesStore.Add(editingSeries);
+			// Commit 成功後の処理
+			// 1. 登録待ち作品の場合、WorkSeriesから削除
+			if (isWorkSeries)
+			{
+				this.mangaSeriesStore.RemoveWorkSeries(workId);
+			}
 
-			return editingSeries;
+			// 2. DB から採番済み SeriesId の正式作品を再取得
+			var registeredSeries = await this.mangaRepository.GetSeriesAsync(seriesId);
+			if (registeredSeries is null)
+			{
+				throw new InvalidOperationException($"正式登録後の作品再取得に失敗しました。SeriesId: {seriesId}");
+			}
+
+			// 3. 再取得した正式作品を Store へ追加
+			this.mangaSeriesStore.Add(registeredSeries);
+
+			// 4. 再取得した正式作品を返す
+			return registeredSeries;
 		}
 		catch
 		{
 			tx.Rollback();
 			throw;
+		}
+	}
+
+	/// <summary>
+	/// 指定した SeriesId のタグを MangaSeriesTags テーブルへ保存します。
+	/// 既存の接続およびトランザクション内での実行を想定しています。
+	/// TagId &lt;= 0 のタグは保存対象外となります（未保存タグの防御）。
+	/// </summary>
+	private async ValueTask SaveSeriesTagsInTransactionAsync(
+		SQLiteConnection connection,
+		SQLiteTransaction transaction,
+		long seriesId,
+		IEnumerable<MangaTag> tags)
+	{
+		var insertSql = new StringBuilder();
+		insertSql.AppendLine(" INSERT INTO MangaSeriesTags ( ");
+		insertSql.AppendLine(" 	  SeriesId ");
+		insertSql.AppendLine(" 	, TagId ");
+		insertSql.AppendLine(" ) VALUES ( ");
+		insertSql.AppendLine(" 	  :SeriesId ");
+		insertSql.AppendLine(" 	, :TagId ");
+		insertSql.AppendLine(" ); ");
+
+		// TagId > 0 のタグのみ保存（未保存タグ TagId=0 は除外）
+		var validTags = tags.Where(t => t.TagId > 0).ToList();
+		foreach (var tag in validTags)
+		{
+			await connection.ExecuteAsync(
+				insertSql.ToString(),
+				new { SeriesId = seriesId, TagId = tag.TagId },
+				transaction);
 		}
 	}
 
@@ -673,15 +813,148 @@ public class MangaSeriesManager
 				}, tx);
 			}
 
-			// WorkThumbnail を削除
-			this.thumbnailManager.DeleteWorkThumbnailIfExists(workThumbnailFileName);
-		}
-		else
-		{
-			// 3. どちらもない場合、ThumbnailFileName は空
-			editingSeries.ThumbnailFileName = string.Empty;
-			editingSeries.ThumbnailStatus = ThumbnailStatus.None;
-		}
-	}
-}
+					// WorkThumbnail を削除
+						this.thumbnailManager.DeleteWorkThumbnailIfExists(workThumbnailFileName);
+					}
+					else
+					{
+						// 3. どちらもない場合、ThumbnailFileName は空
+						editingSeries.ThumbnailFileName = string.Empty;
+						editingSeries.ThumbnailStatus = ThumbnailStatus.None;
+					}
+				}
+
+				/// <summary>
+				/// 既存の正式作品を更新します。
+				/// 編集開始時の DeepCopy を保存用オブジェクトとして利用し、
+				/// 画面編集後の値との比較で OwnedMaxVolume の手修正判定を実施します。
+				/// タイトル判定（CheckExistingSeriesTitleMatch）で SameAsEditingSeriesSelf の場合のみ処理します。
+				/// DB 更新成功後に、DeepCopy からStore 内の正式作品インスタンスへ編集可能項目をコピーします。
+				/// </summary>
+				/// <param name="editingSeries">更新対象の編集中作品。SeriesId != 0 かつ IsWork == false である必要があります。</param>
+				/// <returns>更新後の正式作品（Store 内インスタンス）。</returns>
+				/// <exception cref="InvalidOperationException">タイトル判定が不一致の場合または作品が見つからない場合にスローされます。</exception>
+				public async ValueTask<MangaSeries> UpdateExistingSeriesAsync(MangaSeries editingSeries)
+				{
+					// 入力値の検証
+					if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
+						throw new InvalidOperationException("UpdateExistingSeriesAsync は既存の正式作品（SeriesId != 0 かつ IsWork == false）でのみ実行可能です。");
+
+					// タイトル判定を実施
+					var titleMatchResult = this.CheckExistingSeriesTitleMatch(editingSeries.Title);
+					if (titleMatchResult != ExistingSeriesTitleMatchResult.SameAsEditingSeriesSelf)
+						throw new InvalidOperationException($"タイトル判定が不一致です。結果: {titleMatchResult}");
+
+					// === DeepCopy を取得（保存用オブジェクト） ===
+					var originalSeries = this.GetEditingSeriesOriginal();
+					if (originalSeries == null)
+						throw new InvalidOperationException("編集開始時の DeepCopy が見つかりません。");
+
+					// === OwnedMaxVolume の手修正判定（反映前に実施） ===
+					// DeepCopy（編集開始時）と editingSeries（UI 入力後）の OwnedMaxVolume を比較
+					var isOwnedMaxVolumeChanged = originalSeries.OwnedMaxVolume != editingSeries.OwnedMaxVolume;
+					if (isOwnedMaxVolumeChanged)
+					{
+						originalSeries.IsOwnedMaxVolumeManuallyEdited = true;
+					}
+					// 変更がない場合は現在値を維持
+
+					// === DeepCopy へ画面入力値を反映 ===
+					// 共通処理（UpdateEditingSeriesFromUI で実施済みの値）を DeepCopy へコピー
+					this.CopyEditableFieldsFromToEditingToDeepCopy(editingSeries, originalSeries);
+
+					using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+					await connection.OpenAsync();
+
+					using var tx = connection.BeginTransaction();
+					try
+					{
+						// === DB UPDATE（DeepCopy を対象） ===
+						await this.mangaRepository.UpdateSeriesAsync(originalSeries);
+
+						// === MangaSeriesTags の更新（DELETE → INSERT） ===
+						await this.SaveSeriesTagsInTransactionAsync(connection, tx, originalSeries.SeriesId, originalSeries.Tags);
+
+						// === Commit ===
+						tx.Commit();
+
+						// === Commit 成功後、Store 内の正式作品インスタンスを更新 ===
+						var storeInstance = this.mangaSeriesStore.FindById(originalSeries.SeriesId);
+						if (storeInstance is null)
+							throw new InvalidOperationException($"Store から SeriesId {originalSeries.SeriesId} の正式作品が見つかりません。");
+
+						// DeepCopy から Store インスタンスへ編集可能項目をコピー
+						this.CopyEditableFieldsFromToEditableToStore(originalSeries, storeInstance);
+
+						return storeInstance;
+					}
+					catch
+					{
+						tx.Rollback();
+						throw;
+					}
+				}
+
+				/// <summary>
+				/// UI 入力後の editingSeries から DeepCopy へ、編集可能項目をコピーします。
+				/// OwnedMaxVolume の手修正判定の後、UI 値を DeepCopy へ反映する際に使用されます。
+				/// </summary>
+				private void CopyEditableFieldsFromToEditingToDeepCopy(MangaSeries source, MangaSeries destination)
+				{
+					destination.Title = source.Title;
+					destination.Author = source.Author;
+					destination.Publisher = source.Publisher;
+					destination.Description = source.Description;
+					destination.Memo = source.Memo;
+					destination.NormalizedTitleInternal = source.NormalizedTitleInternal;
+					destination.ShortTitle = source.ShortTitle;
+					destination.StartVolume = source.StartVolume;
+					destination.EndVolume = source.EndVolume;
+					destination.SeriesCompleted = source.SeriesCompleted;
+					destination.IsOwnedCompleted = source.IsOwnedCompleted;
+					destination.OwnedMaxVolume = source.OwnedMaxVolume;
+					destination.DescriptionSource = source.DescriptionSource;
+					destination.DescriptionSourceTitle = source.DescriptionSourceTitle;
+					destination.GoogleBooksImportStatus = source.GoogleBooksImportStatus;
+					destination.GoogleBooksImportedAt = source.GoogleBooksImportedAt;
+					destination.GoogleBooksImportMessage = source.GoogleBooksImportMessage;
+
+					// タグもコピー
+					destination.Tags.Clear();
+					foreach (var tag in source.Tags)
+					{
+						destination.Tags.Add(tag);
+					}
+				}
+
+				/// <summary>
+				/// DB 更新成功後、DeepCopy（編集対象）から Store 内インスタンスへ編集可能項目をコピーします。
+				/// Store への反映は Commit 成功後のみ実施されます。
+				/// </summary>
+				private void CopyEditableFieldsFromToEditableToStore(MangaSeries source, MangaSeries destination)
+				{
+					destination.Title = source.Title;
+					destination.Author = source.Author;
+					destination.Publisher = source.Publisher;
+					destination.Description = source.Description;
+					destination.Memo = source.Memo;
+					destination.NormalizedTitleInternal = source.NormalizedTitleInternal;
+					destination.ShortTitle = source.ShortTitle;
+					destination.StartVolume = source.StartVolume;
+					destination.EndVolume = source.EndVolume;
+					destination.SeriesCompleted = source.SeriesCompleted;
+					destination.IsOwnedCompleted = source.IsOwnedCompleted;
+					destination.OwnedMaxVolume = source.OwnedMaxVolume;
+					destination.IsOwnedMaxVolumeManuallyEdited = source.IsOwnedMaxVolumeManuallyEdited;
+					destination.DescriptionSource = source.DescriptionSource;
+					destination.DescriptionSourceTitle = source.DescriptionSourceTitle;
+
+					// タグもコピー
+					destination.Tags.Clear();
+					foreach (var tag in source.Tags)
+					{
+						destination.Tags.Add(tag);
+					}
+				}
+			}
 

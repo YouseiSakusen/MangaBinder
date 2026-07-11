@@ -83,7 +83,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 			.AddTo(ref this.disposableBag);
 
 		// DisplaySeries: ObservableCollections ベースの表示用コレクション
-		this.DisplaySeries = this.displaySeriesSource.ToNotifyCollectionChanged()
+		this.DisplaySeries = this.displaySeriesSource.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
 		this.IsSearchResultsEmpty = new BindableReactiveProperty<bool>(true)

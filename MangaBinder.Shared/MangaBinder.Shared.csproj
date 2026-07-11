@@ -9,4 +9,8 @@
     <RootNamespace>MangaBinder</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="ObservableCollections" Version="3.3.4" />
+  </ItemGroup>
+
 </Project>

@@ -5,7 +5,6 @@ using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using R3;
-using System.Collections.ObjectModel;
 using Wpf.Ui;
 
 namespace MangaBinder;
@@ -75,7 +74,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     /// <summary>
     /// Home で選択可能なタグ一覧（ポップアップ用チェックボックスリスト）を取得します。
     /// </summary>
-    public ObservableCollection<SeriesTagSelectionItem> SelectableTagsForPopup { get; } = new();
+    public NotifyCollectionChangedSynchronizedViewList<SeriesTagSelectionItem> SelectableTagsForPopup { get; }
 
     /// <summary>
     /// タグ選択ポップアップの列数を取得します。
@@ -142,6 +141,12 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         var tagSelectionRows = new BindableReactiveProperty<int>(0)
             .AddTo(ref this.disposableBag);
         this.TagSelectionRows = tagSelectionRows;
+
+        // タグポップアップ用の選択可能タグ一覧（WPF互換に変換）
+        var selectableTagsForPopupSource = new ObservableList<SeriesTagSelectionItem>();
+        this.SelectableTagsForPopup = selectableTagsForPopupSource
+            .ToWritableNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+            .AddTo(ref this.disposableBag);
 
         // mangaSeriesStore.All の変更を監視して cardSeries へ反映
         this.mangaSeriesStore.All.ObserveAdd()

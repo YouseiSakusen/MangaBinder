@@ -1,5 +1,7 @@
 using MangaBinder.Controls;
 using MangaBinder.Core.Formatters;
+using MangaBinder.Tags;
+using ObservableCollections;
 using R3;
 
 namespace MangaBinder.Bindings;
@@ -7,8 +9,12 @@ namespace MangaBinder.Bindings;
 /// <summary>
 /// 製本開始ページの ListView アイテム表示用 ViewModel です。BindingSeries をラップしています。
 /// </summary>
-public class StartPageSeriesCardViewModel
+public class StartPageSeriesCardViewModel : IDisposable
 {
+	private DisposableBag disposableBag = new();
+	private NotifyCollectionChangedEventHandler<MangaTag>? collectionChangedHandler;
+	private BindingSeries bindingSeries = null!;
+
 	/// <summary>
 	/// 基になった BindingSeries です。
 	/// </summary>
@@ -61,16 +67,34 @@ public class StartPageSeriesCardViewModel
 	public StartPageSeriesCardViewModel(BindingSeries bindingSeries)
 	{
 		this.BindingSeries = bindingSeries;
+		this.bindingSeries = bindingSeries;
 		this.VolumeStatus = SeriesVolumeStatusViewModel.FromSeries(bindingSeries.Series);
 
-		// TagDisplayText の初期化と Tags.CollectionChanged 購読
+		// TagDisplayText の初期化とタグ変更購読
 		this.TagDisplayText = new BindableReactiveProperty<string>(
-			SeriesTagDisplayFormatter.FormatForStartPage(bindingSeries.Series.Tags)
-		);
+			SeriesTagDisplayFormatter.FormatForStartPage(bindingSeries.Series.Tags))
+			.AddTo(ref this.disposableBag);
 
-		bindingSeries.Series.Tags.CollectionChanged += (_, _) =>
+		// Tags の変更を購読
+		this.collectionChangedHandler = this.OnTagsCollectionChanged;
+		bindingSeries.Series.Tags.CollectionChanged += this.collectionChangedHandler;
+	}
+
+	/// <summary>
+	/// Tags コレクション変更時のハンドラー。
+	/// </summary>
+	private void OnTagsCollectionChanged(in NotifyCollectionChangedEventArgs<MangaTag> e)
+	{
+		this.TagDisplayText.Value = SeriesTagDisplayFormatter.FormatForStartPage(this.bindingSeries.Series.Tags);
+	}
+
+	/// <inheritdoc/>
+	public void Dispose()
+	{
+		if (this.collectionChangedHandler != null)
 		{
-			this.TagDisplayText.Value = SeriesTagDisplayFormatter.FormatForStartPage(bindingSeries.Series.Tags);
-		};
+			this.BindingSeries.Series.Tags.CollectionChanged -= this.collectionChangedHandler;
+		}
+		this.disposableBag.Dispose();
 	}
 }
