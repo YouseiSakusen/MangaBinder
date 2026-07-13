@@ -159,22 +159,31 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		Debug.WriteLine($"PageType={e.Page?.GetType().FullName}");
 		Debug.WriteLine($"DataContext={((FrameworkElement)e.Page!).DataContext?.GetType().FullName}");
 
-		// 1. 前ページの保存処理
+		// 1. 遷移先ページの ViewModel を取得
+		var nextViewModel = ((FrameworkElement)e.Page!).DataContext;
+
+		// 2. 前ページの保存処理
 		await this.saveCurrentViewModelAsync();
 
-		// 2. 前ページの退場処理
+		// 3. 遷移先が要求提供インターフェースを実装していれば要求を取得、否則既定値を使用
+		var request =
+			nextViewModel is INavigationLeavingRequestProvider provider
+				? provider.GetNavigationLeavingRequest()
+				: NavigationLeavingRequest.None;
+
+		// 4. 前ページの退場処理
 		if (this.currentViewModel is INavigationLeavingAware leavingAware)
 		{
 			Debug.WriteLine("OnNavigatingFromAsync CALL");
-			await leavingAware.OnNavigatingFromAsync();
+			await leavingAware.OnNavigatingFromAsync(request);
 		}
 
-		// 3. 新ページの ViewModel を currentViewModel に設定
-		this.currentViewModel = ((FrameworkElement)e.Page!).DataContext;
+		// 5. 新ページの ViewModel を currentViewModel に設定
+		this.currentViewModel = nextViewModel;
 
 		Debug.WriteLine($"CurrentViewModel={this.currentViewModel?.GetType().FullName}");
 
-		// 4. 新ページの初期化処理
+		// 6. 新ページの初期化処理
 		if (this.currentViewModel is IDataInitializable initializable)
 		{
 			Debug.WriteLine("InitializeDataAsync CALL");

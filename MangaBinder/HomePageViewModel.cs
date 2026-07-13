@@ -12,7 +12,7 @@ namespace MangaBinder;
 /// <summary>
 /// 製本ホーム画面の ViewModel です。
 /// </summary>
-public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
+public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INavigationLeavingRequestProvider
 {
     /// <summary>スコープファクトリー。</summary>
     private readonly IServiceScopeFactory serviceScopeFactory;
@@ -264,6 +264,18 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
         this.HomeStateInformation.HasMaterialSourceFolder.Value           = homeState.HasMaterialSourceFolder.Value;
         this.HomeStateInformation.HasCompletedMaterialFolderScanJob.Value = homeState.HasCompletedMaterialFolderScanJob.Value;
         this.HomeStateInformation.EmptyStateKind.Value                    = homeState.EmptyStateKind.Value;
+
+        // EditTarget を消費：編集済みカードだけ表示更新
+        var editTarget = this.workspaceStore.EditTarget;
+        if (editTarget is not null)
+        {
+            var card = this.Series.FirstOrDefault(
+                x => x.Series.SeriesId == editTarget.SeriesId);
+
+            card?.RefreshDisplay();
+
+            this.workspaceStore.EditTarget = null;
+        }
     }
 
     /// <inheritdoc/>
@@ -290,6 +302,18 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable
     public void Dispose()
     {
         this.disposableBag.Dispose();
+    }
+
+    /// <summary>
+    /// 自身へ遷移してくる際に、遷移元の一時状態を保持するよう要求します。
+    /// </summary>
+    /// <returns>遷移元に対して状態保持を要求する <see cref="NavigationLeavingRequest"/>。</returns>
+    public NavigationLeavingRequest GetNavigationLeavingRequest()
+    {
+        return new NavigationLeavingRequest
+        {
+            PreserveState = true,
+        };
     }
 
     /// <summary>

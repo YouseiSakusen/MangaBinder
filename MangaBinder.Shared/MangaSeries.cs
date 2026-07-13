@@ -117,7 +117,7 @@ public class MangaSeries
 
 
     /// <summary>作品の所在情報リストです。</summary>
-    public List<MangaSource> Sources { get; } = new();
+    public List<MangaSource> Sources { get; set; } = new();
 
     /// <summary>素材フォルダ（<see cref="FolderRole.Material"/>）の所在情報一覧を取得します。</summary>
     public IReadOnlyList<MangaSource> MaterialSources

@@ -75,6 +75,16 @@ public class SeriesCardViewModel : IDisposable
 		this.VolumeStatus.Value = SeriesVolumeStatusViewModel.FromSeries(this.Series);
 	}
 
+	/// <summary>
+	/// 現在の Series の情報から表示を更新します。
+	/// 巻情報とタグ表示を最新の状態に反映させます。
+	/// </summary>
+	public void RefreshDisplay()
+	{
+		this.RefreshVolumeStatus();
+		this.tagSelector.Refresh();
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{

@@ -520,6 +520,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			{
 				var sourceFolder = this.findMatchingSourceFolderForExistingSeries(editingSeries);
 				this.SelectedMaterialSourceFolder.Value = sourceFolder;
+				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.StartEdit] 既存作品。sourceFolder: {(sourceFolder == null ? "null" : sourceFolder.FolderPath.Value)}");
 				this.CanSelectMaterialSourceFolder.Value = false;
 			}
 			else
@@ -552,15 +553,21 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 		// Material フォルダがない場合は null
 		if (materialSources.Count == 0)
+		{
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] Material フォルダなし。SeriesId: {series.SeriesId}");
 			return null;
+		}
 
 		// 先頭の MaterialSource を基準に検索
 		var targetMaterialPath = Path.GetFullPath(materialSources[0].Path);
+		System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 検索開始。targetMaterialPath: {targetMaterialPath}");
 
 		// AppSettings の Material フォルダで照合
 		var materialFolders = this.appSettings.SourceFolders
 			.Where(f => f.Role.Value == FolderRole.Material)
 			.ToList();
+
+		System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] AppSettings Material フォルダ数: {materialFolders.Count}");
 
 		// 各フォルダと照合
 		var matchedFolders = new List<(SourceFolder folder, int pathLength)>();
@@ -568,23 +575,31 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		foreach (var sourceFolder in materialFolders)
 		{
 			var sourceFolderPath = Path.GetFullPath(sourceFolder.FolderPath.Value);
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 照合対象: {sourceFolderPath}");
 
 			// targetMaterialPath が sourceFolderPath の配下にあるかチェック
 			if (this.isPathUnderFolder(targetMaterialPath, sourceFolderPath))
 			{
+				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 一致: {sourceFolderPath}");
 				matchedFolders.Add((sourceFolder, sourceFolderPath.Length));
 			}
 		}
 
 		// 一致フォルダがない場合
 		if (matchedFolders.Count == 0)
+		{
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 一致フォルダなし");
 			return null;
+		}
 
 		// FolderPath が最も長いものを優先（最も詳細度の高い一致）
-		return matchedFolders
+		var result = matchedFolders
 			.OrderByDescending(x => x.pathLength)
 			.First()
 			.folder;
+
+		System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 結果: {result.FolderPath.Value}");
+		return result;
 	}
 
 	/// <summary>
@@ -740,11 +755,18 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 	/// <summary>
 	/// 画面から離れる際の後処理。
-	/// 編集対象の参照をクリアします。
+	/// 遷移先が状態保持を要求していない場合に、編集対象の参照をクリアします。
 	/// </summary>
-	public ValueTask OnNavigatingFromAsync()
+	/// <param name="request">遷移先から受け取った要求。</param>
+	public ValueTask OnNavigatingFromAsync(NavigationLeavingRequest request)
 	{
-		this.workspaceStore.EditTarget = null;
+		ArgumentNullException.ThrowIfNull(request);
+
+		if (!request.PreserveState)
+		{
+			this.workspaceStore.EditTarget = null;
+		}
+
 		return ValueTask.CompletedTask;
 	}
 

@@ -114,6 +114,17 @@ public class SeriesTagSelectorViewModel : IDisposable
 	}
 
 	/// <summary>
+	/// 現在の対象 MangaSeries を元に、選択済みタグと表示テキストを更新します。
+	/// </summary>
+	/// <remarks>
+	/// DB 更新や Dirty 管理は行わず、表示だけを更新する責務を持ちます。
+	/// </remarks>
+	public void Refresh()
+	{
+		this.updateSelectedTagsAndDisplay();
+	}
+
+	/// <summary>
 	/// Popup 用のタグ一覧を準備します。
 	/// </summary>
 	private void preparePopup()
