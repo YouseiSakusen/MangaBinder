@@ -377,6 +377,8 @@ public class MangaRepository
         sql.AppendLine(" 	, Author = :Author ");
         sql.AppendLine(" 	, Publisher = :Publisher ");
         sql.AppendLine(" 	, Description = :Description ");
+        sql.AppendLine(" 	, DescriptionSource = :DescriptionSource ");
+        sql.AppendLine(" 	, DescriptionSourceTitle = :DescriptionSourceTitle ");
         sql.AppendLine(" 	, Memo = :Memo ");
         sql.AppendLine(" 	, StartVolume = :StartVolume ");
         sql.AppendLine(" 	, EndVolume = :EndVolume ");
@@ -396,6 +398,8 @@ public class MangaRepository
                 Author = series.Author,
                 Publisher = series.Publisher,
                 Description = series.Description,
+                DescriptionSource = series.DescriptionSource,
+                DescriptionSourceTitle = series.DescriptionSourceTitle,
                 Memo = series.Memo,
                 StartVolume = series.StartVolume,
                 EndVolume = series.EndVolume,

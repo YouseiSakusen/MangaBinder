@@ -225,6 +225,24 @@ namespace MangaBinder
 		/// <summary>別の SeriesId を持つ作品と同一タイトルです。</summary>
 		DifferentSeriesMatched,
 	}
+
+	/// <summary>
+	/// 既存作品保存時の素材フォルダ名変更判定結果を表す列挙型です。
+	/// </summary>
+	public enum MaterialFolderRenameCheckResult
+	{
+		/// <summary>現在フォルダ名と期待フォルダ名が一致しており、Rename は不要です。</summary>
+		Ok,
+
+		/// <summary>素材フォルダ名の変更が必要です。</summary>
+		RenameNeeded,
+
+		/// <summary>登録されている素材フォルダが物理的に存在しません。</summary>
+		CurrentFolderNotFound,
+
+		/// <summary>Rename先フォルダ名と同名のフォルダが既に存在します。</summary>
+		RenameTargetAlreadyExists,
+	}
 }
 
 namespace MangaBinder.Settings

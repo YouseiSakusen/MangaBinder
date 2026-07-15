@@ -542,6 +542,7 @@
                                     Width="28"
                                     Height="28"
                                     Padding="0"
+                                    Margin="0,-20,0,0"
                                     VerticalAlignment="Center"
                                     HorizontalAlignment="Center"
                                     Background="Transparent"

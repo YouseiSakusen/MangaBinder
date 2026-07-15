@@ -30,6 +30,10 @@ public static class FocusOnChangedBehavior
 	public static void SetRequest(DependencyObject obj, int value)
 		=> obj.SetValue(RequestProperty, value);
 
+	/// <summary>
+	/// Request 添付プロパティが変更されたときに呼び出されます。
+	/// 初期値以外で変化があった場合、対象要素へフォーカスを設定します。
+	/// </summary>
 	private static void OnRequestChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
 	{
 		if (d is not UIElement element)

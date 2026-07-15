@@ -877,9 +877,43 @@ public class MangaSeriesManager
 					}
 					// 変更がない場合は現在値を維持
 
+					// === Description の変更判定 ===
+					// 既存作品では、実際にあらすじが変更された場合のみ出典を変更する
+					// 判定結果だけ保持し、設定はCopyEditableFieldsFromToEditingToDeepCopy()の後に実施
+					var isDescriptionChanged = originalSeries.Description != editingSeries.Description;
+
 					// === DeepCopy へ画面入力値を反映 ===
 					// 共通処理（UpdateEditingSeriesFromUI で実施済みの値）を DeepCopy へコピー
 					this.CopyEditableFieldsFromToEditingToDeepCopy(editingSeries, originalSeries);
+
+					// === Description が変更されている場合のみ出典を設定 ===
+					// CopyEditableFieldsFromToEditingToDeepCopy() の後に処理することで、
+					// editingSeries の古い出典値で上書きされることを防ぐ
+					if (isDescriptionChanged)
+					{
+						// あらすじが変更された場合、新しい値に基づいて出典を決定
+						if (!string.IsNullOrEmpty(editingSeries.Description))
+						{
+							originalSeries.DescriptionSource = DescriptionSource.Manual;
+							originalSeries.DescriptionSourceTitle = string.Empty;
+						}
+						else
+						{
+							originalSeries.DescriptionSource = DescriptionSource.None;
+							originalSeries.DescriptionSourceTitle = string.Empty;
+						}
+					}
+					// 変更がない場合は、CopyEditableFieldsFromToEditingToDeepCopy() によりコピーされた
+					// DescriptionSource / DescriptionSourceTitle をそのまま利用する
+
+					// === 素材フォルダ名変更の事前判定 ===
+					var folderRenameCheckResult = this.CheckMaterialFolderRenameStatus(originalSeries, originalSeries);
+					if (folderRenameCheckResult != MaterialFolderRenameCheckResult.Ok)
+					{
+						// チェック失敗時は即座に例外を投げる
+						// EditorPageViewModel 側で catch して対応する
+						throw new InvalidOperationException($"素材フォルダ名の変更判定でエラーが発生しました。結果: {folderRenameCheckResult}");
+					}
 
 					using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
 					await connection.OpenAsync();
@@ -993,6 +1027,64 @@ public class MangaSeriesManager
 							tx.Rollback();
 							throw;
 						}
+				}
+
+				/// <summary>
+				/// 既存作品更新時に、素材フォルダ名の変更判定を実施します。
+				/// 編集後の作品情報から生成される期待フォルダ名と、現在登録されている素材フォルダ名を比較し、
+				/// Rename の必要性を判定します。フォルダ存在確認も事前に行い、問題がある場合は適切な状態を返します。
+				/// </summary>
+				/// <param name="editedSeries">編集後の保存用 DeepCopy。期待フォルダ名の生成に使用されます。</param>
+				/// <param name="originalSeries">編集開始時の DeepCopy。現在の素材フォルダ情報を取得するために使用されます。</param>
+				/// <returns>フォルダ名変更判定結果。Ok の場合のみ保存処理を続行してください。</returns>
+				private MaterialFolderRenameCheckResult CheckMaterialFolderRenameStatus(MangaSeries editedSeries, MangaSeries originalSeries)
+				{
+					// 素材フォルダが登録されていない場合は判定不要
+					var originalMaterialSource = originalSeries.Sources.FirstOrDefault(s => s.Role == Settings.FolderRole.Material);
+					if (originalMaterialSource == null)
+					{
+						// 素材フォルダが登録されていない場合は問題なし
+						return MaterialFolderRenameCheckResult.Ok;
+					}
+
+					// 現在フォルダ名を取得
+					var currentFolderPath = originalMaterialSource.Path;
+					var currentFolderName = Path.GetFileName(currentFolderPath);
+
+					// 期待フォルダ名を生成（編集後の作品情報を使用）
+					var expectedFolderName = MaterialFolderNameHelper.Create(editedSeries);
+
+					// 大小文字を区別しない比較
+					if (string.Equals(currentFolderName, expectedFolderName, StringComparison.OrdinalIgnoreCase))
+					{
+						// 名前が一致している
+						return MaterialFolderRenameCheckResult.Ok;
+					}
+
+					// 現在フォルダが物理的に存在するか確認
+					if (!Directory.Exists(currentFolderPath))
+					{
+						return MaterialFolderRenameCheckResult.CurrentFolderNotFound;
+					}
+
+					// Rename先パスを生成
+					var parentDirectoryPath = Path.GetDirectoryName(currentFolderPath);
+					if (string.IsNullOrEmpty(parentDirectoryPath))
+					{
+						// 親ディレクトリが取得できない場合は Rename 不可
+						throw new InvalidOperationException($"素材フォルダの親ディレクトリを取得できません。Path: {currentFolderPath}");
+					}
+
+					var renameTargetPath = Path.Combine(parentDirectoryPath, expectedFolderName);
+
+					// Rename先フォルダが既に存在するか確認
+					if (Directory.Exists(renameTargetPath))
+					{
+						return MaterialFolderRenameCheckResult.RenameTargetAlreadyExists;
+					}
+
+					// Rename が必要
+					return MaterialFolderRenameCheckResult.RenameNeeded;
 				}
 
 				/// <summary>

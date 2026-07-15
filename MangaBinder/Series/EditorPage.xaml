@@ -26,6 +26,18 @@
 
 		<!-- bool を Visibility に変換（true -> Visible, false -> Collapsed） -->
 		<BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
+		<!-- 読み取り専用TextBoxスタイル（出典表示用） -->
+		<Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="BorderBrush" Value="Transparent" />
+			<Setter Property="Padding" Value="0" />
+			<Setter Property="FocusVisualStyle" Value="{x:Null}" />
+			<Setter Property="CaretBrush" Value="Transparent" />
+			<Setter Property="IsReadOnly" Value="True" />
+			<Setter Property="IsTabStop" Value="False" />
+		</Style>
 	</Page.Resources>
 
 	<!-- ドラッグアンドドロップオーバーレイを含むルートGrid -->
@@ -206,6 +218,8 @@
                                 Margin="0,0,0,8"
                                 Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                 behaviors:FocusOnChangedBehavior.Request="{Binding TitleFocusRequest.Value}"
+                                behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
+                                behaviors:LostFocusNotificationBehavior.Command="{Binding TitleLostFocusCommand}"
                                 PlaceholderText="作品のタイトルを入力してください" />
 
                             <!-- 作者・出版社 -->
@@ -228,6 +242,7 @@
                                 <ui:TextBox
                                     Grid.Column="0"
                                     InputMethod.PreferredImeState="On"
+                                    behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                     Text="{Binding Author.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     Margin="0,0,0,0"
                                     PlaceholderText="作者名を入力してください" />
@@ -244,6 +259,7 @@
                                 <ui:TextBox
                                     Grid.Column="2"
                                     InputMethod.PreferredImeState="On"
+                                    behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                     Text="{Binding Publisher.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     PlaceholderText="出版社名を入力してください" />
                             </Grid>
@@ -251,15 +267,16 @@
 					</StackPanel>
 
 					<!-- ── Row1：あらすじ・メモ ── -->
-                    <Grid Grid.Row="1" Margin="0,0,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
+					<Grid Grid.Row="1" Margin="0,0,0,16">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*" />
+							<ColumnDefinition Width="*" />
+						</Grid.ColumnDefinitions>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="160" />
+							<RowDefinition Height="Auto" />
+						</Grid.RowDefinitions>
 
                         <!-- あらすじラベル -->
                         <TextBlock
@@ -288,11 +305,49 @@
                             InputMethod.PreferredImeState="On"
                             AcceptsReturn="True"
                             TextWrapping="Wrap"
+                            ClearButtonEnabled="False"
                             VerticalScrollBarVisibility="Auto"
-                            MinHeight="120"
+                            HorizontalScrollBarVisibility="Disabled"
+                            Height="160"
                             Margin="0,0,6,0"
                             Text="{Binding Description.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             PlaceholderText="作品のあらすじを入力してください" />
+
+                        <!-- あらすじ出典 -->
+                        <Grid
+                            Grid.Row="2"
+                            Grid.Column="0"
+                            Visibility="{Binding EditingSeries.Value.HasDescriptionSource, Converter={StaticResource BoolToVisibilityConverter}}"
+                            Margin="0,8,6,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock
+                                Grid.Column="0"
+                                Text="{Binding EditingSeries.Value.DescriptionSourceName}"
+                                FontSize="11"
+                                Opacity="0.6"
+                                VerticalAlignment="Center" />
+                            <TextBlock
+                                Grid.Column="1"
+                                Text=" / "
+                                FontSize="11"
+                                Opacity="0.6"
+                                VerticalAlignment="Center" />
+                            <TextBox
+                                Grid.Column="2"
+                                Style="{StaticResource TitleReadOnlyTextBoxStyle}"
+                                Text="{Binding EditingSeries.Value.DescriptionSourceTitle}"
+                                FontSize="11"
+                                Opacity="0.6"
+                                VerticalAlignment="Center"
+                                Focusable="True"
+                                Cursor="IBeam" />
+                        </Grid>
 
                         <!-- メモ -->
                         <ui:TextBox

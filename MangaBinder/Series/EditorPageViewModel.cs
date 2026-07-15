@@ -35,6 +35,12 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	private SeriesTagSelectorViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
 
+	/// <summary>
+	/// 次回のタイトル LostFocus 時に再判定が必要かどうかを表します。
+	/// showDifferentSeriesDialogAsync() で「タイトルを再入力」が選択された場合に true に設定されます。
+	/// </summary>
+	private bool needsTitleRevalidation;
+
 	/// <summary>編集対象の Series を取得します。</summary>
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
 
@@ -186,6 +192,11 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// フォルダ選択ダイアログから素材フォルダを追加するコマンドを取得します。
 	/// </summary>
 	public ReactiveCommand<Unit> AddMaterialFolderCommand { get; }
+
+	/// <summary>
+	/// タイトル欄がフォーカスを失ったことを通知するコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> TitleLostFocusCommand { get; }
 
 	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
@@ -430,6 +441,14 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			this.AddMaterialFolderAsync();
 		});
 
+		// TitleLostFocusCommand: タイトル欄がフォーカスを失った通知
+		this.TitleLostFocusCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.TitleLostFocusCommand.Subscribe(_ =>
+		{
+			this.handleTitleLostFocus();
+		});
+
 		// VolumeStatus: 巻情報編集用ViewModel
 		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
 			.AddTo(ref this.disposableBag);
@@ -662,7 +681,9 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// <summary>
 	/// タイトルのバリデーション処理。
 	/// タイトル重複チェックを行い、結果に応じてエラーメッセージまたは null を返す。
-	/// 編集中の作品自身は重複候補から除外します。
+	/// 編集対象に応じて判定ロジックを変更します：
+	/// - 新規作品・登録待ち作品：編集中の作品自身を候補から除外
+	/// - 既存作品：編集中の作品と入力タイトルの一致を確認してから判定
 	/// </summary>
 	/// <param name="title">検証するタイトル。</param>
 	/// <returns>エラーメッセージ、またはエラーなしの場合は null。</returns>
@@ -678,6 +699,66 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		// タイトル重複チェック
 		var duplicates = this.seriesManager.FindSameTitle(title);
 
+		// 既存作品編集時の特別処理
+		if (this.EditingSeries.Value != null &&
+			this.EditingSeries.Value.SeriesId != 0 &&
+			!this.EditingSeries.Value.IsWork)
+		{
+			// 既存作品編集中
+			// 自分自身が含まれているかを確認
+			var selfInDuplicates = duplicates.FirstOrDefault(s =>
+				s.SeriesId == this.EditingSeries.Value.SeriesId);
+
+			if (selfInDuplicates != null)
+			{
+				// 自分自身が含まれている
+				// 他作品を候補から取り出す
+				var othersExceptSelf = duplicates
+					.Where(s => s.SeriesId != this.EditingSeries.Value.SeriesId)
+					.ToList();
+
+				if (othersExceptSelf.Count == 0)
+				{
+					// 自分自身のみ一致 → 正常
+					this.DuplicateSeriesFound.Value = null;
+					return null;
+				}
+				else if (othersExceptSelf.Count == 1)
+				{
+					// 自分自身 + 他作品1件 → ContentDialog表示
+					this.DuplicateSeriesFound.Value = othersExceptSelf[0];
+					return null;
+				}
+				else
+				{
+					// 自分自身 + 他作品2件以上 → 複数一致エラー
+					this.DuplicateSeriesFound.Value = null;
+
+					// Snackbarでエラー通知
+					this.snackbarService.Show(
+						"エラー",
+						"同じタイトルの作品が複数見つかりました。",
+						ControlAppearance.Danger,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.MaxValue);
+
+					return "同じタイトルの作品が複数見つかりました。";
+				}
+			}
+			else
+			{
+				// 自分自身が含まれていない（0件一致）
+				// 入力タイトルが別作品として判定された
+				this.DuplicateSeriesFound.Value = null;
+
+				// ContentDialog を表示
+				_ = this.showDifferentSeriesDialogAsync();
+
+				return null;
+			}
+		}
+
+		// 新規作品または登録待ち作品の処理
 		// 編集中の作品自身を除外
 		if (this.EditingSeries.Value != null)
 		{
@@ -713,6 +794,15 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 		// 2件以上ならエラー
 		this.DuplicateSeriesFound.Value = null;
+
+		// Snackbarでエラー通知
+		this.snackbarService.Show(
+			"エラー",
+			"同じタイトルの作品が複数見つかりました。",
+			ControlAppearance.Danger,
+			new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+			TimeSpan.MaxValue);
+
 		return "同じタイトルの作品が複数見つかりました。";
 	}
 
@@ -798,6 +888,62 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	}
 
 	/// <summary>
+	/// 既存作品編集中に入力タイトルが別作品として判定された場合の ContentDialog を表示します。
+	/// ユーザーがタイトルを再入力するか、前画面へ戻るかを選択できます。
+	/// </summary>
+	private async ValueTask showDifferentSeriesDialogAsync()
+	{
+		// ダイアログを作成
+		var dialog = new ContentDialog
+		{
+			Title = "タイトル変更の確認",
+			Content = "入力したタイトルが別作品として判定されたため変更できません。\n新規作品として登録してください。",
+			PrimaryButtonText = "タイトルを再入力",
+			CloseButtonText = "前画面に戻る",
+		};
+
+		// ダイアログを表示して結果を取得
+		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+
+		// ユーザーが「タイトルを再入力」を選択した場合
+		if (result == ContentDialogResult.Primary)
+		{
+			// 次回の LostFocus 時に再判定を実行するようフラグを設定
+			this.needsTitleRevalidation = true;
+
+			// EditorPage に留まり、タイトルへフォーカスを戻す
+			// TitleFocusRequest を更新してタイトル入力欄へフォーカスを移す
+			// SelectAllOnFocusBehavior により、入力済みタイトルが全選択される
+			this.TitleFocusRequest.Value++;
+		}
+		else
+		{
+			// 「前画面に戻る」の場合
+			// ナビゲーション履歴に従って戻る
+			this.navigationService.GoBack();
+		}
+	}
+
+	/// <summary>
+	/// タイトル欄がフォーカスを失ったときの処理を実行します。
+	/// 再判定待ちフラグが立っている場合のみ、現在値のまま ForceValidate() を実行します。
+	/// </summary>
+	private void handleTitleLostFocus()
+	{
+		// 再判定待ちフラグが false の場合は何もしない（通常のバリデーションに任せる）
+		if (!this.needsTitleRevalidation)
+		{
+			return;
+		}
+
+		// フラグをリセット
+		this.needsTitleRevalidation = false;
+
+		// 現在値のまま validateTitle() を再実行
+		this.Title.ForceValidate();
+	}
+
+	/// <summary>
 	/// 既存作品ダイアログを非同期で表示し、ユーザーの選択に応じた処理を実行します。
 	/// </summary>
 	/// <param name="duplicateSeries">既存の作品。</param>
@@ -817,14 +963,14 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		{
 			Title = "既に登録済みです。",
 			Content = content,
-			PrimaryButtonText = "開く",
-			CloseButtonText = "戻る",
+			PrimaryButtonText = "作品を開く",
+			CloseButtonText = "前画面に戻る",
 		};
 
 		// ダイアログを表示して結果を取得
 		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
 
-		// ユーザーが「開く」を選択した場合
+		// ユーザーが「作品を開く」を選択した場合
 		if (result == ContentDialogResult.Primary)
 		{
 			// DuplicateSeriesFound を null にリセット（ダイアログループ防止）
@@ -834,11 +980,11 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		}
 		else
 		{
-			// 「戻る」の場合、作品管理画面へ戻る
+			// 「前画面に戻る」の場合、遷移元の画面へ戻る
 			// DuplicateSeriesFound を null にリセット
 			this.DuplicateSeriesFound.Value = null;
-			// ナビゲーションで MaintenancePage へ戻る
-			this.navigationService.Navigate(typeof(MaintenancePage));
+			// ナビゲーション履歴に従って戻る
+			this.navigationService.GoBack();
 		}
 
 		// ダイアログ終了後にカード ViewModel を Dispose
@@ -1001,16 +1147,20 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		targetSeries.IsOwnedCompleted = this.VolumeStatus.IsOwnedCompleted.Value;
 
 		// === 【共通処理】Description 出典 ===
-		// Description が入力されている場合は Manual、未入力の場合は None
-		if (!string.IsNullOrEmpty(this.Description.Value))
+		// 既存作品（SeriesId != 0 && IsWork == false）ではこのメソッド内では変更しない
+		// 新規作品・登録待ち作品のみ、Description が入力されている場合は Manual、未入力の場合は None
+		if (targetSeries.SeriesId == 0 || targetSeries.IsWork)
 		{
-			targetSeries.DescriptionSource = DescriptionSource.Manual;
-			targetSeries.DescriptionSourceTitle = string.Empty;
-		}
-		else
-		{
-			targetSeries.DescriptionSource = DescriptionSource.None;
-			targetSeries.DescriptionSourceTitle = string.Empty;
+			if (!string.IsNullOrEmpty(this.Description.Value))
+			{
+				targetSeries.DescriptionSource = DescriptionSource.Manual;
+				targetSeries.DescriptionSourceTitle = string.Empty;
+			}
+			else
+			{
+				targetSeries.DescriptionSource = DescriptionSource.None;
+				targetSeries.DescriptionSourceTitle = string.Empty;
+			}
 		}
 
 		// === 【共通処理】GoogleBooks 関連 ===
@@ -1039,6 +1189,64 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		// === 【登録待ち・新規のみ】外部用タイトル正規化 ===
 		targetSeries.NormalizedTitleExternal = string.Empty;
 		// NOTE: ManuallyEditedAt と IsOwnedMaxVolumeManuallyEdited は WorkMangaSeries テーブルに存在しないため設定しない
+	}
+
+	/// <summary>
+	/// 素材追加時に重複が発見された場合の Warning Snackbar を表示します。
+	/// </summary>
+	/// <param name="alreadyAddedFiles">既に追加済みのファイル名リスト。</param>
+	/// <param name="sameNameFiles">同名の素材ファイル名リスト。</param>
+	private void showMaterialDuplicateWarningSnackbar(List<string> alreadyAddedFiles, List<string> sameNameFiles)
+	{
+		// どちらのリストも空の場合は表示しない
+		if ((alreadyAddedFiles.Count == 0) && (sameNameFiles.Count == 0))
+		{
+			return;
+		}
+
+		string title;
+		string message;
+
+		// 重複素材の総件数
+		var totalDuplicateCount = alreadyAddedFiles.Count + sameNameFiles.Count;
+
+		if (totalDuplicateCount == 1)
+		{
+			// === 1 件の場合：ファイル名を表示 ===
+			if (alreadyAddedFiles.Count == 1)
+			{
+				title = "素材追加";
+				message = $"「{alreadyAddedFiles[0]}」は既に追加されています。";
+			}
+			else
+			{
+				title = "素材追加";
+				message = $"同名の素材ファイル「{sameNameFiles[0]}」が既に存在するため追加できません。";
+			}
+		}
+		else
+		{
+			// === 2 件以上の場合：件数でまとめて表示 ===
+			var messageParts = new List<string>();
+			if (alreadyAddedFiles.Count > 0)
+			{
+				messageParts.Add($"既に追加済みの素材：{alreadyAddedFiles.Count}件");
+			}
+			if (sameNameFiles.Count > 0)
+			{
+				messageParts.Add($"同名の素材ファイル：{sameNameFiles.Count}件");
+			}
+			title = "素材追加";
+			message = string.Join("\n", messageParts);
+		}
+
+		// 5 秒で自動閉じ、Caution（黄色）で表示
+		this.snackbarService.Show(
+			title,
+			message,
+			ControlAppearance.Caution,
+			new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+			TimeSpan.FromSeconds(5));
 	}
 
 	/// <summary>
@@ -1094,7 +1302,13 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// - フォルダ（epub のみ）：フォルダ内の epub ファイルを単体で追加
 	/// - フォルダ（画像のみ）：フォルダ自体を追加
 	/// - それ以外：追加しない（エラー表示なし）
-	/// 重複する FullPath は追加しません。
+	/// 
+	/// 重複判定は以下の順で行われます：
+	/// 1. 同一 FullPath が存在する場合は追加しません（「既に追加済み」として記録）
+	/// 2. 同一 FullPath は異なるが、同名の FileName が存在する場合は追加しません（「同名ファイル」として記録）
+	/// 3. 上記以外は通常どおり追加します
+	/// 
+	/// 追加できなかった素材が存在する場合、処理終了後に Warning Snackbar を 1 回だけ表示します。
 	/// </summary>
 	/// <param name="droppedPaths">ドラッグアンドドロップされたファイル/フォルダのパス配列。</param>
 	private async ValueTask AddMaterialFilesFromDropAsync(string[] droppedPaths)
@@ -1106,12 +1320,35 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 		try
 		{
-			var existingFullPaths = this.MaterialFiles.Select(m => m.FullPath).ToList();
-			var candidates = this.materialManager.AnalyzePaths(droppedPaths, existingFullPaths);
+			// 既存の FullPath と FileName を取得
+			var existingFullPaths = this.MaterialFiles.Select(m => m.FullPath).ToHashSet();
+			var existingFileNames = this.MaterialFiles.Select(m => m.FileName).ToHashSet();
 
+			// 候補を解析
+			var candidates = this.materialManager.AnalyzePaths(droppedPaths, existingFullPaths.ToList());
+
+			// 重複判定結果を記録
+			var alreadyAddedFiles = new List<string>();
+			var sameNameFiles = new List<string>();
 			var addedAny = false;
+
 			foreach (var candidate in candidates)
 			{
+				// ① 同一 FullPath の重複判定
+				if (existingFullPaths.Contains(candidate.FullPath))
+				{
+					alreadyAddedFiles.Add(candidate.FileName);
+					continue;
+				}
+
+				// ② 同名ファイルの重複判定
+				if (existingFileNames.Contains(candidate.FileName))
+				{
+					sameNameFiles.Add(candidate.FileName);
+					continue;
+				}
+
+				// ③ 重複なし → 追加
 				var item = new MaterialFileItem
 				{
 					Name = candidate.FileName,
@@ -1135,6 +1372,12 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 				// 所持推定を再計算
 				this.RecalculateOwnedVolumeEstimate();
+			}
+
+			// === 追加できなかった素材の通知 ===
+			if (alreadyAddedFiles.Count > 0 || sameNameFiles.Count > 0)
+			{
+				this.showMaterialDuplicateWarningSnackbar(alreadyAddedFiles, sameNameFiles);
 			}
 		}
 		catch (Exception ex)
@@ -1201,6 +1444,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 	/// <summary>
 	/// フォルダ選択ダイアログを表示して素材フォルダを追加します。
+	/// 複数フォルダの同時選択に対応しています。
 	/// </summary>
 	private void AddMaterialFolderAsync()
 	{
@@ -1209,13 +1453,14 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			var dialog = new OpenFolderDialog
 			{
 				Title = "素材フォルダを選択してください",
+				Multiselect = true,
 			};
 
 			if (dialog.ShowDialog() ?? false)
 			{
-				if (!string.IsNullOrWhiteSpace(dialog.FolderName))
+				if (dialog.FolderNames != null && dialog.FolderNames.Length > 0)
 				{
-					_ = this.AddMaterialFilesFromDropAsync(new[] { dialog.FolderName });
+					_ = this.AddMaterialFilesFromDropAsync(dialog.FolderNames);
 				}
 			}
 		}
@@ -1359,25 +1604,69 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				this.PastedThumbnailBytes);
 
 			// 更新成功
-				this.snackbarService.Show(
-					"成功",
-					$"『{updatedSeries.Title}』を更新しました。",
-					ControlAppearance.Success,
-					new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
-					TimeSpan.FromSeconds(3));
+			this.snackbarService.Show(
+				"成功",
+				$"『{updatedSeries.Title}』を更新しました。",
+				ControlAppearance.Success,
+				new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
+				TimeSpan.FromSeconds(3));
 
-				// NavigationHierarchy に従って前画面へ戻る
-				this.navigationService.GoBack();
+			// NavigationHierarchy に従って前画面へ戻る
+			this.navigationService.GoBack();
 		}
 		catch (Exception ex)
 		{
-			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.UpdateExistingSeriesAsync] 例外発生: {ex.Message}");
-			this.snackbarService.Show(
-				"エラー",
-				$"更新に失敗しました: {ex.Message}",
-				ControlAppearance.Caution,
-				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-				TimeSpan.FromSeconds(3));
+			// 素材フォルダ名検証エラーを判定
+			if (ex.Message.Contains("素材フォルダ名の変更判定でエラーが発生しました"))
+			{
+				// 結果文字列を解析して適切なメッセージを表示
+				if (ex.Message.Contains(MaterialFolderRenameCheckResult.CurrentFolderNotFound.ToString()))
+				{
+					this.snackbarService.Show(
+						"エラー",
+						"登録されている素材フォルダが見つからないため、作品を更新できません。\n素材フォルダを確認してください。",
+						ControlAppearance.Danger,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.MaxValue);
+				}
+				else if (ex.Message.Contains(MaterialFolderRenameCheckResult.RenameTargetAlreadyExists.ToString()))
+				{
+					this.snackbarService.Show(
+						"エラー",
+						"変更後の素材フォルダ名と同じフォルダが既に存在するため、作品を更新できません。\n素材フォルダを確認してください。",
+						ControlAppearance.Danger,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.MaxValue);
+				}
+				else if (ex.Message.Contains(MaterialFolderRenameCheckResult.RenameNeeded.ToString()))
+				{
+					this.snackbarService.Show(
+						"エラー",
+						"素材フォルダ名の変更が必要です。\nフォルダRename処理は現在未実装のため、作品を更新できません。",
+						ControlAppearance.Danger,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.MaxValue);
+				}
+				else
+				{
+					this.snackbarService.Show(
+						"エラー",
+						$"更新に失敗しました: {ex.Message}",
+						ControlAppearance.Caution,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.FromSeconds(3));
+				}
+			}
+			else
+			{
+				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.UpdateExistingSeriesAsync] 例外発生: {ex.Message}");
+				this.snackbarService.Show(
+					"エラー",
+					$"更新に失敗しました: {ex.Message}",
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.FromSeconds(3));
+			}
 		}
 	}
 
