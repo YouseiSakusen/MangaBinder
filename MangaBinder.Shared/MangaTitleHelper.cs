@@ -13,6 +13,7 @@ public static class MangaTitleHelper
     /// <list type="bullet">
     ///   <item>全角英数字・記号の半角化</item>
     ///   <item>波ダッシュ（U+301C / U+FF5E）を U+301C に統一</item>
+    ///   <item>波ダッシュ前後の空白（全角・半角）の除去</item>
     ///   <item>文字列前後の空白（全角・半角）の除去</item>
     /// </list>
     /// </summary>
@@ -37,8 +38,31 @@ public static class MangaTitleHelper
                 sb.Append(c);
         }
 
+        var normalized = sb.ToString();
+
+        // 波ダッシュ前後の空白除去
+        // 波ダッシュの直前・直後に存在する半角スペース / 全角スペース を除去
+        // 例: "シュート! 〜新たなる" → "シュート!〜新たなる"
+        //     "シュート!　〜新たなる" → "シュート!〜新たなる"
+        normalized = RemoveWhitespaceAroundWaveDash(normalized);
+
         // 前後の空白除去（char.IsWhiteSpace が全角スペース U+3000 も対象とするため Trim() で統一処理）
-        return sb.ToString().Trim();
+        return normalized.Trim();
+    }
+
+    /// <summary>
+    /// 波ダッシュ（U+301C）の直前・直後に存在する空白文字を除去します。
+    /// 対象となる空白は半角スペース（U+0020）と全角スペース（U+3000）です。
+    /// </summary>
+    /// <param name="text">処理対象の文字列。</param>
+    /// <returns>波ダッシュ前後の空白が除去された文字列。</returns>
+    private static string RemoveWhitespaceAroundWaveDash(string text)
+    {
+        // 正規表現で波ダッシュ前後の空白を一括削除
+        // [ \u3000]：半角スペース U+0020 または 全角スペース U+3000
+        // \u301C：波ダッシュ U+301C
+        // パターン：「空白+ 波ダッシュ +空白」を「波ダッシュ」に置換
+        return Regex.Replace(text, @"[ \u3000]*\u301C[ \u3000]*", "\u301C");
     }
 
     /// <summary>

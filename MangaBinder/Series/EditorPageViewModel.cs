@@ -1471,7 +1471,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	}
 
 	/// <summary>
-	/// 編集中の作品を正式な MangaSeries として登録します。
+	/// 編集中の作品を正式な MangaSeries として保存します。
+	/// 保存方式（新規登録・既存作品更新）の判定は MangaSeriesManager の責務です。
 	/// </summary>
 	private async ValueTask RegisterSeriesAsync()
 	{
@@ -1504,34 +1505,30 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				return;
 			}
 
-			// 既存作品（SeriesId != 0 かつ IsWork == false）の場合
-			if (editingSeries.SeriesId != 0 && !editingSeries.IsWork)
+			// 新規作品・登録待ち作品の場合は、素材ファイルと登録先フォルダが必須
+			if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
 			{
-				await this.UpdateExistingSeriesAsync();
-				return;
-			}
+				if (this.MaterialFiles.Count == 0)
+				{
+					this.snackbarService.Show(
+						"エラー",
+						"素材ファイルが登録されていません。",
+						ControlAppearance.Caution,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.FromSeconds(3));
+					return;
+				}
 
-			// 新規作品・登録待ち作品の場合は従来の登録処理
-			if (this.MaterialFiles.Count == 0)
-			{
-				this.snackbarService.Show(
-					"エラー",
-					"素材ファイルが登録されていません。",
-					ControlAppearance.Caution,
-					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.FromSeconds(3));
-				return;
-			}
-
-			if (this.SelectedMaterialSourceFolder.Value == null)
-			{
-				this.snackbarService.Show(
-					"エラー",
-					"登録先の素材フォルダを選択してください。",
-					ControlAppearance.Caution,
-					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.FromSeconds(3));
-				return;
+				if (this.SelectedMaterialSourceFolder.Value == null)
+				{
+					this.snackbarService.Show(
+						"エラー",
+						"登録先の素材フォルダを選択してください。",
+						ControlAppearance.Caution,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.FromSeconds(3));
+					return;
+				}
 			}
 
 			// 素材 DTO に変換
@@ -1544,74 +1541,22 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				})
 				.ToList();
 
-			// 登録を実行
-			var registeredSeries = await this.seriesManager.RegisterSeriesAsync(
+			// SaveSeriesAsync() で保存を実行（保存方式の判定は MangaSeriesManager の責務）
+			var savedSeries = await this.seriesManager.SaveSeriesAsync(
 				editingSeries,
 				materialFileDtos,
 				this.SelectedMaterialSourceFolder.Value,
 				this.PastedThumbnailBytes);
 
-			// 登録成功
+			// 保存成功
 			this.snackbarService.Show(
 				"成功",
-				$"『{registeredSeries.Title}』を登録しました。",
+				$"『{savedSeries.Title}』を保存しました。",
 				ControlAppearance.Success,
 				new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
 				TimeSpan.FromSeconds(3));
 
-			// 作品管理画面へ戻る
-			this.navigationService.Navigate(typeof(MaintenancePage));
-		}
-		catch (Exception ex)
-		{
-			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RegisterSeriesAsync] 例外発生: {ex.Message}");
-			this.snackbarService.Show(
-				"エラー",
-				$"登録に失敗しました: {ex.Message}",
-				ControlAppearance.Caution,
-				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-				TimeSpan.FromSeconds(3));
-		}
-	}
-
-	/// <summary>
-	/// 既存の正式作品を更新します。
-	/// 編集画面で変更可能な項目のみが UPDATE 対象です。
-	/// </summary>
-	private async ValueTask UpdateExistingSeriesAsync()
-	{
-		try
-		{
-			var editingSeries = this.EditingSeries.Value;
-			if (editingSeries == null)
-				return;
-
-			// 素材 DTO に変換
-			var materialFileDtos = this.MaterialFiles
-				.Select(item => new MaterialFile
-				{
-					FullPath = item.FullPath,
-					Type = item.ItemType,
-					CanRemove = item.CanRemove,
-				})
-				.ToList();
-
-			// MangaSeriesManager.UpdateExistingSeriesAsync() を呼び出し
-			var updatedSeries = await this.seriesManager.UpdateExistingSeriesAsync(
-				editingSeries,
-				materialFileDtos,
-				this.SelectedMaterialSourceFolder.Value,
-				this.PastedThumbnailBytes);
-
-			// 更新成功
-			this.snackbarService.Show(
-				"成功",
-				$"『{updatedSeries.Title}』を更新しました。",
-				ControlAppearance.Success,
-				new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
-				TimeSpan.FromSeconds(3));
-
-			// NavigationHierarchy に従って前画面へ戻る
+			// ナビゲーション履歴へ戻る
 			this.navigationService.GoBack();
 		}
 		catch (Exception ex)
@@ -1624,7 +1569,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				{
 					this.snackbarService.Show(
 						"エラー",
-						"登録されている素材フォルダが見つからないため、作品を更新できません。\n素材フォルダを確認してください。",
+						"登録されている素材フォルダが見つからないため、作品を保存できません。\n素材フォルダを確認してください。",
 						ControlAppearance.Danger,
 						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
 						TimeSpan.MaxValue);
@@ -1633,7 +1578,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				{
 					this.snackbarService.Show(
 						"エラー",
-						"変更後の素材フォルダ名と同じフォルダが既に存在するため、作品を更新できません。\n素材フォルダを確認してください。",
+						"変更後の素材フォルダ名と同じフォルダが既に存在するため、作品を保存できません。\n素材フォルダを確認してください。",
 						ControlAppearance.Danger,
 						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
 						TimeSpan.MaxValue);
@@ -1642,7 +1587,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				{
 					this.snackbarService.Show(
 						"エラー",
-						"素材フォルダ名の変更が必要です。\nフォルダRename処理は現在未実装のため、作品を更新できません。",
+						"素材フォルダ名の変更が必要です。\nフォルダRename処理は現在未実装のため、作品を保存できません。",
 						ControlAppearance.Danger,
 						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
 						TimeSpan.MaxValue);
@@ -1651,7 +1596,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				{
 					this.snackbarService.Show(
 						"エラー",
-						$"更新に失敗しました: {ex.Message}",
+						$"保存に失敗しました: {ex.Message}",
 						ControlAppearance.Caution,
 						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
 						TimeSpan.FromSeconds(3));
@@ -1659,10 +1604,10 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			}
 			else
 			{
-				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.UpdateExistingSeriesAsync] 例外発生: {ex.Message}");
+				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RegisterSeriesAsync] 例外発生: {ex.Message}");
 				this.snackbarService.Show(
 					"エラー",
-					$"更新に失敗しました: {ex.Message}",
+					$"保存に失敗しました: {ex.Message}",
 					ControlAppearance.Caution,
 					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
 					TimeSpan.FromSeconds(3));

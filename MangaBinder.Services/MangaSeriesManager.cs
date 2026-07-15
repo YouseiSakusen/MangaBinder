@@ -4,11 +4,8 @@ using MangaBinder.Core.Series;
 using MangaBinder.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Data.SQLite;
-using System.IO;
-using System.Text;
-using Dapper;
 
 namespace MangaBinder;
 
@@ -42,11 +39,11 @@ public class MangaSeriesManager
 	/// <summary>サムネイル操作を管理する Manager。</summary>
 	private readonly ThumbnailManager thumbnailManager;
 
-	/// <summary>素材操作を管理する Manager。</summary>
-	private readonly MaterialManager materialManager;
-
 	/// <summary>ログ出力用の Logger。</summary>
 	private readonly ILogger<MangaSeriesManager>? logger;
+
+	/// <summary>DI スコープを作成するファクトリー。</summary>
+	private readonly IServiceScopeFactory serviceScopeFactory;
 
 	/// <summary>編集セッション中の編集対象 Series。</summary>
 	private MangaSeries? editingSeriesSnapshot;
@@ -65,7 +62,7 @@ public class MangaSeriesManager
 	/// <param name="tagRepository">タグを取得する Repository。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="thumbnailManager">サムネイル操作を管理する Manager。</param>
-	/// <param name="materialManager">素材操作を管理する Manager。</param>
+	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
 	/// <param name="logger">ログ出力用の Logger。オプション。</param>
 	public MangaSeriesManager(
 		MangaRepository mangaRepository,
@@ -76,7 +73,7 @@ public class MangaSeriesManager
 		TagRepository tagRepository,
 		AppSettings appSettings,
 		ThumbnailManager thumbnailManager,
-		MaterialManager materialManager,
+		IServiceScopeFactory serviceScopeFactory,
 		ILogger<MangaSeriesManager>? logger = null)
 	{
 		this.mangaRepository = mangaRepository;
@@ -87,7 +84,7 @@ public class MangaSeriesManager
 		this.tagRepository = tagRepository;
 		this.appSettings = appSettings;
 		this.thumbnailManager = thumbnailManager;
-		this.materialManager = materialManager;
+		this.serviceScopeFactory = serviceScopeFactory;
 		this.logger = logger;
 	}
 
@@ -561,592 +558,92 @@ public class MangaSeriesManager
 	/// <param name="destinationSourceFolder">登録先の素材フォルダ。</param>
 	/// <param name="thumbnailBytes">アップロード済みサムネイル JPEG。null の場合は WorkThumbnail からコピーまたは作成なし。</param>
 	/// <returns>登録後の MangaSeries。</returns>
+	/// <summary>
+	/// 新規作品を正式登録します。
+	/// 処理は NewSeriesSaveManager へ委譲されます。
+	/// </summary>
+	/// <summary>
+	/// 編集中の作品を正式に MangaSeries へ保存します。
+	/// editingSeries の状態に応じて、新規作品・登録待ち作品の場合は NewSeriesSaveManager へ、
+	/// 既存作品の場合は ExistingSeriesSaveManager へ委譲します。
+	/// </summary>
+	/// <param name="editingSeries">保存対象の編集中作品。</param>
+	/// <param name="materialFiles">素材ファイル一覧。</param>
+	/// <param name="selectedMaterialSourceFolder">保存先の素材フォルダ。新規作品の場合は必須、既存作品の場合は nullable。</param>
+	/// <param name="thumbnailBytes">サムネイル画像（バイナリ）。null の場合はスキップします。</param>
+	/// <returns>保存後の正式作品。</returns>
+	/// <exception cref="InvalidOperationException">タイトル判定エラーまたはその他のバリデーションエラー。</exception>
+	public async ValueTask<MangaSeries> SaveSeriesAsync(
+		MangaSeries editingSeries,
+		IReadOnlyList<MaterialFile> materialFiles,
+		SourceFolder? selectedMaterialSourceFolder,
+		byte[]? thumbnailBytes)
+	{
+		// editingSeries の状態で保存方法を判定
+		if (editingSeries.SeriesId != 0 && !editingSeries.IsWork)
+		{
+			// 既存作品の場合：タイトル判定と DeepCopy を取得してから ExistingSeriesSaveManager へ委譲
+			var titleMatchResult = this.CheckExistingSeriesTitleMatch(editingSeries.Title);
+			if (titleMatchResult != ExistingSeriesTitleMatchResult.SameAsEditingSeriesSelf)
+				throw new InvalidOperationException($"タイトル判定が不一致です。結果: {titleMatchResult}");
+
+			var originalSeries = this.GetEditingSeriesOriginal();
+			if (originalSeries == null)
+				throw new InvalidOperationException("編集開始時の DeepCopy が見つかりません。");
+
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var saveManager = scope.ServiceProvider.GetRequiredKeyedService<ISeriesSaveManager>(SeriesSaveType.Existing);
+			return await saveManager.SaveAsync(editingSeries, originalSeries, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
+		}
+		else
+		{
+			// 新規・登録待ち作品の場合：NewSeriesSaveManager へ委譲（originalSeries = null）
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var saveManager = scope.ServiceProvider.GetRequiredKeyedService<ISeriesSaveManager>(SeriesSaveType.New);
+			return await saveManager.SaveAsync(editingSeries, null, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
+		}
+	}
+
+	/// <summary>
+	/// 新規作品・登録待ち作品を正式に MangaSeries へ登録します。
+	/// このメソッドは互換性維持のための委譲メソッドです。SaveSeriesAsync() を呼び出します。
+	/// </summary>
+	/// <param name="editingSeries">登録対象の編集中作品。</param>
+	/// <param name="materialFiles">素材ファイル一覧。</param>
+	/// <param name="destinationSourceFolder">登録先の素材フォルダ。</param>
+	/// <param name="thumbnailBytes">サムネイル画像（バイナリ）。null の場合はスキップします。</param>
+	/// <returns>登録後の正式作品。</returns>
 	public async ValueTask<MangaSeries> RegisterSeriesAsync(
 		MangaSeries editingSeries,
 		IReadOnlyList<MaterialFile> materialFiles,
 		SourceFolder destinationSourceFolder,
 		byte[]? thumbnailBytes)
 	{
-		// 入力値検証
-		ArgumentNullException.ThrowIfNull(editingSeries);
-		ArgumentNullException.ThrowIfNull(materialFiles);
-		ArgumentNullException.ThrowIfNull(destinationSourceFolder);
-
-		// 登録対象外の作品は例外
-		if (editingSeries.SeriesId != 0 && editingSeries.WorkId == 0)
-		{
-			throw new InvalidOperationException("既存作品（SeriesId != 0 かつ WorkId == 0）の更新は対象外です。");
-		}
-
-		var isWorkSeries = editingSeries.IsWork;
-		var workId = editingSeries.WorkId;
-
-		// DB 接続
-		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
-		await connection.OpenAsync();
-		using var tx = connection.BeginTransaction();
-
-		try
-		{
-			// MangaSeries INSERT
-			var insertSql = new StringBuilder();
-			insertSql.AppendLine(" INSERT INTO MangaSeries ( ");
-			insertSql.AppendLine(" 	  NormalizedTitleInternal ");
-			insertSql.AppendLine(" 	, Title ");
-			insertSql.AppendLine(" 	, ShortTitle ");
-			insertSql.AppendLine(" 	, Author ");
-			insertSql.AppendLine(" 	, Description ");
-			insertSql.AppendLine(" 	, SeriesCompleted ");
-			insertSql.AppendLine(" 	, IsOwnedCompleted ");
-			insertSql.AppendLine(" 	, StartVolume ");
-			insertSql.AppendLine(" 	, EndVolume ");
-			insertSql.AppendLine(" 	, OwnedMaxVolume ");
-			insertSql.AppendLine(" 	, NormalizedTitleExternal ");
-			insertSql.AppendLine(" 	, ThumbnailFileName ");
-			insertSql.AppendLine(" 	, ThumbnailStatus ");
-			insertSql.AppendLine(" 	, Publisher ");
-			insertSql.AppendLine(" 	, GoogleBooksImportStatus ");
-			insertSql.AppendLine(" 	, DescriptionSource ");
-			insertSql.AppendLine(" 	, Memo ");
-			insertSql.AppendLine(" 	, HasNestedArchive ");
-			insertSql.AppendLine(" ) VALUES ( ");
-			insertSql.AppendLine(" 	  :NormalizedTitleInternal ");
-			insertSql.AppendLine(" 	, :Title ");
-			insertSql.AppendLine(" 	, :ShortTitle ");
-			insertSql.AppendLine(" 	, :Author ");
-			insertSql.AppendLine(" 	, :Description ");
-			insertSql.AppendLine(" 	, :SeriesCompleted ");
-			insertSql.AppendLine(" 	, :IsOwnedCompleted ");
-			insertSql.AppendLine(" 	, :StartVolume ");
-			insertSql.AppendLine(" 	, :EndVolume ");
-			insertSql.AppendLine(" 	, :OwnedMaxVolume ");
-			insertSql.AppendLine(" 	, :NormalizedTitleExternal ");
-			insertSql.AppendLine(" 	, :ThumbnailFileName ");
-			insertSql.AppendLine(" 	, :ThumbnailStatus ");
-			insertSql.AppendLine(" 	, :Publisher ");
-			insertSql.AppendLine(" 	, :GoogleBooksImportStatus ");
-			insertSql.AppendLine(" 	, :DescriptionSource ");
-			insertSql.AppendLine(" 	, :Memo ");
-			insertSql.AppendLine(" 	, :HasNestedArchive ");
-			insertSql.AppendLine(" ) ");
-			insertSql.AppendLine(" RETURNING SeriesId; ");
-
-			var seriesId = await connection.QuerySingleAsync<long>(insertSql.ToString(), new
-			{
-				NormalizedTitleInternal = MangaTitleHelper.NormalizeTitleInternal(editingSeries.Title),
-				editingSeries.Title,
-				editingSeries.ShortTitle,
-				editingSeries.Author,
-				editingSeries.Description,
-				editingSeries.SeriesCompleted,
-				editingSeries.IsOwnedCompleted,
-				editingSeries.StartVolume,
-				editingSeries.EndVolume,
-				editingSeries.OwnedMaxVolume,
-				editingSeries.NormalizedTitleExternal,
-				ThumbnailFileName = string.Empty,
-				ThumbnailStatus = (int)ThumbnailStatus.None,
-				editingSeries.Publisher,
-				GoogleBooksImportStatus = (int)GoogleBooksImportStatus.NotImported,
-				DescriptionSource = (int)DescriptionSource.None,
-				editingSeries.Memo,
-				editingSeries.HasNestedArchive,
-			}, tx);
-
-			// SeriesId を editingSeries に反映
-			editingSeries.SeriesId = seriesId;
-
-			// タグを MangaSeriesTags へ保存
-			await this.SaveSeriesTagsInTransactionAsync(connection, tx, seriesId, editingSeries.Tags);
-
-			// サムネイル保存
-			await this.SaveSeriesThumbnailAsync(connection, tx, editingSeries, thumbnailBytes, isWorkSeries, workId);
-
-			// 素材移動
-			var moveResult = await this.materialManager.MoveMaterialsAsync(
-				destinationSourceFolder,
-				editingSeries.MaterialFolderName,
-				materialFiles);
-
-			// MangaSources へ作品フォルダ情報を登録
-			await this.mangaRepository.InsertMangaSourceAsync(
-				connection,
-				tx,
-				seriesId,
-				moveResult.SeriesFolderPath,
-				FolderRole.Material);
-
-			// 登録待ち作品の場合は WorkMangaSeriesTags と WorkMangaSeries を削除
-			if (isWorkSeries)
-			{
-				// WorkMangaSeriesTags を削除
-				var deleteWorkTagsSql = new StringBuilder();
-				deleteWorkTagsSql.AppendLine(" DELETE FROM WorkMangaSeriesTags ");
-				deleteWorkTagsSql.AppendLine(" WHERE ");
-				deleteWorkTagsSql.AppendLine(" 	WorkId = :WorkId; ");
-
-				await connection.ExecuteAsync(deleteWorkTagsSql.ToString(), new { WorkId = workId }, tx);
-
-				// WorkMangaSeries を削除
-				var deleteWorkSeriesSql = new StringBuilder();
-				deleteWorkSeriesSql.AppendLine(" DELETE FROM WorkMangaSeries ");
-				deleteWorkSeriesSql.AppendLine(" WHERE ");
-				deleteWorkSeriesSql.AppendLine(" 	WorkId = :WorkId; ");
-
-				await connection.ExecuteAsync(deleteWorkSeriesSql.ToString(), new { WorkId = workId }, tx);
-			}
-
-			// Commit
-			tx.Commit();
-
-			// Commit 成功後の処理
-			// 1. 登録待ち作品の場合、WorkSeriesから削除
-			if (isWorkSeries)
-			{
-				this.mangaSeriesStore.RemoveWorkSeries(workId);
-			}
-
-			// 2. DB から採番済み SeriesId の正式作品を再取得
-			var registeredSeries = await this.mangaRepository.GetSeriesAsync(seriesId);
-			if (registeredSeries is null)
-			{
-				throw new InvalidOperationException($"正式登録後の作品再取得に失敗しました。SeriesId: {seriesId}");
-			}
-
-			// 3. 再取得した正式作品を Store へ追加
-			this.mangaSeriesStore.Add(registeredSeries);
-
-			// 4. 再取得した正式作品を返す
-			return registeredSeries;
-		}
-		catch
-		{
-			tx.Rollback();
-			throw;
-		}
+		return await this.SaveSeriesAsync(editingSeries, materialFiles, destinationSourceFolder, thumbnailBytes);
 	}
 
 	/// <summary>
-	/// 指定した SeriesId のタグを MangaSeriesTags テーブルへ保存します。
-	/// 既存の接続およびトランザクション内での実行を想定しています。
-	/// TagId &lt;= 0 のタグは保存対象外となります（未保存タグの防御）。
+	/// 既存の正式作品を更新します。
+	/// このメソッドは互換性維持のための委譲メソッドです。SaveSeriesAsync() を呼び出します。
+	/// 編集開始時の DeepCopy を保存用オブジェクトとして利用します。
 	/// </summary>
-	private async ValueTask SaveSeriesTagsInTransactionAsync(
-		SQLiteConnection connection,
-		SQLiteTransaction transaction,
-		long seriesId,
-		IEnumerable<MangaTag> tags)
-	{
-		var insertSql = new StringBuilder();
-		insertSql.AppendLine(" INSERT INTO MangaSeriesTags ( ");
-		insertSql.AppendLine(" 	  SeriesId ");
-		insertSql.AppendLine(" 	, TagId ");
-		insertSql.AppendLine(" ) VALUES ( ");
-		insertSql.AppendLine(" 	  :SeriesId ");
-		insertSql.AppendLine(" 	, :TagId ");
-		insertSql.AppendLine(" ); ");
-
-		// TagId > 0 のタグのみ保存（未保存タグ TagId=0 は除外）
-		var validTags = tags.Where(t => t.TagId > 0).ToList();
-		foreach (var tag in validTags)
-		{
-			await connection.ExecuteAsync(
-				insertSql.ToString(),
-				new { SeriesId = seriesId, TagId = tag.TagId },
-				transaction);
-		}
-	}
-
-	/// <summary>
-	/// 正式登録時のサムネイル保存を実施します。
-	/// 優先順位：thumbnailBytes → WorkThumbnail → なし
-	/// </summary>
-	private async ValueTask SaveSeriesThumbnailAsync(
-		SQLiteConnection connection,
-		SQLiteTransaction tx,
+	/// <param name="editingSeries">更新対象の編集中作品。SeriesId != 0 かつ IsWork == false である必要があります。</param>
+	/// <param name="materialFiles">素材ファイル一覧。</param>
+	/// <param name="selectedMaterialSourceFolder">素材フォルダの変更先（フォルダリネーム時に使用）。</param>
+	/// <param name="thumbnailBytes">サムネイル画像（バイナリ）。null の場合はスキップします。</param>
+	/// <returns>更新後の正式作品（Store 内インスタンス）。</returns>
+	/// <exception cref="InvalidOperationException">入力値の検証失敗またはタイトル判定エラー。</exception>
+	public async ValueTask<MangaSeries> UpdateExistingSeriesAsync(
 		MangaSeries editingSeries,
-		byte[]? thumbnailBytes,
-		bool isWorkSeries,
-		int workId)
+		IReadOnlyList<MaterialFile> materialFiles,
+		SourceFolder? selectedMaterialSourceFolder,
+		byte[]? thumbnailBytes)
 	{
-		if (thumbnailBytes != null && thumbnailBytes.Length > 0)
-		{
-			// 1. thumbnailBytes を正式 Thumbnail へ保存
-			var fileName = $"{editingSeries.ThumbnailFileNameBase}.jpg";
-			await this.thumbnailManager.SaveThumbnailAsync(fileName, thumbnailBytes);
+		// 入力値の検証
+		if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
+			throw new InvalidOperationException("UpdateExistingSeriesAsync は既存の正式作品（SeriesId != 0 かつ IsWork == false）でのみ実行可能です。");
 
-			editingSeries.ThumbnailFileName = fileName;
-			editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
-
-			// DB に反映
-			var updateSql = new StringBuilder();
-			updateSql.AppendLine(" UPDATE MangaSeries ");
-			updateSql.AppendLine(" SET ");
-			updateSql.AppendLine(" 	  ThumbnailFileName = :ThumbnailFileName ");
-			updateSql.AppendLine(" 	, ThumbnailStatus = :ThumbnailStatus ");
-			updateSql.AppendLine(" WHERE ");
-			updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
-
-			await connection.ExecuteAsync(updateSql.ToString(), new
-			{
-				ThumbnailFileName = fileName,
-				ThumbnailStatus = (int)ThumbnailStatus.Completed,
-				SeriesId = editingSeries.SeriesId,
-			}, tx);
-		}
-		else if (isWorkSeries)
-		{
-			// 2. WorkThumbnail が存在する場合、正式 Thumbnail へコピー
-			var workThumbnailFileName = $"{editingSeries.WorkThumbnailFileNameBase}.jpg";
-			var copied = await this.thumbnailManager.CopyWorkThumbnailToThumbnailAsync(
-				workThumbnailFileName,
-				$"{editingSeries.ThumbnailFileNameBase}.jpg");
-
-			if (copied)
-			{
-				editingSeries.ThumbnailFileName = $"{editingSeries.ThumbnailFileNameBase}.jpg";
-				editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
-
-				// DB に反映
-				var updateSql = new StringBuilder();
-				updateSql.AppendLine(" UPDATE MangaSeries ");
-				updateSql.AppendLine(" SET ");
-				updateSql.AppendLine(" 	  ThumbnailFileName = :ThumbnailFileName ");
-				updateSql.AppendLine(" 	, ThumbnailStatus = :ThumbnailStatus ");
-				updateSql.AppendLine(" WHERE ");
-				updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
-
-				await connection.ExecuteAsync(updateSql.ToString(), new
-				{
-					ThumbnailFileName = editingSeries.ThumbnailFileName,
-					ThumbnailStatus = (int)ThumbnailStatus.Completed,
-					SeriesId = editingSeries.SeriesId,
-				}, tx);
-			}
-
-					// WorkThumbnail を削除
-						this.thumbnailManager.DeleteWorkThumbnailIfExists(workThumbnailFileName);
-					}
-					else
-					{
-						// 3. どちらもない場合、ThumbnailFileName は空
-						editingSeries.ThumbnailFileName = string.Empty;
-						editingSeries.ThumbnailStatus = ThumbnailStatus.None;
-					}
-				}
-
-				/// <summary>
-				/// 既存の正式作品を更新します。
-				/// 編集開始時の DeepCopy を保存用オブジェクトとして利用し、
-				/// 画面編集後の値との比較で OwnedMaxVolume の手修正判定を実施します。
-				/// タイトル判定（CheckExistingSeriesTitleMatch）で SameAsEditingSeriesSelf の場合のみ処理します。
-				/// DB 更新成功後に、DeepCopy からStore 内の正式作品インスタンスへ編集可能項目をコピーします。
-				/// </summary>
-				/// <param name="editingSeries">更新対象の編集中作品。SeriesId != 0 かつ IsWork == false である必要があります。</param>
-				/// <returns>更新後の正式作品（Store 内インスタンス）。</returns>
-				/// <exception cref="InvalidOperationException">タイトル判定が不一致の場合または作品が見つからない場合にスローされます。</exception>
-				public async ValueTask<MangaSeries> UpdateExistingSeriesAsync(
-					MangaSeries editingSeries,
-					IReadOnlyList<MaterialFile> materialFiles,
-					SourceFolder? selectedMaterialSourceFolder,
-					byte[]? thumbnailBytes)
-				{
-					// 入力値の検証
-					if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
-						throw new InvalidOperationException("UpdateExistingSeriesAsync は既存の正式作品（SeriesId != 0 かつ IsWork == false）でのみ実行可能です。");
-
-					// タイトル判定を実施
-					var titleMatchResult = this.CheckExistingSeriesTitleMatch(editingSeries.Title);
-					if (titleMatchResult != ExistingSeriesTitleMatchResult.SameAsEditingSeriesSelf)
-						throw new InvalidOperationException($"タイトル判定が不一致です。結果: {titleMatchResult}");
-
-					// === DeepCopy を取得（保存用オブジェクト） ===
-					var originalSeries = this.GetEditingSeriesOriginal();
-					if (originalSeries == null)
-						throw new InvalidOperationException("編集開始時の DeepCopy が見つかりません。");
-
-					// DeepCopy 前後の Sources.Count をログ出力
-					this.logger?.LogInformation($"[UpdateExistingSeriesAsync] DeepCopy後の Sources.Count: {originalSeries.Sources.Count}, SingleMaterialSource: {(originalSeries.SingleMaterialSource == null ? "null" : "exists")}");
-
-					// === OwnedMaxVolume の手修正判定（反映前に実施） ===
-					// DeepCopy（編集開始時）と editingSeries（UI 入力後）の OwnedMaxVolume を比較
-					var isOwnedMaxVolumeChanged = originalSeries.OwnedMaxVolume != editingSeries.OwnedMaxVolume;
-					if (isOwnedMaxVolumeChanged)
-					{
-						originalSeries.IsOwnedMaxVolumeManuallyEdited = true;
-					}
-					// 変更がない場合は現在値を維持
-
-					// === Description の変更判定 ===
-					// 既存作品では、実際にあらすじが変更された場合のみ出典を変更する
-					// 判定結果だけ保持し、設定はCopyEditableFieldsFromToEditingToDeepCopy()の後に実施
-					var isDescriptionChanged = originalSeries.Description != editingSeries.Description;
-
-					// === DeepCopy へ画面入力値を反映 ===
-					// 共通処理（UpdateEditingSeriesFromUI で実施済みの値）を DeepCopy へコピー
-					this.CopyEditableFieldsFromToEditingToDeepCopy(editingSeries, originalSeries);
-
-					// === Description が変更されている場合のみ出典を設定 ===
-					// CopyEditableFieldsFromToEditingToDeepCopy() の後に処理することで、
-					// editingSeries の古い出典値で上書きされることを防ぐ
-					if (isDescriptionChanged)
-					{
-						// あらすじが変更された場合、新しい値に基づいて出典を決定
-						if (!string.IsNullOrEmpty(editingSeries.Description))
-						{
-							originalSeries.DescriptionSource = DescriptionSource.Manual;
-							originalSeries.DescriptionSourceTitle = string.Empty;
-						}
-						else
-						{
-							originalSeries.DescriptionSource = DescriptionSource.None;
-							originalSeries.DescriptionSourceTitle = string.Empty;
-						}
-					}
-					// 変更がない場合は、CopyEditableFieldsFromToEditingToDeepCopy() によりコピーされた
-					// DescriptionSource / DescriptionSourceTitle をそのまま利用する
-
-					// === 素材フォルダ名変更の事前判定 ===
-					var folderRenameCheckResult = this.CheckMaterialFolderRenameStatus(originalSeries, originalSeries);
-					if (folderRenameCheckResult != MaterialFolderRenameCheckResult.Ok)
-					{
-						// チェック失敗時は即座に例外を投げる
-						// EditorPageViewModel 側で catch して対応する
-						throw new InvalidOperationException($"素材フォルダ名の変更判定でエラーが発生しました。結果: {folderRenameCheckResult}");
-					}
-
-					using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
-					await connection.OpenAsync();
-
-					using var tx = connection.BeginTransaction();
-					try
-					{
-						// === DB UPDATE（DeepCopy を対象） ===
-						await this.mangaRepository.UpdateSeriesAsync(connection, tx, originalSeries);
-
-						// === MangaSeriesTags の更新（DELETE → INSERT） ===
-						await this.mangaRepository.ReplaceSeriesTagsInTransactionAsync(connection, tx, originalSeries.SeriesId, originalSeries.Tags);
-
-						// === 追加素材の移動処理 ===
-						// CanRemove=true の追加素材を既存の作品素材フォルダへ移動
-						this.logger?.LogInformation($"[UpdateExistingSeriesAsync] 素材移動処理開始。materialFiles count: {materialFiles?.Count}, selectedMaterialSourceFolder: {selectedMaterialSourceFolder?.FolderPath.Value}");
-
-						if (materialFiles != null && materialFiles.Count > 0 && selectedMaterialSourceFolder != null)
-						{
-							var materialSource = originalSeries.SingleMaterialSource;
-							this.logger?.LogInformation($"[UpdateExistingSeriesAsync] materialSource: {materialSource?.Path}");
-
-							if (materialSource != null)
-							{
-								// CanRemove=true の追加素材のみを抽出
-								var addedMaterials = materialFiles
-									.Where(m => m.CanRemove)
-									.ToList();
-
-								this.logger?.LogInformation($"[UpdateExistingSeriesAsync] 移動対象素材数（CanRemove=true）: {addedMaterials.Count}");
-
-								if (addedMaterials.Count > 0)
-								{
-									// 既存の MoveMaterialsAsync を使用して素材を移動
-									// selectedMaterialSourceFolder は既存のMangaSource.Pathに対応する素材ルート
-									this.logger?.LogInformation($"[UpdateExistingSeriesAsync] MoveMaterialsAsync実行前。destinationSourceFolder: {selectedMaterialSourceFolder.FolderPath.Value}, materialFolderName: {originalSeries.MaterialFolderName}");
-
-									var moveResult = await this.materialManager.MoveMaterialsAsync(
-										selectedMaterialSourceFolder,
-										originalSeries.MaterialFolderName,
-										addedMaterials);
-
-									this.logger?.LogInformation($"[UpdateExistingSeriesAsync] MoveMaterialsAsync完了。MovedItems: {moveResult.MovedItems.Count}, SkippedItems: {moveResult.SkippedItems.Count}");
-
-									foreach (var movedItem in moveResult.MovedItems)
-									{
-										this.logger?.LogInformation($"[UpdateExistingSeriesAsync] 移動完了: {movedItem.SourcePath} -> {movedItem.DestinationPath}");
-									}
-
-									foreach (var skippedItem in moveResult.SkippedItems)
-									{
-										this.logger?.LogInformation($"[UpdateExistingSeriesAsync] スキップ: {skippedItem.SourcePath} -> {skippedItem.DestinationPath}");
-									}
-								}
-							}
-							else
-							{
-								this.logger?.LogWarning($"[UpdateExistingSeriesAsync] SingleMaterialSource が null です。");
-							}
-						}
-						else
-						{
-							this.logger?.LogWarning($"[UpdateExistingSeriesAsync] 素材移動条件不満足。materialFiles: {materialFiles?.Count}, selectedMaterialSourceFolder: {(selectedMaterialSourceFolder == null ? "null" : "not null")}");
-						}
-
-						// === サムネイル差し替え処理 ===
-						// thumbnailBytes が存在する場合だけ新しいサムネイルで差し替え
-						if (thumbnailBytes != null && thumbnailBytes.Length > 0)
-						{
-							// サムネイルファイルを保存
-							var fileName = $"{originalSeries.ThumbnailFileNameBase}.jpg";
-							await this.thumbnailManager.SaveThumbnailAsync(fileName, thumbnailBytes);
-
-							// DeepCopy へサムネイル情報を反映
-							originalSeries.ThumbnailFileName = fileName;
-							originalSeries.ThumbnailStatus = ThumbnailStatus.Completed;
-
-							// DB へサムネイル情報を反映
-							await this.mangaRepository.UpdateSeriesThumbnailAsync(
-								connection,
-								tx,
-								originalSeries.SeriesId,
-								fileName,
-								ThumbnailStatus.Completed);
-						}
-
-							// === Commit ===
-							tx.Commit();
-
-							// === Commit 成功後、Store 内の正式作品インスタンスを更新 ===
-							var storeInstance = this.mangaSeriesStore.FindById(originalSeries.SeriesId);
-							if (storeInstance is null)
-								throw new InvalidOperationException($"Store から SeriesId {originalSeries.SeriesId} の正式作品が見つかりません。");
-
-							// DeepCopy から Store インスタンスへ編集可能項目をコピー
-							this.CopyEditableFieldsFromToEditableToStore(originalSeries, storeInstance);
-
-							// サムネイル差し替え時の情報反映
-							if (thumbnailBytes != null && thumbnailBytes.Length > 0)
-							{
-								storeInstance.ThumbnailFileName = originalSeries.ThumbnailFileName;
-								storeInstance.ThumbnailStatus = originalSeries.ThumbnailStatus;
-							}
-
-							this.logger?.LogInformation($"[UpdateExistingSeriesAsync] 更新処理完了。SeriesId: {originalSeries.SeriesId}, Title: {originalSeries.Title}");
-							return storeInstance;
-						}
-						catch (Exception ex)
-						{
-							this.logger?.LogError($"[UpdateExistingSeriesAsync] エラー発生。例外: {ex.GetType().Name}, メッセージ: {ex.Message}, スタックトレース: {ex.StackTrace}");
-							tx.Rollback();
-							throw;
-						}
-				}
-
-				/// <summary>
-				/// 既存作品更新時に、素材フォルダ名の変更判定を実施します。
-				/// 編集後の作品情報から生成される期待フォルダ名と、現在登録されている素材フォルダ名を比較し、
-				/// Rename の必要性を判定します。フォルダ存在確認も事前に行い、問題がある場合は適切な状態を返します。
-				/// </summary>
-				/// <param name="editedSeries">編集後の保存用 DeepCopy。期待フォルダ名の生成に使用されます。</param>
-				/// <param name="originalSeries">編集開始時の DeepCopy。現在の素材フォルダ情報を取得するために使用されます。</param>
-				/// <returns>フォルダ名変更判定結果。Ok の場合のみ保存処理を続行してください。</returns>
-				private MaterialFolderRenameCheckResult CheckMaterialFolderRenameStatus(MangaSeries editedSeries, MangaSeries originalSeries)
-				{
-					// 素材フォルダが登録されていない場合は判定不要
-					var originalMaterialSource = originalSeries.Sources.FirstOrDefault(s => s.Role == Settings.FolderRole.Material);
-					if (originalMaterialSource == null)
-					{
-						// 素材フォルダが登録されていない場合は問題なし
-						return MaterialFolderRenameCheckResult.Ok;
-					}
-
-					// 現在フォルダ名を取得
-					var currentFolderPath = originalMaterialSource.Path;
-					var currentFolderName = Path.GetFileName(currentFolderPath);
-
-					// 期待フォルダ名を生成（編集後の作品情報を使用）
-					var expectedFolderName = MaterialFolderNameHelper.Create(editedSeries);
-
-					// 大小文字を区別しない比較
-					if (string.Equals(currentFolderName, expectedFolderName, StringComparison.OrdinalIgnoreCase))
-					{
-						// 名前が一致している
-						return MaterialFolderRenameCheckResult.Ok;
-					}
-
-					// 現在フォルダが物理的に存在するか確認
-					if (!Directory.Exists(currentFolderPath))
-					{
-						return MaterialFolderRenameCheckResult.CurrentFolderNotFound;
-					}
-
-					// Rename先パスを生成
-					var parentDirectoryPath = Path.GetDirectoryName(currentFolderPath);
-					if (string.IsNullOrEmpty(parentDirectoryPath))
-					{
-						// 親ディレクトリが取得できない場合は Rename 不可
-						throw new InvalidOperationException($"素材フォルダの親ディレクトリを取得できません。Path: {currentFolderPath}");
-					}
-
-					var renameTargetPath = Path.Combine(parentDirectoryPath, expectedFolderName);
-
-					// Rename先フォルダが既に存在するか確認
-					if (Directory.Exists(renameTargetPath))
-					{
-						return MaterialFolderRenameCheckResult.RenameTargetAlreadyExists;
-					}
-
-					// Rename が必要
-					return MaterialFolderRenameCheckResult.RenameNeeded;
-				}
-
-				/// <summary>
-				/// UI 入力後の editingSeries から DeepCopy へ、編集可能項目をコピーします。
-				/// OwnedMaxVolume の手修正判定の後、UI 値を DeepCopy へ反映する際に使用されます。
-				/// </summary>
-				private void CopyEditableFieldsFromToEditingToDeepCopy(MangaSeries source, MangaSeries destination)
-				{
-					destination.Title = source.Title;
-					destination.Author = source.Author;
-					destination.Publisher = source.Publisher;
-					destination.Description = source.Description;
-					destination.Memo = source.Memo;
-					destination.NormalizedTitleInternal = source.NormalizedTitleInternal;
-					destination.ShortTitle = source.ShortTitle;
-					destination.StartVolume = source.StartVolume;
-					destination.EndVolume = source.EndVolume;
-					destination.SeriesCompleted = source.SeriesCompleted;
-					destination.IsOwnedCompleted = source.IsOwnedCompleted;
-					destination.OwnedMaxVolume = source.OwnedMaxVolume;
-					destination.DescriptionSource = source.DescriptionSource;
-					destination.DescriptionSourceTitle = source.DescriptionSourceTitle;
-					destination.GoogleBooksImportStatus = source.GoogleBooksImportStatus;
-					destination.GoogleBooksImportedAt = source.GoogleBooksImportedAt;
-					destination.GoogleBooksImportMessage = source.GoogleBooksImportMessage;
-
-					// タグもコピー
-					destination.Tags.Clear();
-					foreach (var tag in source.Tags)
-					{
-						destination.Tags.Add(tag);
-					}
-				}
-
-				/// <summary>
-				/// DB 更新成功後、DeepCopy（編集対象）から Store 内インスタンスへ編集可能項目をコピーします。
-				/// Store への反映は Commit 成功後のみ実施されます。
-				/// </summary>
-				private void CopyEditableFieldsFromToEditableToStore(MangaSeries source, MangaSeries destination)
-				{
-					destination.Title = source.Title;
-					destination.Author = source.Author;
-					destination.Publisher = source.Publisher;
-					destination.Description = source.Description;
-					destination.Memo = source.Memo;
-					destination.NormalizedTitleInternal = source.NormalizedTitleInternal;
-					destination.ShortTitle = source.ShortTitle;
-					destination.StartVolume = source.StartVolume;
-					destination.EndVolume = source.EndVolume;
-					destination.SeriesCompleted = source.SeriesCompleted;
-					destination.IsOwnedCompleted = source.IsOwnedCompleted;
-					destination.OwnedMaxVolume = source.OwnedMaxVolume;
-					destination.IsOwnedMaxVolumeManuallyEdited = source.IsOwnedMaxVolumeManuallyEdited;
-					destination.DescriptionSource = source.DescriptionSource;
-					destination.DescriptionSourceTitle = source.DescriptionSourceTitle;
-
-					// タグもコピー
-					destination.Tags.Clear();
-					foreach (var tag in source.Tags)
-					{
-						destination.Tags.Add(tag);
-					}
-				}
-			}
+		return await this.SaveSeriesAsync(editingSeries, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
+	}
+}
 

@@ -207,7 +207,21 @@ namespace MangaBinder
 		/// <summary>手入力（ユーザーが作品編集画面で入力）。</summary>
 		Manual = 2,
 	}
+
+	/// <summary>
+	/// 作品の保存種別を表す列挙型です。
+	/// DI（Keyed DependencyInjection）で ISeriesSaveManager の実装を選択する際に使用されます。
+	/// </summary>
+	public enum SeriesSaveType
+	{
+		/// <summary>新規作品の保存。</summary>
+		New,
+
+		/// <summary>既存作品の更新。</summary>
+		Existing,
+	}
 }
+
 
 namespace MangaBinder
 {
