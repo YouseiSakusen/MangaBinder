@@ -1,6 +1,4 @@
 using System.Data.SQLite;
-using System.Text;
-using Dapper;
 using MangaBinder.Bindings;
 using MangaBinder.Core.Series;
 using MangaBinder.Settings;
@@ -16,6 +14,9 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 {
 	/// <summary>MangaSeries の取得を担う Repository。</summary>
 	private readonly MangaRepository mangaRepository;
+
+	/// <summary>WorkMangaSeries の操作を担う Repository。</summary>
+	private readonly WorkMangaSeriesRepository workMangaSeriesRepository;
 
 	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
 	private readonly MangaSeriesStore mangaSeriesStore;
@@ -33,18 +34,21 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 	/// <see cref="NewSeriesSaveManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="mangaRepository">MangaSeries の取得を担う Repository。</param>
+	/// <param name="workMangaSeriesRepository">WorkMangaSeries の操作を担う Repository。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="thumbnailManager">サムネイル操作を管理する Manager。</param>
 	/// <param name="materialManager">素材操作を管理する Manager。</param>
 	public NewSeriesSaveManager(
 		MangaRepository mangaRepository,
+		WorkMangaSeriesRepository workMangaSeriesRepository,
 		MangaSeriesStore mangaSeriesStore,
 		AppSettings appSettings,
 		ThumbnailManager thumbnailManager,
 		MaterialManager materialManager)
 	{
 		this.mangaRepository = mangaRepository;
+		this.workMangaSeriesRepository = workMangaSeriesRepository;
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.appSettings = appSettings;
 		this.thumbnailManager = thumbnailManager;
@@ -83,6 +87,9 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		var isWorkSeries = editingSeries.IsWork;
 		var workId = editingSeries.WorkId;
 
+		// サニタイズ済みフォルダ名を取得（素材移動時に使用）
+		var materialFolderName = MaterialFolderNameHelper.Create(editingSeries);
+
 		// DB 接続
 		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
 		await connection.OpenAsync();
@@ -91,69 +98,10 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		try
 		{
 			// MangaSeries INSERT
-			var insertSql = new StringBuilder();
-			insertSql.AppendLine(" INSERT INTO MangaSeries ( ");
-			insertSql.AppendLine(" 	  NormalizedTitleInternal ");
-			insertSql.AppendLine(" 	, Title ");
-			insertSql.AppendLine(" 	, ShortTitle ");
-			insertSql.AppendLine(" 	, Author ");
-			insertSql.AppendLine(" 	, Description ");
-			insertSql.AppendLine(" 	, SeriesCompleted ");
-			insertSql.AppendLine(" 	, IsOwnedCompleted ");
-			insertSql.AppendLine(" 	, StartVolume ");
-			insertSql.AppendLine(" 	, EndVolume ");
-			insertSql.AppendLine(" 	, OwnedMaxVolume ");
-			insertSql.AppendLine(" 	, NormalizedTitleExternal ");
-			insertSql.AppendLine(" 	, ThumbnailFileName ");
-			insertSql.AppendLine(" 	, ThumbnailStatus ");
-			insertSql.AppendLine(" 	, Publisher ");
-			insertSql.AppendLine(" 	, GoogleBooksImportStatus ");
-			insertSql.AppendLine(" 	, DescriptionSource ");
-			insertSql.AppendLine(" 	, Memo ");
-			insertSql.AppendLine(" 	, HasNestedArchive ");
-			insertSql.AppendLine(" ) VALUES ( ");
-			insertSql.AppendLine(" 	  :NormalizedTitleInternal ");
-			insertSql.AppendLine(" 	, :Title ");
-			insertSql.AppendLine(" 	, :ShortTitle ");
-			insertSql.AppendLine(" 	, :Author ");
-			insertSql.AppendLine(" 	, :Description ");
-			insertSql.AppendLine(" 	, :SeriesCompleted ");
-			insertSql.AppendLine(" 	, :IsOwnedCompleted ");
-			insertSql.AppendLine(" 	, :StartVolume ");
-			insertSql.AppendLine(" 	, :EndVolume ");
-			insertSql.AppendLine(" 	, :OwnedMaxVolume ");
-			insertSql.AppendLine(" 	, :NormalizedTitleExternal ");
-			insertSql.AppendLine(" 	, :ThumbnailFileName ");
-			insertSql.AppendLine(" 	, :ThumbnailStatus ");
-			insertSql.AppendLine(" 	, :Publisher ");
-			insertSql.AppendLine(" 	, :GoogleBooksImportStatus ");
-			insertSql.AppendLine(" 	, :DescriptionSource ");
-			insertSql.AppendLine(" 	, :Memo ");
-			insertSql.AppendLine(" 	, :HasNestedArchive ");
-			insertSql.AppendLine(" ) ");
-			insertSql.AppendLine(" RETURNING SeriesId; ");
-
-			var seriesId = await connection.QuerySingleAsync<long>(insertSql.ToString(), new
-			{
-				NormalizedTitleInternal = MangaTitleHelper.NormalizeTitleInternal(editingSeries.Title),
-				editingSeries.Title,
-				editingSeries.ShortTitle,
-				editingSeries.Author,
-				editingSeries.Description,
-				editingSeries.SeriesCompleted,
-				editingSeries.IsOwnedCompleted,
-				editingSeries.StartVolume,
-				editingSeries.EndVolume,
-				editingSeries.OwnedMaxVolume,
-				editingSeries.NormalizedTitleExternal,
-				ThumbnailFileName = string.Empty,
-				ThumbnailStatus = (int)ThumbnailStatus.None,
-				editingSeries.Publisher,
-				GoogleBooksImportStatus = (int)GoogleBooksImportStatus.NotImported,
-				DescriptionSource = (int)DescriptionSource.None,
-				editingSeries.Memo,
-				editingSeries.HasNestedArchive,
-			}, tx);
+			var seriesId = await this.mangaRepository.InsertSeriesInTransactionAsync(
+				connection,
+				tx,
+				editingSeries);
 
 			// SeriesId を editingSeries に反映
 			editingSeries.SeriesId = seriesId;
@@ -167,7 +115,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 			// 素材移動
 			var moveResult = await this.materialManager.MoveMaterialsAsync(
 				selectedMaterialSourceFolder,
-				editingSeries.MaterialFolderName,
+				materialFolderName,
 				materialFiles);
 
 			// MangaSources へ作品フォルダ情報を登録
@@ -182,20 +130,16 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 			if (isWorkSeries)
 			{
 				// WorkMangaSeriesTags を削除
-				var deleteWorkTagsSql = new StringBuilder();
-				deleteWorkTagsSql.AppendLine(" DELETE FROM WorkMangaSeriesTags ");
-				deleteWorkTagsSql.AppendLine(" WHERE ");
-				deleteWorkTagsSql.AppendLine(" 	WorkId = :WorkId; ");
-
-				await connection.ExecuteAsync(deleteWorkTagsSql.ToString(), new { WorkId = workId }, tx);
+				await this.workMangaSeriesRepository.DeleteWorkSeriesTagsByIdInTransactionAsync(
+					connection,
+					tx,
+					workId);
 
 				// WorkMangaSeries を削除
-				var deleteWorkSeriesSql = new StringBuilder();
-				deleteWorkSeriesSql.AppendLine(" DELETE FROM WorkMangaSeries ");
-				deleteWorkSeriesSql.AppendLine(" WHERE ");
-				deleteWorkSeriesSql.AppendLine(" 	WorkId = :WorkId; ");
-
-				await connection.ExecuteAsync(deleteWorkSeriesSql.ToString(), new { WorkId = workId }, tx);
+				await this.workMangaSeriesRepository.DeleteWorkSeriesByIdInTransactionAsync(
+					connection,
+					tx,
+					workId);
 			}
 
 			// Commit
@@ -231,7 +175,6 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 	/// <summary>
 	/// 指定した SeriesId のタグを MangaSeriesTags テーブルへ保存します。
 	/// 既存の接続およびトランザクション内での実行を想定しています。
-	/// TagId &lt;= 0 のタグは保存対象外となります（未保存タグの防御）。
 	/// </summary>
 	private async ValueTask SaveSeriesTagsInTransactionAsync(
 		SQLiteConnection connection,
@@ -239,24 +182,11 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		long seriesId,
 		IEnumerable<MangaTag> tags)
 	{
-		var insertSql = new StringBuilder();
-		insertSql.AppendLine(" INSERT INTO MangaSeriesTags ( ");
-		insertSql.AppendLine(" 	  SeriesId ");
-		insertSql.AppendLine(" 	, TagId ");
-		insertSql.AppendLine(" ) VALUES ( ");
-		insertSql.AppendLine(" 	  :SeriesId ");
-		insertSql.AppendLine(" 	, :TagId ");
-		insertSql.AppendLine(" ); ");
-
-		// TagId > 0 のタグのみ保存（未保存タグ TagId=0 は除外）
-		var validTags = tags.Where(t => t.TagId > 0).ToList();
-		foreach (var tag in validTags)
-		{
-			await connection.ExecuteAsync(
-				insertSql.ToString(),
-				new { SeriesId = seriesId, TagId = tag.TagId },
-				transaction);
-		}
+		await this.mangaRepository.InsertSeriesTagsInTransactionAsync(
+			connection,
+			transaction,
+			seriesId,
+			tags);
 	}
 
 	/// <summary>
@@ -281,20 +211,12 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 			editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
 
 			// DB に反映
-			var updateSql = new StringBuilder();
-			updateSql.AppendLine(" UPDATE MangaSeries ");
-			updateSql.AppendLine(" SET ");
-			updateSql.AppendLine(" 	  ThumbnailFileName = :ThumbnailFileName ");
-			updateSql.AppendLine(" 	, ThumbnailStatus = :ThumbnailStatus ");
-			updateSql.AppendLine(" WHERE ");
-			updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
-
-			await connection.ExecuteAsync(updateSql.ToString(), new
-			{
-				ThumbnailFileName = fileName,
-				ThumbnailStatus = (int)ThumbnailStatus.Completed,
-				SeriesId = editingSeries.SeriesId,
-			}, tx);
+			await this.mangaRepository.UpdateSeriesThumbnailAsync(
+				connection,
+				tx,
+				editingSeries.SeriesId,
+				fileName,
+				ThumbnailStatus.Completed);
 		}
 		else if (isWorkSeries)
 		{
@@ -310,20 +232,12 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 				editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
 
 				// DB に反映
-				var updateSql = new StringBuilder();
-				updateSql.AppendLine(" UPDATE MangaSeries ");
-				updateSql.AppendLine(" SET ");
-				updateSql.AppendLine(" 	  ThumbnailFileName = :ThumbnailFileName ");
-				updateSql.AppendLine(" 	, ThumbnailStatus = :ThumbnailStatus ");
-				updateSql.AppendLine(" WHERE ");
-				updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
-
-				await connection.ExecuteAsync(updateSql.ToString(), new
-				{
-					ThumbnailFileName = editingSeries.ThumbnailFileName,
-					ThumbnailStatus = (int)ThumbnailStatus.Completed,
-					SeriesId = editingSeries.SeriesId,
-				}, tx);
+				await this.mangaRepository.UpdateSeriesThumbnailAsync(
+					connection,
+					tx,
+					editingSeries.SeriesId,
+					editingSeries.ThumbnailFileName,
+					ThumbnailStatus.Completed);
 			}
 
 			// WorkThumbnail を削除

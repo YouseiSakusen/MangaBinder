@@ -1,3 +1,5 @@
+using HalationGhost.Utilities;
+
 namespace MangaBinder.Series;
 
 /// <summary>
@@ -14,27 +16,15 @@ public static class MaterialFolderNameHelper
 	/// - 連載中：タイトル
 	/// - 完結済み且つ全巻所持：タイトル 全{EndVolume}巻
 	/// - 完結済み且つ巻抜けあり：タイトル （全{EndVolume}巻）
+	/// 
+	/// 生成されたフォルダ名はサニタイズされ、Windows ファイルシステムの禁則文字が全角文字に変換されます。
 	/// </remarks>
 	/// <param name="series">フォルダ名を生成する作品。</param>
-	/// <returns>フォルダ名生成ルールに従って生成されたフォルダ名。</returns>
+	/// <returns>フォルダ名生成ルールに従って生成され、サニタイズされたフォルダ名。</returns>
 	public static string Create(MangaSeries series)
 	{
-		if (series == null)
-			throw new ArgumentNullException(nameof(series));
+		ArgumentNullException.ThrowIfNull(series);
 
-		// 連載中
-		if (!series.SeriesCompleted)
-		{
-			return series.Title;
-		}
-
-		// 完結済み + 全巻所持
-		if (series.IsOwnedCompleted)
-		{
-			return $"{series.Title} 全{series.EndVolume}巻";
-		}
-
-		// 完結済み + 巻抜けあり
-		return $"{series.Title} （全{series.EndVolume}巻）";
+		return FileSystemCharSanitizer.Sanitize(series.MaterialFolderName);
 	}
 }

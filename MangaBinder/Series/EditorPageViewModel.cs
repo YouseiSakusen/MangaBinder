@@ -1164,11 +1164,19 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		}
 
 		// === 【共通処理】GoogleBooks 関連 ===
-		// UI から一時保存した時点では GoogleBooksImporter はまだ実行されていない
-		// GoogleBooksImporter の取得条件・更新条件を満たす状態を保存
-		targetSeries.GoogleBooksImportStatus = GoogleBooksImportStatus.NotImported;
-		targetSeries.GoogleBooksImportedAt = string.Empty;
-		targetSeries.GoogleBooksImportMessage = string.Empty;
+		// GoogleBooks API 取得対象判定：作者・出版社・あらすじのいずれかが未入力の場合のみ NotImported 状態に設定
+		// 3項目すべて入力済みの場合は、現在の状態（Success, NotFound, Failed など）を維持
+		var hasMissingGoogleBooksField =
+			string.IsNullOrWhiteSpace(targetSeries.Author) ||
+			string.IsNullOrWhiteSpace(targetSeries.Publisher) ||
+			string.IsNullOrWhiteSpace(targetSeries.Description);
+
+		if (hasMissingGoogleBooksField)
+		{
+			targetSeries.GoogleBooksImportStatus = GoogleBooksImportStatus.NotImported;
+			targetSeries.GoogleBooksImportedAt = string.Empty;
+			targetSeries.GoogleBooksImportMessage = string.Empty;
+		}
 
 		// === 既存作品の場合はここで終了 ===
 		if (targetSeries.SeriesId != 0 && !targetSeries.IsWork)
@@ -1608,9 +1616,9 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				this.snackbarService.Show(
 					"エラー",
 					$"保存に失敗しました: {ex.Message}",
-					ControlAppearance.Caution,
+					ControlAppearance.Danger,
 					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.FromSeconds(3));
+					TimeSpan.MaxValue);
 			}
 		}
 	}

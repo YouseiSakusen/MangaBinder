@@ -4,7 +4,7 @@ using MangaBinder.Tags;
 using System.Data.SQLite;
 using System.Text;
 
-namespace MangaBinder;
+namespace MangaBinder.Series;
 
 /// <summary>
 /// <see cref="MangaSeries"/> (WorkMangaSeries テーブル) の取得・保存を担う Repository クラスです。
@@ -322,15 +322,63 @@ public class WorkMangaSeriesRepository
 						insertSql.ToString(),
 						new { WorkId = series.WorkId, TagId = tag.TagId },
 						transaction);
-				}
-			}
+							}
+						}
 
-			transaction.Commit();
-		}
-		catch
-		{
-			transaction.Rollback();
-			throw;
-		}
-	}
-}
+						transaction.Commit();
+					}
+					catch
+					{
+						transaction.Rollback();
+						throw;
+					}
+				}
+
+				/// <summary>
+				/// 指定された WorkId のレコードを WorkMangaSeries テーブルから削除します。
+				/// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
+				/// </summary>
+				/// <param name="connection">DB接続。</param>
+				/// <param name="transaction">トランザクション。</param>
+				/// <param name="workId">削除対象の WorkId。</param>
+				/// <returns>完了時にコンプリートする ValueTask。</returns>
+				public async ValueTask DeleteWorkSeriesByIdInTransactionAsync(
+					SQLiteConnection connection,
+					SQLiteTransaction transaction,
+					int workId)
+				{
+					var deleteSql = new StringBuilder();
+					deleteSql.AppendLine(" DELETE FROM WorkMangaSeries ");
+					deleteSql.AppendLine(" WHERE ");
+					deleteSql.AppendLine(" 	WorkId = :WorkId; ");
+
+					await connection.ExecuteAsync(
+						deleteSql.ToString(),
+						new { WorkId = workId },
+						transaction);
+				}
+
+				/// <summary>
+				/// 指定された WorkId のレコードを WorkMangaSeriesTags テーブルから削除します。
+				/// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
+				/// </summary>
+				/// <param name="connection">DB接続。</param>
+				/// <param name="transaction">トランザクション。</param>
+				/// <param name="workId">削除対象の WorkId。</param>
+				/// <returns>完了時にコンプリートする ValueTask。</returns>
+				public async ValueTask DeleteWorkSeriesTagsByIdInTransactionAsync(
+					SQLiteConnection connection,
+					SQLiteTransaction transaction,
+					int workId)
+				{
+					var deleteSql = new StringBuilder();
+					deleteSql.AppendLine(" DELETE FROM WorkMangaSeriesTags ");
+					deleteSql.AppendLine(" WHERE ");
+					deleteSql.AppendLine(" 	WorkId = :WorkId; ");
+
+					await connection.ExecuteAsync(
+						deleteSql.ToString(),
+						new { WorkId = workId },
+						transaction);
+				}
+				}

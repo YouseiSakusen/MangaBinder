@@ -1,5 +1,6 @@
 using System.Data.SQLite;
 using MangaBinder.Bindings;
+using MangaBinder.Core.Series;
 using MangaBinder.Settings;
 using Microsoft.Extensions.Logging;
 
@@ -104,6 +105,9 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 			// === 追加素材の移動処理 ===
 			// CanRemove=true の追加素材を既存の作品素材フォルダへ移動
+			// サニタイズ済みフォルダ名を取得（素材移動時に使用）
+			var materialFolderName = MaterialFolderNameHelper.Create(originalSeries);
+
 			this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 素材移動処理開始。materialFiles count: {materialFiles?.Count}, selectedMaterialSourceFolder: {selectedMaterialSourceFolder?.FolderPath.Value}");
 
 			if (materialFiles != null && materialFiles.Count > 0 && selectedMaterialSourceFolder != null)
@@ -124,11 +128,11 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 					{
 						// 既存の MoveMaterialsAsync を使用して素材を移動
 						// selectedMaterialSourceFolder は既存のMangaSource.Pathに対応する素材ルート
-						this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MoveMaterialsAsync実行前。destinationSourceFolder: {selectedMaterialSourceFolder.FolderPath.Value}, materialFolderName: {originalSeries.MaterialFolderName}");
+						this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MoveMaterialsAsync実行前。destinationSourceFolder: {selectedMaterialSourceFolder.FolderPath.Value}, materialFolderName: {materialFolderName}");
 
 						var moveResult = await this.materialManager.MoveMaterialsAsync(
 							selectedMaterialSourceFolder,
-							originalSeries.MaterialFolderName,
+							materialFolderName,
 							addedMaterials);
 
 						this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MoveMaterialsAsync完了。MovedItems: {moveResult.MovedItems.Count}, SkippedItems: {moveResult.SkippedItems.Count}");

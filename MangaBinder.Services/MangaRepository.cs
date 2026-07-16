@@ -528,4 +528,120 @@ public class MangaRepository
             },
             transaction);
     }
+
+    /// <summary>
+    /// 新規 MangaSeries をインサートし、採番された SeriesId を返します。
+    /// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
+    /// </summary>
+    /// <param name="connection">DB接続。</param>
+    /// <param name="transaction">トランザクション。</param>
+    /// <param name="series">挿入する MangaSeries。SeriesId は上書きされます。</param>
+    /// <returns>採番された SeriesId。</returns>
+    public async ValueTask<long> InsertSeriesInTransactionAsync(
+        SQLiteConnection connection,
+        SQLiteTransaction transaction,
+        MangaSeries series)
+    {
+        var insertSql = new StringBuilder();
+        insertSql.AppendLine(" INSERT INTO MangaSeries ( ");
+        insertSql.AppendLine(" 	  NormalizedTitleInternal ");
+        insertSql.AppendLine(" 	, Title ");
+        insertSql.AppendLine(" 	, ShortTitle ");
+        insertSql.AppendLine(" 	, Author ");
+        insertSql.AppendLine(" 	, Description ");
+        insertSql.AppendLine(" 	, SeriesCompleted ");
+        insertSql.AppendLine(" 	, IsOwnedCompleted ");
+        insertSql.AppendLine(" 	, StartVolume ");
+        insertSql.AppendLine(" 	, EndVolume ");
+        insertSql.AppendLine(" 	, OwnedMaxVolume ");
+        insertSql.AppendLine(" 	, NormalizedTitleExternal ");
+        insertSql.AppendLine(" 	, ThumbnailFileName ");
+        insertSql.AppendLine(" 	, ThumbnailStatus ");
+        insertSql.AppendLine(" 	, Publisher ");
+        insertSql.AppendLine(" 	, GoogleBooksImportStatus ");
+        insertSql.AppendLine(" 	, DescriptionSource ");
+        insertSql.AppendLine(" 	, Memo ");
+        insertSql.AppendLine(" 	, HasNestedArchive ");
+        insertSql.AppendLine(" ) VALUES ( ");
+        insertSql.AppendLine(" 	  :NormalizedTitleInternal ");
+        insertSql.AppendLine(" 	, :Title ");
+        insertSql.AppendLine(" 	, :ShortTitle ");
+        insertSql.AppendLine(" 	, :Author ");
+        insertSql.AppendLine(" 	, :Description ");
+        insertSql.AppendLine(" 	, :SeriesCompleted ");
+        insertSql.AppendLine(" 	, :IsOwnedCompleted ");
+        insertSql.AppendLine(" 	, :StartVolume ");
+        insertSql.AppendLine(" 	, :EndVolume ");
+        insertSql.AppendLine(" 	, :OwnedMaxVolume ");
+        insertSql.AppendLine(" 	, :NormalizedTitleExternal ");
+        insertSql.AppendLine(" 	, :ThumbnailFileName ");
+        insertSql.AppendLine(" 	, :ThumbnailStatus ");
+        insertSql.AppendLine(" 	, :Publisher ");
+        insertSql.AppendLine(" 	, :GoogleBooksImportStatus ");
+        insertSql.AppendLine(" 	, :DescriptionSource ");
+        insertSql.AppendLine(" 	, :Memo ");
+        insertSql.AppendLine(" 	, :HasNestedArchive ");
+        insertSql.AppendLine(" ) ");
+        insertSql.AppendLine(" RETURNING SeriesId; ");
+
+        var seriesId = await connection.QuerySingleAsync<long>(insertSql.ToString(), new
+        {
+            NormalizedTitleInternal = MangaTitleHelper.NormalizeTitleInternal(series.Title),
+            series.Title,
+            series.ShortTitle,
+            series.Author,
+            series.Description,
+            series.SeriesCompleted,
+            series.IsOwnedCompleted,
+            series.StartVolume,
+            series.EndVolume,
+            series.OwnedMaxVolume,
+            series.NormalizedTitleExternal,
+            ThumbnailFileName = string.Empty,
+            ThumbnailStatus = (int)ThumbnailStatus.None,
+            series.Publisher,
+            GoogleBooksImportStatus = (int)GoogleBooksImportStatus.NotImported,
+            DescriptionSource = (int)DescriptionSource.None,
+            series.Memo,
+            series.HasNestedArchive,
+        }, transaction);
+
+        return seriesId;
+    }
+
+    /// <summary>
+    /// MangaSeriesTags テーブルへタグをインサートします。
+    /// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
+    /// TagId &lt;= 0 のタグは保存対象外となります（未保存タグの防御）。
+    /// </summary>
+    /// <param name="connection">DB接続。</param>
+    /// <param name="transaction">トランザクション。</param>
+    /// <param name="seriesId">親の MangaSeries の SeriesId。</param>
+    /// <param name="tags">保存するタグの一覧。</param>
+    /// <returns>完了時にコンプリートする ValueTask。</returns>
+    public async ValueTask InsertSeriesTagsInTransactionAsync(
+        SQLiteConnection connection,
+        SQLiteTransaction transaction,
+        long seriesId,
+        IEnumerable<MangaTag> tags)
+    {
+        var insertSql = new StringBuilder();
+        insertSql.AppendLine(" INSERT INTO MangaSeriesTags ( ");
+        insertSql.AppendLine(" 	  SeriesId ");
+        insertSql.AppendLine(" 	, TagId ");
+        insertSql.AppendLine(" ) VALUES ( ");
+        insertSql.AppendLine(" 	  :SeriesId ");
+        insertSql.AppendLine(" 	, :TagId ");
+        insertSql.AppendLine(" ); ");
+
+        // TagId > 0 のタグのみ保存（未保存タグ TagId=0 は除外）
+        var validTags = tags.Where(t => t.TagId > 0).ToList();
+        foreach (var tag in validTags)
+        {
+            await connection.ExecuteAsync(
+                insertSql.ToString(),
+                new { SeriesId = seriesId, TagId = tag.TagId },
+                transaction);
+        }
+    }
 }

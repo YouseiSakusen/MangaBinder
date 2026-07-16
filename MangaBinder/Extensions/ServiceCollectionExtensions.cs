@@ -67,6 +67,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<MangaSeriesManager>();
 		services.AddKeyedScoped<ISeriesSaveManager, NewSeriesSaveManager>(SeriesSaveType.New);
 		services.AddKeyedScoped<ISeriesSaveManager, ExistingSeriesSaveManager>(SeriesSaveType.Existing);
+		services.AddKeyedScoped<ISeriesSaveManager, WorkSeriesSaveManager>(SeriesSaveType.Work);
 		services.AddNavigationPageWithSingletonViewModel<StartPage, StartPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<VolumeSelectionPage, VolumeSelectionPageViewModel>();
 		services.AddNavigationPageWithSingletonViewModel<SeriesInspectionPage, SeriesInspectionPageViewModel>();

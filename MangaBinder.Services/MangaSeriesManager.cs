@@ -36,9 +36,6 @@ public class MangaSeriesManager
 	/// <summary>アプリケーション設定。</summary>
 	private readonly AppSettings appSettings;
 
-	/// <summary>サムネイル操作を管理する Manager。</summary>
-	private readonly ThumbnailManager thumbnailManager;
-
 	/// <summary>ログ出力用の Logger。</summary>
 	private readonly ILogger<MangaSeriesManager>? logger;
 
@@ -61,7 +58,6 @@ public class MangaSeriesManager
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="tagRepository">タグを取得する Repository。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
-	/// <param name="thumbnailManager">サムネイル操作を管理する Manager。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
 	/// <param name="logger">ログ出力用の Logger。オプション。</param>
 	public MangaSeriesManager(
@@ -72,7 +68,6 @@ public class MangaSeriesManager
 		MangaSeriesStore mangaSeriesStore,
 		TagRepository tagRepository,
 		AppSettings appSettings,
-		ThumbnailManager thumbnailManager,
 		IServiceScopeFactory serviceScopeFactory,
 		ILogger<MangaSeriesManager>? logger = null)
 	{
@@ -83,7 +78,6 @@ public class MangaSeriesManager
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.tagRepository = tagRepository;
 		this.appSettings = appSettings;
-		this.thumbnailManager = thumbnailManager;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.logger = logger;
 	}
@@ -471,71 +465,21 @@ public class MangaSeriesManager
 	/// <param name="series">保存対象の作品。</param>
 	/// <param name="thumbnailBytes">保存するサムネイル JPEG byte[]。null または空の場合はファイル保存をスキップします。</param>
 	/// <returns>一時保存後の WorkId。</returns>
+	/// <summary>
+	/// 一時保存（作業作品）として編集中の作品を保存します。
+	/// このメソッドは互換性維持のための委譲メソッドです。WorkSeriesSaveManager を呼び出します。
+	/// </summary>
+	/// <param name="series">保存対象の編集中作品。</param>
+	/// <param name="thumbnailBytes">新しいサムネイル画像（バイナリ）。null の場合はスキップします。</param>
+	/// <returns>保存後の作品の WorkId。</returns>
 	public async ValueTask<int> SaveWorkSeriesAsync(MangaSeries series, byte[]? thumbnailBytes = null)
 	{
 		ArgumentNullException.ThrowIfNull(series);
 
-		if (series.WorkId == 0)
-		{
-			// 新規 INSERT：採番された WorkId を返す
-			var workId = await this.workMangaSeriesRepository.InsertAsync(series);
-			// series.WorkId は InsertAsync 内で既に設定されているが、念のため保証
-			if (series.WorkId == 0)
-				series.WorkId = workId;
-
-			// タグを保存
-			await this.workMangaSeriesRepository.SaveWorkTagsAsync(new[] { series });
-
-			// サムネイル JPEG を保存（存在する場合のみ）
-			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
-			{
-				// ファイル名を決定（WorkThumbnailFileNameBase を使用）
-				var fileName = $"{series.WorkThumbnailFileNameBase}.jpg";
-
-				// ThumbnailManager で保存
-				await this.thumbnailManager.SaveWorkThumbnailAsync(fileName, thumbnailBytes);
-
-				// series の ThumbnailFileName と ThumbnailStatus を更新
-				series.ThumbnailFileName = fileName;
-				series.ThumbnailStatus = ThumbnailStatus.Completed;
-
-				// ファイル保存後、DB に反映
-				await this.workMangaSeriesRepository.UpdateAsync(series);
-			}
-
-			// Store へ即座に反映
-			this.mangaSeriesStore.UpdateWorkSeries(series);
-
-			return workId;
-		}
-		else
-		{
-			// UPDATE（既存の登録待ち作品の更新）
-			// タグを保存
-			await this.workMangaSeriesRepository.SaveWorkTagsAsync(new[] { series });
-
-			// サムネイル JPEG を保存（存在する場合のみ）
-			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
-			{
-				// ファイル名を決定（WorkThumbnailFileNameBase を使用）
-				var fileName = $"{series.WorkThumbnailFileNameBase}.jpg";
-
-				// ThumbnailManager で保存
-				await this.thumbnailManager.SaveWorkThumbnailAsync(fileName, thumbnailBytes);
-
-				// series の ThumbnailFileName と ThumbnailStatus を更新
-				series.ThumbnailFileName = fileName;
-				series.ThumbnailStatus = ThumbnailStatus.Completed;
-			}
-
-			// DB へ反映
-			await this.workMangaSeriesRepository.UpdateAsync(series);
-
-			// Store へ即座に反映
-			this.mangaSeriesStore.UpdateWorkSeries(series);
-
-			return series.WorkId;
-		}
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var saveManager = scope.ServiceProvider.GetRequiredKeyedService<ISeriesSaveManager>(SeriesSaveType.Work);
+		var savedSeries = await saveManager.SaveAsync(series, null, [], null, thumbnailBytes);
+		return savedSeries.WorkId;
 	}
 
 	/// <summary>

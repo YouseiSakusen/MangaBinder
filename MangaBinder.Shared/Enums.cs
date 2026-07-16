@@ -219,6 +219,9 @@ namespace MangaBinder
 
 		/// <summary>既存作品の更新。</summary>
 		Existing,
+
+		/// <summary>一時保存（作業作品）。</summary>
+		Work,
 	}
 }
 
