@@ -1,7 +1,9 @@
+using Microsoft.Extensions.Logging;
 using ObservableCollections;
 
 namespace MangaBinder;
 
+using MangaBinder.Series;
 using MangaBinder.Tags;
 
 /// <summary>
@@ -11,10 +13,23 @@ using MangaBinder.Tags;
 /// </summary>
 public sealed class MangaSeriesStore
 {
+	/// <summary>タイトル比較用Comparer。NormalizedTitleInternal のソート・検索に使用します。</summary>
+	private static readonly Comparer<string> titleComparer = Comparer<string>.Default;
+
+	private readonly ILogger<MangaSeriesStore> logger;
 	private readonly ObservableList<MangaSeries> series = new();
 	private readonly ObservableList<MangaSeries> workSeries = new();
 	private readonly ObservableList<MangaSeries> mergedSeries = new();
 	private readonly ObservableList<MangaTag> tags = new();
+
+	/// <summary>
+	/// <see cref="MangaSeriesStore"/> の新しいインスタンスを初期化します。
+	/// </summary>
+	/// <param name="logger">ログを出力するロガー。</param>
+	public MangaSeriesStore(ILogger<MangaSeriesStore> logger)
+	{
+		this.logger = logger;
+	}
 
 	/// <summary>
 	/// 正式作品一覧を取得します。
@@ -62,7 +77,7 @@ public sealed class MangaSeriesStore
 	public void ReplaceAll(IEnumerable<MangaSeries> newSeries)
 	{
 		this.series.Clear();
-		var sorted = newSeries.OrderBy(s => s.NormalizedTitleInternal).ToList();
+		var sorted = newSeries.OrderBy(s => s.NormalizedTitleInternal, titleComparer).ToList();
 		this.series.AddRange(sorted);
 		this.RebuildMergedSeries();
 	}
@@ -74,7 +89,7 @@ public sealed class MangaSeriesStore
 	public void ReplaceWorkSeries(IEnumerable<MangaSeries> newWorkSeries)
 	{
 		this.workSeries.Clear();
-		var sorted = newWorkSeries.OrderBy(s => s.NormalizedTitleInternal).ToList();
+		var sorted = newWorkSeries.OrderBy(s => s.NormalizedTitleInternal, titleComparer).ToList();
 		this.workSeries.AddRange(sorted);
 		this.RebuildMergedSeries();
 	}
@@ -145,14 +160,31 @@ public sealed class MangaSeriesStore
 	/// <param name="item">追加する MangaSeries。</param>
 	public void Add(MangaSeries item)
 	{
+		// [NewSeriesHomeSync] Store.Add開始ログ
+		if (NewSeriesHomeSyncTrace.IsTracking(item.SeriesId))
+		{
+			this.logger.LogInformation(
+				"[NewSeriesHomeSync] Store.Add開始 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} 追加前Store件数={Count}",
+				item.SeriesId, item.Title, item.NormalizedTitleInternal, this.series.Count);
+		}
+
 		if (this.series.Any(x => x.SeriesId == item.SeriesId))
+		{
+			// [NewSeriesHomeSync] Store.Addスキップログ
+			if (NewSeriesHomeSyncTrace.IsTracking(item.SeriesId))
+			{
+				this.logger.LogWarning(
+					"[NewSeriesHomeSync] Store.Addスキップ Reason=SameSeriesId SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} 現在Store件数={Count}",
+					item.SeriesId, item.Title, item.NormalizedTitleInternal, this.series.Count);
+			}
 			return;
+		}
 
 		// NormalizedTitleInternal 昇順を保つため、挿入位置を検索
 		var insertIndex = 0;
 		for (var i = 0; i < this.series.Count; i++)
 		{
-			if (string.Compare(item.NormalizedTitleInternal, this.series[i].NormalizedTitleInternal, StringComparison.Ordinal) < 0)
+			if (titleComparer.Compare(item.NormalizedTitleInternal, this.series[i].NormalizedTitleInternal) < 0)
 			{
 				insertIndex = i;
 				break;
@@ -160,7 +192,29 @@ public sealed class MangaSeriesStore
 			insertIndex = i + 1;
 		}
 
+		// [NewSeriesHomeSync] Store挿入位置決定ログ
+		if (NewSeriesHomeSyncTrace.IsTracking(item.SeriesId))
+		{
+			var previousSeries = insertIndex > 0 ? this.series[insertIndex - 1] : null;
+			var nextSeries = insertIndex < this.series.Count ? this.series[insertIndex] : null;
+
+			this.logger.LogInformation(
+				"[NewSeriesHomeSync] Store挿入位置決定 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} InsertIndex={InsertIndex} 追加前Store件数={Count} PreviousSeriesId={PreviousSeriesId} PreviousTitle={PreviousTitle} PreviousNormalizedTitleInternal={PreviousNormalizedTitleInternal} NextSeriesId={NextSeriesId} NextTitle={NextTitle} NextNormalizedTitleInternal={NextNormalizedTitleInternal}",
+				item.SeriesId, item.Title, item.NormalizedTitleInternal, insertIndex, this.series.Count,
+				previousSeries?.SeriesId ?? 0, previousSeries?.Title ?? "<none>", previousSeries?.NormalizedTitleInternal ?? "<none>",
+				nextSeries?.SeriesId ?? 0, nextSeries?.Title ?? "<none>", nextSeries?.NormalizedTitleInternal ?? "<none>");
+		}
+
 		this.series.Insert(insertIndex, item);
+
+		// [NewSeriesHomeSync] Store.Insert完了ログ
+		if (NewSeriesHomeSyncTrace.IsTracking(item.SeriesId))
+		{
+			this.logger.LogInformation(
+				"[NewSeriesHomeSync] Store.Insert完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} InsertIndex={InsertIndex} 追加後Store件数={Count}",
+				item.SeriesId, item.Title, item.NormalizedTitleInternal, insertIndex, this.series.Count);
+		}
+
 		this.RebuildMergedSeries();
 	}
 

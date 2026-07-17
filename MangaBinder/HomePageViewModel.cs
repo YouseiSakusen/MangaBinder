@@ -3,6 +3,7 @@ using MangaBinder.Bindings;
 using MangaBinder.Series;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ObservableCollections;
 using R3;
 using Wpf.Ui;
@@ -14,6 +15,9 @@ namespace MangaBinder;
 /// </summary>
 public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INavigationLeavingRequestProvider
 {
+    /// <summary>ログを出力するロガー。</summary>
+    private readonly ILogger<HomePageViewModel> logger;
+
     /// <summary>スコープファクトリー。</summary>
     private readonly IServiceScopeFactory serviceScopeFactory;
 
@@ -92,8 +96,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
     /// <param name="mangaSeriesManager">MangaSeries 読み込みマネージャー。</param>
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
-    public HomePageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, BindingQueueDispatcher bindingQueueDispatcher, MangaSeriesManager mangaSeriesManager, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, BindingQueueDispatcher bindingQueueDispatcher, MangaSeriesManager mangaSeriesManager, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
     {
+        this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;
         this.navigationService = navigationService;
         this.workspaceStore = workspaceStore;
@@ -122,9 +127,26 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         this.mangaSeriesStore.All.ObserveAdd()
             .Subscribe(x =>
             {
+                // [NewSeriesHomeSync] Home ObserveAdd受信ログ
+                if (NewSeriesHomeSyncTrace.IsTracking(x.Value.SeriesId))
+                {
+                    this.logger.LogInformation(
+                        "[NewSeriesHomeSync] Home ObserveAdd受信 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} 通知Index={Index} 追加前Card件数={CardCount} Store件数={StoreCount}",
+                        x.Value.SeriesId, x.Value.Title, x.Value.NormalizedTitleInternal, x.Index, cardSeries.Count, this.mangaSeriesStore.All.Count);
+                }
+
                 var cardViewModel = new SeriesCardViewModel(x.Value, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore);
                 this.subscribeIsSelectedForSeries(cardViewModel);
                 cardSeries.Insert(x.Index, cardViewModel);
+
+                // [NewSeriesHomeSync] Home Card追加完了ログ
+                if (NewSeriesHomeSyncTrace.IsTracking(x.Value.SeriesId))
+                {
+                    var cardContainsResult = cardSeries.Any(card => card.Series.SeriesId == x.Value.SeriesId);
+                    this.logger.LogInformation(
+                        "[NewSeriesHomeSync] Home Card追加完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} 通知Index={Index} 追加後Card件数={CardCount} Store件数={StoreCount} Card内存在確認結果={Result}",
+                        x.Value.SeriesId, x.Value.Title, x.Value.NormalizedTitleInternal, x.Index, cardSeries.Count, this.mangaSeriesStore.All.Count, cardContainsResult);
+                }
             })
             .AddTo(ref this.disposableBag);
 

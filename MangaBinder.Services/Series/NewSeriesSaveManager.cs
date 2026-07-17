@@ -1,4 +1,5 @@
 using System.Data.SQLite;
+using Microsoft.Extensions.Logging;
 using MangaBinder.Bindings;
 using MangaBinder.Core.Series;
 using MangaBinder.Settings;
@@ -12,6 +13,9 @@ namespace MangaBinder.Series;
 /// </summary>
 public class NewSeriesSaveManager : ISeriesSaveManager
 {
+	/// <summary>ログを出力するロガー。</summary>
+	private readonly ILogger<NewSeriesSaveManager> logger;
+
 	/// <summary>MangaSeries の取得を担う Repository。</summary>
 	private readonly MangaRepository mangaRepository;
 
@@ -33,6 +37,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 	/// <summary>
 	/// <see cref="NewSeriesSaveManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
+	/// <param name="logger">ログを出力するロガー。</param>
 	/// <param name="mangaRepository">MangaSeries の取得を担う Repository。</param>
 	/// <param name="workMangaSeriesRepository">WorkMangaSeries の操作を担う Repository。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
@@ -40,6 +45,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 	/// <param name="thumbnailManager">サムネイル操作を管理する Manager。</param>
 	/// <param name="materialManager">素材操作を管理する Manager。</param>
 	public NewSeriesSaveManager(
+		ILogger<NewSeriesSaveManager> logger,
 		MangaRepository mangaRepository,
 		WorkMangaSeriesRepository workMangaSeriesRepository,
 		MangaSeriesStore mangaSeriesStore,
@@ -47,6 +53,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		ThumbnailManager thumbnailManager,
 		MaterialManager materialManager)
 	{
+		this.logger = logger;
 		this.mangaRepository = mangaRepository;
 		this.workMangaSeriesRepository = workMangaSeriesRepository;
 		this.mangaSeriesStore = mangaSeriesStore;
@@ -150,26 +157,53 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 			if (isWorkSeries)
 			{
 				this.mangaSeriesStore.RemoveWorkSeries(workId);
-			}
+							}
 
-			// 2. DB から採番済み SeriesId の正式作品を再取得
-			var registeredSeries = await this.mangaRepository.GetSeriesAsync(seriesId);
-			if (registeredSeries is null)
-			{
-				throw new InvalidOperationException($"正式登録後の作品再取得に失敗しました。SeriesId: {seriesId}");
-			}
+							// 2. DB から採番済み SeriesId の正式作品を再取得
+							var registeredSeries = await this.mangaRepository.GetSeriesAsync(seriesId);
+							if (registeredSeries is null)
+							{
+								throw new InvalidOperationException($"正式登録後の作品再取得に失敗しました。SeriesId: {seriesId}");
+							}
 
-			// 3. 再取得した正式作品を Store へ追加
-			this.mangaSeriesStore.Add(registeredSeries);
+							// 追跡開始
+							NewSeriesHomeSyncTrace.Begin(registeredSeries.SeriesId);
 
-			// 4. 再取得した正式作品を返す
-			return registeredSeries;
-		}
-		catch
-		{
-			tx.Rollback();
-			throw;
-		}
+							try
+							{
+								// [NewSeriesHomeSync] 正式作品再取得完了ログ
+								if (NewSeriesHomeSyncTrace.IsTracking(registeredSeries.SeriesId))
+								{
+									this.logger.LogInformation(
+										"[NewSeriesHomeSync] 正式作品再取得完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加前件数={Count}",
+										registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count);
+								}
+
+								// 3. 再取得した正式作品を Store へ追加
+								this.mangaSeriesStore.Add(registeredSeries);
+
+								// [NewSeriesHomeSync] Store.Add呼び出し完了ログ
+								if (NewSeriesHomeSyncTrace.IsTracking(registeredSeries.SeriesId))
+								{
+									var storeContainsResult = this.mangaSeriesStore.FindById(registeredSeries.SeriesId) is not null;
+									this.logger.LogInformation(
+										"[NewSeriesHomeSync] Store.Add呼び出し完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加後件数={Count} Store内存在確認結果={Result}",
+										registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count, storeContainsResult);
+								}
+
+								// 4. 再取得した正式作品を返す
+								return registeredSeries;
+							}
+							finally
+							{
+								NewSeriesHomeSyncTrace.End(registeredSeries.SeriesId);
+							}
+						}
+				catch
+						{
+							tx.Rollback();
+							throw;
+						}
 	}
 
 	/// <summary>
