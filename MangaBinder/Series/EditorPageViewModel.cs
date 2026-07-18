@@ -14,6 +14,7 @@ using System.Windows.Media.Imaging;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Microsoft.Win32;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MangaBinder.Series;
 
@@ -32,6 +33,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	private readonly AppSettings appSettings;
 	private readonly MaterialManager materialManager;
 	private readonly OwnedVolumeEstimator ownedVolumeEstimator;
+	private readonly IServiceScopeFactory serviceScopeFactory;
+	private readonly EditorStore editorStore;
 	private SeriesTagSelectorViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
 
@@ -211,6 +214,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="materialManager">素材パス解析マネージャー。</param>
 	/// <param name="ownedVolumeEstimator">所持推定計算機。</param>
+	/// <param name="serviceScopeFactory">サービススコープファクトリ。保存セッション生成用。</param>
+	/// <param name="editorStore">編集状態ストア。</param>
 	public EditorPageViewModel(
 		MangaSeriesManager seriesManager,
 		SeriesWorkspaceStore workspaceStore,
@@ -221,7 +226,9 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		ISnackbarService snackbarService,
 		AppSettings appSettings,
 		MaterialManager materialManager,
-		OwnedVolumeEstimator ownedVolumeEstimator)
+		OwnedVolumeEstimator ownedVolumeEstimator,
+		IServiceScopeFactory serviceScopeFactory,
+		EditorStore editorStore)
 	{
 		this.seriesManager = seriesManager ?? throw new ArgumentNullException(nameof(seriesManager));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
@@ -233,6 +240,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
 		this.materialManager = materialManager ?? throw new ArgumentNullException(nameof(materialManager));
 		this.ownedVolumeEstimator = ownedVolumeEstimator ?? throw new ArgumentNullException(nameof(ownedVolumeEstimator));
+		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
+		this.editorStore = editorStore ?? throw new ArgumentNullException(nameof(editorStore));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
@@ -486,10 +495,10 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		ArgumentNullException.ThrowIfNull(series);
 
 		// 編集セッション開始を SeriesManager に依頼
-		this.seriesManager.BeginEdit(series);
+		this.seriesManager.BeginEdit(series, this.editorStore);
 
-		// SeriesManager から編集対象を取得
-		var editingSeries = this.seriesManager.GetEditingSeries();
+		// EditorStore から編集対象を取得
+		var editingSeries = this.editorStore.EditingSeries;
 		this.EditingSeries.Value = editingSeries;
 
 		// ReactiveProperty に値を設定
@@ -1549,11 +1558,60 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				})
 				.ToList();
 
-			// SaveSeriesAsync() で保存を実行（保存方式の判定は MangaSeriesManager の責務）
-			var savedSeries = await this.seriesManager.SaveSeriesAsync(
+			// ===== 登録処理用のスコープを生成して保存セッションを取得 =====
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var saveSeriesSession = scope.ServiceProvider.GetRequiredService<SaveSeriesSession>();
+
+			// ===== 保存前確認フローを実行 =====
+			// 1. SaveSeriesSession を使用して保存前確認を開始
+			var confirmationResult = await saveSeriesSession.GetSaveSeriesConfirmationAsync(
 				editingSeries,
 				materialFileDtos,
-				this.SelectedMaterialSourceFolder.Value,
+				this.SelectedMaterialSourceFolder.Value);
+
+			// 2. 確認結果に応じて処理分岐
+			while (confirmationResult.ConfirmationType != SaveSeriesConfirmationType.None)
+			{
+				if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.MaterialSource)
+				{
+					// 複数素材ソースの確認ダイアログを表示
+					var materialSources = confirmationResult.GetConfirmationDataAs<List<MangaSource>>();
+					if (materialSources != null)
+					{
+						// TODO: MaterialSource 選択ダイアログを表示
+						// 現在は実装されていない。今回はフローの骨組みのみ
+						this.snackbarService.Show(
+							"情報",
+							"複数の素材ソースが存在します。（詳細実装は次回実施）",
+							ControlAppearance.Secondary,
+							new SymbolIcon { Symbol = SymbolRegular.QuestionCircle24 },
+							TimeSpan.FromSeconds(3));
+						return;
+					}
+				}
+				else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.DifferentDrive)
+				{
+					// 別ドライブ移動の確認ダイアログを表示
+					// TODO: 別ドライブ確認ダイアログの実装
+					saveSeriesSession.MarkDifferentDriveConfirmed();
+				}
+				else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.Cancel)
+				{
+					// ユーザーがキャンセル
+					return;
+				}
+
+				// 再度確認を実行
+				confirmationResult = await saveSeriesSession.GetSaveSeriesConfirmationAsync(
+					editingSeries,
+					materialFileDtos,
+					this.SelectedMaterialSourceFolder.Value);
+			}
+
+			// 3. 確認完了 → 保存実行
+			var savedSeries = await saveSeriesSession.SaveSeriesAsync(
+				this.editorStore,
+				materialFileDtos,
 				this.PastedThumbnailBytes);
 
 			// 保存成功

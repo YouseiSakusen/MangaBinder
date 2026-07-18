@@ -4,6 +4,7 @@ using MangaBinder.Bindings;
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Converters;
+using MangaBinder.Core.Series;
 using MangaBinder.Jobs;
 using MangaBinder.Series;
 using MangaBinder.Settings;
@@ -75,6 +76,7 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>();
 		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>();
 		services.AddNavigationPage<EditorPage, EditorPageViewModel>();
+		services.AddTransient<EditorStore>();
 		services.AddScoped<ThumbnailPicker>();
 		services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();
 		services.AddScoped<OwnedVolumeEstimator>();
@@ -109,6 +111,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<MaterialFolderOpener>();
 		services.AddScoped<MaterialManager>();
+		services.AddScoped<SaveSeriesSession>();
 
 		return services;
 	}

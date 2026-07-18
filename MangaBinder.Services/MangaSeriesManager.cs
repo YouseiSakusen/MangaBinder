@@ -42,12 +42,6 @@ public class MangaSeriesManager
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
-	/// <summary>編集セッション中の編集対象 Series。</summary>
-	private MangaSeries? editingSeriesSnapshot;
-
-	/// <summary>編集セッション中の編集開始時点での DeepCopy。</summary>
-	private MangaSeries? editingSeriesOriginalSnapshot;
-
 	/// <summary>
 	/// <see cref="MangaSeriesManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -240,18 +234,23 @@ public class MangaSeriesManager
 	///    - 一致作品なし → NoMatchFound
 	///    - 別の SeriesId の作品が一致 → DifferentSeriesMatched
 	/// 
-	/// 編集中作品とは、GetEditingSeries() が返す作品を指します。
+	/// 編集中作品とは、EditorStore.EditingSeries が示す作品を指します。
 	/// 既存作品（SeriesId != 0 かつ IsWork == false）対象です。
 	/// </remarks>
-	/// <param name="newTitle">編集後の新しいタイトル。</param>
+	/// <param name="editorStore">編集状態を保持するストア。EditingSeries と比較対象のタイトルを取得します。</param>
 	/// <returns>タイトル一致結果を表す ExistingSeriesTitleMatchResult。タイトルが null / 空白の場合は NoMatchFound を返します。</returns>
-	public ExistingSeriesTitleMatchResult CheckExistingSeriesTitleMatch(string? newTitle)
+	/// <exception cref="ArgumentNullException">editorStore が null または EditingSeries が null の場合にスローされます。</exception>
+	public ExistingSeriesTitleMatchResult CheckExistingSeriesTitleMatch(EditorStore editorStore)
 	{
-		// 編集中の作品を取得
-		var editingSeries = this.GetEditingSeries();
+		ArgumentNullException.ThrowIfNull(editorStore);
+		ArgumentNullException.ThrowIfNull(editorStore.EditingSeries);
 
-		// 編集セッションが開始していない場合や、新しいタイトルが空白の場合は一致なしとして扱う
-		if (editingSeries == null || string.IsNullOrWhiteSpace(newTitle))
+		// 編集中の作品を取得
+		var editingSeries = editorStore.EditingSeries;
+		var newTitle = editingSeries.Title;
+
+		// 新しいタイトルが空白の場合は一致なしとして扱う
+		if (string.IsNullOrWhiteSpace(newTitle))
 			return ExistingSeriesTitleMatchResult.NoMatchFound;
 
 		// 新しいタイトルを正規化
@@ -304,41 +303,27 @@ public class MangaSeriesManager
 
 	/// <summary>
 	/// 指定された作品の編集セッションを開始します。
-	/// 編集開始時点の作品状態を DeepCopy して保持し、
+	/// 編集開始時点の作品状態を DeepCopy して EditorStore に保持し、
 	/// 後で変更判定や比較処理などに使用できるようにします。
 	/// 新規作品・登録待ち作品・既存作品のすべてが同じ処理で扱われます。
 	/// </summary>
 	/// <param name="series">編集対象の作品。</param>
-	/// <exception cref="ArgumentNullException">series が null の場合にスローされます。</exception>
-	public void BeginEdit(MangaSeries series)
+	/// <param name="editorStore">編集状態を保持するストア。</param>
+	/// <exception cref="ArgumentNullException">series または editorStore が null の場合にスローされます。</exception>
+	public void BeginEdit(MangaSeries series, EditorStore editorStore)
 	{
 		ArgumentNullException.ThrowIfNull(series);
+		ArgumentNullException.ThrowIfNull(editorStore);
 
-		// 編集対象を保持
-		this.editingSeriesSnapshot = series;
+		// 編集対象を EditorStore に保持
+		editorStore.EditingSeries = series;
 
-		// 編集開始時点での状態を DeepCopy で保持
-		this.editingSeriesOriginalSnapshot = DeepCopyHelper.Copy(series);
+		// 編集開始時点での状態を DeepCopy で EditorStore に保持
+		editorStore.OriginalSeries = DeepCopyHelper.Copy(series);
 
 		// DeepCopy 前後の Sources.Count を比較
-		this.logger?.LogInformation($"[BeginEdit] DeepCopy前のSources.Count: {series.Sources.Count}, DeepCopy後のSources.Count: {this.editingSeriesOriginalSnapshot?.Sources.Count ?? 0}");
+		this.logger?.LogInformation($"[BeginEdit] DeepCopy前のSources.Count: {series.Sources.Count}, DeepCopy後のSources.Count: {editorStore.OriginalSeries?.Sources.Count ?? 0}");
 	}
-
-	/// <summary>
-	/// 現在の編集セッション中の編集対象 Series を取得します。
-	/// 編集セッション未開始の場合は null を返します。
-	/// </summary>
-	/// <returns>編集中の Series、またはセッション未開始時は null。</returns>
-	public MangaSeries? GetEditingSeries()
-		=> this.editingSeriesSnapshot;
-
-	/// <summary>
-	/// 現在の編集セッション中の編集開始時点での DeepCopy を取得します。
-	/// 編集セッション未開始の場合は null を返します。
-	/// </summary>
-	/// <returns>編集開始時点での Series コピー、またはセッション未開始時は null。</returns>
-	public MangaSeries? GetEditingSeriesOriginal()
-		=> this.editingSeriesOriginalSnapshot;
 
 	/// <summary>
 	/// 指定された作品の素材フォルダ直下のファイル・フォルダを取得します。
@@ -511,27 +496,33 @@ public class MangaSeriesManager
 	/// editingSeries の状態に応じて、新規作品・登録待ち作品の場合は NewSeriesSaveManager へ、
 	/// 既存作品の場合は ExistingSeriesSaveManager へ委譲します。
 	/// </summary>
-	/// <param name="editingSeries">保存対象の編集中作品。</param>
+	/// <param name="editorStore">編集状態を保持するストア。EditingSeries と OriginalSeries を参照します。</param>
 	/// <param name="materialFiles">素材ファイル一覧。</param>
 	/// <param name="selectedMaterialSourceFolder">保存先の素材フォルダ。新規作品の場合は必須、既存作品の場合は nullable。</param>
 	/// <param name="thumbnailBytes">サムネイル画像（バイナリ）。null の場合はスキップします。</param>
 	/// <returns>保存後の正式作品。</returns>
+	/// <exception cref="ArgumentNullException">editorStore が null の場合、または EditingSeries が null の場合にスローされます。</exception>
 	/// <exception cref="InvalidOperationException">タイトル判定エラーまたはその他のバリデーションエラー。</exception>
 	public async ValueTask<MangaSeries> SaveSeriesAsync(
-		MangaSeries editingSeries,
+		EditorStore editorStore,
 		IReadOnlyList<MaterialFile> materialFiles,
 		SourceFolder? selectedMaterialSourceFolder,
 		byte[]? thumbnailBytes)
 	{
+		ArgumentNullException.ThrowIfNull(editorStore);
+		ArgumentNullException.ThrowIfNull(editorStore.EditingSeries);
+
+		var editingSeries = editorStore.EditingSeries;
+
 		// editingSeries の状態で保存方法を判定
 		if (editingSeries.SeriesId != 0 && !editingSeries.IsWork)
 		{
 			// 既存作品の場合：タイトル判定と DeepCopy を取得してから ExistingSeriesSaveManager へ委譲
-			var titleMatchResult = this.CheckExistingSeriesTitleMatch(editingSeries.Title);
+			var titleMatchResult = this.CheckExistingSeriesTitleMatch(editorStore);
 			if (titleMatchResult != ExistingSeriesTitleMatchResult.SameAsEditingSeriesSelf)
 				throw new InvalidOperationException($"タイトル判定が不一致です。結果: {titleMatchResult}");
 
-			var originalSeries = this.GetEditingSeriesOriginal();
+			var originalSeries = editorStore.OriginalSeries;
 			if (originalSeries == null)
 				throw new InvalidOperationException("編集開始時の DeepCopy が見つかりません。");
 
@@ -546,48 +537,6 @@ public class MangaSeriesManager
 			var saveManager = scope.ServiceProvider.GetRequiredKeyedService<ISeriesSaveManager>(SeriesSaveType.New);
 			return await saveManager.SaveAsync(editingSeries, null, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
 		}
-	}
-
-	/// <summary>
-	/// 新規作品・登録待ち作品を正式に MangaSeries へ登録します。
-	/// このメソッドは互換性維持のための委譲メソッドです。SaveSeriesAsync() を呼び出します。
-	/// </summary>
-	/// <param name="editingSeries">登録対象の編集中作品。</param>
-	/// <param name="materialFiles">素材ファイル一覧。</param>
-	/// <param name="destinationSourceFolder">登録先の素材フォルダ。</param>
-	/// <param name="thumbnailBytes">サムネイル画像（バイナリ）。null の場合はスキップします。</param>
-	/// <returns>登録後の正式作品。</returns>
-	public async ValueTask<MangaSeries> RegisterSeriesAsync(
-		MangaSeries editingSeries,
-		IReadOnlyList<MaterialFile> materialFiles,
-		SourceFolder destinationSourceFolder,
-		byte[]? thumbnailBytes)
-	{
-		return await this.SaveSeriesAsync(editingSeries, materialFiles, destinationSourceFolder, thumbnailBytes);
-	}
-
-	/// <summary>
-	/// 既存の正式作品を更新します。
-	/// このメソッドは互換性維持のための委譲メソッドです。SaveSeriesAsync() を呼び出します。
-	/// 編集開始時の DeepCopy を保存用オブジェクトとして利用します。
-	/// </summary>
-	/// <param name="editingSeries">更新対象の編集中作品。SeriesId != 0 かつ IsWork == false である必要があります。</param>
-	/// <param name="materialFiles">素材ファイル一覧。</param>
-	/// <param name="selectedMaterialSourceFolder">素材フォルダの変更先（フォルダリネーム時に使用）。</param>
-	/// <param name="thumbnailBytes">サムネイル画像（バイナリ）。null の場合はスキップします。</param>
-	/// <returns>更新後の正式作品（Store 内インスタンス）。</returns>
-	/// <exception cref="InvalidOperationException">入力値の検証失敗またはタイトル判定エラー。</exception>
-	public async ValueTask<MangaSeries> UpdateExistingSeriesAsync(
-		MangaSeries editingSeries,
-		IReadOnlyList<MaterialFile> materialFiles,
-		SourceFolder? selectedMaterialSourceFolder,
-		byte[]? thumbnailBytes)
-	{
-		// 入力値の検証
-		if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
-			throw new InvalidOperationException("UpdateExistingSeriesAsync は既存の正式作品（SeriesId != 0 かつ IsWork == false）でのみ実行可能です。");
-
-		return await this.SaveSeriesAsync(editingSeries, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
 	}
 }
 

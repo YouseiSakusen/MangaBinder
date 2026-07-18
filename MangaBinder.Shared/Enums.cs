@@ -279,3 +279,24 @@ namespace MangaBinder.Settings
 		DefaultBinding,
 	}
 }
+
+namespace MangaBinder.Series
+{
+	/// <summary>
+	/// 保存前確認の種別を表す列挙型です。
+	/// </summary>
+	public enum SaveSeriesConfirmationType
+	{
+		/// <summary>確認不要。保存処理を実行できます。</summary>
+		None,
+
+		/// <summary>素材ソース選択確認が必要です。</summary>
+		MaterialSource,
+
+		/// <summary>別ドライブ移動確認が必要です。</summary>
+		DifferentDrive,
+
+		/// <summary>ユーザーがキャンセルしました。</summary>
+		Cancel,
+	}
+}
