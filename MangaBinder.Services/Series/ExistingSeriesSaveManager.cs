@@ -1,4 +1,5 @@
 using System.Data.SQLite;
+using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Core.Series;
 using MangaBinder.Settings;
@@ -97,8 +98,18 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 			await this.mangaRepository.UpdateSeriesAsync(connection, tx, originalSeries);
 
 			// === MangaSources更新 ===
-			// TODO: MangaSources.Path更新処理をここに追加予定
-			// Rename後の新しいPathでMangaSourcesテーブルを更新
+			// Rename後の新しいPathでMangaSourcesテーブルを更新（Material の MangaSource のみ）
+			var renamedMaterialSource = originalSeries.SingleMaterialSource;
+			if (renamedMaterialSource != null)
+			{
+				await this.mangaRepository.UpdateMangaSourcePathAsync(
+					connection,
+					tx,
+					renamedMaterialSource.SourceId,
+					renamedMaterialSource.Path);
+
+				this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MangaSources.Path更新完了。SourceId: {renamedMaterialSource.SourceId}, NewPath: {renamedMaterialSource.Path}");
+			}
 
 			// === MangaSeriesTags の更新（DELETE → INSERT） ===
 			await this.mangaRepository.ReplaceSeriesTagsInTransactionAsync(connection, tx, originalSeries.SeriesId, originalSeries.Tags);
@@ -166,7 +177,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 			{
 				// サムネイルファイルを保存
-				var fileName = $"{originalSeries.ThumbnailFileNameBase}.jpg";
+				var fileName = $"{FileSystemCharSanitizer.Sanitize(originalSeries.ThumbnailFileNameBase)}.jpg";
 				await this.thumbnailManager.SaveThumbnailAsync(fileName, thumbnailBytes);
 
 				// DeepCopy へサムネイル情報を反映

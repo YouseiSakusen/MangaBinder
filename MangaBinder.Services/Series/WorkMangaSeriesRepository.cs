@@ -29,7 +29,7 @@ public class WorkMangaSeriesRepository
 	/// WorkMangaSeries は MangaSeries へマッピングされ、WorkId のみ値が設定されます。
 	/// SeriesId は 0 のままとなります。
 	/// WorkMangaSeriesTags も読み込み、series.Tags へ設定されます。
-	/// 並び順は MangaSeriesStore が管理するため、ORDER BY は使用しません。
+	/// 並び順は WorkId 昇順（古い登録順）とします。
 	/// </summary>
 	/// <returns><see cref="MangaSeries"/> の読み取り専用リスト。</returns>
 	public async ValueTask<IReadOnlyList<MangaSeries>> GetAllAsync()
@@ -63,7 +63,9 @@ public class WorkMangaSeriesRepository
 		seriesSql.AppendLine(" 	, Memo ");
 		seriesSql.AppendLine(" 	, WorkId ");
 		seriesSql.AppendLine(" FROM ");
-		seriesSql.AppendLine(" 	WorkMangaSeries; ");
+		seriesSql.AppendLine(" 	WorkMangaSeries ");
+		seriesSql.AppendLine(" ORDER BY ");
+		seriesSql.AppendLine(" 	WorkId; ");
 
 		var workTagsSql = new StringBuilder();
 		workTagsSql.AppendLine(" SELECT ");
@@ -119,6 +121,31 @@ public class WorkMangaSeriesRepository
 	/// <returns>採番された WorkId。</returns>
 	public async ValueTask<int> InsertAsync(MangaSeries series)
 	{
+		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+		await connection.OpenAsync();
+
+		var workId = await this.InsertWorkSeriesInternalAsync(connection, null, series);
+
+		// 採番された WorkId を series.WorkId に反映する
+		series.WorkId = workId;
+
+		return workId;
+	}
+
+	/// <summary>
+	/// 作品本体を INSERT する共通 private メソッドです。
+	/// SQLiteConnection と SQLiteTransaction（nullable）を受け取り、その上で INSERT を実行します。
+	/// 採番された WorkId を返します。
+	/// </summary>
+	/// <param name="connection">DB接続。</param>
+	/// <param name="transaction">トランザクション（null の場合は非トランザクション実行）。</param>
+	/// <param name="series">保存対象の MangaSeries オブジェクト。</param>
+	/// <returns>採番された WorkId。</returns>
+	private async ValueTask<int> InsertWorkSeriesInternalAsync(
+		SQLiteConnection connection,
+		SQLiteTransaction? transaction,
+		MangaSeries series)
+	{
 		var sql = new StringBuilder();
 		sql.AppendLine(" INSERT INTO WorkMangaSeries ( ");
 		sql.AppendLine(" 	  NormalizedTitleInternal ");
@@ -171,9 +198,6 @@ public class WorkMangaSeriesRepository
 		sql.AppendLine(" ); ");
 		sql.AppendLine(" SELECT CAST(last_insert_rowid() AS INT); ");
 
-		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
-		await connection.OpenAsync();
-
 		var workId = await connection.ExecuteScalarAsync<int>(sql.ToString(), new
 		{
 			NormalizedTitleInternal = series.NormalizedTitleInternal,
@@ -199,10 +223,7 @@ public class WorkMangaSeriesRepository
 			DescriptionSourceTitle = series.DescriptionSourceTitle,
 			HasNestedArchive = series.HasNestedArchive,
 			Memo = series.Memo,
-		});
-
-		// 採番された WorkId を series.WorkId に反映する
-		series.WorkId = workId;
+		}, transaction);
 
 		return workId;
 	}
@@ -213,6 +234,25 @@ public class WorkMangaSeriesRepository
 	/// </summary>
 	/// <param name="series">更新対象の MangaSeries オブジェクト。WorkId が設定されている必要があります。</param>
 	public async ValueTask UpdateAsync(MangaSeries series)
+	{
+		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+		await connection.OpenAsync();
+
+		await this.UpdateWorkSeriesInternalAsync(connection, null, series);
+	}
+
+	/// <summary>
+	/// 作品本体を UPDATE する共通 private メソッドです。
+	/// SQLiteConnection と SQLiteTransaction（nullable）を受け取り、その上で UPDATE を実行します。
+	/// </summary>
+	/// <param name="connection">DB接続。</param>
+	/// <param name="transaction">トランザクション（null の場合は非トランザクション実行）。</param>
+	/// <param name="series">更新対象の MangaSeries オブジェクト。WorkId が設定されている必要があります。</param>
+	/// <returns>完了時にコンプリートする ValueTask。</returns>
+	private async ValueTask UpdateWorkSeriesInternalAsync(
+		SQLiteConnection connection,
+		SQLiteTransaction? transaction,
+		MangaSeries series)
 	{
 		var sql = new StringBuilder();
 		sql.AppendLine(" UPDATE WorkMangaSeries ");
@@ -244,9 +284,6 @@ public class WorkMangaSeriesRepository
 		sql.AppendLine(" WHERE ");
 		sql.AppendLine(" 	WorkId = :WorkId; ");
 
-		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
-		await connection.OpenAsync();
-
 		await connection.ExecuteAsync(sql.ToString(), new
 		{
 			NormalizedTitleInternal = series.NormalizedTitleInternal,
@@ -273,7 +310,125 @@ public class WorkMangaSeriesRepository
 			HasNestedArchive = series.HasNestedArchive,
 			Memo = series.Memo,
 			WorkId = series.WorkId,
-		});
+		}, transaction);
+	}
+
+	/// <summary>
+	/// 作品本体を INSERT し、タグを保存します。
+	/// この処理は 1 つの DB 接続と 1 つのトランザクション内で実行されます。
+	/// 採番された WorkId は <paramref name="series"/> の WorkId プロパティに反映されます。
+	/// 途中でエラーが発生した場合はロールバックされます。
+	/// </summary>
+	/// <param name="series">保存対象の MangaSeries オブジェクト。</param>
+	/// <returns>完了時にコンプリートする ValueTask。</returns>
+	public async ValueTask InsertWorkSeriesWithTagsInTransactionAsync(MangaSeries series)
+	{
+		var deleteSql = new StringBuilder();
+		deleteSql.AppendLine(" DELETE FROM WorkMangaSeriesTags ");
+		deleteSql.AppendLine(" WHERE ");
+		deleteSql.AppendLine(" 	WorkId = :WorkId; ");
+
+		var insertTagSql = new StringBuilder();
+		insertTagSql.AppendLine(" INSERT INTO WorkMangaSeriesTags ( ");
+		insertTagSql.AppendLine(" 	  WorkId ");
+		insertTagSql.AppendLine(" 	, TagId ");
+		insertTagSql.AppendLine(" ) VALUES ( ");
+		insertTagSql.AppendLine(" 	  :WorkId ");
+		insertTagSql.AppendLine(" 	, :TagId ");
+		insertTagSql.AppendLine(" ); ");
+
+		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+		await connection.OpenAsync();
+
+		using var transaction = connection.BeginTransaction();
+		try
+		{
+			// 作品本体を INSERT（共通メソッド）
+			var workId = await this.InsertWorkSeriesInternalAsync(connection, transaction, series);
+
+			// 採番された WorkId を series に反映
+			series.WorkId = workId;
+
+			// 既存タグを削除（新規挿入時は存在しないが削除しても無害）
+			await connection.ExecuteAsync(
+				deleteSql.ToString(),
+				new { WorkId = workId },
+				transaction);
+
+			// TagId > 0 のタグのみ保存（未保存タグ TagId=0 は除外）
+			var validTags = series.Tags.Where(t => t.TagId > 0).ToList();
+			foreach (var tag in validTags)
+			{
+				await connection.ExecuteAsync(
+					insertTagSql.ToString(),
+					new { WorkId = workId, TagId = tag.TagId },
+					transaction);
+			}
+
+			transaction.Commit();
+		}
+		catch
+		{
+			transaction.Rollback();
+			throw;
+		}
+	}
+
+	/// <summary>
+	/// 作品本体を UPDATE し、タグを保存します。
+	/// この処理は 1 つの DB 接続と 1 つのトランザクション内で実行されます。
+	/// 途中でエラーが発生した場合はロールバックされます。
+	/// </summary>
+	/// <param name="series">更新対象の MangaSeries オブジェクト。WorkId が設定されている必要があります。</param>
+	/// <returns>完了時にコンプリートする ValueTask。</returns>
+	public async ValueTask UpdateWorkSeriesWithTagsInTransactionAsync(MangaSeries series)
+	{
+		var deleteSql = new StringBuilder();
+		deleteSql.AppendLine(" DELETE FROM WorkMangaSeriesTags ");
+		deleteSql.AppendLine(" WHERE ");
+		deleteSql.AppendLine(" 	WorkId = :WorkId; ");
+
+		var insertTagSql = new StringBuilder();
+		insertTagSql.AppendLine(" INSERT INTO WorkMangaSeriesTags ( ");
+		insertTagSql.AppendLine(" 	  WorkId ");
+		insertTagSql.AppendLine(" 	, TagId ");
+		insertTagSql.AppendLine(" ) VALUES ( ");
+		insertTagSql.AppendLine(" 	  :WorkId ");
+		insertTagSql.AppendLine(" 	, :TagId ");
+		insertTagSql.AppendLine(" ); ");
+
+		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+		await connection.OpenAsync();
+
+		using var transaction = connection.BeginTransaction();
+		try
+		{
+			// 作品本体を UPDATE（共通メソッド）
+			await this.UpdateWorkSeriesInternalAsync(connection, transaction, series);
+
+			// 既存タグを削除
+			await connection.ExecuteAsync(
+				deleteSql.ToString(),
+				new { WorkId = series.WorkId },
+				transaction);
+
+			// TagId > 0 のタグのみ保存（未保存タグ TagId=0 は除外）
+			var validTags = series.Tags.Where(t => t.TagId > 0).ToList();
+			foreach (var tag in validTags)
+			{
+				await connection.ExecuteAsync(
+					insertTagSql.ToString(),
+					new { WorkId = series.WorkId, TagId = tag.TagId },
+					transaction);
+			}
+
+			transaction.Commit();
+		}
+		catch
+		{
+			transaction.Rollback();
+			throw;
+		}
 	}
 
 	/// <summary>

@@ -1,4 +1,5 @@
 using System.Data.SQLite;
+using HalationGhost.Utilities;
 using Microsoft.Extensions.Logging;
 using MangaBinder.Bindings;
 using MangaBinder.Core.Series;
@@ -238,7 +239,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 		{
 			// 1. thumbnailBytes を正式 Thumbnail へ保存
-			var fileName = $"{editingSeries.ThumbnailFileNameBase}.jpg";
+			var fileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.ThumbnailFileNameBase)}.jpg";
 			await this.thumbnailManager.SaveThumbnailAsync(fileName, thumbnailBytes);
 
 			editingSeries.ThumbnailFileName = fileName;
@@ -255,14 +256,14 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		else if (isWorkSeries)
 		{
 			// 2. WorkThumbnail が存在する場合、正式 Thumbnail へコピー
-			var workThumbnailFileName = $"{editingSeries.WorkThumbnailFileNameBase}.jpg";
+			var workThumbnailFileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.WorkThumbnailFileNameBase)}.jpg";
 			var copied = await this.thumbnailManager.CopyWorkThumbnailToThumbnailAsync(
 				workThumbnailFileName,
-				$"{editingSeries.ThumbnailFileNameBase}.jpg");
+				$"{FileSystemCharSanitizer.Sanitize(editingSeries.ThumbnailFileNameBase)}.jpg");
 
 			if (copied)
 			{
-				editingSeries.ThumbnailFileName = $"{editingSeries.ThumbnailFileNameBase}.jpg";
+				editingSeries.ThumbnailFileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.ThumbnailFileNameBase)}.jpg";
 				editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
 
 				// DB に反映

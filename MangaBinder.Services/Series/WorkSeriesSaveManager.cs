@@ -1,3 +1,4 @@
+using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Core.Series;
 using MangaBinder.Settings;
@@ -61,20 +62,14 @@ public sealed class WorkSeriesSaveManager : ISeriesSaveManager
 
 		if (editingSeries.WorkId == 0)
 		{
-			// 新規 INSERT：採番された WorkId を返す
-			var workId = await this.workMangaSeriesRepository.InsertAsync(editingSeries);
-			// series.WorkId は InsertAsync 内で既に設定されているが、念のため保証
-			if (editingSeries.WorkId == 0)
-				editingSeries.WorkId = workId;
-
-			// タグを保存
-			await this.workMangaSeriesRepository.SaveWorkTagsAsync(new[] { editingSeries });
+			// 新規 INSERT：作品本体とタグを 1 トランザクション内で保存
+			await this.workMangaSeriesRepository.InsertWorkSeriesWithTagsInTransactionAsync(editingSeries);
 
 			// サムネイル JPEG を保存（存在する場合のみ）
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 			{
 				// ファイル名を決定（WorkThumbnailFileNameBase を使用）
-				var fileName = $"{editingSeries.WorkThumbnailFileNameBase}.jpg";
+				var fileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.WorkThumbnailFileNameBase)}.jpg";
 
 				// ThumbnailManager で保存
 				await this.thumbnailManager.SaveWorkThumbnailAsync(fileName, thumbnailBytes);
@@ -95,14 +90,14 @@ public sealed class WorkSeriesSaveManager : ISeriesSaveManager
 		else
 		{
 			// UPDATE（既存の登録待ち作品の更新）
-			// タグを保存
-			await this.workMangaSeriesRepository.SaveWorkTagsAsync(new[] { editingSeries });
+			// 作品本体とタグを 1 トランザクション内で保存
+			await this.workMangaSeriesRepository.UpdateWorkSeriesWithTagsInTransactionAsync(editingSeries);
 
 			// サムネイル JPEG を保存（存在する場合のみ）
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 			{
 				// ファイル名を決定（WorkThumbnailFileNameBase を使用）
-				var fileName = $"{editingSeries.WorkThumbnailFileNameBase}.jpg";
+				var fileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.WorkThumbnailFileNameBase)}.jpg";
 
 				// ThumbnailManager で保存
 				await this.thumbnailManager.SaveWorkThumbnailAsync(fileName, thumbnailBytes);
@@ -110,10 +105,10 @@ public sealed class WorkSeriesSaveManager : ISeriesSaveManager
 				// series の ThumbnailFileName と ThumbnailStatus を更新
 				editingSeries.ThumbnailFileName = fileName;
 				editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
-			}
 
-			// DB へ反映
-			await this.workMangaSeriesRepository.UpdateAsync(editingSeries);
+				// ファイル保存後、DB に反映
+				await this.workMangaSeriesRepository.UpdateAsync(editingSeries);
+			}
 
 			// Store へ即座に反映
 			this.mangaSeriesStore.UpdateWorkSeries(editingSeries);

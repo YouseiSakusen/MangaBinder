@@ -644,4 +644,36 @@ public class MangaRepository
                 transaction);
         }
     }
+
+    /// <summary>
+    /// MangaSources テーブルの Path をSourceId をキーとして更新します。
+    /// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
+    /// </summary>
+    /// <param name="connection">DB接続。</param>
+    /// <param name="transaction">トランザクション。</param>
+    /// <param name="sourceId">更新対象の SourceId。</param>
+    /// <param name="newPath">新しいフォルダパス。</param>
+    /// <returns>完了時にコンプリートする ValueTask。</returns>
+    public async ValueTask UpdateMangaSourcePathAsync(
+        SQLiteConnection connection,
+        SQLiteTransaction transaction,
+        long sourceId,
+        string newPath)
+    {
+        var sql = new StringBuilder();
+        sql.AppendLine(" UPDATE MangaSources ");
+        sql.AppendLine(" SET ");
+        sql.AppendLine(" 	  Path = :Path ");
+        sql.AppendLine(" WHERE ");
+        sql.AppendLine(" 	SourceId = :SourceId; ");
+
+        await connection.ExecuteAsync(
+            sql.ToString(),
+            new
+            {
+                SourceId = sourceId,
+                Path = newPath,
+            },
+            transaction);
+    }
 }

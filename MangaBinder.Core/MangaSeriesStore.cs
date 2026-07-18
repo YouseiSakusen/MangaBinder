@@ -84,13 +84,13 @@ public sealed class MangaSeriesStore
 
 	/// <summary>
 	/// 登録待ち作品の MangaSeries 一覧を指定したリストで一括置換します。
+	/// Repository から取得した WorkId 昇順を維持したまま格納します。
 	/// </summary>
 	/// <param name="newWorkSeries">新しい登録待ち MangaSeries 一覧。</param>
 	public void ReplaceWorkSeries(IEnumerable<MangaSeries> newWorkSeries)
 	{
 		this.workSeries.Clear();
-		var sorted = newWorkSeries.OrderBy(s => s.NormalizedTitleInternal, titleComparer).ToList();
-		this.workSeries.AddRange(sorted);
+		this.workSeries.AddRange(newWorkSeries);
 		this.RebuildMergedSeries();
 	}
 
@@ -146,10 +146,9 @@ public sealed class MangaSeriesStore
 		{
 			// 存在しない場合は追加する
 			this.workSeries.Add(workSeries);
+			// 新規追加時は mergedSeries へも同じインスタンスを追加する
+			this.mergedSeries.Add(workSeries);
 		}
-
-		// mergedSeries を再構築
-		this.RebuildMergedSeries();
 	}
 
 	/// <summary>
@@ -215,7 +214,8 @@ public sealed class MangaSeriesStore
 				item.SeriesId, item.Title, item.NormalizedTitleInternal, insertIndex, this.series.Count);
 		}
 
-		this.RebuildMergedSeries();
+		// 正式作品追加時は mergedSeries へも同じインスタンスを追加する
+		this.mergedSeries.Add(item);
 	}
 
 	/// <summary>
@@ -236,7 +236,8 @@ public sealed class MangaSeriesStore
 		if (target is not null)
 		{
 			this.series.Remove(target);
-			this.RebuildMergedSeries();
+			// 正式作品削除時は mergedSeries からも削除する
+			this.mergedSeries.Remove(target);
 		}
 	}
 
@@ -251,7 +252,6 @@ public sealed class MangaSeriesStore
 
 	/// <summary>
 	/// 指定した WorkId の登録待ち作品をストアから削除します。
-	/// 同時に MergedSeries を再構築します。
 	/// 正式作品一覧には影響を与えません。
 	/// </summary>
 	/// <param name="workId">削除対象の WorkId。</param>
@@ -261,7 +261,8 @@ public sealed class MangaSeriesStore
 		if (target is not null)
 		{
 			this.workSeries.Remove(target);
-			this.RebuildMergedSeries();
+			// 登録待ち作品削除時は mergedSeries からも削除する
+			this.mergedSeries.Remove(target);
 		}
 	}
 
