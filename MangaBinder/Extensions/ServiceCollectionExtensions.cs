@@ -111,7 +111,6 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<MaterialFolderOpener>();
 		services.AddScoped<MaterialManager>();
-		services.AddScoped<SaveSeriesSession>();
 
 		return services;
 	}

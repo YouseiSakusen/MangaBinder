@@ -17,4 +17,7 @@
     <Project Path="MangaBinder.Worker.Services/MangaBinder.Worker.Services.csproj" Id="df2db413-4fa2-4021-abfb-8be03b17207c" />
     <Project Path="MangaBinder.Worker/MangaBinder.Worker.csproj" Id="30e7020f-5fb9-47aa-8a3f-fd5abf843161" />
   </Folder>
+  <Folder Name="/ソリューション項目/">
+    <File Path=".agent.md" />
+  </Folder>
 </Solution>

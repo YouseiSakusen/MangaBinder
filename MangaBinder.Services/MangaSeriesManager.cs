@@ -302,6 +302,84 @@ public class MangaSeriesManager
 	}
 
 	/// <summary>
+	/// 保存前の確認フローを実行します。
+	/// 複数素材ソースの選択確認、別ドライブ移動の確認などを判定します。
+	/// </summary>
+	/// <param name="editorStore">編集状態を保持するストア。EditingSeries を参照します。</param>
+	/// <param name="materialFiles">素材ファイル一覧。</param>
+	/// <returns>確認が必要な場合は SaveSeriesConfirmationType と詳細情報、不要な場合は None を含む確認結果。</returns>
+	/// <exception cref="ArgumentNullException">editorStore または materialFiles が null の場合にスローされます。</exception>
+	public ValueTask<SaveSeriesConfirmationResult> GetSaveSeriesConfirmationAsync(
+		EditorStore editorStore,
+		IReadOnlyList<MaterialFile> materialFiles)
+	{
+		ArgumentNullException.ThrowIfNull(editorStore);
+		ArgumentNullException.ThrowIfNull(materialFiles);
+
+		var editingSeries = editorStore.EditingSeries;
+		if (editingSeries == null)
+			throw new InvalidOperationException("EditorStore に編集対象作品が設定されていません。");
+
+		this.logger?.LogInformation($"[GetSaveSeriesConfirmationAsync] 開始。SeriesId: {editingSeries.SeriesId}, Title: {editingSeries.Title}");
+
+		// 新規作品・登録待ち作品の場合は確認不要
+		if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
+		{
+			this.logger?.LogInformation("[GetSaveSeriesConfirmationAsync] 新規作品/登録待ち作品のため確認なし。");
+			return ValueTask.FromResult(new SaveSeriesConfirmationResult(SaveSeriesConfirmationType.None));
+		}
+
+		// ① 素材ソース複数判定
+		if (editingSeries.HasMultipleMaterialSources)
+		{
+			this.logger?.LogInformation($"[GetSaveSeriesConfirmationAsync] 複数の素材ソースを検出。Count: {editingSeries.MaterialSources.Count}");
+			return ValueTask.FromResult(
+				new SaveSeriesConfirmationResult(
+					SaveSeriesConfirmationType.MaterialSource,
+					editingSeries.MaterialSources));
+		}
+
+		// ② 別ドライブ移動判定
+		if (!editorStore.DifferentDriveConfirmed && this.needsDifferentDriveConfirmation(editingSeries, editorStore.SelectedMaterialSourceFolder))
+		{
+			this.logger?.LogInformation("[GetSaveSeriesConfirmationAsync] 別ドライブ移動が必要。");
+			return ValueTask.FromResult(new SaveSeriesConfirmationResult(SaveSeriesConfirmationType.DifferentDrive));
+		}
+
+		// ③ 確認不要
+		this.logger?.LogInformation("[GetSaveSeriesConfirmationAsync] 確認不要。");
+		return ValueTask.FromResult(new SaveSeriesConfirmationResult(SaveSeriesConfirmationType.None));
+	}
+
+	/// <summary>
+	/// 別ドライブ移動が必要かどうかを判定します。
+	/// </summary>
+	private bool needsDifferentDriveConfirmation(
+		MangaSeries editingSeries,
+		SourceFolder? selectedMaterialSourceFolder)
+	{
+		// 選択された素材フォルダがない場合は確認不要
+		if (selectedMaterialSourceFolder == null)
+			return false;
+
+		// 単一素材ソースが存在しない場合は確認不要
+		var singleSource = editingSeries.SingleMaterialSource;
+		if (singleSource == null)
+			return false;
+
+		// 元のパスと選択されたフォルダが異なるドライブに存在するかチェック
+		var originalDriveLetter = Path.GetPathRoot(singleSource.Path)?[0];
+		var selectedDriveLetter = Path.GetPathRoot(selectedMaterialSourceFolder.FolderPath.Value)?[0];
+
+		var isDifferentDrive = originalDriveLetter != null && selectedDriveLetter != null && originalDriveLetter != selectedDriveLetter;
+
+		this.logger?.LogInformation(
+			$"[needsDifferentDriveConfirmation] originalDrive: {originalDriveLetter}, selectedDrive: {selectedDriveLetter}, isDifferent: {isDifferentDrive}");
+
+		return isDifferentDrive;
+	}
+
+	/// <summary>
 	/// 指定された作品の編集セッションを開始します。
 	/// 編集開始時点の作品状態を DeepCopy して EditorStore に保持し、
 	/// 後で変更判定や比較処理などに使用できるようにします。
@@ -496,9 +574,8 @@ public class MangaSeriesManager
 	/// editingSeries の状態に応じて、新規作品・登録待ち作品の場合は NewSeriesSaveManager へ、
 	/// 既存作品の場合は ExistingSeriesSaveManager へ委譲します。
 	/// </summary>
-	/// <param name="editorStore">編集状態を保持するストア。EditingSeries と OriginalSeries を参照します。</param>
+	/// <param name="editorStore">編集状態を保持するストア。EditingSeries、OriginalSeries、SelectedMaterialSourceFolder を参照します。</param>
 	/// <param name="materialFiles">素材ファイル一覧。</param>
-	/// <param name="selectedMaterialSourceFolder">保存先の素材フォルダ。新規作品の場合は必須、既存作品の場合は nullable。</param>
 	/// <param name="thumbnailBytes">サムネイル画像（バイナリ）。null の場合はスキップします。</param>
 	/// <returns>保存後の正式作品。</returns>
 	/// <exception cref="ArgumentNullException">editorStore が null の場合、または EditingSeries が null の場合にスローされます。</exception>
@@ -506,13 +583,13 @@ public class MangaSeriesManager
 	public async ValueTask<MangaSeries> SaveSeriesAsync(
 		EditorStore editorStore,
 		IReadOnlyList<MaterialFile> materialFiles,
-		SourceFolder? selectedMaterialSourceFolder,
 		byte[]? thumbnailBytes)
 	{
 		ArgumentNullException.ThrowIfNull(editorStore);
 		ArgumentNullException.ThrowIfNull(editorStore.EditingSeries);
 
 		var editingSeries = editorStore.EditingSeries;
+		var selectedMaterialSourceFolder = editorStore.SelectedMaterialSourceFolder;
 
 		// editingSeries の状態で保存方法を判定
 		if (editingSeries.SeriesId != 0 && !editingSeries.IsWork)

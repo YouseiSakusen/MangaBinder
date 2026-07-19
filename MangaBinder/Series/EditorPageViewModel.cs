@@ -23,17 +23,13 @@ namespace MangaBinder.Series;
 /// </summary>
 public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, IDisposable
 {
-	private readonly MangaSeriesManager seriesManager;
+	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly SeriesWorkspaceStore workspaceStore;
 	private readonly IContentDialogService contentDialogService;
 	private readonly INavigationService navigationService;
 	private readonly MangaSeriesStore mangaSeriesStore;
-	private readonly ThumbnailPicker thumbnailPicker;
 	private readonly ISnackbarService snackbarService;
 	private readonly AppSettings appSettings;
-	private readonly MaterialManager materialManager;
-	private readonly OwnedVolumeEstimator ownedVolumeEstimator;
-	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly EditorStore editorStore;
 	private SeriesTagSelectorViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
@@ -204,43 +200,31 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="seriesManager">作品管理マネージャー。</param>
+	/// <param name="serviceScopeFactory">サービススコープファクトリ。Scoped サービス取得用。</param>
 	/// <param name="workspaceStore">作業領域ストア。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="mangaSeriesStore">作品タグストア。</param>
-	/// <param name="thumbnailPicker">サムネイル操作ピッカー。</param>
 	/// <param name="snackbarService">Snackbar サービス。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
-	/// <param name="materialManager">素材パス解析マネージャー。</param>
-	/// <param name="ownedVolumeEstimator">所持推定計算機。</param>
-	/// <param name="serviceScopeFactory">サービススコープファクトリ。保存セッション生成用。</param>
 	/// <param name="editorStore">編集状態ストア。</param>
 	public EditorPageViewModel(
-		MangaSeriesManager seriesManager,
+		IServiceScopeFactory serviceScopeFactory,
 		SeriesWorkspaceStore workspaceStore,
 		IContentDialogService contentDialogService,
 		INavigationService navigationService,
 		MangaSeriesStore mangaSeriesStore,
-		ThumbnailPicker thumbnailPicker,
 		ISnackbarService snackbarService,
 		AppSettings appSettings,
-		MaterialManager materialManager,
-		OwnedVolumeEstimator ownedVolumeEstimator,
-		IServiceScopeFactory serviceScopeFactory,
 		EditorStore editorStore)
 	{
-		this.seriesManager = seriesManager ?? throw new ArgumentNullException(nameof(seriesManager));
+		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
 		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
 		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
-		this.thumbnailPicker = thumbnailPicker ?? throw new ArgumentNullException(nameof(thumbnailPicker));
 		this.snackbarService = snackbarService ?? throw new ArgumentNullException(nameof(snackbarService));
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
-		this.materialManager = materialManager ?? throw new ArgumentNullException(nameof(materialManager));
-		this.ownedVolumeEstimator = ownedVolumeEstimator ?? throw new ArgumentNullException(nameof(ownedVolumeEstimator));
-		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
 		this.editorStore = editorStore ?? throw new ArgumentNullException(nameof(editorStore));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
@@ -494,8 +478,12 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	{
 		ArgumentNullException.ThrowIfNull(series);
 
+		// Scope を生成
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+
 		// 編集セッション開始を SeriesManager に依頼
-		this.seriesManager.BeginEdit(series, this.editorStore);
+		seriesManager.BeginEdit(series, this.editorStore);
 
 		// EditorStore から編集対象を取得
 		var editingSeries = this.editorStore.EditingSeries;
@@ -521,7 +509,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			this.MaterialFiles.Clear();
 			if (!editingSeries.IsWork)
 			{
-				var materialFiles = this.seriesManager.GetMaterialFiles(editingSeries);
+				var materialFiles = seriesManager.GetMaterialFiles(editingSeries);
 				foreach (var item in materialFiles)
 				{
 					var viewModel = MaterialFileItemViewModel.FromDto(item);
@@ -705,8 +693,12 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			return null;
 		}
 
+		// Scope を生成
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+
 		// タイトル重複チェック
-		var duplicates = this.seriesManager.FindSameTitle(title);
+		var duplicates = seriesManager.FindSameTitle(title);
 
 		// 既存作品編集時の特別処理
 		if (this.EditingSeries.Value != null &&
@@ -1009,8 +1001,12 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	{
 		try
 		{
+			// Scope を生成
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var thumbnailPicker = scope.ServiceProvider.GetRequiredService<ThumbnailPicker>();
+
 			// ThumbnailPicker からクリップボード画像を取得
-			var bitmapSource = this.thumbnailPicker.GetFromClipboard();
+			var bitmapSource = thumbnailPicker.GetFromClipboard();
 			if (bitmapSource == null)
 			{
 				System.Diagnostics.Debug.WriteLine("[EditorPageViewModel.PasteThumbnailAsync] クリップボードに画像がありません。");
@@ -1018,7 +1014,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			}
 
 			// BitmapSource を PNG byte[] に変換
-			var pngBytes = this.thumbnailPicker.ToBytes(bitmapSource);
+			var pngBytes = thumbnailPicker.ToBytes(bitmapSource);
 			if (pngBytes == null || pngBytes.Length == 0)
 			{
 				System.Diagnostics.Debug.WriteLine("[EditorPageViewModel.PasteThumbnailAsync] 画像を PNG 形式に変換できませんでした。");
@@ -1063,8 +1059,12 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	{
 		try
 		{
+			// Scope を生成
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var thumbnailPicker = scope.ServiceProvider.GetRequiredService<ThumbnailPicker>();
+
 			// ThumbnailPicker からファイル選択ダイアログを表示
-			var result = await this.thumbnailPicker.PickFromFileAsync(CancellationToken.None);
+			var result = await thumbnailPicker.PickFromFileAsync(CancellationToken.None);
 
 			if (result.IsCanceled)
 			{
@@ -1286,8 +1286,12 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			// サムネイル JPEG byte[] を取得
 			var thumbnailBytes = this.GetPastedThumbnailBytes();
 
+			// Scope を生成
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+
 			// WorkMangaSeries へ一時保存
-			var workId = await this.seriesManager.SaveWorkSeriesAsync(editingSeries, thumbnailBytes);
+			var workId = await seriesManager.SaveWorkSeriesAsync(editingSeries, thumbnailBytes);
 
 			// 成功ログ
 			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SaveWorkSeriesAsync] 一時保存成功。WorkId={workId}");
@@ -1337,12 +1341,16 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 		try
 		{
+			// Scope を生成
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var materialManager = scope.ServiceProvider.GetRequiredService<MaterialManager>();
+
 			// 既存の FullPath と FileName を取得
 			var existingFullPaths = this.MaterialFiles.Select(m => m.FullPath).ToHashSet();
 			var existingFileNames = this.MaterialFiles.Select(m => m.FileName).ToHashSet();
 
 			// 候補を解析
-			var candidates = this.materialManager.AnalyzePaths(droppedPaths, existingFullPaths.ToList());
+			var candidates = materialManager.AnalyzePaths(droppedPaths, existingFullPaths.ToList());
 
 			// 重複判定結果を記録
 			var alreadyAddedFiles = new List<string>();
@@ -1412,13 +1420,17 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	{
 		try
 		{
+			// Scope を生成
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var ownedVolumeEstimator = scope.ServiceProvider.GetRequiredService<OwnedVolumeEstimator>();
+
 			var entryNames = this.MaterialFiles.Select(m => m.FileName).ToList();
 			if (entryNames.Count == 0)
 			{
 				return;
 			}
 
-			var result = this.ownedVolumeEstimator.Estimate(entryNames);
+			var result = ownedVolumeEstimator.Estimate(entryNames);
 			if (result.OwnedMaxVolume > 0)
 			{
 				this.VolumeStatus.OwnedMaxVolume.Value = result.OwnedMaxVolume;
@@ -1495,6 +1507,10 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	{
 		try
 		{
+			// Scope を生成（確認～保存まで同じ Scope を使用）
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+
 			// 入力値の検証
 			var editingSeries = this.EditingSeries.Value;
 			if (editingSeries == null)
@@ -1558,16 +1574,14 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				})
 				.ToList();
 
-			// ===== 登録処理用のスコープを生成して保存セッションを取得 =====
-			using var scope = this.serviceScopeFactory.CreateScope();
-			var saveSeriesSession = scope.ServiceProvider.GetRequiredService<SaveSeriesSession>();
-
 			// ===== 保存前確認フローを実行 =====
-			// 1. SaveSeriesSession を使用して保存前確認を開始
-			var confirmationResult = await saveSeriesSession.GetSaveSeriesConfirmationAsync(
-				editingSeries,
-				materialFileDtos,
-				this.SelectedMaterialSourceFolder.Value);
+			// 保存先フォルダを EditorStore に設定
+			this.editorStore.SelectedMaterialSourceFolder = this.SelectedMaterialSourceFolder.Value;
+
+			// 1. MangaSeriesManager を使用して保存前確認を開始
+			var confirmationResult = await seriesManager.GetSaveSeriesConfirmationAsync(
+				this.editorStore,
+				materialFileDtos);
 
 			// 2. 確認結果に応じて処理分岐
 			while (confirmationResult.ConfirmationType != SaveSeriesConfirmationType.None)
@@ -1589,30 +1603,29 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 						return;
 					}
 				}
-				else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.DifferentDrive)
-				{
-					// 別ドライブ移動の確認ダイアログを表示
-					// TODO: 別ドライブ確認ダイアログの実装
-					saveSeriesSession.MarkDifferentDriveConfirmed();
-				}
-				else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.Cancel)
-				{
-					// ユーザーがキャンセル
-					return;
+					else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.DifferentDrive)
+					{
+						// 別ドライブ移動の確認ダイアログを表示
+						// TODO: 別ドライブ確認ダイアログの実装
+						this.editorStore.DifferentDriveConfirmed = true;
+					}
+					else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.Cancel)
+					{
+						// ユーザーがキャンセル
+						return;
+					}
+
+					// 再度確認を実行
+					confirmationResult = await seriesManager.GetSaveSeriesConfirmationAsync(
+						this.editorStore,
+						materialFileDtos);
 				}
 
-				// 再度確認を実行
-				confirmationResult = await saveSeriesSession.GetSaveSeriesConfirmationAsync(
-					editingSeries,
+				// 3. 確認完了 → 保存実行
+				var savedSeries = await seriesManager.SaveSeriesAsync(
+					this.editorStore,
 					materialFileDtos,
-					this.SelectedMaterialSourceFolder.Value);
-			}
-
-			// 3. 確認完了 → 保存実行
-			var savedSeries = await saveSeriesSession.SaveSeriesAsync(
-				this.editorStore,
-				materialFileDtos,
-				this.PastedThumbnailBytes);
+					this.PastedThumbnailBytes);
 
 			// 保存成功
 			this.snackbarService.Show(

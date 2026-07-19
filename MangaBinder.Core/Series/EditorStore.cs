@@ -18,4 +18,14 @@ public class EditorStore
 	/// 既存作品編集時は編集前の DeepCopy が格納されます。
 	/// </summary>
 	public MangaSeries? OriginalSeries { get; set; }
+
+	/// <summary>
+	/// 保存先として選択された素材フォルダを取得または設定します。
+	/// </summary>
+	public SourceFolder? SelectedMaterialSourceFolder { get; set; }
+
+	/// <summary>
+	/// 別ドライブ移動が確認済みであるかを取得または設定します。
+	/// </summary>
+	public bool DifferentDriveConfirmed { get; set; }
 }
