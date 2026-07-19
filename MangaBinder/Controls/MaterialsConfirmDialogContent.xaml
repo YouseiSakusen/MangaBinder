@@ -2,11 +2,61 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:local="clr-namespace:MangaBinder.Controls"
              mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
-    <Grid>
-            
+             d:DesignHeight="250" d:DesignWidth="800">
+    <!-- 素材フォルダ選択ダイアログコンテンツ。DataContext は MaterialsConfirmDialogContentViewModel を想定。 -->
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <!-- Row0: 説明メッセージ -->
+            <RowDefinition Height="Auto" />
+            <!-- Row1: スペーサー -->
+            <RowDefinition Height="16" />
+            <!-- Row2: ComboBox と フォルダを開く ボタン -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Row0: 説明メッセージ -->
+        <TextBlock
+            Grid.Row="0"
+            Text="{Binding MessageText.Value}"
+            TextWrapping="Wrap"
+            FontSize="13"
+            Foreground="#333333"
+            LineHeight="18" />
+
+        <!-- Row2: ComboBox と フォルダを開く ボタン -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <!-- ComboBox -->
+                <ColumnDefinition Width="*" />
+                <!-- スペーサー -->
+                <ColumnDefinition Width="8" />
+                <!-- フォルダを開くボタン -->
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ComboBox: 素材フォルダ候補 -->
+            <ComboBox
+                Grid.Column="0"
+                ItemsSource="{Binding MaterialFolderCandidates}"
+                SelectedItem="{Binding SelectedMaterialFolder.Value}"
+                DisplayMemberPath="DisplayText"
+                FontSize="13"
+                VerticalAlignment="Center"
+                Height="36" />
+
+            <!-- フォルダを開くボタン -->
+            <ui:Button
+                Grid.Column="2"
+                Content="フォルダを開く"
+                Icon="FolderOpen24"
+                FontSize="13"
+                MinWidth="120"
+                VerticalAlignment="Center"
+                Command="{Binding OpenFolderCommand}" />
+        </Grid>
     </Grid>
 </UserControl>

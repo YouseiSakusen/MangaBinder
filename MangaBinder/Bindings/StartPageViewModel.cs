@@ -3,7 +3,6 @@ using R3;
 using Wpf.Ui;
 using MangaBinder.Helpers;
 using Microsoft.Extensions.DependencyInjection;
-using MangaBinder.Series;
 
 namespace MangaBinder.Bindings;
 

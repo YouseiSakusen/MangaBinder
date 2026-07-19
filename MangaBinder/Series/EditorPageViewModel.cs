@@ -889,22 +889,45 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	}
 
 	/// <summary>
+	/// ContentDialog を生成して表示し、ユーザーの選択結果を返します。
+	/// </summary>
+	/// <param name="title">ダイアログのタイトル。</param>
+	/// <param name="content">ダイアログのコンテンツ。string または UserControl を指定します。</param>
+	/// <param name="primaryButtonText">主ボタンのテキスト。</param>
+	/// <param name="closeButtonText">閉じるボタンのテキスト。</param>
+	/// <returns>ユーザーの選択結果。</returns>
+	private async ValueTask<ContentDialogResult> ShowContentDialogAsync(
+		string title,
+		object content,
+		string primaryButtonText,
+		string closeButtonText)
+	{
+		// ContentDialog を生成
+		var dialog = new ContentDialog
+		{
+			Title = title,
+			Content = content,
+			PrimaryButtonText = primaryButtonText,
+			CloseButtonText = closeButtonText,
+		};
+
+		// ダイアログを表示して結果を返す
+		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+		return result;
+	}
+
+	/// <summary>
 	/// 既存作品編集中に入力タイトルが別作品として判定された場合の ContentDialog を表示します。
 	/// ユーザーがタイトルを再入力するか、前画面へ戻るかを選択できます。
 	/// </summary>
 	private async ValueTask showDifferentSeriesDialogAsync()
 	{
-		// ダイアログを作成
-		var dialog = new ContentDialog
-		{
-			Title = "タイトル変更の確認",
-			Content = "入力したタイトルが別作品として判定されたため変更できません。\n新規作品として登録してください。",
-			PrimaryButtonText = "タイトルを再入力",
-			CloseButtonText = "前画面に戻る",
-		};
-
 		// ダイアログを表示して結果を取得
-		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+		var result = await this.ShowContentDialogAsync(
+			"タイトル変更の確認",
+			"入力したタイトルが別作品として判定されたため変更できません。\n新規作品として登録してください。",
+			"タイトルを再入力",
+			"前画面に戻る");
 
 		// ユーザーが「タイトルを再入力」を選択した場合
 		if (result == ContentDialogResult.Primary)
@@ -959,17 +982,12 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			DataContext = cardViewModel,
 		};
 
-		// ダイアログを作成
-		var dialog = new ContentDialog
-		{
-			Title = "既に登録済みです。",
-			Content = content,
-			PrimaryButtonText = "作品を開く",
-			CloseButtonText = "前画面に戻る",
-		};
-
 		// ダイアログを表示して結果を取得
-		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+		var result = await this.ShowContentDialogAsync(
+			"既に登録済みです。",
+			content,
+			"作品を開く",
+			"前画面に戻る");
 
 		// ユーザーが「作品を開く」を選択した場合
 		if (result == ContentDialogResult.Primary)
@@ -990,6 +1008,145 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 
 		// ダイアログ終了後にカード ViewModel を Dispose
 		cardViewModel.Dispose();
+	}
+
+	/// <summary>
+	/// 素材フォルダ選択ダイアログを非同期で表示し、ユーザーの選択結果を返します。
+	/// 登録対象素材が複数の MangaSource.Path に存在する場合のみダイアログを表示します。
+	/// </summary>
+	/// <returns>素材フォルダ選択結果。</returns>
+	private async ValueTask<MaterialFolderSelectionResult> showMaterialFolderSelectionDialogAsync()
+	{
+		// 編集中の作品を取得
+		var editingSeries = this.EditingSeries.Value;
+		if (editingSeries == null)
+		{
+			return MaterialFolderSelectionResult.Skipped;
+		}
+
+		// 実際の素材フォルダ候補を生成（重複なし）
+		var materialFolderCandidates = new List<(SourceFolder, MangaSource)>();
+		var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		// 素材フォルダのみを対象に、各 MangaSource に対応する SourceFolder を検索
+		var materialSources = editingSeries.MaterialSources;
+
+		foreach (var mangaSource in materialSources)
+		{
+			// 重複判定（MangaSource.Path を基準）
+			var normalizedPath = System.IO.Path.GetFullPath(mangaSource.Path);
+			if (!seenPaths.Add(normalizedPath))
+			{
+				// 既に登録されているパス
+				continue;
+			}
+
+			// MangaSource に対応する SourceFolder を検索
+			var matchingSourceFolder = this.findSourceFolderForMangaSource(mangaSource);
+			if (matchingSourceFolder != null)
+			{
+				materialFolderCandidates.Add((matchingSourceFolder, mangaSource));
+			}
+		}
+
+		// 候補件数による動作分岐
+		if (materialFolderCandidates.Count == 0)
+		{
+			// 0件：ダイアログ表示なし、従来動作
+			return MaterialFolderSelectionResult.Skipped;
+		}
+		else if (materialFolderCandidates.Count == 1)
+		{
+			// 1件：ダイアログ表示なし、その候補を使用
+			return MaterialFolderSelectionResult.Selected(materialFolderCandidates[0].Item1);
+		}
+
+		// 2件以上：ダイアログ表示
+		var scope = this.serviceScopeFactory.CreateScope();
+		try
+		{
+			var materialFolderOpener = scope.ServiceProvider.GetRequiredService<MaterialFolderOpener>();
+			var dialogViewModel = new MaterialsConfirmDialogContentViewModel(materialFolderOpener);
+			dialogViewModel.SetMaterialFolderCandidates(materialFolderCandidates);
+
+			// ダイアログコンテンツを作成
+			var content = new MaterialsConfirmDialogContent
+			{
+				DataContext = dialogViewModel,
+			};
+
+			// ContentDialog を生成
+			var dialog = new ContentDialog
+			{
+				Title = "素材フォルダの選択",
+				Content = content,
+				PrimaryButtonText = "素材フォルダの選択",
+				CloseButtonText = "登録のキャンセル",
+				DialogWidth = 900,
+			};
+
+			// ダイアログを表示して結果を取得
+			var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+
+			// ユーザーが「登録のキャンセル」を選択した場合
+			if (result == ContentDialogResult.None)
+			{
+				dialogViewModel.Dispose();
+				return MaterialFolderSelectionResult.Cancelled;
+			}
+
+			// 「素材フォルダの選択」が押された場合、選択中の候補を取得
+			var selectedCandidate = dialogViewModel.SelectedMaterialFolder.Value;
+			dialogViewModel.Dispose();
+
+			if (selectedCandidate != null)
+			{
+				return MaterialFolderSelectionResult.Selected(selectedCandidate.SourceFolder);
+			}
+
+			// 選択がない場合はキャンセル扱い
+			return MaterialFolderSelectionResult.Cancelled;
+		}
+		finally
+		{
+			scope.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// 指定された MangaSource に対応する SourceFolder を検索します。
+	/// </summary>
+	/// <param name="mangaSource">検索対象の MangaSource。</param>
+	/// <returns>対応する SourceFolder、見つからない場合は null。</returns>
+	private SourceFolder? findSourceFolderForMangaSource(MangaSource mangaSource)
+	{
+		ArgumentNullException.ThrowIfNull(mangaSource);
+
+		var targetPath = System.IO.Path.GetFullPath(mangaSource.Path);
+
+		// AppSettings の Material フォルダで照合
+		var materialFolders = this.appSettings.SourceFolders
+			.Where(f => f.Role.Value == FolderRole.Material)
+			.ToList();
+
+		// 各フォルダと照合
+		var matchedFolders = new List<(SourceFolder folder, int pathLength)>();
+
+		foreach (var sourceFolder in materialFolders)
+		{
+			var sourceFolderPath = System.IO.Path.GetFullPath(sourceFolder.FolderPath.Value);
+
+			// targetPath が sourceFolderPath の配下にあるかチェック
+			if (this.isPathUnderFolder(targetPath, sourceFolderPath))
+			{
+				matchedFolders.Add((sourceFolder, sourceFolderPath.Length));
+			}
+		}
+
+		// 最も長いパスにマッチしたフォルダを返す（最も詳細なマッチング）
+		return matchedFolders.Count > 0
+			? matchedFolders.OrderByDescending(m => m.pathLength).First().folder
+			: null;
 	}
 
 	/// <summary>
@@ -1574,9 +1731,33 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 				})
 				.ToList();
 
+			// ===== 素材フォルダ選択ダイアログを表示 =====
+			var folderSelectionResult = await this.showMaterialFolderSelectionDialogAsync();
+
+			// キャンセルされた場合は登録を中止
+			if (folderSelectionResult.ResultStatus == MaterialFolderSelectionResult.Status.Cancelled)
+			{
+				return;
+			}
+
+			// 登録先素材フォルダを確定
+			var registrationMaterialSourceFolder = folderSelectionResult.SelectedSourceFolder 
+				?? this.SelectedMaterialSourceFolder.Value;
+
+			if (registrationMaterialSourceFolder == null)
+			{
+				this.snackbarService.Show(
+					"エラー",
+					"登録先の素材フォルダを選択してください。",
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.FromSeconds(3));
+				return;
+			}
+
 			// ===== 保存前確認フローを実行 =====
-			// 保存先フォルダを EditorStore に設定
-			this.editorStore.SelectedMaterialSourceFolder = this.SelectedMaterialSourceFolder.Value;
+			// 保存先フォルダを EditorStore に設定（確定した登録先を使用）
+			this.editorStore.SelectedMaterialSourceFolder = registrationMaterialSourceFolder;
 
 			// 1. MangaSeriesManager を使用して保存前確認を開始
 			var confirmationResult = await seriesManager.GetSaveSeriesConfirmationAsync(
@@ -1606,8 +1787,22 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 					else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.DifferentDrive)
 					{
 						// 別ドライブ移動の確認ダイアログを表示
-						// TODO: 別ドライブ確認ダイアログの実装
-						this.editorStore.DifferentDriveConfirmed = true;
+						var differentDriveResult = await this.ShowContentDialogAsync(
+							"別ドライブへの移動",
+							"現在選択されている登録先素材フォルダは\n元の素材フォルダとは別ドライブです。\n\n素材ファイルはコピーではなく移動されます。\n\n続行しますか？",
+							"移動して登録",
+							"登録のキャンセル");
+
+						// ユーザーが「移動して登録」を選択した場合
+						if (differentDriveResult == ContentDialogResult.Primary)
+						{
+							this.editorStore.DifferentDriveConfirmed = true;
+						}
+						else
+						{
+							// 「登録のキャンセル」を選択した場合は保存処理を中止
+							return;
+						}
 					}
 					else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.Cancel)
 					{
@@ -1703,3 +1898,64 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	}
 }
 
+/// <summary>
+/// 素材フォルダ選択ダイアログの結果を表します。
+/// </summary>
+internal sealed record MaterialFolderSelectionResult
+{
+	/// <summary>
+	/// ダイアログが表示されず、選択がスキップされた場合。
+	/// </summary>
+	public static MaterialFolderSelectionResult Skipped => new(status: Status.Skipped, selectedSourceFolder: null);
+
+	/// <summary>
+	/// ユーザーが「登録のキャンセル」を選択した場合。
+	/// </summary>
+	public static MaterialFolderSelectionResult Cancelled => new(status: Status.Cancelled, selectedSourceFolder: null);
+
+	/// <summary>
+	/// ユーザーが素材フォルダを選択した場合。
+	/// </summary>
+	public static MaterialFolderSelectionResult Selected(SourceFolder sourceFolder)
+	{
+		ArgumentNullException.ThrowIfNull(sourceFolder);
+		return new(status: Status.Selected, selectedSourceFolder: sourceFolder);
+	}
+
+	/// <summary>
+	/// 結果の状態を取得します。
+	/// </summary>
+	public enum Status
+	{
+		/// <summary>ダイアログが表示されず、選択がスキップされた。</summary>
+		Skipped,
+
+		/// <summary>ユーザーが登録をキャンセルした。</summary>
+		Cancelled,
+
+		/// <summary>ユーザーが素材フォルダを選択した。</summary>
+		Selected,
+	}
+
+	/// <summary>
+	/// 結果の状態を取得します。
+	/// </summary>
+	public Status ResultStatus { get; }
+
+	/// <summary>
+	/// ユーザーが選択した登録先素材フォルダを取得します。
+	/// SkippedまたはCancelledの場合はnull。
+	/// </summary>
+	public SourceFolder? SelectedSourceFolder { get; }
+
+	/// <summary>
+	/// <see cref="MaterialFolderSelectionResult"/> の新しいインスタンスを初期化します。
+	/// </summary>
+	/// <param name="status">結果の状態。</param>
+	/// <param name="selectedSourceFolder">ユーザーが選択した登録先素材フォルダ。</param>
+	private MaterialFolderSelectionResult(Status status, SourceFolder? selectedSourceFolder)
+	{
+		this.ResultStatus = status;
+		this.SelectedSourceFolder = selectedSourceFolder;
+	}
+}

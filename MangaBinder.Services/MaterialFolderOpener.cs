@@ -3,7 +3,7 @@ using System.IO;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
-namespace MangaBinder.Series;
+namespace MangaBinder;
 
 /// <summary>
 /// 素材フォルダを Explorer で開くサービスです。
