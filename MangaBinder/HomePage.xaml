@@ -316,70 +316,14 @@
                                     behaviors:OpenContextMenuOnClickBehavior.IsEnabled="True">
                                     <ui:Button.ContextMenu>
                                         <ContextMenu>
-                                            <!-- 素材フォルダを開く（1件） -->
+                                            <!-- 素材フォルダを開く -->
                                             <MenuItem
                                                 Header="素材フォルダを開く"
-                                                Visibility="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
-                                                             RelativeSource={RelativeSource AncestorType=ContextMenu},
-                                                             Converter={StaticResource BooleanToVisibilityConverter}}"
                                                 IsEnabled="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
                                                             RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                 Command="{Binding Data.OpenMaterialFolderCommand, Source={StaticResource VmProxy}}"
-                                                CommandParameter="{Binding PlacementTarget.DataContext.Series.SingleMaterialSource,
-                                                                   RelativeSource={RelativeSource AncestorType=ContextMenu}}">
-                                                <MenuItem.Style>
-                                                    <Style TargetType="MenuItem">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMultipleMaterialSources,
-                                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </MenuItem.Style>
-                                            </MenuItem>
-                                            <!-- 素材フォルダを開く（0件・グレーアウト） -->
-                                            <MenuItem
-                                                Header="素材フォルダを開く"
-                                                IsEnabled="False">
-                                                <MenuItem.Style>
-                                                    <Style TargetType="MenuItem">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMaterialSources,
-                                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="False">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </MenuItem.Style>
-                                            </MenuItem>
-                                            <!-- 素材フォルダ（複数件・サブメニュー） -->
-                                            <MenuItem Header="素材フォルダ">
-                                                <MenuItem.Style>
-                                                    <Style TargetType="MenuItem">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding PlacementTarget.DataContext.Series.HasMultipleMaterialSources,
-                                                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </MenuItem.Style>
-                                                <MenuItem.ItemsSource>
-                                                    <Binding Path="PlacementTarget.DataContext.Series.MaterialSources"
-                                                             RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
-                                                </MenuItem.ItemsSource>
-                                                <MenuItem.ItemContainerStyle>
-                                                    <Style TargetType="MenuItem">
-                                                        <Setter Property="Header" Value="{Binding Converter={extensions:MaterialSourceDisplayNameConverterExtension}}" />
-                                                        <Setter Property="Command" Value="{Binding Data.OpenMaterialFolderCommand, Source={StaticResource VmProxy}}" />
-                                                        <Setter Property="CommandParameter" Value="{Binding}" />
-                                                    </Style>
-                                                </MenuItem.ItemContainerStyle>
-                                            </MenuItem>
+                                                CommandParameter="{Binding PlacementTarget.DataContext.Series.PrimaryMaterialSource,
+                                                                   RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         </ContextMenu>
                                     </ui:Button.ContextMenu>
                                     <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />

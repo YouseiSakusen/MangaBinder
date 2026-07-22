@@ -21,7 +21,7 @@ namespace MangaBinder.Series;
 /// <summary>
 /// 編集ページの ViewModel です。
 /// </summary>
-public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, IDisposable
+public partial class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, IDisposable
 {
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly SeriesWorkspaceStore workspaceStore;
@@ -31,6 +31,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	private readonly ISnackbarService snackbarService;
 	private readonly AppSettings appSettings;
 	private readonly EditorStore editorStore;
+	private readonly LoadingService loadingService;
 	private SeriesTagSelectorViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
 
@@ -198,6 +199,22 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	public ReactiveCommand<Unit> TitleLostFocusCommand { get; }
 
 	/// <summary>
+	/// 素材フォルダを開くコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> OpenMaterialFolderCommand { get; }
+
+	/// <summary>
+	/// 作品を削除できるかどうかを取得します。
+	/// SeriesId != 0 または WorkId != 0 の場合に true になります。
+	/// </summary>
+	public BindableReactiveProperty<bool> CanDeleteSeries { get; }
+
+	/// <summary>
+	/// 作品削除ダイアログを表示するコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> ShowDeleteSeriesDialogCommand { get; }
+
+	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="serviceScopeFactory">サービススコープファクトリ。Scoped サービス取得用。</param>
@@ -208,6 +225,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	/// <param name="snackbarService">Snackbar サービス。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="editorStore">編集状態ストア。</param>
+	/// <param name="loadingService">ローディングサービス。</param>
 	public EditorPageViewModel(
 		IServiceScopeFactory serviceScopeFactory,
 		SeriesWorkspaceStore workspaceStore,
@@ -216,7 +234,8 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		MangaSeriesStore mangaSeriesStore,
 		ISnackbarService snackbarService,
 		AppSettings appSettings,
-		EditorStore editorStore)
+		EditorStore editorStore,
+		LoadingService loadingService)
 	{
 		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
@@ -226,6 +245,7 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 		this.snackbarService = snackbarService ?? throw new ArgumentNullException(nameof(snackbarService));
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
 		this.editorStore = editorStore ?? throw new ArgumentNullException(nameof(editorStore));
+		this.loadingService = loadingService ?? throw new ArgumentNullException(nameof(loadingService));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
@@ -442,9 +462,45 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			this.handleTitleLostFocus();
 		});
 
+		// OpenMaterialFolderCommand: 素材フォルダを開くコマンド
+		this.OpenMaterialFolderCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.OpenMaterialFolderCommand.Subscribe(async _ =>
+		{
+			await this.openMaterialFolderAsync();
+		});
+
 		// VolumeStatus: 巻情報編集用ViewModel
 		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
 			.AddTo(ref this.disposableBag);
+
+		// CanDeleteSeries: 作品削除ボタンの表示制御
+		this.CanDeleteSeries = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		// EditingSeries が変更された場合、CanDeleteSeries を更新
+		this.EditingSeries
+			.Subscribe(editingSeries =>
+			{
+				if (editingSeries != null)
+				{
+					// SeriesId != 0 または WorkId != 0 の場合に削除可能
+					this.CanDeleteSeries.Value = editingSeries.SeriesId != 0 || editingSeries.WorkId != 0;
+				}
+				else
+				{
+					this.CanDeleteSeries.Value = false;
+				}
+			})
+			.AddTo(ref this.disposableBag);
+
+		// ShowDeleteSeriesDialogCommand: 作品削除ダイアログ表示コマンド
+		this.ShowDeleteSeriesDialogCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.ShowDeleteSeriesDialogCommand.Subscribe(async _ =>
+		{
+			await this.showDeleteSeriesDialogAsync();
+		});
 	}
 
 	/// <summary>
@@ -1011,6 +1067,48 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 	}
 
 	/// <summary>
+	/// 作品削除ダイアログを非同期で表示し、ユーザーの選択結果を返します。
+	/// </summary>
+	private async ValueTask showDeleteSeriesDialogAsync()
+	{
+		// 編集中の作品を取得
+		var editingSeries = this.EditingSeries.Value;
+		if (editingSeries == null)
+		{
+			return;
+		}
+
+		// ダイアログ用 ViewModel を生成（削除対象作品を直接渡す）
+		var dialogViewModel = new SeriesDeleteDialogContentViewModel(editingSeries);
+
+		// ダイアログコンテンツを作成
+		var content = new SeriesDeleteDialogContent
+		{
+			DataContext = dialogViewModel,
+		};
+
+		// ダイアログを表示して結果を取得
+		var result = await this.ShowContentDialogAsync(
+			"作品を削除",
+			content,
+			"削除",
+			"キャンセル");
+
+		// ユーザーが「削除」を選択した場合
+		if (result == ContentDialogResult.Primary)
+		{
+			// 選択された削除方法を取得
+			var deleteMethod = dialogViewModel.SelectedDeleteMethod.Value;
+
+			// 今回の実装では、削除処理は実装しないため、何もしない
+			// 後続対応で削除処理を実装予定
+		}
+
+		// ダイアログ終了後に ViewModel を Dispose
+		dialogViewModel.Dispose();
+	}
+
+	/// <summary>
 	/// 素材フォルダ選択ダイアログを非同期で表示し、ユーザーの選択結果を返します。
 	/// 登録対象素材が複数の MangaSource.Path に存在する場合のみダイアログを表示します。
 	/// </summary>
@@ -1447,11 +1545,15 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
 
-			// WorkMangaSeries へ一時保存
-			var workId = await seriesManager.SaveWorkSeriesAsync(editingSeries, thumbnailBytes);
+			// ローディング開始
+			using (this.loadingService.Begin("作品を一時保存しています…"))
+			{
+				// WorkMangaSeries へ一時保存
+				var workId = await seriesManager.SaveWorkSeriesAsync(editingSeries, thumbnailBytes);
 
-			// 成功ログ
-			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SaveWorkSeriesAsync] 一時保存成功。WorkId={workId}");
+				// 成功ログ
+				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SaveWorkSeriesAsync] 一時保存成功。WorkId={workId}");
+			}
 
 			// 作品管理画面へ戻る
 			this.navigationService.Navigate(typeof(MaintenancePage));
@@ -1506,68 +1608,72 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			var existingFullPaths = this.MaterialFiles.Select(m => m.FullPath).ToHashSet();
 			var existingFileNames = this.MaterialFiles.Select(m => m.FileName).ToHashSet();
 
-			// 候補を解析
-			var candidates = materialManager.AnalyzePaths(droppedPaths, existingFullPaths.ToList());
-
-			// 重複判定結果を記録
-			var alreadyAddedFiles = new List<string>();
-			var sameNameFiles = new List<string>();
-			var addedAny = false;
-
-			foreach (var candidate in candidates)
+			// ローディング開始
+			using (this.loadingService.Begin("素材を追加しています..."))
 			{
-				// ① 同一 FullPath の重複判定
-				if (existingFullPaths.Contains(candidate.FullPath))
-				{
-					alreadyAddedFiles.Add(candidate.FileName);
-					continue;
+				// 候補を解析
+				var candidates = materialManager.AnalyzePaths(droppedPaths, existingFullPaths.ToList());
+
+				// 重複判定結果を記録
+				var alreadyAddedFiles = new List<string>();
+						var sameNameFiles = new List<string>();
+						var addedAny = false;
+
+						foreach (var candidate in candidates)
+						{
+							// ① 同一 FullPath の重複判定
+							if (existingFullPaths.Contains(candidate.FullPath))
+							{
+								alreadyAddedFiles.Add(candidate.FileName);
+								continue;
+							}
+
+							// ② 同名ファイルの重複判定
+							if (existingFileNames.Contains(candidate.FileName))
+							{
+								sameNameFiles.Add(candidate.FileName);
+								continue;
+							}
+
+							// ③ 重複なし → 追加
+							var item = new MaterialFileItem
+							{
+								Name = candidate.FileName,
+								FullPath = candidate.FullPath,
+								ItemType = candidate.Type,
+								SizeBytes = candidate.Size,
+								CanRemove = true,
+							};
+							var viewModel = MaterialFileItemViewModel.FromDto(item);
+							this.MaterialFiles.Add(viewModel);
+							addedAny = true;
+						}
+
+						if (addedAny)
+						{
+							// ヘッダー表示用文字列を更新
+							this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
+
+							// ボタン有効制御を更新
+							this.UpdateSaveWorkSeriesCommandCanExecute();
+
+							// 所持推定を再計算
+							this.RecalculateOwnedVolumeEstimate();
+						}
+
+						// === 追加できなかった素材の通知 ===
+						if (alreadyAddedFiles.Count > 0 || sameNameFiles.Count > 0)
+						{
+							this.showMaterialDuplicateWarningSnackbar(alreadyAddedFiles, sameNameFiles);
+						}
+						}
+					}
+					catch (Exception ex)
+					{
+						// ドラッグアンドドロップ処理中のエラーをログ出力
+						System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.AddMaterialFilesFromDropAsync] 例外発生: {ex.Message}");
+					}
 				}
-
-				// ② 同名ファイルの重複判定
-				if (existingFileNames.Contains(candidate.FileName))
-				{
-					sameNameFiles.Add(candidate.FileName);
-					continue;
-				}
-
-				// ③ 重複なし → 追加
-				var item = new MaterialFileItem
-				{
-					Name = candidate.FileName,
-					FullPath = candidate.FullPath,
-					ItemType = candidate.Type,
-					SizeBytes = candidate.Size,
-					CanRemove = true,
-				};
-				var viewModel = MaterialFileItemViewModel.FromDto(item);
-				this.MaterialFiles.Add(viewModel);
-				addedAny = true;
-			}
-
-			if (addedAny)
-			{
-				// ヘッダー表示用文字列を更新
-				this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
-
-				// ボタン有効制御を更新
-				this.UpdateSaveWorkSeriesCommandCanExecute();
-
-				// 所持推定を再計算
-				this.RecalculateOwnedVolumeEstimate();
-			}
-
-			// === 追加できなかった素材の通知 ===
-			if (alreadyAddedFiles.Count > 0 || sameNameFiles.Count > 0)
-			{
-				this.showMaterialDuplicateWarningSnackbar(alreadyAddedFiles, sameNameFiles);
-			}
-		}
-		catch (Exception ex)
-		{
-			// ドラッグアンドドロップ処理中のエラーをログ出力
-			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.AddMaterialFilesFromDropAsync] 例外発生: {ex.Message}");
-		}
-	}
 
 	/// <summary>
 	/// 現在の MaterialFiles から所持推定を再計算し、有効な結果の場合のみ OwnedMaxVolume を更新します。
@@ -1703,9 +1809,9 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 					this.snackbarService.Show(
 						"エラー",
 						"素材ファイルが登録されていません。",
-						ControlAppearance.Caution,
+						ControlAppearance.Danger,
 						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.FromSeconds(3));
+						TimeSpan.MaxValue);
 					return;
 				}
 
@@ -1714,9 +1820,23 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 					this.snackbarService.Show(
 						"エラー",
 						"登録先の素材フォルダを選択してください。",
-						ControlAppearance.Caution,
+						ControlAppearance.Danger,
 						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.FromSeconds(3));
+						TimeSpan.MaxValue);
+					return;
+				}
+			}
+			else
+			{
+				// 既存作品の場合、追加素材がある場合のみ登録先フォルダが必須
+				if (this.MaterialFiles.Count > 0 && this.SelectedMaterialSourceFolder.Value == null)
+				{
+					this.snackbarService.Show(
+						"エラー",
+						"登録先の素材フォルダを選択してください。",
+						ControlAppearance.Danger,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.MaxValue);
 					return;
 				}
 			}
@@ -1741,17 +1861,19 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 			}
 
 			// 登録先素材フォルダを確定
+			// Skipped の場合は、追加素材がないため登録先フォルダは不要（既存作品の作品情報更新のみ）
 			var registrationMaterialSourceFolder = folderSelectionResult.SelectedSourceFolder 
 				?? this.SelectedMaterialSourceFolder.Value;
 
-			if (registrationMaterialSourceFolder == null)
+			// 追加素材がある場合のみ、登録先フォルダの選択を要求
+			if (this.MaterialFiles.Count > 0 && registrationMaterialSourceFolder == null)
 			{
 				this.snackbarService.Show(
 					"エラー",
 					"登録先の素材フォルダを選択してください。",
-					ControlAppearance.Caution,
+					ControlAppearance.Danger,
 					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.FromSeconds(3));
+					TimeSpan.MaxValue);
 				return;
 			}
 
@@ -1810,20 +1932,30 @@ public class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, 
 						return;
 					}
 
-					// 再度確認を実行
-					confirmationResult = await seriesManager.GetSaveSeriesConfirmationAsync(
-						this.editorStore,
-						materialFileDtos);
-				}
+						// 再度確認を実行
+						confirmationResult = await seriesManager.GetSaveSeriesConfirmationAsync(
+							this.editorStore,
+							materialFileDtos);
+					}
 
-				// 3. 確認完了 → 保存実行
-				var savedSeries = await seriesManager.SaveSeriesAsync(
-					this.editorStore,
-					materialFileDtos,
-					this.PastedThumbnailBytes);
+					// 3. 確認完了 → ローディング開始
+					// 保存処理のメッセージを決定
+					var loadingMessage = editingSeries.SeriesId == 0 || editingSeries.IsWork
+						? "作品を登録しています…"
+						: "作品を更新しています…";
 
-			// 保存成功
-			this.snackbarService.Show(
+					MangaSeries savedSeries;
+					using (this.loadingService.Begin(loadingMessage))
+					{
+						// 保存実行
+						savedSeries = await seriesManager.SaveSeriesAsync(
+							this.editorStore,
+							materialFileDtos,
+							this.PastedThumbnailBytes);
+					}
+
+					// 保存成功
+					this.snackbarService.Show(
 				"成功",
 				$"『{savedSeries.Title}』を保存しました。",
 				ControlAppearance.Success,
@@ -1957,5 +2089,26 @@ internal sealed record MaterialFolderSelectionResult
 	{
 		this.ResultStatus = status;
 		this.SelectedSourceFolder = selectedSourceFolder;
+	}
+}
+
+/// <summary>
+/// EditorPageViewModel に関連するメソッド。
+/// </summary>
+public partial class EditorPageViewModel
+{
+	/// <summary>
+	/// 素材フォルダを開きます。
+	/// </summary>
+	private async Task openMaterialFolderAsync()
+	{
+		// EditingSeries が null の場合は処理しない
+		if (this.EditingSeries.Value?.PrimaryMaterialSource is not { } primarySource)
+			return;
+
+		// MaterialFolderOpener を取得してフォルダを開く
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var opener = scope.ServiceProvider.GetRequiredService<MaterialFolderOpener>();
+		await opener.OpenAsync(primarySource);
 	}
 }

@@ -136,6 +136,9 @@ public class MangaSeries
         }
     }
 
+    /// <summary>代表素材フォルダ（先頭要素）を取得します。素材フォルダが存在しない場合は <c>null</c> を返します。</summary>
+    public MangaSource? PrimaryMaterialSource => this.MaterialSources.FirstOrDefault();
+
     /// <summary>素材フォルダが複数件存在するかを示します。</summary>
     public bool HasMultipleMaterialSources => this.Sources.Count(s => s.Role == Settings.FolderRole.Material) > 1;
 

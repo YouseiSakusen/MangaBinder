@@ -322,14 +322,7 @@ public class MangaSeriesManager
 
 		this.logger?.LogInformation($"[GetSaveSeriesConfirmationAsync] 開始。SeriesId: {editingSeries.SeriesId}, Title: {editingSeries.Title}");
 
-		// 新規作品・登録待ち作品の場合は確認不要
-		if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
-		{
-			this.logger?.LogInformation("[GetSaveSeriesConfirmationAsync] 新規作品/登録待ち作品のため確認なし。");
-			return ValueTask.FromResult(new SaveSeriesConfirmationResult(SaveSeriesConfirmationType.None));
-		}
-
-		// ① 素材ソース複数判定
+		// ① 素材ソース複数判定（既存作品のみ）
 		if (editingSeries.HasMultipleMaterialSources)
 		{
 			this.logger?.LogInformation($"[GetSaveSeriesConfirmationAsync] 複数の素材ソースを検出。Count: {editingSeries.MaterialSources.Count}");
@@ -339,8 +332,8 @@ public class MangaSeriesManager
 					editingSeries.MaterialSources));
 		}
 
-		// ② 別ドライブ移動判定
-		if (!editorStore.DifferentDriveConfirmed && this.needsDifferentDriveConfirmation(editingSeries, editorStore.SelectedMaterialSourceFolder))
+		// ② 別ドライブ移動判定（新規・登録待ち・既存の区別なく実行）
+		if (!editorStore.DifferentDriveConfirmed && this.needsDifferentDriveConfirmation(materialFiles, editorStore.SelectedMaterialSourceFolder))
 		{
 			this.logger?.LogInformation("[GetSaveSeriesConfirmationAsync] 別ドライブ移動が必要。");
 			return ValueTask.FromResult(new SaveSeriesConfirmationResult(SaveSeriesConfirmationType.DifferentDrive));
@@ -352,31 +345,96 @@ public class MangaSeriesManager
 	}
 
 	/// <summary>
-	/// 別ドライブ移動が必要かどうかを判定します。
+	/// ファイルまたはフォルダの合計サイズをバイト単位で取得します。
+	/// ファイルの場合は FileInfo.Length を使用し、
+	/// フォルダの場合は配下のすべてのファイルのサイズを合計します。
 	/// </summary>
+	/// <param name="fullPath">ファイルまたはフォルダの完全パス。</param>
+	/// <returns>合計サイズ（バイト）。</returns>
+	private long getMaterialSize(string fullPath)
+	{
+		var fileInfo = new System.IO.FileInfo(fullPath);
+		if (fileInfo.Exists)
+		{
+			// ファイルの場合
+			return fileInfo.Length;
+		}
+
+		var dirInfo = new System.IO.DirectoryInfo(fullPath);
+		if (!dirInfo.Exists)
+		{
+			// ファイルもフォルダも存在しない場合は0を返す
+			return 0;
+		}
+
+		// フォルダの場合は配下のすべてのファイルのサイズを合計
+		long totalSize = 0;
+		foreach (var file in dirInfo.EnumerateFiles("*", SearchOption.AllDirectories))
+		{
+			totalSize += file.Length;
+		}
+
+		return totalSize;
+	}
+
+	/// <summary>
+	/// 別ドライブ移動が必要かどうかを判定します。
+	/// CanRemove == true の追加素材のみを対象に判定を行います。
+	/// 合計サイズが1GB以上で、かつ追加素材の中に登録先素材フォルダとは異なるドライブに存在する素材がある場合、確認が必要と判定します。
+	/// </summary>
+	/// <param name="materialFiles">素材ファイル一覧。</param>
+	/// <param name="selectedMaterialSourceFolder">登録先として選択された素材フォルダ。</param>
+	/// <returns>別ドライブ移動確認が必要な場合は true。</returns>
 	private bool needsDifferentDriveConfirmation(
-		MangaSeries editingSeries,
+		IReadOnlyList<MaterialFile> materialFiles,
 		SourceFolder? selectedMaterialSourceFolder)
 	{
 		// 選択された素材フォルダがない場合は確認不要
 		if (selectedMaterialSourceFolder == null)
 			return false;
 
-		// 単一素材ソースが存在しない場合は確認不要
-		var singleSource = editingSeries.SingleMaterialSource;
-		if (singleSource == null)
+		// CanRemove == true（追加素材）のみを対象にする
+		var addedMaterials = materialFiles.Where(m => m.CanRemove).ToList();
+		if (addedMaterials.Count == 0)
 			return false;
 
-		// 元のパスと選択されたフォルダが異なるドライブに存在するかチェック
-		var originalDriveLetter = Path.GetPathRoot(singleSource.Path)?[0];
-		var selectedDriveLetter = Path.GetPathRoot(selectedMaterialSourceFolder.FolderPath.Value)?[0];
+		// 追加素材の合計サイズを計算
+		long totalSize = 0;
+		foreach (var material in addedMaterials)
+		{
+			totalSize += this.getMaterialSize(material.FullPath);
+		}
 
-		var isDifferentDrive = originalDriveLetter != null && selectedDriveLetter != null && originalDriveLetter != selectedDriveLetter;
+		// 1GB未満の場合は確認不要
+		const long oneGibInBytes = 1024L * 1024L * 1024L;
+		if (totalSize < oneGibInBytes)
+		{
+			this.logger?.LogInformation(
+				$"[needsDifferentDriveConfirmation] 追加素材合計サイズ {totalSize} bytes は 1GB 未満のため、別ドライブ確認は不要。");
+			return false;
+		}
+
+		// 登録先素材フォルダのドライブを取得
+		var selectedDriveLetter = Path.GetPathRoot(selectedMaterialSourceFolder.FolderPath.Value)?[0];
+		if (selectedDriveLetter == null)
+			return false;
+
+		// 追加素材の中に、登録先とは異なるドライブに存在する素材があるかチェック
+		var hasDifferentDrive = false;
+		foreach (var material in addedMaterials)
+		{
+			var materialDriveLetter = Path.GetPathRoot(material.FullPath)?[0];
+			if (materialDriveLetter != null && materialDriveLetter != selectedDriveLetter)
+			{
+				hasDifferentDrive = true;
+				break;
+			}
+		}
 
 		this.logger?.LogInformation(
-			$"[needsDifferentDriveConfirmation] originalDrive: {originalDriveLetter}, selectedDrive: {selectedDriveLetter}, isDifferent: {isDifferentDrive}");
+			$"[needsDifferentDriveConfirmation] 追加素材合計サイズ {totalSize} bytes (≥ 1GB), 別ドライブ素材存在: {hasDifferentDrive}");
 
-		return isDifferentDrive;
+		return hasDifferentDrive;
 	}
 
 	/// <summary>

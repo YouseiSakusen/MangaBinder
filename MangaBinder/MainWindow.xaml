@@ -57,11 +57,44 @@
 
 			<ui:NavigationView.ContentOverlay>
 				<Grid>
+					<!-- スナックバー -->
 					<ui:SnackbarPresenter x:Name="SnackbarPresenter" 
-											Width="1280"
-											HorizontalAlignment="Right"
-											VerticalAlignment="Bottom"
-											Margin="24" />
+										Width="1280"
+										HorizontalAlignment="Right"
+										VerticalAlignment="Bottom"
+										Margin="24" />
+
+					<!-- ローディングオーバーレイ -->
+					<Grid
+						Background="#80000000"
+						Visibility="{Binding IsLoading.Value, Converter={StaticResource BoolToVisibilityConverter}}"
+						Panel.ZIndex="1000">
+
+						<!-- 中央に ProgressRing とメッセージを配置 -->
+						<StackPanel
+							VerticalAlignment="Center"
+							HorizontalAlignment="Center">
+
+							<!-- Indeterminate ProgressRing -->
+							<ui:ProgressRing
+								IsIndeterminate="True"
+								Width="64"
+								Height="64"
+								HorizontalAlignment="Center" />
+
+							<!-- ローディングメッセージ（16px の上マージン） -->
+							<TextBlock
+								Text="{Binding LoadingMessage.Value}"
+								HorizontalAlignment="Center"
+								Foreground="White"
+								FontSize="14"
+								TextAlignment="Center"
+								Margin="0,16,0,0" />
+
+						</StackPanel>
+
+					</Grid>
+
 				</Grid>
 			</ui:NavigationView.ContentOverlay>
 		</ui:NavigationView>

@@ -1,0 +1,118 @@
+﻿<UserControl x:Class="MangaBinder.Controls.SeriesDeleteDialogContent"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:MangaBinder.Controls"
+             xmlns:converters="clr-namespace:MangaBinder.Converters"
+             xmlns:extensions="clr-namespace:MangaBinder.Extensions"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+        <converters:SeriesDeleteMethodConverter x:Key="SeriesDeleteMethodConverter" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </UserControl.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <!-- Row0: 作品情報エリア（サムネイル + タイトル・状態） -->
+            <RowDefinition Height="Auto" />
+            <!-- Row1: スペーサー -->
+            <RowDefinition Height="20" />
+            <!-- Row2: 削除方法見出し -->
+            <RowDefinition Height="Auto" />
+            <!-- Row3: スペーサー -->
+            <RowDefinition Height="12" />
+            <!-- Row4: ラジオボタン1（作品情報のみ削除） -->
+            <RowDefinition Height="Auto" />
+            <!-- Row5: スペーサー -->
+            <RowDefinition Height="12" />
+            <!-- Row6: ラジオボタン2（作品情報と素材フォルダを削除） -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Row0: 作品情報エリア（サムネイル + タイトル・状態） -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <!-- Column0: サムネイル -->
+                <ColumnDefinition Width="Auto" />
+                <!-- Column1: スペーサー -->
+                <ColumnDefinition Width="16" />
+                <!-- Column2: タイトル・状態 -->
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Column0: サムネイル -->
+            <Border
+                Grid.Column="0"
+                Width="120"
+                Height="168"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                CornerRadius="4"
+                ClipToBounds="True">
+                <Image
+                    Width="120"
+                    Height="168"
+                    Stretch="UniformToFill"
+                    RenderOptions.BitmapScalingMode="HighQuality"
+                    Source="{Binding TargetSeries.Value, Converter={extensions:ThumbnailImageConverterExtension}}" />
+            </Border>
+
+            <!-- Column2: タイトル・状態情報 -->
+            <StackPanel Grid.Column="2" VerticalAlignment="Top">
+                <!-- 作品タイトル -->
+                <TextBlock
+                    Text="{Binding TargetSeries.Value.Title, Mode=OneWay}"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                    TextWrapping="Wrap"
+                    LineHeight="22"
+                    Margin="0,0,0,12" />
+
+                <!-- 状態表示 -->
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        Text="状態：" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        Text="登録済作品"
+                        Visibility="{Binding TargetSeries.Value.IsWork, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        Text="登録待ち作品"
+                        Visibility="{Binding TargetSeries.Value.IsWork, Converter={StaticResource BoolToVisibilityConverter}}" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- Row2: 削除方法見出し -->
+        <TextBlock
+            Grid.Row="2"
+            Text="削除方法"
+            FontSize="12"
+            FontWeight="SemiBold"
+            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+        <!-- Row4: ラジオボタン1（作品情報のみ削除） -->
+        <RadioButton
+            Grid.Row="4"
+            Content="作品情報のみ削除する"
+            IsChecked="{Binding SelectedDeleteMethod.Value, Converter={StaticResource SeriesDeleteMethodConverter}, ConverterParameter=InfoOnly, Mode=TwoWay}"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Center" />
+
+        <!-- Row6: ラジオボタン2（作品情報と素材フォルダを削除） -->
+        <RadioButton
+            Grid.Row="6"
+            Content="作品情報と素材フォルダを削除する"
+            IsChecked="{Binding SelectedDeleteMethod.Value, Converter={StaticResource SeriesDeleteMethodConverter}, ConverterParameter=InfoAndFolder, Mode=TwoWay}"
+            Visibility="{Binding ShowMaterialFolderDeleteOption.Value, Converter={StaticResource BoolToVisibilityConverter}}"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Center" />
+    </Grid>
+</UserControl>

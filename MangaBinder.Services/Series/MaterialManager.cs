@@ -12,6 +12,7 @@ public sealed class MaterialManager
 	/// 指定された素材ファイル/フォルダを、登録先の作品フォルダへ移動します。
 	/// CanRemove == true のもの（編集画面で追加された素材）のみを移動対象にします。
 	/// 移動元フォルダと登録先作品フォルダが同一の場合は移動を行いません。
+	/// 移動処理全体はバックグラウンドスレッドで実行されます。
 	/// </summary>
 	/// <remarks>
 	/// 移動処理：
@@ -30,7 +31,7 @@ public sealed class MaterialManager
 	/// <param name="materialFolderName">作品フォルダ名。</param>
 	/// <param name="materialFiles">移動する素材ファイル/フォルダ一覧。</param>
 	/// <returns>移動結果を表す MaterialMoveResult。</returns>
-	public async ValueTask<MaterialMoveResult> MoveMaterialsAsync(
+	public ValueTask<MaterialMoveResult> MoveMaterialsAsync(
 		SourceFolder destinationSourceFolder,
 		string materialFolderName,
 		IEnumerable<MaterialFile> materialFiles)
@@ -39,6 +40,20 @@ public sealed class MaterialManager
 		ArgumentException.ThrowIfNullOrEmpty(materialFolderName);
 		ArgumentNullException.ThrowIfNull(materialFiles);
 
+		// バックグラウンドスレッドで実行
+		return new ValueTask<MaterialMoveResult>(
+			Task.Run(() => this.moveMaterialsSync(destinationSourceFolder, materialFolderName, materialFiles)));
+	}
+
+	/// <summary>
+	/// 素材ファイル/フォルダを移動する実際の処理をバックグラウンドで実行します。
+	/// UIスレッドをブロックしないよう、Task.Run内で呼び出されることを想定しています。
+	/// </summary>
+	private MaterialMoveResult moveMaterialsSync(
+		SourceFolder destinationSourceFolder,
+		string materialFolderName,
+		IEnumerable<MaterialFile> materialFiles)
+	{
 		// 登録先素材フォルダのパスを取得
 		var destinationSourcePath = Path.GetFullPath(destinationSourceFolder.FolderPath.Value);
 
@@ -113,17 +128,17 @@ public sealed class MaterialManager
 			{
 				case MaterialItemType.Archive:
 					// アーカイブファイル：作品フォルダ直下へ移動
-					await this.MoveArchiveFileAsync(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
+					this.moveArchiveFile(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
 					break;
 
 				case MaterialItemType.Folder:
 					// 画像フォルダ：フォルダごと作品フォルダ直下へ移動
-					await this.MoveFolderAsync(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
+					this.moveFolder(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
 					break;
 
 				case MaterialItemType.Epub:
 					// epub ファイル：作品フォルダ直下へ移動
-					await this.MoveEpubFileAsync(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
+					this.moveEpubFile(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
 					break;
 
 				default:
@@ -146,7 +161,7 @@ public sealed class MaterialManager
 	/// 移動先に同名ファイルが既に存在する場合は例外を投げます。
 	/// </summary>
 	/// <exception cref="InvalidOperationException">移動先に同名ファイルが既に存在する場合。</exception>
-	private async ValueTask MoveArchiveFileAsync(
+	private void moveArchiveFile(
 		string sourceFilePath,
 		string destinationFolderPath,
 		List<MaterialMoveItem> movedItems,
@@ -170,8 +185,6 @@ public sealed class MaterialManager
 			DestinationPath = destinationFilePath,
 			Type = itemType,
 		});
-
-		await ValueTask.CompletedTask;
 	}
 
 	/// <summary>
@@ -179,7 +192,7 @@ public sealed class MaterialManager
 	/// 移動先に同名フォルダが既に存在する場合は例外を投げます。
 	/// </summary>
 	/// <exception cref="InvalidOperationException">移動先に同名フォルダが既に存在する場合。</exception>
-	private async ValueTask MoveFolderAsync(
+	private void moveFolder(
 		string sourceFolderPath,
 		string destinationFolderPath,
 		List<MaterialMoveItem> movedItems,
@@ -203,8 +216,6 @@ public sealed class MaterialManager
 			DestinationPath = destinationPath,
 			Type = itemType,
 		});
-
-		await ValueTask.CompletedTask;
 	}
 
 	/// <summary>
@@ -212,7 +223,7 @@ public sealed class MaterialManager
 	/// 移動先に同名ファイルが既に存在する場合は例外を投げます。
 	/// </summary>
 	/// <exception cref="InvalidOperationException">移動先に同名ファイルが既に存在する場合。</exception>
-	private async ValueTask MoveEpubFileAsync(
+	private void moveEpubFile(
 		string sourceFilePath,
 		string destinationFolderPath,
 		List<MaterialMoveItem> movedItems,
@@ -236,8 +247,6 @@ public sealed class MaterialManager
 			DestinationPath = destinationFilePath,
 			Type = itemType,
 		});
-
-		await ValueTask.CompletedTask;
 	}
 
 	/// <summary>
@@ -246,18 +255,52 @@ public sealed class MaterialManager
 	/// <remarks>
 	/// 処理フロー：
 	/// - ファイルの場合：SupportedFileExtensions のアーカイブファイルのみ許可
-	/// - フォルダの場合：
-	///   - フォルダ直下が epub のみなら、epub ファイルを個別素材候補として返す
-	///   - フォルダ直下が画像のみなら、フォルダ自体を素材候補として返す
-	///   - それ以外の混在フォルダは追加しない
+	/// - フォルダの場合：配下を再帰的に探索し、SupportedFileExtensions に含まれるサポート対象ファイルが1つでも存在する場合、
+	///   ドロップされた最上位フォルダを素材フォルダとして追加。サブフォルダ自体は登録しない。
+	///   アクセス不可能なフォルダが存在する場合は、そのフォルダのみをスキップし、他のフォルダの検索は継続する。
 	/// - 重複排除：
 	///   - 同一 FullPath は追加しない
-	///   - 既に materialFilesCollection に存在するパスも追加しない
+	///   - 既に existingFullPaths に存在するパスも追加しない
 	///   - 同じ入力内で重複しているパスも追加しない
 	/// </remarks>
 	/// <param name="paths">解析対象のパス一覧（ファイルおよびフォルダパス）。</param>
-	/// <param name="materialFilesCollection">既存の素材ファイル一覧。重複チェックに使用します。</param>
+	/// <param name="existingFullPaths">既存の素材ファイル一覧。重複チェックに使用します。</param>
 	/// <returns>追加可能な素材候補 DTO の列挙。</returns>
+	/// <remarks>
+	/// 指定されたフォルダ配下を再帰的に探索し、SupportedFileExtensions に含まれるサポート対象ファイルが存在するかを調べます。
+	/// アクセス不可能なフォルダが存在する場合は、そのフォルダのみをスキップし、他のフォルダの検索は継続します。
+	/// </remarks>
+	private bool ContainsSupportedFile(string folderPath)
+	{
+		try
+		{
+			// フォルダ直下のファイルをチェック
+			foreach (var file in Directory.GetFiles(folderPath))
+			{
+				var ext = Path.GetExtension(file);
+				if (SupportedExtensionHelper.GetFileType(ext) != null)
+				{
+					return true;
+				}
+			}
+
+			// サブフォルダを再帰的に探索
+			foreach (var subFolder in Directory.GetDirectories(folderPath))
+			{
+				if (this.ContainsSupportedFile(subFolder))
+				{
+					return true;
+				}
+			}
+		}
+		catch
+		{
+			// アクセス不可能なフォルダはスキップ
+		}
+
+		return false;
+	}
+
 	public IEnumerable<MaterialFileCandidate> AnalyzePaths(IEnumerable<string> paths, IEnumerable<string> existingFullPaths)
 	{
 		var result = new List<MaterialFileCandidate>();
@@ -304,30 +347,22 @@ public sealed class MaterialManager
 			}
 			else if (Directory.Exists(fullPath))
 			{
-				// フォルダの場合：内容を解析
-				var epubFiles = new List<string>();
-				var imageFiles = new List<string>();
-				var otherFiles = new List<string>();
-
-				// フォルダ直下のファイルのみを分析（サブフォルダは見ない）
+				// フォルダの場合：配下を再帰的に探索してサポート対象ファイルが存在するかをチェック
 				try
 				{
-					foreach (var file in Directory.GetFiles(fullPath))
+					// 配下にサポート対象ファイルが存在するかを確認
+					if (this.ContainsSupportedFile(fullPath))
 					{
-						var fileExt = Path.GetExtension(file);
-
-						if (string.Equals(fileExt, ".epub", StringComparison.OrdinalIgnoreCase))
+						// サポート対象ファイルが存在する場合、フォルダ自体を素材フォルダとして追加
+						var candidate = new MaterialFileCandidate
 						{
-							epubFiles.Add(file);
-						}
-						else if (SupportedExtensionHelper.IsImage(fileExt))
-						{
-							imageFiles.Add(file);
-						}
-						else
-						{
-							otherFiles.Add(file);
-						}
+							FullPath = fullPath,
+							FileName = Path.GetFileName(fullPath),
+							Size = null,
+							Type = MaterialItemType.Folder,
+						};
+						result.Add(candidate);
+						processedPaths.Add(fullPath);
 					}
 				}
 				catch
@@ -336,53 +371,6 @@ public sealed class MaterialManager
 					processedPaths.Add(fullPath);
 					continue;
 				}
-
-				// フォルダの種類を判定
-				var hasOnlyEpub = epubFiles.Count > 0 && imageFiles.Count == 0 && otherFiles.Count == 0;
-				var hasOnlyImages = imageFiles.Count > 0 && epubFiles.Count == 0 && otherFiles.Count == 0;
-
-				if (hasOnlyEpub)
-				{
-					// epub のみが入っているフォルダ：epub ファイルを個別に追加
-					foreach (var epubFile in epubFiles)
-					{
-						// 既存の素材と重複チェック
-						if (existingFullPaths.Any(existing => string.Equals(existing, epubFile, StringComparison.OrdinalIgnoreCase)))
-						{
-							continue;
-						}
-
-						// 同じ入力内での重複チェック
-						if (processedPaths.Contains(epubFile))
-						{
-							continue;
-						}
-
-						var candidate = new MaterialFileCandidate
-						{
-							FullPath = epubFile,
-							FileName = Path.GetFileName(epubFile),
-							Size = new FileInfo(epubFile).Length,
-							Type = MaterialItemType.Epub,
-						};
-						result.Add(candidate);
-						processedPaths.Add(epubFile);
-					}
-				}
-				else if (hasOnlyImages)
-				{
-					// 画像のみが入っているフォルダ：フォルダ自体を追加
-					var candidate = new MaterialFileCandidate
-					{
-						FullPath = fullPath,
-						FileName = Path.GetFileName(fullPath),
-						Size = null,
-						Type = MaterialItemType.Folder,
-					};
-					result.Add(candidate);
-					processedPaths.Add(fullPath);
-				}
-				// それ以外は追加しない
 			}
 		}
 

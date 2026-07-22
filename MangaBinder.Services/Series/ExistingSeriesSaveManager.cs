@@ -204,6 +204,9 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 			// DeepCopy から Store インスタンスへ編集可能項目をコピー
 			this.CopyEditableFieldsFromToEditableToStore(originalSeries, storeInstance);
 
+			// Rename 後の Material MangaSource を Store 内の正本インスタンスへ反映
+			this.UpdateMaterialMangaSourceInStore(originalSeries, storeInstance);
+
 			// サムネイル差し替え時の情報反映
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 			{
@@ -488,6 +491,65 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 		foreach (var tag in source.Tags)
 		{
 			destination.Tags.Add(tag);
+		}
+	}
+
+	/// <summary>
+	/// Rename 後の Material フォルダ用 MangaSource を Store 内の正本インスタンスへ反映します。
+	/// DeepCopy 内の Material MangaSource を使用して、Store 内の対応する要素を置き換えます。
+	/// </summary>
+	/// <param name="originalSeries">Rename 後の新しい Path を保持する DeepCopy。</param>
+	/// <param name="storeInstance">Store 内の正本インスタンス。</param>
+	private void UpdateMaterialMangaSourceInStore(MangaSeries originalSeries, MangaSeries storeInstance)
+	{
+		// Rename 後の Material MangaSource を取得
+		var renamedMaterialSource = originalSeries.SingleMaterialSource;
+		if (renamedMaterialSource == null)
+		{
+			// Material MangaSource が存在しない場合は更新不要
+			return;
+		}
+
+		// Store 内で既に Material MangaSource が存在するか確認
+		var storeExistingMaterialSource = storeInstance.Sources
+			.FirstOrDefault(s => s.Role == FolderRole.Material);
+
+		if (storeExistingMaterialSource != null)
+		{
+			// 既存の Material MangaSource を新しいインスタンスに置き換え
+			var newMangaSource = new MangaSource
+			{
+				SourceId = renamedMaterialSource.SourceId,
+				SeriesId = renamedMaterialSource.SeriesId,
+				Path = renamedMaterialSource.Path,
+				Role = renamedMaterialSource.Role,
+			};
+
+			var index = storeInstance.Sources.IndexOf(storeExistingMaterialSource);
+			if (index >= 0)
+			{
+				storeInstance.Sources[index] = newMangaSource;
+				this.logger?.LogInformation(
+					$"[UpdateMaterialMangaSourceInStore] Store 内の Material MangaSource を更新。SourceId: {renamedMaterialSource.SourceId}, NewPath: {renamedMaterialSource.Path}");
+			}
+		}
+		else
+		{
+			// Store 内に Material MangaSource が存在しない場合は、originalSeries に存在する場合のみ追加
+			if (originalSeries.Sources.Any(s => s.Role == FolderRole.Material))
+			{
+				var newMangaSource = new MangaSource
+				{
+					SourceId = renamedMaterialSource.SourceId,
+					SeriesId = renamedMaterialSource.SeriesId,
+					Path = renamedMaterialSource.Path,
+					Role = renamedMaterialSource.Role,
+				};
+
+				storeInstance.Sources.Add(newMangaSource);
+				this.logger?.LogInformation(
+					$"[UpdateMaterialMangaSourceInStore] Store 内に Material MangaSource を追加。SourceId: {renamedMaterialSource.SourceId}, Path: {renamedMaterialSource.Path}");
+			}
 		}
 	}
 }

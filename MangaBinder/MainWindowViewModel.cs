@@ -42,6 +42,9 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	/// <summary>スコープファクトリー。AppSettingsService の取得に使用します。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
+	/// <summary>ローディングサービス。</summary>
+	private readonly LoadingService loadingService;
+
 	/// <summary>現在表示中のページの ViewModel を保持するフィールドです。保存・変更検知に使用します。</summary>
 	private object? currentViewModel;
 
@@ -62,6 +65,22 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	/// </summary>
 	public NotifyCollectionChangedSynchronizedViewList<NavigationViewItem> FooterMenuItems { get; }
 
+	/// <summary>ローディング状態のリアクティブプロパティ（読み取り専用）。</summary>
+	private readonly BindableReactiveProperty<bool> isLoadingProperty = new(false);
+
+	/// <summary>ローディングメッセージのリアクティブプロパティ（読み取り専用）。</summary>
+	private readonly BindableReactiveProperty<string> loadingMessageProperty = new(string.Empty);
+
+	/// <summary>
+	/// ローディング状態を表す読み取り専用リアクティブプロパティです。
+	/// </summary>
+	public ReadOnlyReactiveProperty<bool> IsLoading { get; }
+
+	/// <summary>
+	/// ローディングメッセージを表す読み取り専用リアクティブプロパティです。
+	/// </summary>
+	public ReadOnlyReactiveProperty<string> LoadingMessage { get; }
+
 	/// <summary>
 	/// <see cref="MainWindowViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -69,6 +88,10 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	/// <param name="themeService">テーマサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
+	/// <param name="homePageViewModel">ホームページの ViewModel。</param>
+	/// <param name="appSettings">アプリケーション設定。</param>
+	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
+	/// <param name="loadingService">ローディングサービス。</param>
 	public MainWindowViewModel(
 		ILogger<MainWindowViewModel> logger,
 		IThemeService themeService,
@@ -76,7 +99,8 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		ISnackbarService snackbarService,
 		HomePageViewModel homePageViewModel,
 		AppSettings appSettings,
-		IServiceScopeFactory serviceScopeFactory)
+		IServiceScopeFactory serviceScopeFactory,
+		LoadingService loadingService)
 	{
 		this.logger = logger;
 		this.themeService = themeService;
@@ -85,6 +109,7 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		this.homePageViewModel = homePageViewModel;
 		this.appSettings = appSettings;
 		this.serviceScopeFactory = serviceScopeFactory;
+		this.loadingService = loadingService;
 
 		this.logger.ZLogInformation($"MainWindowViewModel 初期化開始");
 
@@ -94,6 +119,21 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		this.ApplicationTitle = Observable.Return(title)
 			.ToReadOnlyReactiveProperty(title)
 			.AddTo(ref this.disposableBag);
+
+		// ローディング状態を初期化
+		this.isLoadingProperty.AddTo(ref this.disposableBag);
+		this.loadingMessageProperty.AddTo(ref this.disposableBag);
+
+		this.IsLoading = this.isLoadingProperty
+			.ToReadOnlyReactiveProperty()
+			.AddTo(ref this.disposableBag);
+
+		this.LoadingMessage = this.loadingMessageProperty
+			.ToReadOnlyReactiveProperty()
+			.AddTo(ref this.disposableBag);
+
+		// LoadingService のイベント購読
+		this.loadingService.StateChanged += this.onLoadingServiceStateChanged;
 
 		this.MenuItems = new ObservableList<NavigationViewItem>
 		{
@@ -239,10 +279,23 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	}
 
 	/// <summary>
+	/// LoadingService の状態変更イベントハンドラーです。
+	/// R3 リアクティブプロパティへ状態を反映します。
+	/// </summary>
+	private void onLoadingServiceStateChanged(object? sender, LoadingStateChangedEventArgs e)
+	{
+		this.isLoadingProperty.Value = e.IsLoading;
+		this.loadingMessageProperty.Value = e.Message;
+	}
+
+	/// <summary>
 	/// リソースを解放します。
 	/// </summary>
 	public void Dispose()
 	{
+		// LoadingService のイベント購読を解除
+		this.loadingService.StateChanged -= this.onLoadingServiceStateChanged;
+
 		this.disposableBag.Dispose();
 	}
 }
