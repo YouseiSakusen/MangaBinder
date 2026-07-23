@@ -1,4 +1,5 @@
 using MangaBinder.Core.Series;
+using MangaBinder.Series;
 using R3;
 using Reactive.Bindings.R3;
 
@@ -23,15 +24,22 @@ public class SeriesDeleteDialogContentViewModel : IDisposable
 
 	/// <summary>
 	/// 素材フォルダ削除オプションを表示するかどうかを取得します。
-	/// TargetSeries.IsWork が false（正式作品）の場合のみ true になります。
+	/// TargetSeries.IsWork が false（正式作品）かつ素材が存在しない場合のみ true になります。
 	/// </summary>
 	public BindableReactiveProperty<bool> ShowMaterialFolderDeleteOption { get; }
+
+	/// <summary>
+	/// 素材が存在することを示す警告メッセージを表示するかどうかを取得します。
+	/// TargetSeries.IsWork が false（正式作品）かつ素材が存在する場合のみ true になります。
+	/// </summary>
+	public BindableReactiveProperty<bool> ShowMaterialsWarning { get; }
 
 	/// <summary>
 	/// <see cref="SeriesDeleteDialogContentViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="targetSeries">削除対象作品。</param>
-	public SeriesDeleteDialogContentViewModel(MangaSeries targetSeries)
+	/// <param name="hasMaterialFiles">素材ファイルが存在するかどうか。</param>
+	public SeriesDeleteDialogContentViewModel(MangaSeries targetSeries, bool hasMaterialFiles = false)
 	{
 		ArgumentNullException.ThrowIfNull(targetSeries);
 
@@ -42,8 +50,12 @@ public class SeriesDeleteDialogContentViewModel : IDisposable
 		this.SelectedDeleteMethod = new BindableReactiveProperty<SeriesDeleteMethod>(SeriesDeleteMethod.InfoOnly)
 			.AddTo(ref this.disposableBag);
 
-		// 正式作品（IsWork が false）の場合のみ、素材フォルダ削除オプションを表示
-		this.ShowMaterialFolderDeleteOption = new BindableReactiveProperty<bool>(!targetSeries.IsWork)
+		// 正式作品（IsWork が false）かつ素材が存在しない場合のみ、素材フォルダ削除オプションを表示
+		this.ShowMaterialFolderDeleteOption = new BindableReactiveProperty<bool>(!targetSeries.IsWork && !hasMaterialFiles)
+			.AddTo(ref this.disposableBag);
+
+		// 正式作品（IsWork が false）かつ素材が存在する場合のみ、素材警告メッセージを表示
+		this.ShowMaterialsWarning = new BindableReactiveProperty<bool>(!targetSeries.IsWork && hasMaterialFiles)
 			.AddTo(ref this.disposableBag);
 	}
 
@@ -54,20 +66,4 @@ public class SeriesDeleteDialogContentViewModel : IDisposable
 	{
 		this.disposableBag.Dispose();
 	}
-}
-
-/// <summary>
-/// 作品削除方法の種類を表します。
-/// </summary>
-public enum SeriesDeleteMethod
-{
-	/// <summary>
-	/// 作品情報のみ削除します。
-	/// </summary>
-	InfoOnly = 0,
-
-	/// <summary>
-	/// 作品情報と素材フォルダを削除します。
-	/// </summary>
-	InfoAndFolder = 1,
 }

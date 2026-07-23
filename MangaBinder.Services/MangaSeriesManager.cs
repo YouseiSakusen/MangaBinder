@@ -673,5 +673,72 @@ public class MangaSeriesManager
 			return await saveManager.SaveAsync(editingSeries, null, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
 		}
 	}
-}
 
+	/// <summary>
+	/// 正式登録済み作品を削除します。
+	/// 作品情報と関連データ、および選択した削除方法に応じて素材フォルダと正式サムネイルを削除します。
+	/// </summary>
+	/// <remarks>
+	/// 削除処理の流れ：
+	/// 1. 入力検証（SeriesId == 0 または WorkId != 0 の場合は例外）
+	/// 2. deleteMethod が InfoAndFolder の場合は素材フォルダを削除
+	/// 3. 正式サムネイルを削除
+	/// 4. DB から MangaSeries を削除
+	/// 5. MangaSeriesStore からも削除
+	/// 
+	/// 削除対象：
+	/// - MaterialArchiveEntries, MaterialArchives, MangaSeriesTags, MangaSources, MangaSeries（DB側）
+	/// - 素材フォルダ（deleteMethod が InfoAndFolder の場合）
+	/// - 正式サムネイルファイル
+	/// </remarks>
+	/// <param name="series">削除対象の正式作品。</param>
+	/// <param name="deleteMethod">削除方法（InfoOnly: 情報のみ削除、InfoAndFolder: 情報と素材フォルダ削除）。</param>
+	/// <returns>完了を表す ValueTask。</returns>
+	/// <exception cref="ArgumentException">series が新規作品（SeriesId == 0）または登録待ち作品（WorkId != 0）の場合にスローされます。</exception>
+	/// <exception cref="ArgumentNullException">series が null の場合にスローされます。</exception>
+	public async ValueTask DeleteExistingSeriesAsync(
+		MangaSeries series,
+		SeriesDeleteMethod deleteMethod)
+	{
+		ArgumentNullException.ThrowIfNull(series);
+
+		// 正式作品のみが対象
+		if (series.SeriesId == 0 || series.WorkId != 0)
+		{
+			throw new ArgumentException("削除対象は正式登録済み作品のみです。新規作品や登録待ち作品は削除できません。");
+		}
+
+		// Scope を生成して MaterialManager と ThumbnailManager を取得
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var materialManager = scope.ServiceProvider.GetRequiredService<MaterialManager>();
+		var thumbnailManager = scope.ServiceProvider.GetRequiredService<ThumbnailManager>();
+
+		// deleteMethod が InfoAndFolder の場合は素材フォルダを削除
+		if (deleteMethod == SeriesDeleteMethod.InfoAndFolder)
+		{
+			await materialManager.DeleteMaterialFoldersAsync(series.MaterialSources);
+		}
+
+		// 正式サムネイルを削除
+		if (!string.IsNullOrEmpty(series.ThumbnailFileName))
+		{
+			await thumbnailManager.DeleteThumbnailIfExistsAsync(series.ThumbnailFileName);
+		}
+
+		// DB から MangaSeries を削除
+		await this.mangaRepository.DeleteSeriesAsync(series.SeriesId);
+
+		// MangaSeriesStore からも削除
+		this.mangaSeriesStore.Remove(series.SeriesId);
+	}
+
+	/// <summary>
+	/// 指定した SeriesId が BindingQueueDispatcher に登録されているかどうかを判定します。
+	/// </summary>
+	/// <param name="seriesId">判定対象の SeriesId。</param>
+	/// <returns>SeriesId が製本待ちに登録されている場合は true、それ以外は false。</returns>
+	public bool IsBindingQueued(long seriesId)
+	{
+		return this.bindingQueueDispatcher.Contains(seriesId);
+	}
+}

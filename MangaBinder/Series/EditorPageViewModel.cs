@@ -215,6 +215,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public ReactiveCommand<Unit> ShowDeleteSeriesDialogCommand { get; }
 
 	/// <summary>
+	/// タイトル再入力待ち状態をリセットするコマンドを取得します。
+	/// </summary>
+	public ReactiveCommand<Unit> ResetTitleRevalidationCommand { get; }
+
+	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="serviceScopeFactory">サービススコープファクトリ。Scoped サービス取得用。</param>
@@ -500,6 +505,14 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.ShowDeleteSeriesDialogCommand.Subscribe(async _ =>
 		{
 			await this.showDeleteSeriesDialogAsync();
+		});
+
+		// ResetTitleRevalidationCommand: タイトル再入力待ち状態をリセットするコマンド
+		this.ResetTitleRevalidationCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.ResetTitleRevalidationCommand.Subscribe(_ =>
+		{
+			this.needsTitleRevalidation = false;
 		});
 	}
 
@@ -1078,8 +1091,34 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			return;
 		}
 
-		// ダイアログ用 ViewModel を生成（削除対象作品を直接渡す）
-		var dialogViewModel = new SeriesDeleteDialogContentViewModel(editingSeries);
+		// 正式作品のみが対象
+		if (editingSeries.IsWork)
+		{
+			// 登録待ち作品は未実装
+			return;
+		}
+
+		// Scope を生成して MangaSeriesManager を取得
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var mangaSeriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+
+		// IsBindingQueued() が true の場合は削除ダイアログを表示しない
+		if (mangaSeriesManager.IsBindingQueued(editingSeries.SeriesId))
+		{
+			this.snackbarService.Show(
+				"削除できません",
+				"この作品は製本待ちに登録されています。先に製本待ちから削除してください。",
+				ControlAppearance.Caution,
+				new SymbolIcon { Symbol = SymbolRegular.Info24 },
+				TimeSpan.FromSeconds(5));
+			return;
+		}
+
+		// 素材ファイルが存在するかどうかを判定（現在保持している MaterialFiles の状態を利用）
+		var hasMaterialFiles = this.MaterialFiles.Count > 0;
+
+		// ダイアログ用 ViewModel を生成（削除対象作品と素材有無を渡す）
+		var dialogViewModel = new SeriesDeleteDialogContentViewModel(editingSeries, hasMaterialFiles);
 
 		// ダイアログコンテンツを作成
 		var content = new SeriesDeleteDialogContent
@@ -1100,8 +1139,16 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			// 選択された削除方法を取得
 			var deleteMethod = dialogViewModel.SelectedDeleteMethod.Value;
 
-			// 今回の実装では、削除処理は実装しないため、何もしない
-			// 後続対応で削除処理を実装予定
+			// 作品削除処理を実行
+			await mangaSeriesManager.DeleteExistingSeriesAsync(editingSeries, deleteMethod);
+
+			// 削除成功後に前画面へ戻る
+			this.navigationService.GoBack();
+		}
+		else
+		{
+			// キャンセルした場合、タイトル再入力待ち状態を戻す
+			this.needsTitleRevalidation = true;
 		}
 
 		// ダイアログ終了後に ViewModel を Dispose

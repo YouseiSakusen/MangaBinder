@@ -845,7 +845,8 @@
                          Margin="0,0,16,16"
                          Padding="12,10"
                          Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
-                         Width="130">
+                         Width="130"
+                         Visibility="{Binding CanDeleteSeries.Value, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel Orientation="Vertical" MinWidth="100">
                         <TextBlock Text="関連操作"
                                    FontSize="10"
@@ -854,9 +855,10 @@
 
                         <ui:HyperlinkButton Content="作品を削除"
                                             FontSize="12"
+                                            Focusable="False"
                                             Padding="0"
                                             Margin="0"
-                                            Visibility="{Binding CanDeleteSeries.Value, Converter={StaticResource BoolToVisibilityConverter}}"
+                                            behaviors:ExecuteCommandOnPreviewMouseLeftButtonDownBehavior.Command="{Binding ResetTitleRevalidationCommand}"
                                             Command="{Binding ShowDeleteSeriesDialogCommand}" />
                     </StackPanel>
                 </ui:Card>

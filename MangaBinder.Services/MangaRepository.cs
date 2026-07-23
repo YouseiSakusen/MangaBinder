@@ -676,4 +676,73 @@ public class MangaRepository
             },
             transaction);
     }
+
+    /// <summary>
+    /// 正式登録済み作品を削除します。
+    /// MaterialArchiveEntries、MaterialArchives、MangaSeriesTags、MangaSources、MangaSeries をトランザクション内で順に削除します。
+    /// </summary>
+    /// <param name="seriesId">削除対象の SeriesId。</param>
+    /// <returns>完了時にコンプリートする ValueTask。</returns>
+    public async ValueTask DeleteSeriesAsync(long seriesId)
+    {
+        using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+        await connection.OpenAsync();
+
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // 1. MaterialArchiveEntries を削除
+            // MaterialArchives.SeriesId が対象の seriesId である MaterialArchiveId に紐づく行を削除
+            var deleteArchiveEntriesSql = new StringBuilder();
+            deleteArchiveEntriesSql.AppendLine(" DELETE FROM MaterialArchiveEntries ");
+            deleteArchiveEntriesSql.AppendLine(" WHERE ");
+            deleteArchiveEntriesSql.AppendLine(" 	MaterialArchiveId IN ( ");
+            deleteArchiveEntriesSql.AppendLine(" 		SELECT MaterialArchiveId FROM MaterialArchives ");
+            deleteArchiveEntriesSql.AppendLine(" 		WHERE SeriesId = :SeriesId ");
+            deleteArchiveEntriesSql.AppendLine(" 	); ");
+
+            await connection.ExecuteAsync(deleteArchiveEntriesSql.ToString(), new { SeriesId = seriesId }, transaction);
+
+            // 2. MaterialArchives を削除
+            var deleteArchivesSql = new StringBuilder();
+            deleteArchivesSql.AppendLine(" DELETE FROM MaterialArchives ");
+            deleteArchivesSql.AppendLine(" WHERE ");
+            deleteArchivesSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+            await connection.ExecuteAsync(deleteArchivesSql.ToString(), new { SeriesId = seriesId }, transaction);
+
+            // 3. MangaSeriesTags を削除
+            var deleteSeriesTagsSql = new StringBuilder();
+            deleteSeriesTagsSql.AppendLine(" DELETE FROM MangaSeriesTags ");
+            deleteSeriesTagsSql.AppendLine(" WHERE ");
+            deleteSeriesTagsSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+            await connection.ExecuteAsync(deleteSeriesTagsSql.ToString(), new { SeriesId = seriesId }, transaction);
+
+            // 4. MangaSources を削除
+            var deleteSourcesSql = new StringBuilder();
+            deleteSourcesSql.AppendLine(" DELETE FROM MangaSources ");
+            deleteSourcesSql.AppendLine(" WHERE ");
+            deleteSourcesSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+            await connection.ExecuteAsync(deleteSourcesSql.ToString(), new { SeriesId = seriesId }, transaction);
+
+            // 5. MangaSeries を削除
+            var deleteSeriesSql = new StringBuilder();
+            deleteSeriesSql.AppendLine(" DELETE FROM MangaSeries ");
+            deleteSeriesSql.AppendLine(" WHERE ");
+            deleteSeriesSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+            await connection.ExecuteAsync(deleteSeriesSql.ToString(), new { SeriesId = seriesId }, transaction);
+
+            // すべての DELETE が成功した場合のみ Commit
+            transaction.Commit();
+        }
+        catch
+        {
+            // 失敗時は Rollback して例外を再送出
+            transaction.Rollback();
+            throw;
+        }
+    }
 }

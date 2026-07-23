@@ -299,4 +299,20 @@ namespace MangaBinder.Series
 		/// <summary>ユーザーがキャンセルしました。</summary>
 		Cancel,
 	}
+
+	/// <summary>
+	/// 作品削除方法の種類を表します。
+	/// </summary>
+	public enum SeriesDeleteMethod
+	{
+		/// <summary>
+		/// 作品情報のみ削除します。
+		/// </summary>
+		InfoOnly = 0,
+
+		/// <summary>
+		/// 作品情報と素材フォルダを削除します。
+		/// </summary>
+		InfoAndFolder = 1,
+	}
 }

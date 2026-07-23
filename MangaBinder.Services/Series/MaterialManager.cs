@@ -461,4 +461,63 @@ public sealed class MaterialManager
 
 		return ValueTask.CompletedTask;
 	}
+
+	/// <summary>
+	/// 作品に紐づく素材フォルダを削除します。
+	/// FolderRole.Material のみを削除対象とし、FolderRole.Binding および FolderRole.DefaultBinding は削除しません。
+	/// 削除処理はバックグラウンドスレッドで実行されます。
+	/// </summary>
+	/// <remarks>
+	/// 削除対象：
+	/// - FolderRole.Material の MangaSource に対応するフォルダ
+	/// 
+	/// 削除対象外：
+	/// - FolderRole.Binding のフォルダ
+	/// - FolderRole.DefaultBinding のフォルダ
+	/// 
+	/// 処理動作：
+	/// - Path.GetFullPath() で正規化してからフォルダ削除を実行
+	/// - 対象フォルダが存在しない場合は何もしない
+	/// - Directory.Delete(path) で空の素材フォルダのみ削除する
+	/// - フォルダ内にファイルまたはサブフォルダが存在する場合は例外がスローされ、そのまま呼び出し元へ送出される
+	/// </remarks>
+	/// <param name="materialSources">削除対象の MangaSource の列挙。</param>
+	/// <returns>完了を表す ValueTask。</returns>
+	/// <exception cref="ArgumentNullException">materialSources が null の場合にスローされます。</exception>
+	/// <exception cref="IOException">フォルダが空でない場合にスローされます。</exception>
+	public ValueTask DeleteMaterialFoldersAsync(IEnumerable<MangaSource> materialSources)
+	{
+		ArgumentNullException.ThrowIfNull(materialSources);
+
+		// バックグラウンドスレッドで実行
+		return new ValueTask(
+			Task.Run(() => this.deleteMaterialFoldersSync(materialSources)));
+	}
+
+	/// <summary>
+	/// 素材フォルダを削除する実際の処理をバックグラウンドで実行します。
+	/// UIスレッドをブロックしないよう、Task.Run内で呼び出されることを想定しています。
+	/// </summary>
+	private void deleteMaterialFoldersSync(IEnumerable<MangaSource> materialSources)
+	{
+		// FolderRole.Material のみを削除対象にする
+		var targetSources = materialSources
+			.Where(s => s.Role == FolderRole.Material)
+			.ToList();
+
+		// 各フォルダをリセット
+		foreach (var source in targetSources)
+		{
+			var folderPath = Path.GetFullPath(source.Path);
+
+			// 対象フォルダが存在しない場合は何もしない
+			if (!Directory.Exists(folderPath))
+			{
+				continue;
+			}
+
+			// 空の素材フォルダのみ削除する
+			Directory.Delete(folderPath);
+		}
+	}
 }

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
 using MangaBinder.Controls;
+using MangaBinder.Series;
 
 namespace MangaBinder.Converters;
 

@@ -191,6 +191,46 @@ public class ThumbnailManager
 	}
 
 	/// <summary>
+	/// 正式 Thumbnail フォルダの対象ファイルを非同期で削除します。
+	/// ファイルが存在しない場合は何もしません。
+	/// 削除処理はバックグラウンドスレッドで実行されます。
+	/// </summary>
+	/// <param name="fileName">削除するファイル名。</param>
+	/// <returns>完了を表す ValueTask。</returns>
+	/// <exception cref="ArgumentException">fileName が null または空の場合にスローされます。</exception>
+	public ValueTask DeleteThumbnailIfExistsAsync(string fileName)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(fileName);
+
+		// バックグラウンドスレッドで実行
+		return new ValueTask(
+			Task.Run(() => this.deleteThumbnailIfExistsSync(fileName)));
+	}
+
+	/// <summary>
+	/// 正式サムネイルファイルを削除する実際の処理をバックグラウンドで実行します。
+	/// UIスレッドをブロックしないよう、Task.Run内で呼び出されることを想定しています。
+	/// </summary>
+	private void deleteThumbnailIfExistsSync(string fileName)
+	{
+		try
+		{
+			var filePath = this.config.GetThumbnailFullPath(fileName);
+
+			if (File.Exists(filePath))
+			{
+				File.Delete(filePath);
+				this.logger?.LogInformation("正式サムネイルを削除しました。FileName={FileName}", fileName);
+			}
+		}
+		catch (Exception ex)
+		{
+			this.logger?.LogError(ex, "正式サムネイル削除に失敗しました。FileName={FileName}", fileName);
+			throw;
+		}
+	}
+
+	/// <summary>
 	/// WorkThumbnail フォルダの対象ファイルを削除します。
 	/// ファイルが存在しない場合は何もしません。
 	/// </summary>
