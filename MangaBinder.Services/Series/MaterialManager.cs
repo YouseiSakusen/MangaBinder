@@ -1,4 +1,5 @@
 using MangaBinder.Bindings;
+using MangaBinder.Helpers;
 using MangaBinder.Settings;
 
 namespace MangaBinder.Series;

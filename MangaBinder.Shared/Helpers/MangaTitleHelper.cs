@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MangaBinder;
+namespace MangaBinder.Helpers;
 
 /// <summary>
 /// 漫画タイトルの正規化・パースを担うヘルパークラスです。

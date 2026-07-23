@@ -1,6 +1,7 @@
 using MangaBinder.Bindings;
+using MangaBinder.Settings;
 
-namespace MangaBinder.Settings;
+namespace MangaBinder.Helpers;
 
 /// <summary>
 /// アプリケーションがサポートするファイル拡張子の判定を担う静的ヘルパークラスです。

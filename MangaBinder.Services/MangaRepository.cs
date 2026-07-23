@@ -1,5 +1,6 @@
 using Dapper;
 using MangaBinder.Bindings;
+using MangaBinder.Helpers;
 using MangaBinder.Jobs;
 using MangaBinder.Settings;
 using MangaBinder.Tags;

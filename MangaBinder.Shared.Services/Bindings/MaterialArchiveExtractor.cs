@@ -1,6 +1,6 @@
 using System.IO;
 using System.Text.RegularExpressions;
-using MangaBinder.Settings;
+using MangaBinder.Helpers;
 using SharpCompress.Archives;
 
 namespace MangaBinder.Bindings;

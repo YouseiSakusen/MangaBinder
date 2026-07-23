@@ -1,5 +1,4 @@
-using MangaBinder.Bindings;
-using MangaBinder.Settings;
+using MangaBinder.Helpers;
 using SharpCompress.Archives;
 
 namespace MangaBinder.Bindings.Inspection;

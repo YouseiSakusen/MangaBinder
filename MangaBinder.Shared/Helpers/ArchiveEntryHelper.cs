@@ -1,4 +1,4 @@
-namespace MangaBinder.Bindings;
+namespace MangaBinder.Helpers;
 
 /// <summary>
 /// アーカイブエントリのフィルタリングを行う静的ヘルパークラスです。

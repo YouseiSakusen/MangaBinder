@@ -15,6 +15,7 @@ using Wpf.Ui;
 using Wpf.Ui.Controls;
 using Microsoft.Win32;
 using Microsoft.Extensions.DependencyInjection;
+using MangaBinder.Helpers;
 
 namespace MangaBinder.Series;
 

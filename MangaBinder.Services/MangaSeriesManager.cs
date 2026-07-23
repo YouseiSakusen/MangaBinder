@@ -1,6 +1,7 @@
 using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Core.Series;
+using MangaBinder.Helpers;
 using MangaBinder.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;

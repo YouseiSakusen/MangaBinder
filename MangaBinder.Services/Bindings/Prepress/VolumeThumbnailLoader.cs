@@ -1,6 +1,6 @@
 using System.IO;
 using MangaBinder.Bindings.Inspection;
-using MangaBinder.Settings;
+using MangaBinder.Helpers;
 
 namespace MangaBinder.Bindings.Prepress;
 

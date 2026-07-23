@@ -1,4 +1,5 @@
 using MangaBinder.Bindings;
+using MangaBinder.Helpers;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

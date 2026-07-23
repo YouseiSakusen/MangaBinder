@@ -10,6 +10,7 @@ using MangaBinder.Settings;
 using Wpf.Ui;
 using ZLogger;
 using ZLogger.Providers;
+using MangaBinder.Helpers;
 
 namespace MangaBinder;
 

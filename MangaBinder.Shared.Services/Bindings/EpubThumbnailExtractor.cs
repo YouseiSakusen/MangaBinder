@@ -1,4 +1,4 @@
-using MangaBinder.Settings;
+using MangaBinder.Helpers;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Archives;
 using System.Xml.Linq;

@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Text;
 using MangaBinder.Bindings;
+using MangaBinder.Helpers;
 using MangaBinder.Jobs.Contexts;
 using MangaBinder.Jobs.FolderScanners;
-using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 

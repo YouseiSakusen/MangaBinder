@@ -1,5 +1,5 @@
 using System.IO;
-using MangaBinder;
+using MangaBinder.Helpers;
 using MangaBinder.Jobs.Contexts;
 using MangaBinder.Series;
 using MangaBinder.Settings;

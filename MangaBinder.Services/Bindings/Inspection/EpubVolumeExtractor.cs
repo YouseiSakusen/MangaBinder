@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Text.RegularExpressions;
 using System.Web;
 using System.Xml.Linq;
-using MangaBinder.Settings;
+using MangaBinder.Helpers;
 
 namespace MangaBinder.Bindings.Inspection;
 

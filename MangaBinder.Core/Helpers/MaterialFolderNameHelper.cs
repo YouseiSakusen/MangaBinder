@@ -1,6 +1,6 @@
 using HalationGhost.Utilities;
 
-namespace MangaBinder.Series;
+namespace MangaBinder.Helpers;
 
 /// <summary>
 /// 素材フォルダ名の生成処理を集約するHelperクラスです。

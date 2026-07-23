@@ -5,6 +5,7 @@ using MangaBinder.Bindings;
 using MangaBinder.Core.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
+using MangaBinder.Helpers;
 
 namespace MangaBinder.Series;
 

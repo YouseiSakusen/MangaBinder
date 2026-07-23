@@ -1,4 +1,4 @@
-using MangaBinder;
+using MangaBinder.Helpers;
 using MangaBinder.Jobs.Contexts;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;

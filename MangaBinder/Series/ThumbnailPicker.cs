@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using MangaBinder.Settings;
+using MangaBinder.Helpers;
 
 namespace MangaBinder.Series;
 
