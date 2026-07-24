@@ -22,7 +22,7 @@ namespace MangaBinder.Series;
 /// <summary>
 /// 編集ページの ViewModel です。
 /// </summary>
-public partial class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, IDisposable
+public partial class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, INavigationDisposable
 {
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly SeriesWorkspaceStore workspaceStore;
@@ -35,6 +35,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private readonly LoadingService loadingService;
 	private SeriesTagSelectorViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
+	private CancellationTokenSource? materialSizeCancellationTokenSource;
+	private bool isInitializing;
+	private bool suppressMaterialSizeCalculation;
+	private bool disposed;
 
 	/// <summary>
 	/// 次回のタイトル LostFocus 時に再判定が必要かどうかを表します。
@@ -94,6 +98,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>サマリカード用の素材ファイル数表示テキストを取得します。</summary>
 	public BindableReactiveProperty<string> MaterialFileCountText { get; }
+
+	/// <summary>素材の合計サイズ表示テキストを取得します。</summary>
+	public BindableReactiveProperty<string> MaterialTotalSizeText { get; }
 
 	/// <summary>素材ファイルが空かどうかを取得します。EmptyState の表示制御に使用します。</summary>
 	public BindableReactiveProperty<bool> IsMaterialFilesEmpty { get; }
@@ -341,6 +348,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.MaterialFileCountText = new BindableReactiveProperty<string>(this.getMaterialFileCountText())
 			.AddTo(ref this.disposableBag);
 
+		// MaterialTotalSizeText: 素材の合計サイズ表示テキスト
+		this.MaterialTotalSizeText = new BindableReactiveProperty<string>(string.Empty)
+			.AddTo(ref this.disposableBag);
+
 		// IsMaterialFilesEmpty: EmptyState 表示制御用
 		this.IsMaterialFilesEmpty = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
@@ -357,6 +368,13 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			this.MaterialFileCountText.Value = this.getMaterialFileCountText();
 			this.IsMaterialFilesEmpty.Value = isEmpty;
 			this.HasMaterialFiles.Value = !isEmpty;
+
+			// 初期化中および素材サイズ再計算抑止中は、CollectionChanged からのサイズ再計算を実行しない
+			if (!this.isInitializing &&
+				!this.suppressMaterialSizeCalculation)
+			{
+				_ = this.updateMaterialTotalSizeAsync();
+			}
 		}
 
 		this.MaterialFiles.CollectionChanged += OnMaterialFilesCollectionChanged;
@@ -546,6 +564,13 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <param name="series">編集対象の作品。</param>
 	public void StartEdit(MangaSeries series)
 	{
+		// デバッグログ: StartEdit 開始
+		System.Diagnostics.Debug.WriteLine("==============================");
+		System.Diagnostics.Debug.WriteLine("[EditorPageVM] StartEdit");
+		System.Diagnostics.Debug.WriteLine($"Hash={this.GetHashCode()}");
+		System.Diagnostics.Debug.WriteLine($"Series={series.Title}");
+		System.Diagnostics.Debug.WriteLine("==============================");
+
 		ArgumentNullException.ThrowIfNull(series);
 
 		// Scope を生成
@@ -882,36 +907,95 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// workspaceStore.EditTarget から編集対象を取得し、StartEdit を実行します。
 	/// また、AppSettings から素材フォルダ一覧を取得します。
 	/// </summary>
-	public ValueTask InitializeDataAsync()
+	public async ValueTask InitializeDataAsync()
 	{
-		// Material フォルダ一覧を取得・設定
-		var materialFolders = this.appSettings.SourceFolders
-			.Where(f => f.Role.Value == FolderRole.Material)
-			.ToList();
-		this.MaterialSourceFolders.Clear();
-		foreach (var folder in materialFolders)
-		{
-			this.MaterialSourceFolders.Add(folder);
-		}
+		// 初期化開始を記録
+		this.isInitializing = true;
 
-		var editTarget = this.workspaceStore.EditTarget;
-
-		// 新規作品・登録待ち作品の場合は先頭を初期選択
-		if (editTarget == null || editTarget.SeriesId == 0)
+		try
 		{
-			this.CanSelectMaterialSourceFolder.Value = true;
-			if (this.MaterialSourceFolders.Count > 0)
+			// Material フォルダ一覧を取得・設定
+			var materialFolders = this.appSettings.SourceFolders
+				.Where(f => f.Role.Value == FolderRole.Material)
+				.ToList();
+			this.MaterialSourceFolders.Clear();
+			foreach (var folder in materialFolders)
 			{
-				this.SelectedMaterialSourceFolder.Value = this.MaterialSourceFolders[0];
+				this.MaterialSourceFolders.Add(folder);
+			}
+
+			var editTarget = this.workspaceStore.EditTarget;
+
+			// 新規作品・登録待ち作品の場合は先頭を初期選択
+			if (editTarget == null || editTarget.SeriesId == 0)
+			{
+				this.CanSelectMaterialSourceFolder.Value = true;
+				if (this.MaterialSourceFolders.Count > 0)
+				{
+					this.SelectedMaterialSourceFolder.Value = this.MaterialSourceFolders[0];
+				}
+			}
+
+			if (editTarget is not null)
+			{
+				this.StartEdit(editTarget);
 			}
 		}
-
-		if (editTarget is not null)
+		finally
 		{
-			this.StartEdit(editTarget);
+			// 初期化完了を記録
+			this.isInitializing = false;
 		}
 
-		return ValueTask.CompletedTask;
+		// MaterialFiles の構築完了後、素材サイズを計算
+		await this.updateMaterialTotalSizeAsync();
+	}
+
+	/// <summary>
+	/// 素材ファイルの合計サイズを非同期で計算し、表示を更新します。
+	/// 前回の計算がある場合はキャンセルしてから新規計算を開始します。
+	/// OperationCanceledException は内部で処理され、外へ伝播しません。
+	/// </summary>
+	private async ValueTask updateMaterialTotalSizeAsync()
+	{
+		// 前回の計算をキャンセル
+		if (this.materialSizeCancellationTokenSource != null)
+		{
+			this.materialSizeCancellationTokenSource.Cancel();
+			this.materialSizeCancellationTokenSource.Dispose();
+		}
+
+		// 新しいキャンセルトークンソースを作成
+		this.materialSizeCancellationTokenSource = new CancellationTokenSource();
+		var currentToken = this.materialSizeCancellationTokenSource.Token;
+
+		try
+		{
+			// MaterialFiles の FullPath をすべて集計
+			var paths = this.MaterialFiles
+				.Select(m => m.FullPath)
+				.ToList();
+
+			if (paths.Count == 0)
+			{
+				this.MaterialTotalSizeText.Value = string.Empty;
+				return;
+			}
+
+			// StorageSizeHelper を使用して合計サイズを取得
+			var totalBytes = await StorageSizeHelper.GetTotalAllAsync(paths, currentToken);
+
+			// キャンセルされた古い計算結果が MaterialTotalSizeText を更新しないようにチェック
+			if (!currentToken.IsCancellationRequested)
+			{
+				var formattedSize = StorageSizeHelper.FormatSize(totalBytes);
+				this.MaterialTotalSizeText.Value = formattedSize;
+			}
+		}
+		catch (OperationCanceledException)
+		{
+			// キャンセルは正常終了として扱う（外へは伝播させない）
+		}
 	}
 
 	/// <summary>
@@ -1664,64 +1748,78 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 				// 重複判定結果を記録
 				var alreadyAddedFiles = new List<string>();
-						var sameNameFiles = new List<string>();
-						var addedAny = false;
+				var sameNameFiles = new List<string>();
+				var addedAny = false;
 
-						foreach (var candidate in candidates)
-						{
-							// ① 同一 FullPath の重複判定
-							if (existingFullPaths.Contains(candidate.FullPath))
-							{
-								alreadyAddedFiles.Add(candidate.FileName);
-								continue;
-							}
+				// MaterialFiles を一括更新している間、CollectionChanged からのサイズ再計算を抑止
+				this.suppressMaterialSizeCalculation = true;
 
-							// ② 同名ファイルの重複判定
-							if (existingFileNames.Contains(candidate.FileName))
-							{
-								sameNameFiles.Add(candidate.FileName);
-								continue;
-							}
-
-							// ③ 重複なし → 追加
-							var item = new MaterialFileItem
-							{
-								Name = candidate.FileName,
-								FullPath = candidate.FullPath,
-								ItemType = candidate.Type,
-								SizeBytes = candidate.Size,
-								CanRemove = true,
-							};
-							var viewModel = MaterialFileItemViewModel.FromDto(item);
-							this.MaterialFiles.Add(viewModel);
-							addedAny = true;
-						}
-
-						if (addedAny)
-						{
-							// ヘッダー表示用文字列を更新
-							this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
-
-							// ボタン有効制御を更新
-							this.UpdateSaveWorkSeriesCommandCanExecute();
-
-							// 所持推定を再計算
-							this.RecalculateOwnedVolumeEstimate();
-						}
-
-						// === 追加できなかった素材の通知 ===
-						if (alreadyAddedFiles.Count > 0 || sameNameFiles.Count > 0)
-						{
-							this.showMaterialDuplicateWarningSnackbar(alreadyAddedFiles, sameNameFiles);
-						}
-						}
-					}
-					catch (Exception ex)
+				try
+				{
+					foreach (var candidate in candidates)
 					{
-						// ドラッグアンドドロップ処理中のエラーをログ出力
-						System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.AddMaterialFilesFromDropAsync] 例外発生: {ex.Message}");
+						// ① 同一 FullPath の重複判定
+						if (existingFullPaths.Contains(candidate.FullPath))
+						{
+							alreadyAddedFiles.Add(candidate.FileName);
+							continue;
+						}
+
+						// ② 同名ファイルの重複判定
+						if (existingFileNames.Contains(candidate.FileName))
+						{
+							sameNameFiles.Add(candidate.FileName);
+							continue;
+						}
+
+						// ③ 重複なし → 追加
+						var item = new MaterialFileItem
+						{
+							Name = candidate.FileName,
+							FullPath = candidate.FullPath,
+							ItemType = candidate.Type,
+							SizeBytes = candidate.Size,
+							CanRemove = true,
+						};
+						var viewModel = MaterialFileItemViewModel.FromDto(item);
+						this.MaterialFiles.Add(viewModel);
+						addedAny = true;
 					}
 				}
+				finally
+				{
+					this.suppressMaterialSizeCalculation = false;
+				}
+
+				// 追加完了後、addedAny == true の場合のみサイズ計算を1回だけ実行
+				if (addedAny)
+				{
+					// ヘッダー表示用文字列を更新
+					this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
+
+					// ボタン有効制御を更新
+					this.UpdateSaveWorkSeriesCommandCanExecute();
+
+					// 所持推定を再計算
+					this.RecalculateOwnedVolumeEstimate();
+
+					// 素材サイズを計算
+					await this.updateMaterialTotalSizeAsync();
+				}
+
+				// === 追加できなかった素材の通知 ===
+				if (alreadyAddedFiles.Count > 0 || sameNameFiles.Count > 0)
+				{
+					this.showMaterialDuplicateWarningSnackbar(alreadyAddedFiles, sameNameFiles);
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			// ドラッグアンドドロップ処理中のエラーをログ出力
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.AddMaterialFilesFromDropAsync] 例外発生: {ex.Message}");
+		}
+	}
 
 	/// <summary>
 	/// 現在の MaterialFiles から所持推定を再計算し、有効な結果の場合のみ OwnedMaxVolume を更新します。
@@ -2069,12 +2167,33 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		}
 	}
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// ナビゲーション時にリソースを解放します。
+	/// </summary>
 	public void Dispose()
 	{
-		this.ClearPastedThumbnail();
-		this.tagSelector.Dispose();
-		this.disposableBag.Dispose();
+		this.Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
+	/// <summary>
+	/// マネージド/アンマネージドリソースを解放します。
+	/// </summary>
+	/// <param name="disposing">マネージドリソースを解放するかどうかを示す値。</param>
+	private void Dispose(bool disposing)
+	{
+		if (this.disposed)
+			return;
+
+		if (disposing)
+		{
+			this.ClearPastedThumbnail();
+			this.tagSelector.Dispose();
+			this.materialSizeCancellationTokenSource?.Dispose();
+			this.disposableBag.Dispose();
+		}
+
+		this.disposed = true;
 	}
 }
 

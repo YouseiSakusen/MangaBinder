@@ -195,10 +195,6 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	/// <param name="e">ナビゲーションイベント引数。</param>
 	internal async ValueTask OnNavigated(NavigatedEventArgs e)
 	{
-		Debug.WriteLine("===== Navigated =====");
-		Debug.WriteLine($"PageType={e.Page?.GetType().FullName}");
-		Debug.WriteLine($"DataContext={((FrameworkElement)e.Page!).DataContext?.GetType().FullName}");
-
 		// 1. 遷移先ページの ViewModel を取得
 		var nextViewModel = ((FrameworkElement)e.Page!).DataContext;
 
@@ -214,25 +210,28 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		// 4. 前ページの退場処理
 		if (this.currentViewModel is INavigationLeavingAware leavingAware)
 		{
-			Debug.WriteLine("OnNavigatingFromAsync CALL");
 			await leavingAware.OnNavigatingFromAsync(request);
 		}
 
-		// 5. 新ページの ViewModel を currentViewModel に設定
+		// 5. 前ページの Dispose を実行（INavigationDisposable を実装している場合のみ）
+		if (this.currentViewModel is INavigationDisposable disposable)
+		{
+			disposable.Dispose();
+		}
+
+		// 6. 新ページの ViewModel を currentViewModel に設定
 		this.currentViewModel = nextViewModel;
 
-		Debug.WriteLine($"CurrentViewModel={this.currentViewModel?.GetType().FullName}");
-
-		// 6. 新ページの初期化処理
+		// 7. 新ページの初期化処理
 		if (this.currentViewModel is IDataInitializable initializable)
 		{
-			Debug.WriteLine("InitializeDataAsync CALL");
 			await initializable.InitializeDataAsync();
 		}
-		else
-		{
-			Debug.WriteLine("IDataInitializable NOT IMPLEMENTED");
-		}
+
+		// マネージドメモリ使用量を出力
+		var totalMemory = GC.GetTotalMemory(false);
+		var memoryMB = totalMemory / (1024.0 * 1024.0);
+		System.Diagnostics.Debug.WriteLine($"[Memory] Managed Memory: {memoryMB:F2} MB");
 	}
 
 	/// <summary>

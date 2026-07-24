@@ -21,6 +21,9 @@ public static class MaterialFileDropBehavior
 
 	/// <summary>要素ごとの DragOver 監視タイマーを管理する辞書。</summary>
 	private static readonly Dictionary<UIElement, DispatcherTimer> DragOverTimers = new();
+
+	/// <summary>要素ごとの DragOver 監視タイマーのイベントハンドラを管理する辞書。</summary>
+	private static readonly Dictionary<UIElement, EventHandler> DragOverTimerHandlers = new();
 	/// <summary>
 	/// ドロップ時に実行するコマンドの添付プロパティです。
 	/// ドロップされたファイル/フォルダパスの文字列配列を CommandParameter として渡します。
@@ -140,6 +143,7 @@ public static class MaterialFileDropBehavior
 		{
 			SetIsDragOver(obj, false);
 			StopDragOverTimer(element);
+			LastDragOverTime.Remove(element);
 		}
 	}
 
@@ -158,6 +162,9 @@ public static class MaterialFileDropBehavior
 
 		// タイマーを停止
 		StopDragOverTimer(element);
+
+		// ドラッグ情報を削除
+		LastDragOverTime.Remove(element);
 
 		// ファイルパスを取得し、コマンドを実行
 		if (e.Data.GetDataPresent(DataFormats.FileDrop))
@@ -207,10 +214,13 @@ public static class MaterialFileDropBehavior
 			Interval = TimeSpan.FromMilliseconds(DragOverTimerIntervalMs)
 		};
 
-		timer.Tick += (s, e) => OnDragOverTimerTick(element);
+		// イベントハンドラを作成して保持
+		EventHandler handler = (s, e) => OnDragOverTimerTick(element);
+		timer.Tick += handler;
 		timer.Start();
 
 		DragOverTimers[element] = timer;
+		DragOverTimerHandlers[element] = handler;
 	}
 
 	/// <summary>DragOver 監視タイマーを停止します。</summary>
@@ -218,8 +228,17 @@ public static class MaterialFileDropBehavior
 	{
 		if (DragOverTimers.TryGetValue(element, out var timer))
 		{
+			// タイマーを停止
 			timer.Stop();
-			timer.Tick -= (s, e) => OnDragOverTimerTick(element);
+
+			// 保持しているハンドラ参照を取得して削除
+			if (DragOverTimerHandlers.TryGetValue(element, out var handler))
+			{
+				timer.Tick -= handler;
+				DragOverTimerHandlers.Remove(element);
+			}
+
+			// タイマーの参照を削除
 			timer = null;
 			DragOverTimers.Remove(element);
 		}

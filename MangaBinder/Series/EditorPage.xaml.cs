@@ -1,4 +1,5 @@
-﻿using System.Windows.Controls;
+﻿using System.Windows;
+using System.Windows.Controls;
 
 namespace MangaBinder.Series;
 
@@ -12,3 +13,4 @@ public partial class EditorPage : Page
 		InitializeComponent();
 	}
 }
+

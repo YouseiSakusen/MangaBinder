@@ -371,7 +371,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             }
 
             // ── サマリ集計（Materials ツリーから）──
-            this.updateMaterialSummary(result.Materials);
+            _ = this.updateMaterialSummaryAsync(result.Materials);
 
             // ── MaterialItem → MaterialVolumeNode 変換（UIスレッドで実行）──
             this.rootNodes.Clear();
@@ -432,14 +432,16 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     }
 
     /// <summary>
-    /// Materials ツリーからサマリ情報を集計してプロパティを更新します。
+    /// Materials ツリーからサマリ情報を非同期で集計してプロパティを更新します。
     /// </summary>
-    private void updateMaterialSummary(IReadOnlyList<MaterialItem> materials)
+    private async ValueTask updateMaterialSummaryAsync(IReadOnlyList<MaterialItem> materials)
     {
         var folderCount = 0;
         var archiveCount = 0;
-        long archiveTotalBytes = 0;
         var epubCount = 0;
+
+        // アーカイブファイルのパスを収集
+        var archivePaths = new List<string>();
 
         // Root ノード直下の子だけカウント（Root 自身は集計対象外）
         foreach (var root in materials)
@@ -453,9 +455,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
                         break;
                     case MaterialItemType.Archive:
                         archiveCount++;
-                        // FileSizeText から逆算せず FileInfo で取得
-                        if (File.Exists(child.FullPath))
-                            archiveTotalBytes += new FileInfo(child.FullPath).Length;
+                        archivePaths.Add(child.FullPath);
                         break;
                     case MaterialItemType.Epub:
                         epubCount++;
@@ -470,11 +470,16 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
 
         this.MaterialFolderCountText.Value = $"フォルダ：{folderCount}";
 
+        // アーカイブ合計サイズを非同期で計算
+        var archiveTotalBytes = 0L;
+        if (archivePaths.Count > 0)
+        {
+            archiveTotalBytes = await StorageSizeHelper.GetArchiveOnlyAsync(archivePaths);
+        }
+
         var archiveSizeText = archiveTotalBytes == 0
             ? string.Empty
-            : archiveTotalBytes >= 1024L * 1024 * 1024
-                ? $"（{archiveTotalBytes / (1024.0 * 1024 * 1024):F1} GB）"
-                : $"（{archiveTotalBytes / (1024.0 * 1024):F1} MB）";
+            : $"（{StorageSizeHelper.FormatSize(archiveTotalBytes)}）";
         this.MaterialArchiveCountText.Value = $"圧縮ファイル：{archiveCount}{archiveSizeText}";
 
         this.MaterialEpubCountText.Value = $"EPUB：{epubCount}";

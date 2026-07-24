@@ -22,6 +22,9 @@ public class SourceFolder : IDisposable
 	/// <summary>役割に対応するアイコンシンボルを取得します。Role の変更に応じて自動更新されます。</summary>
 	public IReadOnlyBindableReactiveProperty<SymbolRegular> RoleIconSymbol { get; }
 
+	/// <summary>表示用テキストを取得します。「DisplayName（FolderPath）」の形式で、DisplayName と FolderPath の変更に応じて自動更新されます。</summary>
+	public IReadOnlyBindableReactiveProperty<string> DisplayText { get; }
+
 	/// <summary>
 	/// <see cref="SourceFolder"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -45,6 +48,19 @@ public class SourceFolder : IDisposable
 				_ => SymbolRegular.FolderOpen24,
 			})
 			.ToReadOnlyBindableReactiveProperty(SymbolRegular.FolderOpen24)
+			.AddTo(ref this.disposableBag);
+
+		this.DisplayText = this.DisplayName
+			.CombineLatest(this.FolderPath, (displayName, folderPath) =>
+			{
+				if (string.IsNullOrWhiteSpace(displayName) || string.IsNullOrWhiteSpace(folderPath))
+				{
+					return string.IsNullOrWhiteSpace(displayName) ? folderPath : displayName;
+				}
+
+				return $"{displayName}（{folderPath}）";
+			})
+			.ToReadOnlyBindableReactiveProperty(string.Empty)
 			.AddTo(ref this.disposableBag);
 	}
 
