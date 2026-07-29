@@ -141,7 +141,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
                 // [NewSeriesHomeSync] Home Card追加完了ログ
                 if (NewSeriesHomeSyncTrace.IsTracking(x.Value.SeriesId))
                 {
-                    var cardContainsResult = cardSeries.Any(card => card.Series.SeriesId == x.Value.SeriesId);
+                    var cardContainsResult = cardSeries.Any(card => card.Series.Value.SeriesId == x.Value.SeriesId);
                     this.logger.LogInformation(
                         "[NewSeriesHomeSync] Home Card追加完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} 通知Index={Index} 追加後Card件数={CardCount} Store件数={StoreCount} Card内存在確認結果={Result}",
                         x.Value.SeriesId, x.Value.Title, x.Value.NormalizedTitleInternal, x.Index, cardSeries.Count, this.mangaSeriesStore.All.Count, cardContainsResult);
@@ -185,7 +185,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         this.StartBindingCommand.Subscribe(_ =>
         {
             this.workspaceStore.SelectedSeries.Clear();
-            this.workspaceStore.SelectedSeries.AddRange(this.Series.Where(c => c.IsSelected.Value).Select(c => c.Series));
+            this.workspaceStore.SelectedSeries.AddRange(this.Series.Where(c => c.IsSelected.Value).Select(c => c.Series.Value));
             this.navigationService.NavigateWithHierarchy(typeof(VolumeSelectionPage));
         });
 
@@ -242,9 +242,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
             .Subscribe(isSelected =>
             {
                 if (isSelected)
-                    this.bindingQueueDispatcher.Add(new BindingSeries { Series = cardViewModel.Series, Status = BindingStartStatus.Configuring, AddedAt = DateTime.Now, UpdatedAt = DateTime.Now });
+                    this.bindingQueueDispatcher.Add(new BindingSeries { Series = cardViewModel.Series.Value, Status = BindingStartStatus.Configuring, AddedAt = DateTime.Now, UpdatedAt = DateTime.Now });
                 else
-                    this.bindingQueueDispatcher.Remove(cardViewModel.Series.SeriesId);
+                    this.bindingQueueDispatcher.Remove(cardViewModel.Series.Value.SeriesId);
 
                 var count = this.Series.Count(x => x.IsSelected.Value);
                 this.CanStartBinding.Value = count > 0;
@@ -266,7 +266,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         // 毎回: Store の状態を元に SeriesCardViewModel.IsSelected を復元する
         foreach (var cardViewModel in this.Series)
         {
-            cardViewModel.IsSelected.Value = this.bindingQueueDispatcher.Contains(cardViewModel.Series.SeriesId);
+            cardViewModel.IsSelected.Value = this.bindingQueueDispatcher.Contains(cardViewModel.Series.Value.SeriesId);
         }
 
         // 毎回: タグ再同期
@@ -291,7 +291,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         if (editTarget is not null)
         {
             var card = this.Series.FirstOrDefault(
-                x => x.Series.SeriesId == editTarget.SeriesId);
+                x => x.Series.Value.SeriesId == editTarget.SeriesId);
 
             card?.RefreshDisplay();
 

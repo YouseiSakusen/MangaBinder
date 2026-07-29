@@ -126,7 +126,7 @@ public static class WpfUiViewServiceExtensions
 	/// <summary>
 	/// ナビゲーション対象のページを登録します。
 	/// <typeparamref name="TView"/> は Singleton、<typeparamref name="TViewModel"/> は Transient として登録されます。
-	/// DataContext には Transient の新しい <typeparamref name="TViewModel"/> が DI コンテナから注入されます。
+	/// DataContext は設定されず、ナビゲーション時に <see cref="ElfWindowViewModel.OnNavigatedHandler"/> で新しい <typeparamref name="TViewModel"/> が設定されます。
 	/// ナビゲーションのたびに新しい ViewModel インスタンスが生成され、DataContext へ設定されます。
 	/// </summary>
 	/// <typeparam name="TView">
@@ -141,6 +141,40 @@ public static class WpfUiViewServiceExtensions
 		where TViewModel : class
 	{
 		services.AddTransient<TViewModel>();
+		services.AddSingleton<TView>();
+
+		// NavigationContext へ登録情報を登録
+		NavigationContext.RegisterPageInfo(
+			typeof(TView),
+			new NavigationPageInfo(
+				PageType: typeof(TView),
+				ViewModelType: typeof(TViewModel),
+				PageLifetime: ServiceLifetime.Singleton,
+				ViewModelLifetime: ServiceLifetime.Transient));
+
+		Debug.WriteLine($">>> WpfUiViewServiceExtensions AddNavigationPageWithSingletonView ページを登録しました。PageType: {typeof(TView).FullName}, ViewModelType: {typeof(TViewModel).FullName}, PageLifetime: Singleton, ViewModelLifetime: Transient");
+
+		return services;
+	}
+
+	/// <summary>
+	/// ナビゲーション対象のページを登録します。
+	/// <typeparamref name="TView"/> と <typeparamref name="TViewModel"/> の両方を Singleton として登録されます。
+	/// DataContext には Singleton の <typeparamref name="TViewModel"/> が設定され、アプリケーション全体で共有されます。
+	/// ページの状態と ViewModel の状態の両方をアプリケーション起動時から終了時まで保持する場合に使用してください。
+	/// </summary>
+	/// <typeparam name="TView">
+	/// 登録するページの型。<see cref="FrameworkElement"/> を継承し、引数なしコンストラクタを持つこと。
+	/// </typeparam>
+	/// <typeparam name="TViewModel">対応する ViewModel の型。参照型であること。</typeparam>
+	/// <param name="services">サービスコレクション。</param>
+	/// <returns>サービスコレクション（メソッドチェーン用）。</returns>
+	public static IServiceCollection AddNavigationPageWithSingletonViewAndViewModel<TView, TViewModel>(
+		this IServiceCollection services)
+		where TView : FrameworkElement, new()
+		where TViewModel : class
+	{
+		services.AddSingleton<TViewModel>();
 		services.AddSingleton<TView>(sp =>
 		{
 			var view = new TView();
@@ -155,9 +189,9 @@ public static class WpfUiViewServiceExtensions
 				PageType: typeof(TView),
 				ViewModelType: typeof(TViewModel),
 				PageLifetime: ServiceLifetime.Singleton,
-				ViewModelLifetime: ServiceLifetime.Transient));
+				ViewModelLifetime: ServiceLifetime.Singleton));
 
-		Debug.WriteLine($">>> WpfUiViewServiceExtensions AddNavigationPageWithSingletonView ページを登録しました。PageType: {typeof(TView).FullName}, ViewModelType: {typeof(TViewModel).FullName}, PageLifetime: Singleton, ViewModelLifetime: Transient");
+		Debug.WriteLine($">>> WpfUiViewServiceExtensions AddNavigationPageWithSingletonViewAndViewModel ページを登録しました。PageType: {typeof(TView).FullName}, ViewModelType: {typeof(TViewModel).FullName}, PageLifetime: Singleton, ViewModelLifetime: Singleton");
 
 		return services;
 	}

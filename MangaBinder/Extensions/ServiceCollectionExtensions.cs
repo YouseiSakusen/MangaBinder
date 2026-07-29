@@ -59,7 +59,7 @@ public static class ServiceCollectionExtensions
 	/// <returns>メソッドチェーン用に <paramref name="services"/> を返します。</returns>
 	public static IServiceCollection AddPages(this IServiceCollection services)
 	{
-		services.AddNavigationPageWithSingletonViewModel<HomePage, HomePageViewModel>();
+		services.AddNavigationPageWithSingletonViewAndViewModel<HomePage, HomePageViewModel>();
 		services.AddNavigationPage<TagPage, TagPageViewModel>();
 		services.AddScoped<TagRepository>();
 		services.AddScoped<TagEditor>();

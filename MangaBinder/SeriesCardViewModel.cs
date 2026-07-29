@@ -10,13 +10,13 @@ namespace MangaBinder;
 public class SeriesCardViewModel : IDisposable
 {
 	private DisposableBag disposableBag = new();
-	private MangaSeries series = null!;
 	private SeriesTagSelectorViewModel tagSelector = null!;
 
 	/// <summary>
 	/// 基になった MangaSeries です。
+	/// ReactiveProperty として、値の変更を監視できます。
 	/// </summary>
-	public MangaSeries Series { get; }
+	public BindableReactiveProperty<MangaSeries> Series { get; }
 
 	/// <summary>
 	/// 巻情報表示用の ViewModel です。
@@ -43,8 +43,8 @@ public class SeriesCardViewModel : IDisposable
 	/// <param name="seriesTagStore">タグ変更追跡ストア。Dirty 管理用。</param>
 	public SeriesCardViewModel(MangaSeries series, BindingQueueStore? bindingQueueStore = null, MangaSeriesStore? mangaSeriesStore = null, SeriesTagStore? seriesTagStore = null)
 	{
-		this.Series = series;
-		this.series = series;
+		this.Series = new BindableReactiveProperty<MangaSeries>(series)
+			.AddTo(ref this.disposableBag);
 
 		// VolumeStatus の初期化
 		this.VolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel>(
@@ -72,7 +72,7 @@ public class SeriesCardViewModel : IDisposable
 	/// </summary>
 	public void RefreshVolumeStatus()
 	{
-		this.VolumeStatus.Value = SeriesVolumeStatusViewModel.FromSeries(this.Series);
+		this.VolumeStatus.Value = SeriesVolumeStatusViewModel.FromSeries(this.Series.Value);
 	}
 
 	/// <summary>
@@ -81,6 +81,7 @@ public class SeriesCardViewModel : IDisposable
 	/// </summary>
 	public void RefreshDisplay()
 	{
+		this.Series.ForceNotify();
 		this.RefreshVolumeStatus();
 		this.tagSelector.Refresh();
 	}
