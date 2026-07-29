@@ -1,4 +1,4 @@
-namespace MangaBinder;
+namespace HalationGhost.Wpf.Ui.Navigation;
 
 /// <summary>
 /// ナビゲーションでライフサイクルが終了する ViewModel を示すマーカーインターフェースです。

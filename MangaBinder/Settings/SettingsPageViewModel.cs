@@ -1,4 +1,3 @@
-using HalationGhost.Wpf.Ui.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using ObservableCollections;

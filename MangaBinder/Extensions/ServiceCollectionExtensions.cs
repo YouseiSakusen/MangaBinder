@@ -75,7 +75,7 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPageWithSingletonViewModel<MaintenancePage, MaintenancePageViewModel>();
 		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>();
 		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>();
-		services.AddNavigationPage<EditorPage, EditorPageViewModel>();
+		services.AddNavigationPageWithSingletonView<EditorPage, EditorPageViewModel>();
 		services.AddTransient<EditorStore>();
 		services.AddScoped<ThumbnailPicker>();
 		services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();

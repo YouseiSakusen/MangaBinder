@@ -1,6 +1,6 @@
 using Wpf.Ui.Controls;
 
-namespace HalationGhost.Wpf.Ui.Navigation;
+namespace MangaBinder;
 
 /// <summary>
 /// 保存操作の結果を表す不変レコードです。

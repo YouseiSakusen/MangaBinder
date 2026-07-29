@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Windows;
+using HalationGhost.Wpf.Ui;
 using HalationGhost.Wpf.Ui.Navigation;
 using MangaBinder.Bindings;
 using MangaBinder.Series;
@@ -19,7 +20,7 @@ namespace MangaBinder;
 /// <summary>
 /// メインウィンドウの ViewModel です。
 /// </summary>
-public class MainWindowViewModel : IDisposable, IWindowClosingAware
+public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosingAware
 {
 	/// <summary>ロガー。</summary>
 	private readonly ILogger<MainWindowViewModel> logger;
@@ -27,13 +28,10 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	/// <summary>テーマサービス。</summary>
 	private readonly IThemeService themeService;
 
-	/// <summary>ナビゲーションサービス。</summary>
-	private readonly INavigationService navigationService;
-
 	/// <summary>スナックバーサービス。</summary>
 	private readonly ISnackbarService snackbarService;
 
-	/// <summary>HomePage の ViewModel。終了時のスクロール位置保存に使用します。</summary>
+	/// <summary>ホームページの ViewModel。終了時のスクロール位置保存に使用します。</summary>
 	private readonly HomePageViewModel homePageViewModel;
 
 	/// <summary>アプリケーション設定。終了時のスクロール位置保存先です。</summary>
@@ -44,6 +42,9 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 
 	/// <summary>ローディングサービス。</summary>
 	private readonly LoadingService loadingService;
+
+	/// <summary>DI コンテナのサービスプロバイダー。ViewModel 解決に使用します。</summary>
+	private readonly IServiceProvider serviceProvider;
 
 	/// <summary>現在表示中のページの ViewModel を保持するフィールドです。保存・変更検知に使用します。</summary>
 	private object? currentViewModel;
@@ -92,6 +93,7 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
+	/// <param name="serviceProvider">DI コンテナのサービスプロバイダー。</param>
 	public MainWindowViewModel(
 		ILogger<MainWindowViewModel> logger,
 		IThemeService themeService,
@@ -100,16 +102,18 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		HomePageViewModel homePageViewModel,
 		AppSettings appSettings,
 		IServiceScopeFactory serviceScopeFactory,
-		LoadingService loadingService)
+		LoadingService loadingService,
+		IServiceProvider serviceProvider)
+		: base(navigationService)
 	{
 		this.logger = logger;
 		this.themeService = themeService;
-		this.navigationService = navigationService;
 		this.snackbarService = snackbarService;
 		this.homePageViewModel = homePageViewModel;
 		this.appSettings = appSettings;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.loadingService = loadingService;
+		this.serviceProvider = serviceProvider;
 
 		this.logger.ZLogInformation($"MainWindowViewModel 初期化開始");
 
@@ -183,7 +187,15 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 		.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 		.AddTo(ref this.disposableBag);
 
-		Application.Current.Dispatcher.BeginInvoke(() => this.navigationService.Navigate(typeof(HomePage)));
+		System.Diagnostics.Debug.WriteLine(">>> MainWindowViewModel Dispatcher.BeginInvoke 開始");
+		Application.Current.Dispatcher.BeginInvoke(() =>
+		{
+			System.Diagnostics.Debug.WriteLine(">>> MainWindowViewModel Dispatcher.BeginInvoke ラムダ実行");
+			System.Diagnostics.Debug.WriteLine(">>> MainWindowViewModel navigationService.Navigate 呼び出し直前");
+			this.NavigationService.Navigate(typeof(HomePage));
+			System.Diagnostics.Debug.WriteLine("<<< MainWindowViewModel navigationService.Navigate 呼び出し直後");
+		});
+		System.Diagnostics.Debug.WriteLine("<<< MainWindowViewModel Dispatcher.BeginInvoke 登録完了");
 		this.logger.ZLogInformation($"MainWindowViewModel 初期化完了");
 	}
 
@@ -191,12 +203,17 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	/// ナビゲーション遷移時に呼び出されます。
 	/// 前ページに対して ISavable 保存と INavigationLeavingAware 退場処理を行い、
 	/// その後、新ページに対して IDataInitializable 初期化処理を実行します。
+	/// <summary>
+	/// ナビゲーション遷移時に呼び出されます。
+	/// 前ページに対して ISavable 保存と INavigationLeavingAware 退場処理を行い、
+	/// その後、新ページに対して IDataInitializable 初期化処理を実行します。
 	/// </summary>
-	/// <param name="e">ナビゲーションイベント引数。</param>
-	internal async ValueTask OnNavigated(NavigatedEventArgs e)
+	/// <param name="sender">NavigationView。</param>
+	/// <param name="args">ナビゲーションイベント引数。</param>
+	protected override async void OnNavigated(INavigationView sender, NavigatedEventArgs args)
 	{
 		// 1. 遷移先ページの ViewModel を取得
-		var nextViewModel = ((FrameworkElement)e.Page!).DataContext;
+		var nextViewModel = ((FrameworkElement)args.Page!).DataContext;
 
 		// 2. 前ページの保存処理
 		await this.saveCurrentViewModelAsync();
@@ -285,6 +302,16 @@ public class MainWindowViewModel : IDisposable, IWindowClosingAware
 	{
 		this.isLoadingProperty.Value = e.IsLoading;
 		this.loadingMessageProperty.Value = e.Message;
+	}
+
+	/// <summary>
+	/// 指定された ViewModel 型に対応するインスタンスを DI コンテナから解決します。
+	/// </summary>
+	/// <param name="viewModelType">解決する ViewModel の型。</param>
+	/// <returns>解決した ViewModel のインスタンス。</returns>
+	protected override object ResolveViewModel(Type viewModelType)
+	{
+		return this.serviceProvider.GetRequiredService(viewModelType);
 	}
 
 	/// <summary>

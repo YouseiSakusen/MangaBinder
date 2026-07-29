@@ -1,4 +1,4 @@
-namespace HalationGhost.Wpf.Ui.Navigation;
+namespace MangaBinder;
 
 /// <summary>
 /// 保存操作を非同期で実行できることを示すインターフェースです。

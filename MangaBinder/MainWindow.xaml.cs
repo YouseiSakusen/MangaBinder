@@ -12,25 +12,25 @@ namespace MangaBinder;
 /// <summary>
 /// メインウィンドウのコードビハインドです。
 /// </summary>
-public partial class MainWindow : ElfWindow, INavigationWindow
+public partial class MainWindow : ElfWindow
 {
 	/// <summary>
 	/// <see cref="MainWindow"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="viewModel">DI から注入される ViewModel。</param>
 	/// <param name="navigationViewPageProvider">ページプロバイダーサービス。</param>
-	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
 	/// <param name="configuration">設定。</param>
 	public MainWindow(
 		MainWindowViewModel viewModel,
 		INavigationViewPageProvider navigationViewPageProvider,
-		INavigationService navigationService,
 		ISnackbarService snackbarService,
 		IContentDialogService contentDialogService,
 		IConfiguration configuration)
 	{
+		System.Diagnostics.Debug.WriteLine(">>> MainWindow コンストラクタ開始");
+
 		// ウィンドウ位置・サイズ保存機能の設定
 		var fileName = configuration["WindowPlacement:FileName"] ?? "window-placement.json";
 		var directory = Path.Combine(
@@ -42,48 +42,15 @@ public partial class MainWindow : ElfWindow, INavigationWindow
 		this.ConfigureWindowPlacement(filePath);
 
 		this.DataContext = viewModel;
+		System.Diagnostics.Debug.WriteLine(">>> MainWindow InitializeComponent 直前");
 		this.InitializeComponent();
+		System.Diagnostics.Debug.WriteLine("<<< MainWindow InitializeComponent 直後");
+		System.Diagnostics.Debug.WriteLine(">>> MainWindow SetPageService 直前");
 		this.SetPageService(navigationViewPageProvider);
-		navigationService.SetNavigationControl(this.RootNavigation);
+		System.Diagnostics.Debug.WriteLine("<<< MainWindow SetPageService 直後");
 		snackbarService.SetSnackbarPresenter(this.SnackbarPresenter);
 		contentDialogService.SetDialogHost(this.RootContentDialog);
-		this.RootNavigation.Navigated += async (_, e) => await viewModel.OnNavigated(e);
+
+		System.Diagnostics.Debug.WriteLine("<<< MainWindow コンストラクタ終了");
 	}
-
-	/// <summary>
-	/// ナビゲーションコントロールを返します。
-	/// </summary>
-	/// <returns>ウィンドウに配置された <see cref="INavigationView"/>。</returns>
-	INavigationView INavigationWindow.GetNavigation() => this.RootNavigation;
-
-	/// <summary>
-	/// 指定されたページ型へナビゲートします。
-	/// </summary>
-	/// <param name="pageType">ナビゲート先のページ型。</param>
-	/// <returns>ナビゲーションが成功した場合は <c>true</c>。</returns>
-	bool INavigationWindow.Navigate(Type pageType) => this.RootNavigation.Navigate(pageType);
-
-	/// <summary>
-	/// DI サービスプロバイダーを設定します。
-	/// </summary>
-	/// <param name="serviceProvider">設定するサービスプロバイダー。</param>
-	void INavigationWindow.SetServiceProvider(IServiceProvider serviceProvider) =>
-		this.RootNavigation.SetServiceProvider(serviceProvider);
-
-	/// <summary>
-	/// ページプロバイダーサービスを設定します。
-	/// </summary>
-	/// <param name="navigationViewPageProvider">設定するページプロバイダー。</param>
-	public void SetPageService(INavigationViewPageProvider navigationViewPageProvider) =>
-		this.RootNavigation.SetPageProviderService(navigationViewPageProvider);
-
-	/// <summary>
-	/// ウィンドウを表示します。
-	/// </summary>
-	void INavigationWindow.ShowWindow() => this.Show();
-
-	/// <summary>
-	/// ウィンドウを閉じます。
-	/// </summary>
-	void INavigationWindow.CloseWindow() => this.Close();
 }

@@ -16,6 +16,7 @@ using Wpf.Ui.Controls;
 using Microsoft.Win32;
 using Microsoft.Extensions.DependencyInjection;
 using MangaBinder.Helpers;
+using HalationGhost.Wpf.Ui.Navigation;
 
 namespace MangaBinder.Series;
 
