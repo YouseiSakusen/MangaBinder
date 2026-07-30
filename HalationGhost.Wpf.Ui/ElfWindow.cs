@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using HalationGhost.Wpf.Ui.Navigation;
 using Wpf.Ui;
@@ -26,11 +27,10 @@ public class ElfWindow : FluentWindow, INavigationWindow
 	/// </summary>
 	public ElfWindow()
 	{
-		System.Diagnostics.Debug.WriteLine(">>> ElfWindow コンストラクタ開始");
 		this.Initialized += this.ElfWindow_Initialized;
 		this.Loaded += this.ElfWindow_Loaded;
 		this.ContentRendered += this.ElfWindow_ContentRendered;
-		System.Diagnostics.Debug.WriteLine("<<< ElfWindow コンストラクタ終了");
+		this.PreviewMouseDown += this.ElfWindow_PreviewMouseDown;
 	}
 
 	/// <summary>
@@ -38,7 +38,6 @@ public class ElfWindow : FluentWindow, INavigationWindow
 	/// </summary>
 	private void ElfWindow_Initialized(object? sender, EventArgs e)
 	{
-		System.Diagnostics.Debug.WriteLine(">>> ElfWindow Initialized");
 	}
 
 	/// <summary>
@@ -46,65 +45,82 @@ public class ElfWindow : FluentWindow, INavigationWindow
 	/// </summary>
 	private void ElfWindow_Loaded(object? sender, RoutedEventArgs e)
 	{
-		System.Diagnostics.Debug.WriteLine(">>> ElfWindow Loaded");
 		this.FindAndSetNavigationView();
 	}
 
 	/// <summary>
-	/// VisualTree から NavigationView を検索し、内部フィールドへ保持します。
+	/// VisualTree から NavigationView、SnackbarPresenter、ContentDialogHost を検索し、
+	/// NavigationContext へ登録します。
+	/// 登録順序を制御して、すべてのコントロールが登録済みになった状態で
+	/// NavigationContext.Register() を実行し、ElfWindowViewModel の初期化処理を開始します。
 	/// 取得後、保持されている INavigationViewPageProvider と IServiceProvider を適用します。
-	/// NavigationContext へも登録します。
 	/// </summary>
 	private void FindAndSetNavigationView()
 	{
-		this.navigationView = this.FindNavigationViewInVisualTree(this);
-
-		if (this.navigationView == null)
+		// 1. VisualTree から各コントロールを検索
+		var navigationView = this.FindInVisualTree<INavigationView>(this);
+		if (navigationView == null)
 		{
 			throw new InvalidOperationException("NavigationView が見つかりません。ElfWindow の派生クラスは VisualTree に INavigationView を配置してください。");
 		}
 
-		System.Diagnostics.Debug.WriteLine(">>> ElfWindow NavigationView を検出しました");
+		var snackbarPresenter = this.FindInVisualTree<SnackbarPresenter>(this);
+		if (snackbarPresenter == null)
+		{
+			throw new InvalidOperationException("SnackbarPresenter が見つかりません。ElfWindow の派生クラスは VisualTree に SnackbarPresenter を配置してください。");
+		}
 
-		// NavigationContext へ登録
+		var contentDialogHost = this.FindInVisualTree<ContentDialogHost>(this);
+		if (contentDialogHost == null)
+		{
+			throw new InvalidOperationException("ContentDialogHost が見つかりません。ElfWindow の派生クラスは VisualTree に ContentDialogHost を配置してください。");
+		}
+
+		// 2. SnackbarPresenter を NavigationContext へ登録
+		NavigationContext.RegisterSnackbarPresenter(snackbarPresenter);
+
+		// 3. ContentDialogHost を NavigationContext へ登録
+		NavigationContext.RegisterContentDialogHost(contentDialogHost);
+
+		// 4. INavigationView を NavigationContext へ登録（最後に実行）
+		// この時点で保留中の ElfWindowViewModel.ExecuteWhenAvailable() 処理が実行される
+		this.navigationView = navigationView;
 		NavigationContext.Register(this.navigationView);
-		System.Diagnostics.Debug.WriteLine(">>> ElfWindow NavigationContext へ登録完了");
 
-		// 保持されている NavigationViewPageProvider を適用（SetPageService が呼ばれていた場合）
+		// 5. 保持されている NavigationViewPageProvider を適用（SetPageService が呼ばれていた場合）
 		if (this.navigationViewPageProvider != null)
 		{
-			System.Diagnostics.Debug.WriteLine(">>> ElfWindow SetPageProviderService を遅延適用");
 			this.navigationView.SetPageProviderService(this.navigationViewPageProvider);
 		}
 
-		// 保持されている ServiceProvider を適用（SetServiceProvider が呼ばれていた場合）
+		// 6. 保持されている ServiceProvider を適用（SetServiceProvider が呼ばれていた場合）
 		if (this.serviceProvider != null)
 		{
-			System.Diagnostics.Debug.WriteLine(">>> ElfWindow SetServiceProvider を遅延適用");
 			this.navigationView.SetServiceProvider(this.serviceProvider);
 		}
 	}
 
 	/// <summary>
-	/// VisualTree から INavigationView を再帰的に検索します。
+	/// VisualTree から指定された型の要素を再帰的に検索します。
 	/// </summary>
+	/// <typeparam name="T">検索する型。</typeparam>
 	/// <param name="parent">検索開始要素。</param>
-	/// <returns>見つかった INavigationView、見つからない場合は null。</returns>
-	private INavigationView? FindNavigationViewInVisualTree(DependencyObject parent)
+	/// <returns>見つかった要素、見つからない場合は null。</returns>
+	private T? FindInVisualTree<T>(DependencyObject parent) where T : class
 	{
 		for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
 		{
 			var child = VisualTreeHelper.GetChild(parent, i);
 
-			if (child is INavigationView navigationView)
-			{
-				return navigationView;
-			}
-
-			var result = this.FindNavigationViewInVisualTree(child);
-			if (result != null)
+			if (child is T result)
 			{
 				return result;
+			}
+
+			var found = this.FindInVisualTree<T>(child);
+			if (found != null)
+			{
+				return found;
 			}
 		}
 
@@ -116,7 +132,34 @@ public class ElfWindow : FluentWindow, INavigationWindow
 	/// </summary>
 	private void ElfWindow_ContentRendered(object? sender, EventArgs e)
 	{
-		System.Diagnostics.Debug.WriteLine(">>> ElfWindow ContentRendered");
+	}
+
+	/// <summary>
+	/// マウスサイドボタン（戻るボタン）を検知して戻る要求を処理します。
+	/// </summary>
+	private async void ElfWindow_PreviewMouseDown(object? sender, MouseButtonEventArgs e)
+	{
+		// マウスサイドボタン(XButton1)を検知
+		if (e.XButton1 == MouseButtonState.Pressed)
+		{
+			// 戻る要求が無効な場合は何もしない
+			if (!NavigationContext.IsBackRequestEnabled())
+			{
+				return;
+			}
+
+			// NavigationContext から現在のページ ViewModel を取得
+			var pageViewModel = NavigationContext.GetCurrentPageViewModel();
+			if (pageViewModel is not IBackRequestHandler backRequestHandler)
+			{
+				// IBackRequestHandler を実装していない場合は何もしない
+				return;
+			}
+
+			// OnBackRequestedAsync を呼び出す
+			await backRequestHandler.OnBackRequestedAsync();
+			e.Handled = true;
+		}
 	}
 
 	/// <summary>
@@ -212,6 +255,10 @@ public class ElfWindow : FluentWindow, INavigationWindow
 	protected override void OnSourceInitialized(EventArgs e)
 	{
 		base.OnSourceInitialized(e);
+
+		// WindowPlacement ファイルパスを NavigationContext から取得し、設定を反映
+		var windowPlacementPath = NavigationContext.GetWindowPlacementPath();
+		this.ConfigureWindowPlacement(windowPlacementPath);
 
 		if (!this.IsWindowPlacementEnabled || string.IsNullOrEmpty(this.windowPlacementFilePath))
 		{

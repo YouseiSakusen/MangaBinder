@@ -59,8 +59,8 @@ public static class ServiceCollectionExtensions
 	/// <returns>メソッドチェーン用に <paramref name="services"/> を返します。</returns>
 	public static IServiceCollection AddPages(this IServiceCollection services)
 	{
-		services.AddNavigationPageWithSingletonViewAndViewModel<HomePage, HomePageViewModel>();
-		services.AddNavigationPage<TagPage, TagPageViewModel>();
+		services.AddNavigationPage<HomePage, HomePageViewModel>(ServiceLifetime.Singleton);
+		services.AddNavigationPage<TagPage, TagPageViewModel>(ServiceLifetime.Singleton);
 		services.AddScoped<TagRepository>();
 		services.AddScoped<TagEditor>();
 		services.AddScoped<SeriesTagDispatcher>();
@@ -69,13 +69,13 @@ public static class ServiceCollectionExtensions
 		services.AddKeyedScoped<ISeriesSaveManager, NewSeriesSaveManager>(SeriesSaveType.New);
 		services.AddKeyedScoped<ISeriesSaveManager, ExistingSeriesSaveManager>(SeriesSaveType.Existing);
 		services.AddKeyedScoped<ISeriesSaveManager, WorkSeriesSaveManager>(SeriesSaveType.Work);
-		services.AddNavigationPageWithSingletonViewModel<StartPage, StartPageViewModel>();
-		services.AddNavigationPageWithSingletonViewModel<VolumeSelectionPage, VolumeSelectionPageViewModel>();
-		services.AddNavigationPageWithSingletonViewModel<SeriesInspectionPage, SeriesInspectionPageViewModel>();
-		services.AddNavigationPageWithSingletonViewModel<MaintenancePage, MaintenancePageViewModel>();
-		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>();
-		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>();
-		services.AddNavigationPageWithSingletonView<EditorPage, EditorPageViewModel>();
+		services.AddNavigationPage<StartPage, StartPageViewModel>(ServiceLifetime.Singleton);
+		services.AddNavigationPage<VolumeSelectionPage, VolumeSelectionPageViewModel>(ServiceLifetime.Singleton);
+		services.AddNavigationPage<SeriesInspectionPage, SeriesInspectionPageViewModel>(ServiceLifetime.Singleton);
+		services.AddNavigationPage<MaintenancePage, MaintenancePageViewModel>(ServiceLifetime.Singleton);
+		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>(ServiceLifetime.Singleton);
+		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>(ServiceLifetime.Singleton);
+		services.AddNavigationPage<EditorPage, EditorPageViewModel>(ServiceLifetime.Transient);
 		services.AddTransient<EditorStore>();
 		services.AddScoped<ThumbnailPicker>();
 		services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();

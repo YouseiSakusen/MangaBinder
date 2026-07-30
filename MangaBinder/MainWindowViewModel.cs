@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using ObservableCollections;
 using R3;
 using Wpf.Ui;
+using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
 using ZLogger;
 
@@ -46,8 +47,8 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	/// <summary>DI コンテナのサービスプロバイダー。ViewModel 解決に使用します。</summary>
 	private readonly IServiceProvider serviceProvider;
 
-	/// <summary>現在表示中のページの ViewModel を保持するフィールドです。保存・変更検知に使用します。</summary>
-	private object? currentViewModel;
+	/// <summary>設定。WindowPlacement ファイル名の取得に使用します。</summary>
+	private readonly Microsoft.Extensions.Configuration.IConfiguration configuration;
 
 	private DisposableBag disposableBag;
 
@@ -89,22 +90,34 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	/// <param name="themeService">テーマサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
+	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
+	/// <param name="navigationViewPageProvider">ページプロバイダーサービス。</param>
 	/// <param name="homePageViewModel">ホームページの ViewModel。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
 	/// <param name="serviceProvider">DI コンテナのサービスプロバイダー。</param>
+	/// <param name="configuration">設定。</param>
 	public MainWindowViewModel(
 		ILogger<MainWindowViewModel> logger,
 		IThemeService themeService,
 		INavigationService navigationService,
 		ISnackbarService snackbarService,
+		IContentDialogService contentDialogService,
+		INavigationViewPageProvider navigationViewPageProvider,
 		HomePageViewModel homePageViewModel,
 		AppSettings appSettings,
 		IServiceScopeFactory serviceScopeFactory,
 		LoadingService loadingService,
-		IServiceProvider serviceProvider)
-		: base(navigationService)
+		IServiceProvider serviceProvider,
+		Microsoft.Extensions.Configuration.IConfiguration configuration)
+		: base(
+			navigationService,
+			snackbarService,
+			contentDialogService,
+			navigationViewPageProvider,
+			"MangaBinder",
+			configuration["WindowPlacement:FileName"] ?? "window-placement.json")
 	{
 		this.logger = logger;
 		this.themeService = themeService;
@@ -114,6 +127,7 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.loadingService = loadingService;
 		this.serviceProvider = serviceProvider;
+		this.configuration = configuration;
 
 		this.logger.ZLogInformation($"MainWindowViewModel 初期化開始");
 
@@ -200,64 +214,12 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	}
 
 	/// <summary>
-	/// ナビゲーション遷移時に呼び出されます。
-	/// 前ページに対して ISavable 保存と INavigationLeavingAware 退場処理を行い、
-	/// その後、新ページに対して IDataInitializable 初期化処理を実行します。
-	/// <summary>
-	/// ナビゲーション遷移時に呼び出されます。
-	/// 前ページに対して ISavable 保存と INavigationLeavingAware 退場処理を行い、
-	/// その後、新ページに対して IDataInitializable 初期化処理を実行します。
-	/// </summary>
-	/// <param name="sender">NavigationView。</param>
-	/// <param name="args">ナビゲーションイベント引数。</param>
-	protected override async void OnNavigated(INavigationView sender, NavigatedEventArgs args)
-	{
-		// 1. 遷移先ページの ViewModel を取得
-		var nextViewModel = ((FrameworkElement)args.Page!).DataContext;
-
-		// 2. 前ページの保存処理
-		await this.saveCurrentViewModelAsync();
-
-		// 3. 遷移先が要求提供インターフェースを実装していれば要求を取得、否則既定値を使用
-		var request =
-			nextViewModel is INavigationLeavingRequestProvider provider
-				? provider.GetNavigationLeavingRequest()
-				: NavigationLeavingRequest.None;
-
-		// 4. 前ページの退場処理
-		if (this.currentViewModel is INavigationLeavingAware leavingAware)
-		{
-			await leavingAware.OnNavigatingFromAsync(request);
-		}
-
-		// 5. 前ページの Dispose を実行（INavigationDisposable を実装している場合のみ）
-		if (this.currentViewModel is INavigationDisposable disposable)
-		{
-			disposable.Dispose();
-		}
-
-		// 6. 新ページの ViewModel を currentViewModel に設定
-		this.currentViewModel = nextViewModel;
-
-		// 7. 新ページの初期化処理
-		if (this.currentViewModel is IDataInitializable initializable)
-		{
-			await initializable.InitializeDataAsync();
-		}
-
-		// マネージドメモリ使用量を出力
-		var totalMemory = GC.GetTotalMemory(false);
-		var memoryMB = totalMemory / (1024.0 * 1024.0);
-		System.Diagnostics.Debug.WriteLine($"[Memory] Managed Memory: {memoryMB:F2} MB");
-	}
-
-	/// <summary>
 	/// ウィンドウが閉じられる直前に呼び出されます。現在ページが <see cref="ISavable"/> を実装していれば保存を実行します。
 	/// </summary>
 	/// <returns>完了を表す <see cref="ValueTask"/>。</returns>
 	public async ValueTask OnClosingAsync()
 	{
-		await this.saveCurrentViewModelAsync();
+		await this.saveViewModelAsync(this.CurrentViewModel);
 
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var bindingStoreRepository = scope.ServiceProvider.GetRequiredService<BindingStoreRepository>();
@@ -271,12 +233,13 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	}
 
 	/// <summary>
-	/// <see cref="currentViewModel"/> が <see cref="ISavable"/> を実装している場合、保存を実行します。
+	/// 指定された ViewModel が <see cref="ISavable"/> を実装している場合、保存を実行します。
 	/// 失敗時のみスナックバーで通知します。
 	/// </summary>
-	private async ValueTask saveCurrentViewModelAsync()
+	/// <param name="viewModel">保存対象の ViewModel。</param>
+	private async ValueTask saveViewModelAsync(object? viewModel)
 	{
-		if (this.currentViewModel is not ISavable savable)
+		if (viewModel is not ISavable savable)
 			return;
 					var result = await savable.SaveAsync();
 		if (result.IsSuccess)
@@ -292,6 +255,49 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 			ControlAppearance.Danger,
 			new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
 			Timeout.InfiniteTimeSpan);
+	}
+
+	/// <summary>
+	/// ナビゲーション遷移前に実行する処理をオーバーライドします。
+	/// 前ページの保存、退場処理などを実装してください。
+	/// </summary>
+	/// <param name="previousViewModel">遷移元ページの ViewModel。null の場合があります。</param>
+	/// <param name="nextViewModel">遷移先ページの ViewModel。</param>
+	protected override async ValueTask OnNavigatingFromAsync(object? previousViewModel, object? nextViewModel)
+	{
+		// 前ページの保存処理
+		await this.saveViewModelAsync(previousViewModel);
+
+		// 遷移先が要求提供インターフェースを実装していれば要求を取得、否則既定値を使用
+		var request =
+			nextViewModel is INavigationLeavingRequestProvider provider
+				? provider.GetNavigationLeavingRequest()
+				: NavigationLeavingRequest.None;
+
+		// 前ページの退場処理
+		if (previousViewModel is INavigationLeavingAware leavingAware)
+		{
+			await leavingAware.OnNavigatingFromAsync(request);
+		}
+	}
+
+	/// <summary>
+	/// ナビゲーション遷移後に実行する処理をオーバーライドします。
+	/// 新ページの初期化処理などを実装してください。
+	/// </summary>
+	/// <param name="nextViewModel">遷移先ページの ViewModel。</param>
+	protected override async ValueTask OnNavigatedToAsync(object? nextViewModel)
+	{
+		// 新ページの初期化処理
+		if (nextViewModel is IDataInitializable initializable)
+		{
+			await initializable.InitializeDataAsync();
+		}
+
+		// マネージドメモリ使用量を出力
+		var totalMemory = GC.GetTotalMemory(false);
+		var memoryMB = totalMemory / (1024.0 * 1024.0);
+		System.Diagnostics.Debug.WriteLine($"[Memory] Managed Memory: {memoryMB:F2} MB");
 	}
 
 	/// <summary>

@@ -33,6 +33,21 @@ internal static class NavigationContext
 	/// <summary>Page型をキーとして、ナビゲーション登録情報を保持する辞書。</summary>
 	private static readonly Dictionary<Type, NavigationPageInfo> pageInfoDictionary = [];
 
+	/// <summary>現在登録されている SnackbarPresenter。</summary>
+	private static SnackbarPresenter? currentSnackbarPresenter;
+
+	/// <summary>現在登録されている ContentDialogHost。</summary>
+	private static ContentDialogHost? currentContentDialogHost;
+
+	/// <summary>WindowPlacement ファイルの完全パス。</summary>
+	private static string? windowPlacementPath;
+
+	/// <summary>戻る要求が有効かどうかを判定する関数。デフォルトは常に true を返します。</summary>
+	private static Func<bool> backRequestEnabledChecker = () => true;
+
+	/// <summary>現在表示中のページ ViewModel。</summary>
+	private static object? currentPageViewModel;
+
 	/// <summary>
 	/// NavigationView を登録します。
 	/// 登録時に保留中の処理があれば、その場で実行します。
@@ -45,7 +60,6 @@ internal static class NavigationContext
 		// 保留中の処理があれば実行
 		if (pendingAction != null)
 		{
-			System.Diagnostics.Debug.WriteLine(">>> NavigationContext 保留中の処理を実行します");
 			pendingAction.Invoke(navigationView);
 			pendingAction = null;
 		}
@@ -76,13 +90,11 @@ internal static class NavigationContext
 		if (currentNavigationView != null)
 		{
 			// NavigationView が既に登録済み → 即座に実行
-			System.Diagnostics.Debug.WriteLine(">>> NavigationContext NavigationView が登録済み、処理を即座に実行します");
 			action.Invoke(currentNavigationView);
 		}
 		else
 		{
 			// NavigationView が未登録 → 処理を保留
-			System.Diagnostics.Debug.WriteLine(">>> NavigationContext NavigationView が未登録、処理を保留します");
 			pendingAction = action;
 		}
 	}
@@ -108,4 +120,116 @@ internal static class NavigationContext
 	{
 		return pageInfoDictionary.TryGetValue(pageType, out info);
 	}
+
+	/// <summary>
+	/// SnackbarPresenter を登録します。
+	/// </summary>
+	/// <param name="snackbarPresenter">登録する SnackbarPresenter。</param>
+	internal static void RegisterSnackbarPresenter(SnackbarPresenter snackbarPresenter)
+	{
+		currentSnackbarPresenter = snackbarPresenter;
+	}
+
+	/// <summary>
+	/// 登録済みの SnackbarPresenter を取得します。
+	/// </summary>
+	/// <returns>登録済みの SnackbarPresenter。</returns>
+	/// <exception cref="InvalidOperationException">SnackbarPresenter が登録されていない場合。</exception>
+	internal static SnackbarPresenter GetSnackbarPresenter()
+	{
+		if (currentSnackbarPresenter == null)
+		{
+			throw new InvalidOperationException("SnackbarPresenter が登録されていません。ElfWindow が初期化される前にこのメソッドが呼ばれている可能性があります。");
+		}
+
+		return currentSnackbarPresenter;
+	}
+
+	/// <summary>
+	/// ContentDialogHost を登録します。
+	/// </summary>
+	/// <param name="contentDialogHost">登録する ContentDialogHost。</param>
+	internal static void RegisterContentDialogHost(ContentDialogHost contentDialogHost)
+	{
+		currentContentDialogHost = contentDialogHost;
+	}
+
+	/// <summary>
+	/// 登録済みの ContentDialogHost を取得します。
+	/// </summary>
+	/// <returns>登録済みの ContentDialogHost。</returns>
+	/// <exception cref="InvalidOperationException">ContentDialogHost が登録されていない場合。</exception>
+	internal static ContentDialogHost GetContentDialogHost()
+	{
+		if (currentContentDialogHost == null)
+		{
+			throw new InvalidOperationException("ContentDialogHost が登録されていません。ElfWindow が初期化される前にこのメソッドが呼ばれている可能性があります。");
+		}
+
+		return currentContentDialogHost;
+	}
+
+	/// <summary>
+	/// WindowPlacement ファイルの完全パスを登録します。
+	/// </summary>
+	/// <param name="path">登録する完全パス。</param>
+	internal static void RegisterWindowPlacementPath(string path)
+	{
+		windowPlacementPath = path;
+	}
+
+	/// <summary>
+	/// 登録済みの WindowPlacement ファイルの完全パスを取得します。
+	/// </summary>
+	/// <returns>登録済みの WindowPlacement ファイルの完全パス。</returns>
+	/// <exception cref="InvalidOperationException">WindowPlacement パスが登録されていない場合。</exception>
+	internal static string GetWindowPlacementPath()
+	{
+		if (windowPlacementPath == null)
+		{
+			throw new InvalidOperationException("WindowPlacement パスが登録されていません。ElfWindowViewModel が初期化される前にこのメソッドが呼ばれている可能性があります。");
+		}
+
+		return windowPlacementPath;
+	}
+
+	/// <summary>
+	/// 戻る要求が有効かどうかを判定する関数を登録します。
+	/// 登録されていない場合のデフォルト動作は常に true を返します。
+	/// </summary>
+	/// <param name="checker">戻る要求が有効かどうかを判定する関数。</param>
+	internal static void RegisterBackRequestEnabledChecker(Func<bool> checker)
+	{
+		backRequestEnabledChecker = checker ?? (() => true);
+	}
+
+	/// <summary>
+	/// 戻る要求が現在有効かどうかを取得します。
+	/// </summary>
+	/// <returns>戻る要求が有効な場合は true、無効な場合は false。</returns>
+	internal static bool IsBackRequestEnabled()
+	{
+		return backRequestEnabledChecker.Invoke();
+	}
+
+	/// <summary>
+	/// 現在表示中のページ ViewModel を登録します。
+	/// ナビゲーション完了時に ElfWindowViewModel から呼び出されます。
+	/// </summary>
+	/// <param name="pageViewModel">登録するページ ViewModel。</param>
+	internal static void RegisterCurrentPageViewModel(object? pageViewModel)
+	{
+		currentPageViewModel = pageViewModel;
+	}
+
+	/// <summary>
+	/// 現在表示中のページ ViewModel を取得します。
+	/// マウスサイドボタンなど、入力デバイスからの戻る要求を処理する際に使用されます。
+	/// </summary>
+	/// <returns>現在表示中のページ ViewModel。登録されていない場合は null。</returns>
+	internal static object? GetCurrentPageViewModel()
+	{
+		return currentPageViewModel;
+	}
 }
+

@@ -1,6 +1,8 @@
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Wpf.Ui;
+using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
 using HalationGhost.Wpf.Ui.Navigation;
 
@@ -15,70 +17,105 @@ public abstract class ElfWindowViewModel
 	/// <summary>ナビゲーションサービス。</summary>
 	protected INavigationService NavigationService { get; }
 
+	/// <summary>スナックバーサービス。</summary>
+	protected ISnackbarService SnackbarService { get; }
+
+	/// <summary>コンテントダイアログサービス。</summary>
+	protected IContentDialogService ContentDialogService { get; }
+
+	/// <summary>現在表示中のページの ViewModel を保持するフィールドです。ナビゲーションライフサイクル管理に使用します。</summary>
+	private object? currentViewModel;
+
+	/// <summary>現在表示中のページの ViewModel を取得します。</summary>
+	protected object? CurrentViewModel => this.currentViewModel;
+
 	/// <summary>
 	/// <see cref="ElfWindowViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
-	public ElfWindowViewModel(INavigationService navigationService)
+	/// <param name="snackbarService">スナックバーサービス。</param>
+	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
+	/// <param name="navigationViewPageProvider">ページプロバイダーサービス。</param>
+	/// <param name="applicationName">アプリケーション名。</param>
+	/// <param name="windowPlacementFileName">WindowPlacement ファイル名。</param>
+	public ElfWindowViewModel(
+		INavigationService navigationService,
+		ISnackbarService snackbarService,
+		IContentDialogService contentDialogService,
+		INavigationViewPageProvider navigationViewPageProvider,
+		string applicationName,
+		string windowPlacementFileName)
 	{
 		this.NavigationService = navigationService;
+		this.SnackbarService = snackbarService;
+		this.ContentDialogService = contentDialogService;
 
-		// NavigationView が利用可能になった時点で SetNavigationControl() を実行
+		// WindowPlacement ファイルの保存先パスを生成し、NavigationContext に登録
+		var directory = System.IO.Path.Combine(
+			Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+			"HalationGhost",
+			applicationName);
+		System.IO.Directory.CreateDirectory(directory);
+		var windowPlacementPath = System.IO.Path.Combine(directory, windowPlacementFileName);
+		NavigationContext.RegisterWindowPlacementPath(windowPlacementPath);
+
+		// NavigationView が利用可能になった時点で初期化処理を実行
 		NavigationContext.ExecuteWhenAvailable(navigationView =>
 		{
-			System.Diagnostics.Debug.WriteLine(">>> ElfWindowViewModel NavigationContext.ExecuteWhenAvailable SetNavigationControl 処理実行");
 			this.NavigationService.SetNavigationControl(navigationView);
 
 			// NavigationView が利用可能になった時点で Navigated イベントを購読
-			System.Diagnostics.Debug.WriteLine(">>> ElfWindowViewModel NavigationContext.ExecuteWhenAvailable Navigated イベント購読");
 			navigationView.Navigated += this.OnNavigatedHandler;
+
+			// SnackbarPresenter を SnackbarService に設定
+			var snackbarPresenter = NavigationContext.GetSnackbarPresenter();
+			this.SnackbarService.SetSnackbarPresenter(snackbarPresenter);
+
+			// ContentDialogHost を ContentDialogService に設定
+			var contentDialogHost = NavigationContext.GetContentDialogHost();
+			this.ContentDialogService.SetDialogHost(contentDialogHost);
+
+			// INavigationViewPageProvider を NavigationView に設定
+			navigationView.SetPageProviderService(navigationViewPageProvider);
 		});
 	}
 
 	/// <summary>
 	/// Navigated イベントのハンドラー。
+	/// テンプレートメソッドパターンに従い、ナビゲーションライフサイクルを一元管理します。
 	/// Singleton Page に対応する Transient ViewModel がある場合、DataContext を差し替えます。
-	/// その後、派生クラスの OnNavigated メソッドを呼び出します。
 	/// </summary>
-	private void OnNavigatedHandler(INavigationView sender, NavigatedEventArgs args)
+	private async void OnNavigatedHandler(INavigationView sender, NavigatedEventArgs args)
 	{
 		// 1. NavigatedEventArgs から Page インスタンスを取得
 		if (args.Page == null)
 		{
-			System.Diagnostics.Debug.WriteLine(">>> ElfWindowViewModel OnNavigatedHandler Page が null です");
-			this.OnNavigated(sender, args);
 			return;
 		}
 
 		var page = (FrameworkElement)args.Page;
 		var pageType = page.GetType();
 
-		System.Diagnostics.Debug.WriteLine($">>> ElfWindowViewModel OnNavigatedHandler ナビゲーション開始。PageType: {pageType.FullName}");
-
 		// 2. NavigationContext から登録情報を取得
 		if (!NavigationContext.TryGetPageInfo(pageType, out var pageInfo))
 		{
-			System.Diagnostics.Debug.WriteLine($"<<< ElfWindowViewModel OnNavigatedHandler 登録情報が見つかりません。PageType: {pageType.FullName}");
-			this.OnNavigated(sender, args);
 			return;
 		}
 
-		System.Diagnostics.Debug.WriteLine($">>> ElfWindowViewModel OnNavigatedHandler 登録情報を取得しました。PageType: {pageInfo.PageType.FullName}, ViewModelType: {pageInfo.ViewModelType.FullName}, PageLifetime: {pageInfo.PageLifetime}, ViewModelLifetime: {pageInfo.ViewModelLifetime}");
-
-		// 3. Singleton Page / Transient ViewModel の条件をチェック
+		// 3. 遷移先 Page の DataContext を確定
+		// Singleton Page / Transient ViewModel の条件をチェック
+		object? nextViewModel = page.DataContext;
 		if (pageInfo.PageLifetime == ServiceLifetime.Singleton && pageInfo.ViewModelLifetime == ServiceLifetime.Transient)
 		{
-			System.Diagnostics.Debug.WriteLine($">>> ElfWindowViewModel OnNavigatedHandler Singleton Page / Transient ViewModel の条件に該当します");
 
-			// 4. 前の ViewModel を取得
+			// 前の ViewModel を取得
 			var oldViewModel = page.DataContext;
 			var oldViewModelType = oldViewModel?.GetType()?.FullName ?? "null";
 
-			// 5. 新しい ViewModel を解決
-			System.Diagnostics.Debug.WriteLine($">>> ElfWindowViewModel OnNavigatedHandler 新しい ViewModel を解決します。ViewModelType: {pageInfo.ViewModelType.FullName}");
+			// 新しい ViewModel を解決
 			var newViewModel = this.ResolveViewModel(pageInfo.ViewModelType);
 
-			// 6. 解決結果が null でないか、登録された型と互換性があるかを確認
+			// 解決結果が null でないか、登録された型と互換性があるかを確認
 			if (newViewModel == null)
 			{
 				throw new InvalidOperationException($"ViewModel の解決に失敗しました。ViewModelType: {pageInfo.ViewModelType.FullName}");
@@ -89,28 +126,65 @@ public abstract class ElfWindowViewModel
 				throw new InvalidOperationException($"解決された ViewModel の型が登録情報と互換性がありません。登録型: {pageInfo.ViewModelType.FullName}, 解決型: {newViewModel.GetType().FullName}");
 			}
 
-			// 7. DataContext を差し替え
+			// DataContext を差し替え
 			page.DataContext = newViewModel;
-			var newViewModelType = newViewModel.GetType().FullName;
-			System.Diagnostics.Debug.WriteLine($"<<< ElfWindowViewModel OnNavigatedHandler DataContext を差し替えました。旧: {oldViewModelType}, 新: {newViewModelType}");
+			nextViewModel = newViewModel;
 		}
 		else
 		{
-			System.Diagnostics.Debug.WriteLine($"<<< ElfWindowViewModel OnNavigatedHandler ライフタイム条件に該当しません。PageLifetime: {pageInfo.PageLifetime}, ViewModelLifetime: {pageInfo.ViewModelLifetime}");
 		}
 
-		// 8. 派生クラスの OnNavigated を呼び出し
-		this.OnNavigated(sender, args);
+		// 4. 遷移元 ViewModel を previousViewModel として退避
+		var previousViewModel = this.currentViewModel;
+
+		// 5. 派生クラスの遷移前処理を呼び出し
+		await this.OnNavigatingFromAsync(previousViewModel, nextViewModel);
+
+		// 6. currentViewModel を nextViewModel に更新
+		this.currentViewModel = nextViewModel;
+
+		// 7. 遷移元 ViewModel が INavigationDisposable を実装している場合、Dispose を遅延実行
+		// 同一インスタンスの場合は Dispose しない
+		if (previousViewModel is INavigationDisposable disposable && previousViewModel != nextViewModel)
+		{
+			// WPF のナビゲーション処理および VisualTree の取り外しが完了した後に Dispose を実行するため、
+			// Dispatcher の優先度を DispatcherPriority.ApplicationIdle に設定
+			await Application.Current.Dispatcher.BeginInvoke(
+				DispatcherPriority.ApplicationIdle,
+				() =>
+				{
+					disposable.Dispose();
+				});
+		}
+
+		// 8. 派生クラスの遷移後処理を呼び出し
+		await this.OnNavigatedToAsync(nextViewModel);
+
+		// 9. NavigationContext に現在のページ ViewModel を登録
+		NavigationContext.RegisterCurrentPageViewModel(nextViewModel);
 	}
 
 	/// <summary>
-	/// ナビゲーション遷移時に呼び出されます。
-	/// 派生クラスでオーバーライドして、ナビゲーションライフサイクル処理を実装してください。
+	/// ナビゲーション遷移元 ViewModel から離れるときに派生クラスで実装する処理を呼び出します。
+	/// 前ページの保存、退場処理などを行う際にオーバーライドしてください。
 	/// </summary>
-	/// <param name="sender">NavigationView。</param>
-	/// <param name="args">ナビゲーションイベント引数。</param>
-	protected virtual void OnNavigated(INavigationView sender, NavigatedEventArgs args)
+	/// <param name="previousViewModel">遷移元ページの ViewModel。null の場合があります。</param>
+	/// <param name="nextViewModel">遷移先ページの ViewModel。</param>
+	/// <returns>完了を表す <see cref="ValueTask"/>。</returns>
+	protected virtual ValueTask OnNavigatingFromAsync(object? previousViewModel, object? nextViewModel)
 	{
+		return default;
+	}
+
+	/// <summary>
+	/// ナビゲーション遷移後に派生クラスで実装する処理を呼び出します。
+	/// 新ページの初期化処理などを行う際にオーバーライドしてください。
+	/// </summary>
+	/// <param name="nextViewModel">遷移先ページの ViewModel。</param>
+	/// <returns>完了を表す <see cref="ValueTask"/>。</returns>
+	protected virtual ValueTask OnNavigatedToAsync(object? nextViewModel)
+	{
+		return default;
 	}
 
 	/// <summary>
