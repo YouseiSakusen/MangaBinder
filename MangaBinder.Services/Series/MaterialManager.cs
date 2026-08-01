@@ -345,6 +345,18 @@ public sealed class MaterialManager
 					result.Add(candidate);
 					processedPaths.Add(fullPath);
 				}
+				else if (SupportedExtensionHelper.GetFileType(ext) == FileType.Epub)
+				{
+					var candidate = new MaterialFileCandidate
+					{
+						FullPath = fullPath,
+						FileName = Path.GetFileName(fullPath),
+						Size = new FileInfo(fullPath).Length,
+						Type = MaterialItemType.Epub,
+					};
+					result.Add(candidate);
+					processedPaths.Add(fullPath);
+				}
 			}
 			else if (Directory.Exists(fullPath))
 			{

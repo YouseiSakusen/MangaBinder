@@ -182,6 +182,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public ObservableList<SourceFolder> MaterialSourceFolders { get; }
 
 	/// <summary>
+	/// WPFのXAMLバインディングに対応した素材フォルダ一覧のViewを取得します。
+	/// </summary>
+	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> MaterialSourceFoldersView { get; }
+
+	/// <summary>
 	/// 登録先に選択された素材フォルダを取得または設定します。
 	/// </summary>
 	public BindableReactiveProperty<SourceFolder?> SelectedMaterialSourceFolder { get; }
@@ -455,6 +460,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		// MaterialSourceFolders: 登録先に選択可能な素材フォルダ一覧
 		this.MaterialSourceFolders = new ObservableList<SourceFolder>();
 
+		// MaterialSourceFoldersView: WPFバインディング対応の同期View
+		this.MaterialSourceFoldersView = this.MaterialSourceFolders
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
+
 		// SelectedMaterialSourceFolder: 選択された素材フォルダ
 		this.SelectedMaterialSourceFolder = new BindableReactiveProperty<SourceFolder?>(null)
 			.AddTo(ref this.disposableBag);
@@ -612,6 +622,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 					this.MaterialFiles.Add(viewModel);
 				}
 			}
+
+			// 素材一覧を並び順で並べ替え
+			this.SortMaterialFilesByOrder();
 
 			// ヘッダー表示用文字列を更新
 			this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
@@ -1795,6 +1808,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 				// 追加完了後、addedAny == true の場合のみサイズ計算を1回だけ実行
 				if (addedAny)
 				{
+					// 素材一覧を並び順で並べ替え
+					this.SortMaterialFilesByOrder();
+
 					// ヘッダー表示用文字列を更新
 					this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
 
@@ -2165,6 +2181,53 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
 					TimeSpan.MaxValue);
 			}
+		}
+	}
+
+	/// <summary>
+	/// MaterialFiles を並び順で並べ替えます。
+	/// フォルダ → ファイル（Archive / Epub）の順で分類し、同じ分類内ではFileNameで昇順にします。
+	/// </summary>
+	private void SortMaterialFilesByOrder()
+	{
+		if (this.MaterialFiles.Count == 0)
+		{
+			return;
+		}
+
+		// ソート中の容量再計算を抑止
+		this.suppressMaterialSizeCalculation = true;
+
+		try
+		{
+			// 現在のアイテムをリストに変換してソート
+			var sorted = this.MaterialFiles
+				.OrderBy(item =>
+				{
+					// ItemType で第一ソート（Folder=0, ファイル=1）
+					// Archive と Epub は同じグループ（同じ order value）
+					var typeOrder = item.ItemType switch
+					{
+						MaterialItemType.Folder => 0,
+						MaterialItemType.Archive => 1,
+						MaterialItemType.Epub => 1,
+						_ => 2,
+					};
+					return typeOrder;
+				})
+				.ThenBy(item => item.FileName, StringComparer.Ordinal)  // 同じ分類内はFileNameで昇順
+				.ToList();
+
+			// ObservableCollection の内容を更新
+			this.MaterialFiles.Clear();
+			foreach (var item in sorted)
+			{
+				this.MaterialFiles.Add(item);
+			}
+		}
+		finally
+		{
+			this.suppressMaterialSizeCalculation = false;
 		}
 	}
 

@@ -727,7 +727,7 @@
 								Grid.Column="1"
 								Height="35"
 								FontSize="13"
-								ItemsSource="{Binding MaterialSourceFolders}"
+								ItemsSource="{Binding MaterialSourceFoldersView}"
 								SelectedItem="{Binding SelectedMaterialSourceFolder.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 								DisplayMemberPath="DisplayText.Value"
 								IsEnabled="{Binding CanSelectMaterialSourceFolder.Value}"
