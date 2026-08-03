@@ -421,8 +421,8 @@ public class MangaRepository
     /// <param name="seriesId">親の MangaSeries の SeriesId。</param>
     /// <param name="path">素材フォルダまたはファイルの物理フルパス。</param>
     /// <param name="role">フォルダの役割。</param>
-    /// <returns>完了時にコンプリートする ValueTask。</returns>
-    public async ValueTask InsertMangaSourceAsync(
+    /// <returns>挿入された MangaSource の SourceId。</returns>
+    public async ValueTask<long> InsertMangaSourceAsync(
         SQLiteConnection connection,
         SQLiteTransaction transaction,
         long seriesId,
@@ -438,9 +438,10 @@ public class MangaRepository
         insertSql.AppendLine(" 	  :SeriesId ");
         insertSql.AppendLine(" 	, :Path ");
         insertSql.AppendLine(" 	, :Role ");
-        insertSql.AppendLine(" ); ");
+        insertSql.AppendLine(" ) ");
+        insertSql.AppendLine(" RETURNING SourceId; ");
 
-        await connection.ExecuteAsync(
+        var sourceId = await connection.QuerySingleAsync<long>(
             insertSql.ToString(),
             new
             {
@@ -449,6 +450,8 @@ public class MangaRepository
                 Role = (int)role,
             },
             transaction);
+
+        return sourceId;
     }
 
     /// <summary>

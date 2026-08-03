@@ -573,11 +573,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// 編集セッション管理は SeriesManager に委譲します。
 	/// </summary>
 	/// <param name="series">編集対象の作品。</param>
-	public void StartEdit(MangaSeries series)
+	public async ValueTask StartEditAsync(MangaSeries series)
 	{
 		// デバッグログ: StartEdit 開始
 		System.Diagnostics.Debug.WriteLine("==============================");
-		System.Diagnostics.Debug.WriteLine("[EditorPageVM] StartEdit");
+		System.Diagnostics.Debug.WriteLine("[EditorPageVM] StartEditAsync");
 		System.Diagnostics.Debug.WriteLine($"Hash={this.GetHashCode()}");
 		System.Diagnostics.Debug.WriteLine($"Series={series.Title}");
 		System.Diagnostics.Debug.WriteLine("==============================");
@@ -612,15 +612,24 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			this.tagSelector.SetTarget(editingSeries);
 
 			// 素材ファイル一覧を初期化（既存作品のみ）
-			this.MaterialFiles.Clear();
-			if (!editingSeries.IsWork)
+			// MaterialFiles 再構築中の容量再計算を抑止
+			this.suppressMaterialSizeCalculation = true;
+			try
 			{
-				var materialFiles = seriesManager.GetMaterialFiles(editingSeries);
-				foreach (var item in materialFiles)
+				this.MaterialFiles.Clear();
+				if (!editingSeries.IsWork)
 				{
-					var viewModel = MaterialFileItemViewModel.FromDto(item);
-					this.MaterialFiles.Add(viewModel);
+					var materialFiles = seriesManager.GetMaterialFiles(editingSeries);
+					foreach (var item in materialFiles)
+					{
+						var viewModel = MaterialFileItemViewModel.FromDto(item);
+						this.MaterialFiles.Add(viewModel);
+					}
 				}
+			}
+			finally
+			{
+				this.suppressMaterialSizeCalculation = false;
 			}
 
 			// 素材一覧を並び順で並べ替え
@@ -640,17 +649,18 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			// タイトル入力欄へのフォーカスを要求
 			this.TitleFocusRequest.Value++;
 
-			// 既存作品の場合、登録先素材フォルダを設定し ComboBox を無効化
-			if (editingSeries.SeriesId != 0)
+			// 登録先素材フォルダの選択可否を判定
+			if (editingSeries.SeriesId != 0 && editingSeries.HasMaterialSources)
 			{
+				// 既存作品で MaterialSource が存在する場合：登録先素材フォルダをロック
 				var sourceFolder = this.findMatchingSourceFolderForExistingSeries(editingSeries);
 				this.SelectedMaterialSourceFolder.Value = sourceFolder;
-				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.StartEdit] 既存作品。sourceFolder: {(sourceFolder == null ? "null" : sourceFolder.FolderPath.Value)}");
+				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.StartEditAsync] 既存作品（MaterialSource あり）。sourceFolder: {(sourceFolder == null ? "null" : sourceFolder.FolderPath.Value)}");
 				this.CanSelectMaterialSourceFolder.Value = false;
 			}
 			else
 			{
-				// 新規作品・登録待ち作品の場合は ComboBox を有効化
+				// 既存作品で MaterialSource がない場合、または新規作品・登録待ち作品の場合は ComboBox を有効化
 				this.CanSelectMaterialSourceFolder.Value = true;
 			}
 
@@ -659,6 +669,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 			// 貼り付けたサムネイルをクリア
 			this.ClearPastedThumbnail();
+
+			// MaterialFiles の構築完了後、素材サイズを計算
+			await this.updateMaterialTotalSizeAsync();
 		}
 	}
 
@@ -918,7 +931,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>
 	/// ナビゲーション完了後に呼ばれる初期データ読み込み処理。
-	/// workspaceStore.EditTarget から編集対象を取得し、StartEdit を実行します。
+	/// workspaceStore.EditTarget から編集対象を取得し、StartEditAsync を実行します。
 	/// また、AppSettings から素材フォルダ一覧を取得します。
 	/// </summary>
 	public async ValueTask InitializeDataAsync()
@@ -952,7 +965,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 			if (editTarget is not null)
 			{
-				this.StartEdit(editTarget);
+				await this.StartEditAsync(editTarget);
 			}
 		}
 		finally
@@ -960,9 +973,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			// 初期化完了を記録
 			this.isInitializing = false;
 		}
-
-		// MaterialFiles の構築完了後、素材サイズを計算
-		await this.updateMaterialTotalSizeAsync();
 	}
 
 	/// <summary>
@@ -1163,7 +1173,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			// DuplicateSeriesFound を null にリセット（ダイアログループ防止）
 			this.DuplicateSeriesFound.Value = null;
 			// 既存作品を読み込み
-			this.StartEdit(duplicateSeries);
+			await this.StartEditAsync(duplicateSeries);
 		}
 		else
 		{
@@ -2101,33 +2111,81 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 							materialFileDtos);
 					}
 
-					// 3. 確認完了 → ローディング開始
-					// 保存処理のメッセージを決定
-					var loadingMessage = editingSeries.SeriesId == 0 || editingSeries.IsWork
-						? "作品を登録しています…"
-						: "作品を更新しています…";
+								// 3. 確認完了 → ローディング開始
+								// 保存処理のメッセージを決定
+								var loadingMessage = editingSeries.SeriesId == 0 || editingSeries.IsWork
+									? "作品を登録しています…"
+									: "作品を更新しています…";
 
-					MangaSeries savedSeries;
-					using (this.loadingService.Begin(loadingMessage))
-					{
-						// 保存実行
-						savedSeries = await seriesManager.SaveSeriesAsync(
-							this.editorStore,
-							materialFileDtos,
-							this.PastedThumbnailBytes);
+								SeriesSaveResult saveResult;
+								using (this.loadingService.Begin(loadingMessage))
+								{
+									// 保存実行
+									saveResult = await seriesManager.SaveSeriesAsync(
+										this.editorStore,
+										materialFileDtos,
+										this.PastedThumbnailBytes);
+								}
+
+								// 保存結果の判定
+								if (saveResult.Series == null)
+								{
+									// 全件失敗：EditorPage に留まる
+									// 1. CanRemove == true の追加素材を MaterialFiles から削除
+									for (int i = this.MaterialFiles.Count - 1; i >= 0; i--)
+									{
+										if (this.MaterialFiles[i].CanRemove)
+										{
+											this.MaterialFiles.RemoveAt(i);
+										}
+									}
+
+									// 2. 状態を元に戻す
+									this.UpdateSaveWorkSeriesCommandCanExecute();
+
+									// 3. Danger + TimeSpan.MaxValue の Snackbar を表示
+									this.snackbarService.Show(
+										"素材を移動できませんでした",
+										"素材ファイルまたはフォルダが他のアプリで使用されている可能性があります。\n他のアプリで開いている場合は終了して、再度実行してください。",
+										ControlAppearance.Danger,
+										new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
+										TimeSpan.MaxValue);
+
+									// EditorPage に留まる（GoBack() を実行しない）
+								}
+								else if (saveResult.FailedItems.Count == 0)
+								{
+									// 全件成功
+									var savedSeries = saveResult.Series;
+
+									// 保存成功
+									this.snackbarService.Show(
+										"成功",
+										$"『{savedSeries.Title}』を保存しました。",
+										ControlAppearance.Success,
+										new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
+										TimeSpan.FromSeconds(3));
+
+									// ナビゲーション履歴へ戻る
+									this.navigationService.GoBack();
+								}
+								else
+								{
+									// 部分成功：正式登録成功だが一部素材移動失敗
+									var savedSeries = saveResult.Series;
+
+									// Danger + TimeSpan.MaxValue の Snackbar を表示
+									this.snackbarService.Show(
+										"一部の素材を移動できませんでした",
+										"作品の登録は完了しましたが、移動できなかった素材が元の場所に残っています。\n他のアプリで開いている場合は終了して、再度実行してください。",
+										ControlAppearance.Danger,
+										new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+										TimeSpan.MaxValue);
+
+									// ナビゲーション履歴へ戻る
+									this.navigationService.GoBack();
+								}
 					}
-
-					// 保存成功
-					this.snackbarService.Show(
-				"成功",
-				$"『{savedSeries.Title}』を保存しました。",
-				ControlAppearance.Success,
-				new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
-				TimeSpan.FromSeconds(3));
-
-			// ナビゲーション履歴へ戻る
-			this.navigationService.GoBack();
-		}
 		catch (Exception ex)
 		{
 			// 素材フォルダ名検証エラーを判定

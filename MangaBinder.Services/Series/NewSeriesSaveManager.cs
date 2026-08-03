@@ -73,9 +73,9 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 	/// <param name="materialFiles">追加された素材ファイル。</param>
 	/// <param name="selectedMaterialSourceFolder">素材の移動先フォルダ。</param>
 	/// <param name="thumbnailBytes">新しいサムネイルのバイト列。</param>
-	/// <returns>正式登録後の作品インスタンス。</returns>
+	/// <returns>保存処理の結果（作品情報と移動失敗素材を含む）。</returns>
 	/// <exception cref="InvalidOperationException">SeriesId != 0 の場合。</exception>
-	public async ValueTask<MangaSeries> SaveAsync(
+	public async ValueTask<SeriesSaveResult> SaveAsync(
 		MangaSeries editingSeries,
 		MangaSeries? originalSeries,
 		IReadOnlyList<MaterialFile> materialFiles,
@@ -99,6 +99,9 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		// サニタイズ済みフォルダ名を取得（素材移動時に使用）
 		var materialFolderName = MaterialFolderNameHelper.Create(editingSeries);
 
+		// 削除対象の WorkThumbnail ファイル名を保持する変数
+		string? workThumbnailToDelete = null;
+
 		// DB 接続
 		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
 		await connection.OpenAsync();
@@ -119,7 +122,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 			await this.SaveSeriesTagsInTransactionAsync(connection, tx, seriesId, editingSeries.Tags);
 
 			// サムネイル保存
-			await this.SaveSeriesThumbnailAsync(connection, tx, editingSeries, thumbnailBytes, isWorkSeries, workId);
+			workThumbnailToDelete = await this.SaveSeriesThumbnailAsync(connection, tx, editingSeries, thumbnailBytes, isWorkSeries, workId);
 
 			// 素材移動
 			var moveResult = await this.materialManager.MoveMaterialsAsync(
@@ -127,8 +130,22 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 				materialFolderName,
 				materialFiles);
 
+			// 素材移動の成否判定：MovedItems が0件の場合は正式登録を成立させない
+			if (moveResult.MovedItems.Count == 0)
+			{
+				// 全件移動失敗：DB をロールバック、WorkThumbnail は削除しない
+				tx.Rollback();
+
+				return new SeriesSaveResult
+				{
+					Series = null,
+					FailedItems = moveResult.FailedItems,
+				};
+			}
+
+			// MovedItems が1件以上：正式登録処理を継続
 			// MangaSources へ作品フォルダ情報を登録
-			await this.mangaRepository.InsertMangaSourceAsync(
+			var sourceId = await this.mangaRepository.InsertMangaSourceAsync(
 				connection,
 				tx,
 				seriesId,
@@ -155,6 +172,12 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 			tx.Commit();
 
 			// Commit 成功後の処理
+			// WorkThumbnail を削除（COMMIT 成功後に削除）
+			if (!string.IsNullOrEmpty(workThumbnailToDelete))
+			{
+				this.thumbnailManager.DeleteWorkThumbnailIfExists(workThumbnailToDelete);
+			}
+
 			// 1. 登録待ち作品の場合、WorkSeriesから削除
 			if (isWorkSeries)
 			{
@@ -194,7 +217,11 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 								}
 
 								// 4. 再取得した正式作品を返す
-								return registeredSeries;
+								return new SeriesSaveResult
+								{
+									Series = registeredSeries,
+									FailedItems = moveResult.FailedItems,
+								};
 							}
 							finally
 							{
@@ -228,8 +255,11 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 	/// <summary>
 	/// 正式登録時のサムネイル保存を実施します。
 	/// 優先順位：thumbnailBytes → WorkThumbnail → なし
+	/// WorkThumbnail をコピーした場合、削除対象のファイル名を戻り値で返します。
+	/// 呼び出し元は戻り値が null でない場合、COMMIT 成功後に DeleteWorkThumbnailIfExists を呼び出してください。
 	/// </summary>
-	private async ValueTask SaveSeriesThumbnailAsync(
+	/// <returns>削除対象の WorkThumbnail ファイル名、または null。</returns>
+	private async ValueTask<string?> SaveSeriesThumbnailAsync(
 		SQLiteConnection connection,
 		SQLiteTransaction tx,
 		MangaSeries editingSeries,
@@ -253,6 +283,8 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 				editingSeries.SeriesId,
 				fileName,
 				ThumbnailStatus.Completed);
+
+			return null;
 		}
 		else if (isWorkSeries)
 		{
@@ -274,16 +306,20 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 					editingSeries.SeriesId,
 					editingSeries.ThumbnailFileName,
 					ThumbnailStatus.Completed);
+
+				// COMMIT 成功後に削除するため、ファイル名を返す
+				return workThumbnailFileName;
 			}
 
-			// WorkThumbnail を削除
-			this.thumbnailManager.DeleteWorkThumbnailIfExists(workThumbnailFileName);
+			return null;
 		}
 		else
 		{
 			// 3. どちらもない場合、ThumbnailFileName は空
 			editingSeries.ThumbnailFileName = string.Empty;
 			editingSeries.ThumbnailStatus = ThumbnailStatus.None;
+
+			return null;
 		}
 	}
 }

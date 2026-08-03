@@ -2,7 +2,7 @@ namespace MangaBinder.Series;
 
 /// <summary>
 /// 素材移動の結果を表すDTO。
-/// 後続の補償処理で利用できるように、移動した素材と移動不要だった素材を保持します。
+/// 後続の補償処理で利用できるように、移動した素材、移動不要だった素材、および移動失敗した素材を保持します。
 /// </summary>
 public sealed class MaterialMoveResult
 {
@@ -17,4 +17,10 @@ public sealed class MaterialMoveResult
 
 	/// <summary>移動不要だった素材アイテム一覧を取得します（既存素材または移動元と登録先が同一の場合など）。</summary>
 	public required IReadOnlyList<MaterialMoveItem> SkippedItems { get; init; }
+
+	/// <summary>
+	/// IOException または UnauthorizedAccessException により移動に失敗した素材アイテム一覧を取得します。
+	/// 移動元のファイル・フォルダは削除されていません。
+	/// </summary>
+	public required IReadOnlyList<MaterialMoveItem> FailedItems { get; init; }
 }

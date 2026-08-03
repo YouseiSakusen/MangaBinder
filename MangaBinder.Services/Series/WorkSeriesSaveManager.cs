@@ -50,8 +50,8 @@ public sealed class WorkSeriesSaveManager : ISeriesSaveManager
 	/// <param name="materialFiles">追加された素材ファイル。</param>
 	/// <param name="selectedMaterialSourceFolder">素材の移動先フォルダ。</param>
 	/// <param name="thumbnailBytes">新しいサムネイルのバイト列。</param>
-	/// <returns>保存後の作品インスタンス。</returns>
-	public async ValueTask<MangaSeries> SaveAsync(
+	/// <returns>保存処理の結果（作品情報と移動失敗素材を含む）。</returns>
+	public async ValueTask<SeriesSaveResult> SaveAsync(
 		MangaSeries editingSeries,
 		MangaSeries? originalSeries,
 		IReadOnlyList<MaterialFile> materialFiles,
@@ -85,7 +85,11 @@ public sealed class WorkSeriesSaveManager : ISeriesSaveManager
 			// Store へ即座に反映
 			this.mangaSeriesStore.UpdateWorkSeries(editingSeries);
 
-			return editingSeries;
+			return new SeriesSaveResult
+			{
+				Series = editingSeries,
+				FailedItems = [],
+			};
 		}
 		else
 		{
@@ -110,10 +114,14 @@ public sealed class WorkSeriesSaveManager : ISeriesSaveManager
 				await this.workMangaSeriesRepository.UpdateAsync(editingSeries);
 			}
 
-			// Store へ即座に反映
-			this.mangaSeriesStore.UpdateWorkSeries(editingSeries);
+					// Store へ即座に反映
+					this.mangaSeriesStore.UpdateWorkSeries(editingSeries);
 
-			return editingSeries;
-		}
-	}
+					return new SeriesSaveResult
+					{
+						Series = editingSeries,
+						FailedItems = [],
+					};
+				}
+			}
 }

@@ -18,8 +18,8 @@ public interface ISeriesSaveManager
 	/// <param name="materialFiles">追加された素材ファイル。</param>
 	/// <param name="selectedMaterialSourceFolder">素材の移動先フォルダ。</param>
 	/// <param name="thumbnailBytes">新しいサムネイルのバイト列。</param>
-	/// <returns>保存後の作品インスタンス。</returns>
-	ValueTask<MangaSeries> SaveAsync(
+	/// <returns>保存処理の結果（作品情報と移動失敗素材を含む）。</returns>
+	ValueTask<SeriesSaveResult> SaveAsync(
 		MangaSeries editingSeries,
 		MangaSeries? originalSeries,
 		IReadOnlyList<MaterialFile> materialFiles,

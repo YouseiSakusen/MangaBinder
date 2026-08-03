@@ -73,6 +73,7 @@ public sealed class MaterialManager
 
 		var movedItems = new List<MaterialMoveItem>();
 		var skippedItems = new List<MaterialMoveItem>();
+		var failedItems = new List<MaterialMoveItem>();
 
 		foreach (var materialFile in materialFiles)
 		{
@@ -125,26 +126,64 @@ public sealed class MaterialManager
 			}
 
 			// ItemType に応じた移動処理
-			switch (materialFile.Type)
+			try
 			{
-				case MaterialItemType.Archive:
-					// アーカイブファイル：作品フォルダ直下へ移動
-					this.moveArchiveFile(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
-					break;
+				switch (materialFile.Type)
+				{
+					case MaterialItemType.Archive:
+						// アーカイブファイル：作品フォルダ直下へ移動
+						this.moveArchiveFile(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
+						break;
 
-				case MaterialItemType.Folder:
-					// 画像フォルダ：フォルダごと作品フォルダ直下へ移動
-					this.moveFolder(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
-					break;
+					case MaterialItemType.Folder:
+						// 画像フォルダ：フォルダごと作品フォルダ直下へ移動
+						this.moveFolder(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
+						break;
 
-				case MaterialItemType.Epub:
-					// epub ファイル：作品フォルダ直下へ移動
-					this.moveEpubFile(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
-					break;
+					case MaterialItemType.Epub:
+						// epub ファイル：作品フォルダ直下へ移動
+						this.moveEpubFile(sourcePath, seriesFolderPathFull, movedItems, materialFile.Type);
+						break;
 
-				default:
-					// その他の種別は移動しない
-					break;
+					default:
+						// その他の種別は移動しない
+						break;
+				}
+			}
+			catch (IOException)
+			{
+				// IOException が発生した場合は、その素材を失敗として記録し、処理を継続
+				var destinationPath = Path.Combine(seriesFolderPathFull, Path.GetFileName(sourcePath));
+				failedItems.Add(new MaterialMoveItem
+				{
+					SourcePath = sourcePath,
+					DestinationPath = destinationPath,
+					Type = materialFile.Type,
+				});
+			}
+			catch (UnauthorizedAccessException)
+			{
+				// UnauthorizedAccessException が発生した場合は、その素材を失敗として記録し、処理を継続
+				var destinationPath = Path.Combine(seriesFolderPathFull, Path.GetFileName(sourcePath));
+				failedItems.Add(new MaterialMoveItem
+				{
+					SourcePath = sourcePath,
+					DestinationPath = destinationPath,
+					Type = materialFile.Type,
+				});
+			}
+		}
+
+		// MovedItems が 0 件で作品フォルダを新規作成した場合、かつフォルダが空なら削除
+		if (createdSeriesFolder && movedItems.Count == 0 && this.isDirectoryEmpty(seriesFolderPathFull))
+		{
+			try
+			{
+				Directory.Delete(seriesFolderPathFull);
+			}
+			catch (IOException)
+			{
+				// フォルダ削除時に IOException が発生してもエラーとしない（別プロセスがロック中など）
 			}
 		}
 
@@ -154,7 +193,44 @@ public sealed class MaterialManager
 			CreatedSeriesFolder = createdSeriesFolder,
 			MovedItems = movedItems.AsReadOnly(),
 			SkippedItems = skippedItems.AsReadOnly(),
+			FailedItems = failedItems.AsReadOnly(),
 		};
+	}
+
+	/// <summary>
+	/// 指定されたディレクトリが空かどうかを判定します。
+	/// ディレクトリが存在しない場合は true を返します。
+	/// </summary>
+	/// <param name="directoryPath">判定対象のディレクトリパス。</param>
+	/// <returns>ディレクトリが空の場合は true、それ以外は false。</returns>
+	private bool isDirectoryEmpty(string directoryPath)
+	{
+		try
+		{
+			if (!Directory.Exists(directoryPath))
+			{
+				return true;
+			}
+
+			// ファイルが1つでも存在すれば空ではない
+			if (Directory.GetFiles(directoryPath).Length > 0)
+			{
+				return false;
+			}
+
+			// サブディレクトリが1つでも存在すれば空ではない
+			if (Directory.GetDirectories(directoryPath).Length > 0)
+			{
+				return false;
+			}
+
+			return true;
+		}
+		catch
+		{
+			// アクセス エラーの場合は false を返す
+			return false;
+		}
 	}
 
 	/// <summary>

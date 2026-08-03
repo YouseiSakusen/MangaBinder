@@ -64,9 +64,9 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 	/// <param name="materialFiles">追加された素材ファイル。</param>
 	/// <param name="selectedMaterialSourceFolder">素材の移動先フォルダ。</param>
 	/// <param name="thumbnailBytes">新しいサムネイルのバイト列。</param>
-	/// <returns>保存後の作品インスタンス。</returns>
+	/// <returns>保存処理の結果（作品情報と移動失敗素材を含む）。</returns>
 	/// <exception cref="InvalidOperationException">editingSeries.SeriesId == 0 または editingSeries.IsWork == true の場合、またはoriginalSeries が null の場合。</exception>
-	public async ValueTask<MangaSeries> SaveAsync(
+	public async ValueTask<SeriesSaveResult> SaveAsync(
 		MangaSeries editingSeries,
 		MangaSeries? originalSeries,
 		IReadOnlyList<MaterialFile> materialFiles,
@@ -129,6 +129,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 				if (materialSource != null)
 				{
+					// === MaterialSource が既に存在する場合 ===
 					// CanRemove=true の追加素材のみを抽出
 					var addedMaterials = materialFiles
 						.Where(m => m.CanRemove)
@@ -162,7 +163,62 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 				}
 				else
 				{
-					this.logger?.LogWarning($"[ExistingSeriesSaveManager.SaveAsync] SingleMaterialSource が null です。");
+					// === MaterialSource が存在しない場合 ===
+					// CanRemove=true の追加素材のみを抽出
+					var addedMaterials = materialFiles
+						.Where(m => m.CanRemove)
+						.ToList();
+
+					this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MaterialSource なし。移動対象素材数（CanRemove=true）: {addedMaterials.Count}");
+
+					if (addedMaterials.Count > 0)
+					{
+						// 既存の MoveMaterialsAsync を使用して素材を移動
+						this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 新規MaterialSource用に素材を移動。destinationSourceFolder: {selectedMaterialSourceFolder.FolderPath.Value}, materialFolderName: {materialFolderName}");
+
+						var moveResult = await this.materialManager.MoveMaterialsAsync(
+							selectedMaterialSourceFolder,
+							materialFolderName,
+							addedMaterials);
+
+						this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MoveMaterialsAsync完了。MovedItems: {moveResult.MovedItems.Count}, SkippedItems: {moveResult.SkippedItems.Count}, SeriesFolderPath: {moveResult.SeriesFolderPath}");
+
+						foreach (var movedItem in moveResult.MovedItems)
+						{
+							this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 移動完了: {movedItem.SourcePath} -> {movedItem.DestinationPath}");
+						}
+
+						foreach (var skippedItem in moveResult.SkippedItems)
+						{
+							this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] スキップ: {skippedItem.SourcePath} -> {skippedItem.DestinationPath}");
+						}
+
+						// MangaSources へ新しい MaterialSource を登録
+						var sourceId = await this.mangaRepository.InsertMangaSourceAsync(
+							connection,
+							tx,
+							originalSeries.SeriesId,
+							moveResult.SeriesFolderPath,
+							FolderRole.Material);
+
+						this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MangaSources へ新規登録完了。SourceId: {sourceId}, Path: {moveResult.SeriesFolderPath}");
+
+						// DeepCopy 側の MangaSeries に新しい MangaSource を追加
+						var newMangaSource = new MangaSource
+						{
+							SourceId = sourceId,
+							SeriesId = originalSeries.SeriesId,
+							Path = moveResult.SeriesFolderPath,
+							Role = FolderRole.Material,
+						};
+						originalSeries.Sources.Add(newMangaSource);
+
+						this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] DeepCopy の MangaSeries.Sources に新規 MangaSource を追加。SourceId: {sourceId}");
+					}
+					else
+					{
+						this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MaterialSource なし、かつ追加素材なし。MangaSources への新規登録は実行しない。");
+					}
 				}
 			}
 			else
@@ -216,7 +272,11 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 			}
 
 			this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 更新処理完了。SeriesId: {originalSeries.SeriesId}, Title: {originalSeries.Title}");
-			return storeInstance;
+			return new SeriesSaveResult
+			{
+				Series = storeInstance,
+				FailedItems = [],
+			};
 		}
 		catch (Exception ex)
 		{

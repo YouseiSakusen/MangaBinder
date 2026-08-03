@@ -600,8 +600,13 @@ public class MangaSeriesManager
 
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var saveManager = scope.ServiceProvider.GetRequiredKeyedService<ISeriesSaveManager>(SeriesSaveType.Work);
-		var savedSeries = await saveManager.SaveAsync(series, null, [], null, thumbnailBytes);
-		return savedSeries.WorkId;
+		var saveResult = await saveManager.SaveAsync(series, null, [], null, thumbnailBytes);
+
+		// 現在の仕様では Series が null になることはないため、null の場合は異常を示す
+		if (saveResult.Series == null)
+			throw new InvalidOperationException("保存結果が不正です：Series が null です。");
+
+		return saveResult.Series.WorkId;
 	}
 
 	/// <summary>
@@ -636,10 +641,10 @@ public class MangaSeriesManager
 	/// <param name="editorStore">編集状態を保持するストア。EditingSeries、OriginalSeries、SelectedMaterialSourceFolder を参照します。</param>
 	/// <param name="materialFiles">素材ファイル一覧。</param>
 	/// <param name="thumbnailBytes">サムネイル画像（バイナリ）。null の場合はスキップします。</param>
-	/// <returns>保存後の正式作品。</returns>
+	/// <returns>保存処理の結果（作品情報と移動失敗素材を含む）。</returns>
 	/// <exception cref="ArgumentNullException">editorStore が null の場合、または EditingSeries が null の場合にスローされます。</exception>
 	/// <exception cref="InvalidOperationException">タイトル判定エラーまたはその他のバリデーションエラー。</exception>
-	public async ValueTask<MangaSeries> SaveSeriesAsync(
+	public async ValueTask<SeriesSaveResult> SaveSeriesAsync(
 		EditorStore editorStore,
 		IReadOnlyList<MaterialFile> materialFiles,
 		byte[]? thumbnailBytes)
