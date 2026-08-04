@@ -178,61 +178,61 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 				this.thumbnailManager.DeleteWorkThumbnailIfExists(workThumbnailToDelete);
 			}
 
-			// 1. 登録待ち作品の場合、WorkSeriesから削除
-			if (isWorkSeries)
+				// 1. 登録待ち作品の場合、WorkSeriesから削除
+				if (isWorkSeries)
+				{
+					this.mangaSeriesStore.RemoveWorkSeries(workId);
+				}
+
+				// 2. DB から採番済み SeriesId の正式作品を再取得
+				var registeredSeries = await this.mangaRepository.GetSeriesAsync(seriesId);
+				if (registeredSeries is null)
+				{
+					throw new InvalidOperationException($"正式登録後の作品再取得に失敗しました。SeriesId: {seriesId}");
+				}
+
+				// 追跡開始
+				NewSeriesHomeSyncTrace.Begin(registeredSeries.SeriesId);
+
+				try
+				{
+					// [NewSeriesHomeSync] 正式作品再取得完了ログ
+					if (NewSeriesHomeSyncTrace.IsTracking(registeredSeries.SeriesId))
+					{
+						this.logger.LogInformation(
+							"[NewSeriesHomeSync] 正式作品再取得完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加前件数={Count}",
+							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count);
+					}
+
+					// 3. 再取得した正式作品を Store へ追加
+					this.mangaSeriesStore.Add(registeredSeries);
+
+					// [NewSeriesHomeSync] Store.Add呼び出し完了ログ
+					if (NewSeriesHomeSyncTrace.IsTracking(registeredSeries.SeriesId))
+					{
+						var storeContainsResult = this.mangaSeriesStore.FindById(registeredSeries.SeriesId) is not null;
+						this.logger.LogInformation(
+							"[NewSeriesHomeSync] Store.Add呼び出し完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加後件数={Count} Store内存在確認結果={Result}",
+							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count, storeContainsResult);
+					}
+
+					// 4. 再取得した正式作品を返す
+					return new SeriesSaveResult
+					{
+						Series = registeredSeries,
+						FailedItems = moveResult.FailedItems,
+					};
+				}
+				finally
+				{
+					NewSeriesHomeSyncTrace.End(registeredSeries.SeriesId);
+				}
+			}
+			catch
 			{
-				this.mangaSeriesStore.RemoveWorkSeries(workId);
-							}
-
-							// 2. DB から採番済み SeriesId の正式作品を再取得
-							var registeredSeries = await this.mangaRepository.GetSeriesAsync(seriesId);
-							if (registeredSeries is null)
-							{
-								throw new InvalidOperationException($"正式登録後の作品再取得に失敗しました。SeriesId: {seriesId}");
-							}
-
-							// 追跡開始
-							NewSeriesHomeSyncTrace.Begin(registeredSeries.SeriesId);
-
-							try
-							{
-								// [NewSeriesHomeSync] 正式作品再取得完了ログ
-								if (NewSeriesHomeSyncTrace.IsTracking(registeredSeries.SeriesId))
-								{
-									this.logger.LogInformation(
-										"[NewSeriesHomeSync] 正式作品再取得完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加前件数={Count}",
-										registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count);
-								}
-
-								// 3. 再取得した正式作品を Store へ追加
-								this.mangaSeriesStore.Add(registeredSeries);
-
-								// [NewSeriesHomeSync] Store.Add呼び出し完了ログ
-								if (NewSeriesHomeSyncTrace.IsTracking(registeredSeries.SeriesId))
-								{
-									var storeContainsResult = this.mangaSeriesStore.FindById(registeredSeries.SeriesId) is not null;
-									this.logger.LogInformation(
-										"[NewSeriesHomeSync] Store.Add呼び出し完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加後件数={Count} Store内存在確認結果={Result}",
-										registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count, storeContainsResult);
-								}
-
-								// 4. 再取得した正式作品を返す
-								return new SeriesSaveResult
-								{
-									Series = registeredSeries,
-									FailedItems = moveResult.FailedItems,
-								};
-							}
-							finally
-							{
-								NewSeriesHomeSyncTrace.End(registeredSeries.SeriesId);
-							}
-						}
-				catch
-						{
-							tx.Rollback();
-							throw;
-						}
+				tx.Rollback();
+				throw;
+			}
 	}
 
 	/// <summary>

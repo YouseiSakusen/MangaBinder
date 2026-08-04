@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ObservableCollections;
 using R3;
+using System.Collections.Specialized;
 using Wpf.Ui;
 
 namespace MangaBinder;
@@ -32,9 +33,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>タグ変更追跡ストア。</summary>
     private readonly SeriesTagStore seriesTagStore;
 
-    /// <summary>製本開始状態 Dispatcher。</summary>
-    private readonly BindingQueueDispatcher bindingQueueDispatcher;
-
     /// <summary>MangaSeries 読み込みマネージャー。</summary>
     private readonly MangaSeriesManager mangaSeriesManager;
 
@@ -45,6 +43,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     private readonly BindingQueueStore bindingQueueStore;
 
     private DisposableBag disposableBag;
+
+    /// <summary>SeriesCardViewModel ごとの IsSelected 購読の管理用 Dictionary。</summary>
+    private readonly Dictionary<SeriesCardViewModel, IDisposable> seriesIsSelectedSubscriptions = new();
 
     /// <summary>
     /// ListView にバインドする SeriesCardViewModel の一覧を取得します。
@@ -92,10 +93,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="workspaceStore">作品選択状態ストア。</param>
     /// <param name="appSettings">アプリケーション設定。</param>
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
-    /// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
     /// <param name="mangaSeriesManager">MangaSeries 読み込みマネージャー。</param>
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
-    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, BindingQueueDispatcher bindingQueueDispatcher, MangaSeriesManager mangaSeriesManager, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, MangaSeriesManager mangaSeriesManager, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
     {
         this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;
@@ -103,16 +103,19 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         this.workspaceStore = workspaceStore;
         this.seriesTagStore = seriesTagStore;
         this.appSettings = appSettings;
-        this.bindingQueueDispatcher = bindingQueueDispatcher;
         this.mangaSeriesManager = mangaSeriesManager;
         this.mangaSeriesStore = mangaSeriesStore;
         this.bindingQueueStore = bindingQueueStore;
 
-        // SeriesCardViewModel のコレクション
-        var cardSeries = new ObservableList<SeriesCardViewModel>();
-        this.Series = cardSeries
+        // MangaSeriesStore.All から CreateView で SeriesCardViewModel へ変換し、
+        // WPF バインド用に ToNotifyCollectionChanged で公開
+        this.Series = this.mangaSeriesStore.All
+            .CreateView(series => new SeriesCardViewModel(series, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore))
             .ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
             .AddTo(ref this.disposableBag);
+
+        // 削除・追加・置換を処理するため、Series のコレクション変化を監視
+        ((INotifyCollectionChanged)this.Series).CollectionChanged += this.onSeriesCollectionChanged;
 
         // CanStartBinding: 選択状態の変化を手動で更新する BindableReactiveProperty
         var canStartBinding = new BindableReactiveProperty<bool>(false)
@@ -121,62 +124,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         var selectedCount = new BindableReactiveProperty<int>(0)
             .AddTo(ref this.disposableBag);
         this.SelectedCount = selectedCount;
-
-        // mangaSeriesStore.All の変更を監視して cardSeries へ反映
-        this.mangaSeriesStore.All.ObserveAdd()
-            .Subscribe(x =>
-            {
-                // [NewSeriesHomeSync] Home ObserveAdd受信ログ
-                if (NewSeriesHomeSyncTrace.IsTracking(x.Value.SeriesId))
-                {
-                    this.logger.LogInformation(
-                        "[NewSeriesHomeSync] Home ObserveAdd受信 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} 通知Index={Index} 追加前Card件数={CardCount} Store件数={StoreCount}",
-                        x.Value.SeriesId, x.Value.Title, x.Value.NormalizedTitleInternal, x.Index, cardSeries.Count, this.mangaSeriesStore.All.Count);
-                }
-
-                var cardViewModel = new SeriesCardViewModel(x.Value, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore);
-                this.subscribeIsSelectedForSeries(cardViewModel);
-                cardSeries.Insert(x.Index, cardViewModel);
-
-                // [NewSeriesHomeSync] Home Card追加完了ログ
-                if (NewSeriesHomeSyncTrace.IsTracking(x.Value.SeriesId))
-                {
-                    var cardContainsResult = cardSeries.Any(card => card.Series.Value.SeriesId == x.Value.SeriesId);
-                    this.logger.LogInformation(
-                        "[NewSeriesHomeSync] Home Card追加完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} 通知Index={Index} 追加後Card件数={CardCount} Store件数={StoreCount} Card内存在確認結果={Result}",
-                        x.Value.SeriesId, x.Value.Title, x.Value.NormalizedTitleInternal, x.Index, cardSeries.Count, this.mangaSeriesStore.All.Count, cardContainsResult);
-                }
-            })
-            .AddTo(ref this.disposableBag);
-
-        this.mangaSeriesStore.All.ObserveRemove()
-            .Subscribe(x =>
-            {
-                if (x.Index >= 0 && x.Index < cardSeries.Count)
-                    cardSeries.RemoveAt(x.Index);
-            })
-            .AddTo(ref this.disposableBag);
-
-        this.mangaSeriesStore.All.ObserveReset()
-            .Subscribe(_ =>
-            {
-                cardSeries.Clear();
-                foreach (var series in this.mangaSeriesStore.All)
-                {
-                    var cardViewModel = new SeriesCardViewModel(series, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore);
-                    this.subscribeIsSelectedForSeries(cardViewModel);
-                    cardSeries.Add(cardViewModel);
-                }
-            })
-            .AddTo(ref this.disposableBag);
-
-        // 初期要素を追加
-        foreach (var series in this.mangaSeriesStore.All)
-        {
-            var cardViewModel = new SeriesCardViewModel(series, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore);
-            this.subscribeIsSelectedForSeries(cardViewModel);
-            cardSeries.Add(cardViewModel);
-        }
 
         this.CanStartBinding = canStartBinding;
 
@@ -238,19 +185,102 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="cardViewModel">監視対象の SeriesCardViewModel。</param>
     private void subscribeIsSelectedForSeries(SeriesCardViewModel cardViewModel)
     {
-        cardViewModel.IsSelected
+        var subscription = cardViewModel.IsSelected
             .Subscribe(isSelected =>
             {
+                using var scope = this.serviceScopeFactory.CreateScope();
+                var dispatcher = scope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
+
                 if (isSelected)
-                    this.bindingQueueDispatcher.Add(new BindingSeries { Series = cardViewModel.Series.Value, Status = BindingStartStatus.Configuring, AddedAt = DateTime.Now, UpdatedAt = DateTime.Now });
+                    dispatcher.Add(new BindingSeries { Series = cardViewModel.Series.Value, Status = BindingStartStatus.Configuring, AddedAt = DateTime.Now, UpdatedAt = DateTime.Now });
                 else
-                    this.bindingQueueDispatcher.Remove(cardViewModel.Series.Value.SeriesId);
+                    dispatcher.Remove(cardViewModel.Series.Value.SeriesId);
 
                 var count = this.Series.Count(x => x.IsSelected.Value);
                 this.CanStartBinding.Value = count > 0;
                 this.SelectedCount.Value = count;
-            })
-            .AddTo(ref this.disposableBag);
+            });
+
+        // 購読をカード単位で管理
+        this.seriesIsSelectedSubscriptions[cardViewModel] = subscription;
+    }
+
+    /// <summary>
+    /// Series コレクションの変化を処理します。
+    /// 削除・置換されたカードのDispose、追加されたカードのIsSelected監視登録を行います。
+    /// </summary>
+    private void onSeriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                // 追加されたカードの IsSelected を監視
+                if (e.NewItems != null)
+                {
+                    foreach (var newCard in e.NewItems.Cast<SeriesCardViewModel>())
+                    {
+                        this.subscribeIsSelectedForSeries(newCard);
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Remove:
+                // 削除されたカードを処理
+                if (e.OldItems != null)
+                {
+                    foreach (var oldCard in e.OldItems.Cast<SeriesCardViewModel>())
+                    {
+                        // IsSelected 購読をDispose
+                        if (this.seriesIsSelectedSubscriptions.TryGetValue(oldCard, out var subscription))
+                        {
+                            subscription.Dispose();
+                            this.seriesIsSelectedSubscriptions.Remove(oldCard);
+                        }
+
+                        // カード自体をDispose
+                        oldCard.Dispose();
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Replace:
+                // 置換された古いカードを処理
+                if (e.OldItems != null)
+                {
+                    foreach (var oldCard in e.OldItems.Cast<SeriesCardViewModel>())
+                    {
+                        // IsSelected 購読をDispose
+                        if (this.seriesIsSelectedSubscriptions.TryGetValue(oldCard, out var subscription))
+                        {
+                            subscription.Dispose();
+                            this.seriesIsSelectedSubscriptions.Remove(oldCard);
+                        }
+
+                        // カード自体をDispose
+                        oldCard.Dispose();
+                    }
+                }
+
+                // 新しいカードのIsSelected監視を登録
+                if (e.NewItems != null)
+                {
+                    foreach (var newCard in e.NewItems.Cast<SeriesCardViewModel>())
+                    {
+                        this.subscribeIsSelectedForSeries(newCard);
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Reset:
+                // リセット時は、既存のカードをすべてクリーンアップ
+                foreach (var oldCard in this.seriesIsSelectedSubscriptions.Keys.ToList())
+                {
+                    var subscription = this.seriesIsSelectedSubscriptions[oldCard];
+                    subscription.Dispose();
+                    this.seriesIsSelectedSubscriptions.Remove(oldCard);
+                }
+                break;
+        }
     }
 
     /// <inheritdoc/>
@@ -264,9 +294,11 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         }
 
         // 毎回: Store の状態を元に SeriesCardViewModel.IsSelected を復元する
+        using var dispatcherScope = this.serviceScopeFactory.CreateScope();
+        var dispatcher = dispatcherScope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
         foreach (var cardViewModel in this.Series)
         {
-            cardViewModel.IsSelected.Value = this.bindingQueueDispatcher.Contains(cardViewModel.Series.Value.SeriesId);
+            cardViewModel.IsSelected.Value = dispatcher.Contains(cardViewModel.Series.Value.SeriesId);
         }
 
         // 毎回: タグ再同期
@@ -322,6 +354,22 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <inheritdoc/>
     public void Dispose()
     {
+        // CollectionChanged 購読を明示的に解除
+        ((INotifyCollectionChanged)this.Series).CollectionChanged -= this.onSeriesCollectionChanged;
+
+        // 残存する IsSelected 購読をすべて破棄
+        foreach (var subscription in this.seriesIsSelectedSubscriptions.Values)
+        {
+            subscription.Dispose();
+        }
+        this.seriesIsSelectedSubscriptions.Clear();
+
+        // 残っているすべての SeriesCardViewModel をクリーンアップ
+        foreach (var card in this.Series)
+        {
+            card.Dispose();
+        }
+
         this.disposableBag.Dispose();
     }
 

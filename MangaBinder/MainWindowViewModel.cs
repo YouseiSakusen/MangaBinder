@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Data;
 using HalationGhost.Wpf.Ui;
 using HalationGhost.Wpf.Ui.Navigation;
 using MangaBinder.Bindings;
@@ -50,6 +51,9 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	/// <summary>設定。WindowPlacement ファイル名の取得に使用します。</summary>
 	private readonly Microsoft.Extensions.Configuration.IConfiguration configuration;
 
+	/// <summary>製本待ちキューストア。InfoBadge 表示用に読み取り専用で使用します。</summary>
+	private readonly BindingQueueStore bindingQueueStore;
+
 	private DisposableBag disposableBag;
 
 	/// <summary>
@@ -84,6 +88,11 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	public ReadOnlyReactiveProperty<string> LoadingMessage { get; }
 
 	/// <summary>
+	/// BindingQueue の件数を取得します。
+	/// </summary>
+	public BindableReactiveProperty<int> BindingQueueCount { get; }
+
+	/// <summary>
 	/// <see cref="MainWindowViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="logger">ロガー。</param>
@@ -98,6 +107,7 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	/// <param name="loadingService">ローディングサービス。</param>
 	/// <param name="serviceProvider">DI コンテナのサービスプロバイダー。</param>
 	/// <param name="configuration">設定。</param>
+	/// <param name="bindingQueueStore">製本待ちキューストア。</param>
 	public MainWindowViewModel(
 		ILogger<MainWindowViewModel> logger,
 		IThemeService themeService,
@@ -110,7 +120,8 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 		IServiceScopeFactory serviceScopeFactory,
 		LoadingService loadingService,
 		IServiceProvider serviceProvider,
-		Microsoft.Extensions.Configuration.IConfiguration configuration)
+		Microsoft.Extensions.Configuration.IConfiguration configuration,
+		BindingQueueStore bindingQueueStore)
 		: base(
 			navigationService,
 			snackbarService,
@@ -128,6 +139,7 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 		this.loadingService = loadingService;
 		this.serviceProvider = serviceProvider;
 		this.configuration = configuration;
+		this.bindingQueueStore = bindingQueueStore;
 
 		this.logger.ZLogInformation($"MainWindowViewModel 初期化開始");
 
@@ -153,6 +165,48 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 		// LoadingService のイベント購読
 		this.loadingService.StateChanged += this.onLoadingServiceStateChanged;
 
+		// BindingQueue 件数の初期化と監視
+		this.BindingQueueCount = new BindableReactiveProperty<int>(this.bindingQueueStore.Queue.Count)
+			.AddTo(ref this.disposableBag);
+
+		// Store.Queue.Count の変更を監視して BindingQueueCount を自動更新
+		this.bindingQueueStore.Queue.ObserveCountChanged()
+			.Subscribe(count => this.BindingQueueCount.Value = count)
+			.AddTo(ref this.disposableBag);
+
+		// 製本待ちメニューアイテムを作成（InfoBadge表示用）
+		var bindingQueueMenuItem = new NavigationViewItem
+		{
+			Content = "製本",
+			Icon = new SymbolIcon { Symbol = SymbolRegular.Library24, FontSize = 24 },
+			TargetPageType = typeof(StartPage),
+			InfoBadge = new InfoBadge() { FontSize= 11, Margin = new Thickness(0, 12, 0, -8) },
+		};
+
+		// InfoBadge の Value を BindingQueueCount へバインド
+		Binding bindingQueueValueBinding = new()
+		{
+			Source = this.BindingQueueCount,
+			Path = new PropertyPath(nameof(this.BindingQueueCount.Value)),
+			Mode = BindingMode.OneWay,
+			UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+		};
+		BindingOperations.SetBinding(bindingQueueMenuItem.InfoBadge, InfoBadge.ValueProperty, bindingQueueValueBinding);
+
+		// InfoBadge の Visibility を BindingQueueCount へバインド（0より大きい場合のみ表示）
+		Binding bindingQueueVisibilityBinding = new()
+		{
+			Source = this.BindingQueueCount,
+			Path = new PropertyPath(nameof(this.BindingQueueCount.Value)),
+			Mode = BindingMode.OneWay,
+			Converter = new Converters.IntGreaterThanZeroToVisibilityConverter(),
+			UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+		};
+		BindingOperations.SetBinding(bindingQueueMenuItem.InfoBadge, UIElement.VisibilityProperty, bindingQueueVisibilityBinding);
+
+		// InfoBadge のスタイルを Wpf.Ui 標準の Informational に設定
+		bindingQueueMenuItem.InfoBadge.Severity = InfoBadgeSeverity.Attention;
+
 		this.MenuItems = new ObservableList<NavigationViewItem>
 		{
 			new NavigationViewItem
@@ -162,13 +216,7 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 				FontSize = 24,
 				TargetPageType = typeof(HomePage),
 			},
-			new NavigationViewItem
-			{
-				Content = "製本",
-				Icon = new SymbolIcon { Symbol = SymbolRegular.Library24 },
-				FontSize = 24,
-				TargetPageType = typeof(StartPage),
-			},
+			bindingQueueMenuItem,
 			new NavigationViewItem
 			{
 				Content = "作品管理",
@@ -241,7 +289,8 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	{
 		if (viewModel is not ISavable savable)
 			return;
-					var result = await savable.SaveAsync();
+
+		var result = await savable.SaveAsync();
 		if (result.IsSuccess)
 			return;
 

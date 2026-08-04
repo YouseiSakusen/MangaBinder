@@ -81,10 +81,13 @@ public partial class App
 	{
 		var config = new ConfigurationBuilder()
 			.SetBasePath(AppContext.BaseDirectory)
-			.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-			.Build();
+			.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false);
+#if DEBUG
+		config.AddJsonFile("appsettings.Debug.json", optional: true, reloadOnChange: false);
+#endif
+		var builtConfig = config.Build();
 
-		var initializer = new MangaBinderInitializer(config);
+		var initializer = new MangaBinderInitializer(builtConfig);
 		await initializer.InitializeAsync();
 
 		host = this.createHost();

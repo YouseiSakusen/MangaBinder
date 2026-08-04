@@ -1,5 +1,6 @@
 using Dapper;
 using MangaBinder.Settings;
+using Microsoft.Extensions.Logging;
 using System.Data.SQLite;
 using System.Text;
 
@@ -13,13 +14,18 @@ public class BindingQueueRepository
 	/// <summary>アプリケーション設定。</summary>
 	private readonly AppSettings appSettings;
 
+	/// <summary>ロガー。</summary>
+	private readonly ILogger<BindingQueueRepository> logger;
+
 	/// <summary>
 	/// <see cref="BindingQueueRepository"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="appSettings">アプリケーション設定。</param>
-	public BindingQueueRepository(AppSettings appSettings)
+	/// <param name="logger">ロガー。</param>
+	public BindingQueueRepository(AppSettings appSettings, ILogger<BindingQueueRepository> logger)
 	{
 		this.appSettings = appSettings;
+		this.logger = logger;
 	}
 
 
@@ -50,13 +56,17 @@ public class BindingQueueRepository
 	/// <param name="items">保存対象の作品一覧。</param>
 	public async ValueTask SaveAsync(IEnumerable<BindingSeries> items)
 	{
+		var itemsList = items.ToList();
+		this.logger.LogInformation("BindingQueue Save Start: ItemCount={ItemCount}", itemsList.Count);
+
 		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
 		await connection.OpenAsync();
 		using var transaction = connection.BeginTransaction();
 
 		try
 		{
-			await connection.ExecuteAsync("DELETE FROM BindingQueue;", transaction: transaction);
+			var deletedRows = await connection.ExecuteAsync("DELETE FROM BindingQueue;", transaction: transaction);
+			this.logger.LogInformation("BindingQueue DELETE: AffectedRows={AffectedRows}", deletedRows);
 
 			const string insertSql = """
 				INSERT INTO BindingQueue (
@@ -74,7 +84,7 @@ public class BindingQueueRepository
 				);
 				""";
 
-			var insertRows = items.Select(item => new
+			var insertRows = itemsList.Select(item => new
 			{
 				SeriesId = item.Series.SeriesId,
 				Status = (int)item.Status,
@@ -83,8 +93,11 @@ public class BindingQueueRepository
 				UpdatedAt = item.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
 			});
 
-			await connection.ExecuteAsync(insertSql, insertRows, transaction);
+			var insertedRows = await connection.ExecuteAsync(insertSql, insertRows, transaction);
+			this.logger.LogInformation("BindingQueue INSERT: AffectedRows={AffectedRows}", insertedRows);
+
 			transaction.Commit();
+			this.logger.LogInformation("BindingQueue Save Complete: TotalInsert={TotalInsert}", insertedRows);
 		}
 		catch
 		{

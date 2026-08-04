@@ -26,9 +26,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>製本開始キュー ストア。</summary>
 	private readonly BindingQueueStore bindingQueueStore;
 
-	/// <summary>表示用作品一覧の内部バッファ。</summary>
-	private readonly ObservableList<StartPageSeriesCardViewModel> displaySeriesSource = new();
-
 	private DisposableBag disposableBag;
 
 	/// <summary>
@@ -45,11 +42,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// BindingQueue が空かどうかを取得します。
 	/// </summary>
 	public BindableReactiveProperty<bool> IsEmpty { get; }
-
-	/// <summary>
-	/// BindingQueue に1件以上登録されているかどうかを取得します。
-	/// </summary>
-	public BindableReactiveProperty<bool> IsNotEmpty { get; }
 
 	/// <summary>HomePage へ遷移するコマンドです。</summary>
 	public ReactiveCommand<Unit> NavigateToHomeCommand { get; }
@@ -91,33 +83,29 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.workspaceStore = workspaceStore;
 		this.bindingQueueStore = bindingQueueStore;
 
-		// bindingQueueStore.Queue の変更を監視して displaySeriesSource へ反映
-		this.bindingQueueStore.Queue.ObserveAdd()
-			.Subscribe(x => this.displaySeriesSource.Add(new StartPageSeriesCardViewModel(x.Value)))
-			.AddTo(ref this.disposableBag);
-		this.bindingQueueStore.Queue.ObserveRemove()
-			.Subscribe(x => this.displaySeriesSource.RemoveAt(x.Index))
-			.AddTo(ref this.disposableBag);
-		this.bindingQueueStore.Queue.ObserveReset()
-			.Subscribe(_ => this.displaySeriesSource.Clear())
+		// BindingQueueStore.Queue から CreateView でStartPageSeriesCardViewModelへ変換し、
+		// WPFバインド用に ToNotifyCollectionChanged で公開
+		this.Series = this.bindingQueueStore.Queue
+			.CreateView(bindingSeries => new StartPageSeriesCardViewModel(bindingSeries))
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
-		// 初期要素を追加
-		foreach (var bindingSeries in this.bindingQueueStore.Queue)
-		{
-			this.displaySeriesSource.Add(new StartPageSeriesCardViewModel(bindingSeries));
-		}
-
-		this.Series = this.displaySeriesSource.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+		// 初期値を現在のStore.Countから取得
+		this.SelectedSeriesCount = new BindableReactiveProperty<int>(this.bindingQueueStore.Queue.Count)
 			.AddTo(ref this.disposableBag);
 
-		this.SelectedSeriesCount = new BindableReactiveProperty<int>(0)
+		// Store.Queue.Count の変更を監視して SelectedSeriesCount を自動更新
+		this.bindingQueueStore.Queue.ObserveCountChanged()
+			.Subscribe(count => this.SelectedSeriesCount.Value = count)
 			.AddTo(ref this.disposableBag);
 
-		this.IsEmpty = new BindableReactiveProperty<bool>(true)
+		// 初期値を現在のStore.Countから取得
+		this.IsEmpty = new BindableReactiveProperty<bool>(this.bindingQueueStore.Queue.Count == 0)
 			.AddTo(ref this.disposableBag);
 
-		this.IsNotEmpty = new BindableReactiveProperty<bool>(false)
+		// Store.Queue.Count の変更を監視して IsEmpty を自動更新
+		this.bindingQueueStore.Queue.ObserveCountChanged()
+			.Subscribe(count => this.IsEmpty.Value = count == 0)
 			.AddTo(ref this.disposableBag);
 
 		this.NavigateToHomeCommand = new ReactiveCommand<Unit>()
@@ -150,7 +138,8 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <inheritdoc/>
 	public ValueTask InitializeDataAsync()
 	{
-		this.updateState();
+		// Store の Count 監視は既にコンストラクタで ObserveCountChanged() で設定済み
+		// 表示一覧も CreateView で Store 直結のため、初期化処理不要
 		return ValueTask.CompletedTask;
 	}
 
@@ -173,22 +162,15 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.navigationService.NavigateWithHierarchy(typeof(VolumeSelectionPage));
 	}
 
-	private void updateState()
-	{
-		var count = this.bindingQueueStore.Queue.Count;
-		this.SelectedSeriesCount.Value = count;
-		this.IsEmpty.Value = count == 0;
-		this.IsNotEmpty.Value = count > 0;
-	}
-
 	/// <summary>
 	/// 指定した作品を製本待ちから削除します。
 	/// </summary>
 	/// <param name="bindingSeries">削除対象の作品。</param>
 	private void executeRemoveFromQueue(BindingSeries bindingSeries)
 	{
-		this.bindingQueueStore.Remove(bindingSeries.Series.SeriesId);
-		this.updateState();
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var dispatcher = scope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
+		dispatcher.Remove(bindingSeries.Series.SeriesId);
 	}
 
 	/// <summary>
@@ -204,9 +186,10 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		if (!confirmed)
 			return;
 
-		// 全件削除（BindingQueueStore の Queue を直接クリア）
-		this.bindingQueueStore.Queue.Clear();
-		this.updateState();
+		// BindingQueueDispatcher 経由でクリア
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var dispatcher = scope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
+		dispatcher.Clear();
 	}
 
 	/// <summary>

@@ -16,6 +16,7 @@ using Wpf.Ui.Controls;
 using Microsoft.Win32;
 using Microsoft.Extensions.DependencyInjection;
 using MangaBinder.Helpers;
+using HalationGhost.Wpf.Ui;
 using HalationGhost.Wpf.Ui.Navigation;
 
 namespace MangaBinder.Series;
@@ -23,7 +24,7 @@ namespace MangaBinder.Series;
 /// <summary>
 /// 編集ページの ViewModel です。
 /// </summary>
-public partial class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, INavigationDisposable
+public partial class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, INavigationDisposable, IBackRequestHandler
 {
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly SeriesWorkspaceStore workspaceStore;
@@ -418,7 +419,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			.AddTo(ref this.disposableBag);
 		this.BackCommand.Subscribe(_ =>
 		{
-			this.navigationService.GoBack();
+			this.executeGoBack();
 		});
 
 		// SaveWorkSeriesCommandCanExecute: 一時保存ボタンの有効/無効状態
@@ -2290,12 +2291,30 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
+	/// 戻るサイドボタンなどからの「戻る」要求を処理します。
+	/// </summary>
+	/// <returns>戻る処理を実行する非同期タスク。</returns>
+	public async ValueTask OnBackRequestedAsync()
+	{
+		await ValueTask.CompletedTask;
+		this.executeGoBack();
+	}
+
+	/// <summary>
 	/// ナビゲーション時にリソースを解放します。
 	/// </summary>
 	public void Dispose()
 	{
 		this.Dispose(true);
 		GC.SuppressFinalize(this);
+	}
+
+	/// <summary>
+	/// 前画面へ戻る処理を実行します。
+	/// </summary>
+	private void executeGoBack()
+	{
+		this.navigationService.GoBack();
 	}
 
 	/// <summary>

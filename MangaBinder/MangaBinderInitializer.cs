@@ -24,6 +24,7 @@ public class MangaBinderInitializer
     /// </summary>
     public async Task InitializeAsync()
     {
+        this.deleteOldLogFiles();
         var connectionString = this.ensureDatabaseExists();
         var thumbnailPath = await this.getThumbnailDirectoryPath(connectionString);
         this.ensureThumbnailDirectoryExists(thumbnailPath);
@@ -139,5 +140,75 @@ public class MangaBinderInitializer
             if (!File.Exists(destination))
                 File.Copy(source, destination);
         }
+    }
+
+    /// <summary>
+    /// 設定値で指定された保持期間を超えた古いログファイルを削除します。
+    /// app_yyyyMMdd_sequence.log 形式のファイルのみを対象とします。
+    /// </summary>
+    private void deleteOldLogFiles()
+    {
+        var retentionDays = this.config.GetValue<int>("Logging:RetentionDays", 14);
+        var logsPath = Path.Combine(AppContext.BaseDirectory, "logs");
+
+        if (!Directory.Exists(logsPath))
+            return;
+
+        var files = Directory.GetFiles(logsPath, "app_*.log");
+
+        foreach (var filePath in files)
+        {
+            var fileName = Path.GetFileName(filePath);
+
+            if (!this.tryExtractLogDate(fileName, out var logDate))
+                continue;
+
+            var now = DateTime.Now.Date;
+            var daysOld = (now - logDate).Days;
+
+            if (daysOld > retentionDays)
+            {
+                try
+                {
+                    File.Delete(filePath);
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// ログファイル名 (app_yyyyMMdd_sequence.log) から生成日を抽出します。
+    /// ファイル名形式が一致しない場合は false を返します。
+    /// </summary>
+    /// <param name="fileName">ログファイル名。</param>
+    /// <param name="logDate">抽出された生成日 (UTC 日付)。</param>
+    /// <returns>抽出成功時は true、失敗時は false。</returns>
+    private bool tryExtractLogDate(string fileName, out DateTime logDate)
+    {
+        logDate = default;
+
+        const string prefix = "app_";
+        if (!fileName.StartsWith(prefix))
+            return false;
+
+        var withoutPrefix = fileName.Substring(prefix.Length);
+        var datePartEnd = withoutPrefix.IndexOf('_');
+
+        if (datePartEnd < 0)
+            return false;
+
+        var datePart = withoutPrefix.Substring(0, datePartEnd);
+
+        if (DateTime.TryParseExact(datePart, "yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsedDate))
+        {
+            logDate = parsedDate;
+            return true;
+        }
+
+        return false;
     }
 }

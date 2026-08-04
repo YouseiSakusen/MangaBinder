@@ -93,8 +93,8 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<SeriesTagStore>();
 		services.AddSingleton<MangaSeriesStore>();
 		services.AddSingleton<BindingQueueStore>();
-		services.AddSingleton<BindingStoreRepository>();
-		services.AddSingleton<BindingQueueDispatcher>();
+		services.AddScoped<BindingStoreRepository>();
+		services.AddScoped<BindingQueueDispatcher>();
 		services.AddSingleton<MaterialSourceDisplayNameConverter>();
 
 		services.AddScoped<IVolumeImageProcessor, VolumeImageProcessor>();

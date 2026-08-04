@@ -50,4 +50,8 @@ public sealed class BindingQueueDispatcher
 	/// <param name="items">新しい製本対象一覧。</param>
 	public void ReplaceAll(IEnumerable<BindingSeries> items)
 		=> this.bindingStoreRepository.ReplaceAll(items);
+
+	/// <summary>製本対象一覧を全件クリアします。</summary>
+	public void Clear()
+		=> this.bindingStoreRepository.Clear();
 }
