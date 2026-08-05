@@ -20,6 +20,7 @@ public class SeriesTagSelectorViewModel : IDisposable
 	private readonly DisposableBag disposableBag = new();
 	private MangaSeries? targetSeries;
 	private Action<MangaSeries>? onTagsChangedCallback;
+	private NotifyCollectionChangedEventHandler<MangaTag>? tagsCollectionChangedHandler;
 
 	/// <summary>
 	/// Popup用のタグ選択項目一覧を取得します。
@@ -87,8 +88,18 @@ public class SeriesTagSelectorViewModel : IDisposable
 	/// <param name="onTagsChanged">タグ変更時のコールバック。</param>
 	public void SetTarget(MangaSeries series, Action<MangaSeries>? onTagsChanged = null)
 	{
+		// 前の購読を解除
+		if (this.targetSeries != null && this.tagsCollectionChangedHandler is not null)
+		{
+			this.targetSeries.Tags.CollectionChanged -= this.tagsCollectionChangedHandler;
+		}
+
 		this.targetSeries = series ?? throw new ArgumentNullException(nameof(series));
 		this.onTagsChangedCallback = onTagsChanged;
+
+		// 新しいMangaSeries.Tagsの変更を監視
+		this.tagsCollectionChangedHandler = this.onTargetTagsCollectionChanged;
+		this.targetSeries.Tags.CollectionChanged += this.tagsCollectionChangedHandler;
 
 		// SelectedTags と CompactDisplayText を更新
 		this.updateSelectedTagsAndDisplay();
@@ -99,8 +110,15 @@ public class SeriesTagSelectorViewModel : IDisposable
 	/// </summary>
 	public void ClearTarget()
 	{
+		// 購読を解除
+		if (this.targetSeries != null && this.tagsCollectionChangedHandler is not null)
+		{
+			this.targetSeries.Tags.CollectionChanged -= this.tagsCollectionChangedHandler;
+		}
+
 		this.targetSeries = null;
 		this.onTagsChangedCallback = null;
+		this.tagsCollectionChangedHandler = null;
 		this.SelectedTags.Clear();
 		this.CompactDisplayText.Value = string.Empty;
 	}
@@ -110,6 +128,12 @@ public class SeriesTagSelectorViewModel : IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		// Tags の購読を解除
+		if (this.targetSeries != null && this.tagsCollectionChangedHandler is not null)
+		{
+			this.targetSeries.Tags.CollectionChanged -= this.tagsCollectionChangedHandler;
+		}
+
 		this.disposableBag.Dispose();
 	}
 
@@ -120,6 +144,14 @@ public class SeriesTagSelectorViewModel : IDisposable
 	/// DB 更新や Dirty 管理は行わず、表示だけを更新する責務を持ちます。
 	/// </remarks>
 	public void Refresh()
+	{
+		this.updateSelectedTagsAndDisplay();
+	}
+
+	/// <summary>
+	/// 対象 MangaSeries.Tags の CollectionChanged イベントハンドラー。
+	/// </summary>
+	private void onTargetTagsCollectionChanged(in NotifyCollectionChangedEventArgs<MangaTag> e)
 	{
 		this.updateSelectedTagsAndDisplay();
 	}

@@ -160,31 +160,19 @@ public class MangaSeriesManager
 	/// <returns>検索結果の MangaSeries リスト。</returns>
 	public IReadOnlyList<MangaSeries> Search(string searchText, IReadOnlyList<MangaSeries> targetSeries)
 	{
-		// searchText が null、空文字、または空白のみの場合は空リストを返す
-		if (string.IsNullOrWhiteSpace(searchText))
-			return new List<MangaSeries>();
+		// 共通検索クラスで検索条件を構築
+		var matcher = new MangaSeriesSearchMatcher(searchText);
 
-		// ワード分割（半角スペース・全角スペース）
-		var words = searchText
-			.Split(new[] { ' ', '\u3000' }, StringSplitOptions.RemoveEmptyEntries)
-			.Select(word => MangaTitleHelper.NormalizeTitleInternal(word))
-			.Where(word => !string.IsNullOrEmpty(word))
-			.ToList();
-
-		// ワードが空の場合は空リストを返す
-		if (words.Count == 0)
+		// 検索条件が無効な場合は空リストを返す
+		if (!matcher.IsValid)
 			return new List<MangaSeries>();
 
 		// デバッグ出力
-		System.Diagnostics.Debug.WriteLine($"[MangaSeriesManager.Search] Input: {searchText}, Words: {string.Join(", ", words)}, TargetCount: {targetSeries.Count}");
+		System.Diagnostics.Debug.WriteLine($"[MangaSeriesManager.Search] Input: {searchText}, TargetCount: {targetSeries.Count}");
 
-		// AND 検索：すべてのワードが Title OR Author OR Memo に含まれた作品のみヒット
+		// AND 検索：共通マッチャーを使用して検索
 		var results = targetSeries
-			.Where(series => words.All(word =>
-				series.NormalizedTitleInternal.Contains(word, StringComparison.OrdinalIgnoreCase) ||
-				series.Author.Contains(word, StringComparison.OrdinalIgnoreCase) ||
-				series.Memo.Contains(word, StringComparison.OrdinalIgnoreCase)
-			))
+			.Where(series => matcher.IsMatch(series))
 			.ToList();
 
 		System.Diagnostics.Debug.WriteLine($"[MangaSeriesManager.Search] Results: {results.Count}");

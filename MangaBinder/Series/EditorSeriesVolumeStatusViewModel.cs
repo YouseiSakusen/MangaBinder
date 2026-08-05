@@ -68,7 +68,11 @@ public class EditorSeriesVolumeStatusViewModel : IDisposable
 		this.BoundEndVolume = new BindableReactiveProperty<double>(0)
 			.AddTo(ref this.disposableBag);
 
-		this.DisplayStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel?>(null)
+		// DisplayStatus を1回だけ生成し、寿命の間保持する
+		var displayVolumeStatus = new SeriesVolumeStatusViewModel()
+			.AddTo(ref this.disposableBag);
+
+		this.DisplayStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel?>(displayVolumeStatus)
 			.AddTo(ref this.disposableBag);
 
 		// EndVolume の変更を監視し、CanEditOwnedCompleted を制御
@@ -152,6 +156,10 @@ public class EditorSeriesVolumeStatusViewModel : IDisposable
 	/// </summary>
 	private void updateDisplayStatus()
 	{
+		// DisplayStatus が null の場合は処理しない
+		if (this.DisplayStatus.Value == null)
+			return;
+
 		// 表示用の一時的なデータを組み立て
 		// 入力中の表示値がある場合はそれを優先し、ない場合は保存値を使用
 
@@ -207,14 +215,13 @@ public class EditorSeriesVolumeStatusViewModel : IDisposable
 
 		var seriesCompleted = this.EndVolume.Value.HasValue;
 
-		this.DisplayStatus.Value = new SeriesVolumeStatusViewModel
-		{
-			TotalVolumeText = totalVolumeText,
-			OwnedEstimatedVolumeText = ownedEstimatedVolumeText,
-			BoundEndVolumeText = boundEndVolumeText,
-			SeriesCompleted = seriesCompleted,
-			IsOwnedCompleted = this.IsOwnedCompleted.Value,
-		};
+		// DisplayStatus.Value の各BindableReactiveProperty.Value を更新
+		// 既存のSeriesVolumeStatusViewModelインスタンスを使い回す
+		this.DisplayStatus.Value.TotalVolumeText.Value = totalVolumeText;
+		this.DisplayStatus.Value.OwnedEstimatedVolumeText.Value = ownedEstimatedVolumeText;
+		this.DisplayStatus.Value.BoundEndVolumeText.Value = boundEndVolumeText;
+		this.DisplayStatus.Value.SeriesCompleted.Value = seriesCompleted;
+		this.DisplayStatus.Value.IsOwnedCompleted.Value = this.IsOwnedCompleted.Value;
 	}
 
 	/// <summary>

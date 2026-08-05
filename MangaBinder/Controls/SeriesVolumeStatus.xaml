@@ -29,7 +29,7 @@
 			Margin="0,0,10,0"
 			VerticalAlignment="Center">
 			<TextBlock
-				Text="{Binding TotalVolumeText}"
+				Text="{Binding TotalVolumeText.Value}"
 				FontSize="11"
 				FontWeight="SemiBold"
 				Foreground="White"
@@ -39,7 +39,7 @@
 		<!-- 所持推定 -->
 		<TextBlock
 			Grid.Column="1"
-			Text="{Binding OwnedEstimatedVolumeText}"
+			Text="{Binding OwnedEstimatedVolumeText.Value}"
 			FontSize="11"
 			TextWrapping="NoWrap"
 			Margin="0,0,12,0"
@@ -48,7 +48,7 @@
 		<!-- 製本済み -->
 		<TextBlock
 			Grid.Column="2"
-			Text="{Binding BoundEndVolumeText}"
+			Text="{Binding BoundEndVolumeText.Value}"
 			FontSize="11"
 			TextWrapping="NoWrap"
 			VerticalAlignment="Center" />

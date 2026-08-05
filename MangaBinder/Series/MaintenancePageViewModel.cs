@@ -1,4 +1,5 @@
 ﻿using MangaBinder.Bindings;
+using MangaBinder.Helpers;
 using ObservableCollections;
 using R3;
 using System.Collections.Specialized;
@@ -25,8 +26,8 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>作品の検索を担う Manager。</summary>
 	private readonly MangaSeriesManager mangaSeriesManager;
 
-	/// <summary>表示用作品一覧の内部バッファ。</summary>
-	private readonly ObservableList<MaintenanceSeriesCardViewModel> displaySeriesSource = new();
+	/// <summary>MangaSeriesStore.Merged から CreateView で生成した SynchronizedView。</summary>
+	private readonly ISynchronizedView<MangaSeries, MaintenanceSeriesCardViewModel> displayView;
 
 	/// <summary>検索文字列を取得します。</summary>
 	public BindableReactiveProperty<string> SearchQuery { get; }
@@ -38,7 +39,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	public IReadOnlyList<MangaSeries> WorkSeries
 		=> this.mangaSeriesStore.GetWorkSeries();
 
-	/// <summary>表示する作品一覧を取得します。通常表示時は WorkSeries、検索表示時は検索結果。</summary>
+	/// <summary>表示する作品一覧を取得します。MangaSeriesStore.Merged を正本とした CreateView + Filter 構造。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<MaintenanceSeriesCardViewModel> DisplaySeries { get; }
 
 	/// <summary>検索結果が空であるかを取得します。</summary>
@@ -82,9 +83,22 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.WorkSeriesCount = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
-		// DisplaySeries: ObservableCollections ベースの表示用コレクション
-		this.DisplaySeries = this.displaySeriesSource.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+		// MangaSeriesStore.Merged から CreateView で MaintenanceSeriesCardViewModel へ変換
+		// 初期 Filter は登録待ち作品のみを表示
+		this.displayView = this.mangaSeriesStore.Merged
+			.CreateView(series => new MaintenanceSeriesCardViewModel(series))
 			.AddTo(ref this.disposableBag);
+
+		// 通常時の Filter を設定：登録待ち作品のみ
+		this.applyWorkSeriesOnlyFilter();
+
+		// Filter 適用後、WPF バインド用に ToNotifyCollectionChanged で公開
+		this.DisplaySeries = this.displayView
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
+
+		// CollectionChanged イベントで削除・置換時のカード Dispose を管理
+		((INotifyCollectionChanged)this.DisplaySeries).CollectionChanged += this.onDisplaySeriesCollectionChanged;
 
 		this.IsSearchResultsEmpty = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
@@ -119,120 +133,38 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		// EditSeriesCommand の実装
 		this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
 
-		// MangaSeriesStore.WorkSeries の変更を監視
-		this.mangaSeriesStore.WorkSeries.ObserveAdd()
-			.Subscribe(x =>
-			{
-				if (!this.IsSearchResultsShown.Value)
-				{
-					// 通常表示中：WorkSeries に追加された作品を displaySeriesSource へ追加
-					var cardViewModel = new MaintenanceSeriesCardViewModel(x.Value);
-					this.displaySeriesSource.Insert(x.Index, cardViewModel);
-					this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
-					this.UpdateEmptyState();
-				}
-				else
-				{
-					// 検索中：現在の検索条件で再検索
-					this.onStoreChangedWhileSearching();
-				}
-			})
-			.AddTo(ref this.disposableBag);
-
-		this.mangaSeriesStore.WorkSeries.ObserveRemove()
-			.Subscribe(x =>
-			{
-				if (!this.IsSearchResultsShown.Value)
-				{
-					// 通常表示中：displaySeriesSource から削除
-					if (x.Index >= 0 && x.Index < this.displaySeriesSource.Count)
-					{
-						var removedCard = this.displaySeriesSource[x.Index];
-						this.displaySeriesSource.RemoveAt(x.Index);
-						removedCard.Dispose();
-					}
-					this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
-					this.UpdateEmptyState();
-				}
-				else
-				{
-					// 検索中：現在の検索条件で再検索
-					this.onStoreChangedWhileSearching();
-				}
-			})
-			.AddTo(ref this.disposableBag);
-
-		this.mangaSeriesStore.WorkSeries.ObserveReset()
-			.Subscribe(_ =>
-			{
-				if (!this.IsSearchResultsShown.Value)
-				{
-					// 通常表示中：displaySeriesSource を再構築
-					this.updateDisplaySeriesWithRefresh(this.mangaSeriesStore.WorkSeries.AsReadOnly());
-					this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
-					this.UpdateEmptyState();
-				}
-				else
-				{
-					// 検索中：現在の検索条件で再検索
-					this.onStoreChangedWhileSearching();
-				}
-			})
-			.AddTo(ref this.disposableBag);
-
-		// MangaSeriesStore.Merged の変更を監視（検索中のみ使用）
-		this.mangaSeriesStore.Merged.ObserveAdd()
-			.Subscribe(x =>
-			{
-				if (this.IsSearchResultsShown.Value)
-				{
-					// 検索中：現在の検索条件で再検索
-					this.onStoreChangedWhileSearching();
-				}
-			})
-			.AddTo(ref this.disposableBag);
-
-		this.mangaSeriesStore.Merged.ObserveRemove()
-			.Subscribe(x =>
-			{
-				if (this.IsSearchResultsShown.Value)
-				{
-					// 検索中：現在の検索条件で再検索
-					this.onStoreChangedWhileSearching();
-				}
-			})
-			.AddTo(ref this.disposableBag);
-
-		this.mangaSeriesStore.Merged.ObserveReset()
-			.Subscribe(_ =>
-			{
-				if (this.IsSearchResultsShown.Value)
-				{
-					// 検索中：現在の検索条件で再検索
-					this.onStoreChangedWhileSearching();
-				}
-			})
+		// Store.WorkSeries の Count 変更を監視して WorkSeriesCount を自動更新
+		this.mangaSeriesStore.WorkSeries.ObserveCountChanged()
+			.Subscribe(count => this.WorkSeriesCount.Value = count)
 			.AddTo(ref this.disposableBag);
 	}
 
 	/// <summary>
 	/// 画面表示後の初期データ読み込みを非同期で実行します。
-	/// 登録待ち作品件数を更新します。
+	/// 登録待ち作品件数を更新し、検索状態をリセットします。
 	/// </summary>
 	public async ValueTask InitializeDataAsync()
 	{
-		// Store から登録待ち作品一覧を取得（通常表示用）
-		var workSeriesList = this.mangaSeriesStore.GetWorkSeries();
+		// 検索文字列をクリア
+		this.SearchQuery.Value = string.Empty;
+
+		// Filter を通常状態（登録待ち作品のみ）に戻す
+		this.applyWorkSeriesOnlyFilter();
+
+		// 検索結果表示フラグを false に設定
+		this.IsSearchResultsShown.Value = false;
+
+		// 現在表示されているカードへ Series.ForceNotify() を呼び出す
+		// これにより、他画面で同じ MangaSeries 正本インスタンスの内容が更新された場合でも、
+		// 現在表示されている登録待ちカードが最新内容を再評価できる
+		foreach (var card in this.DisplaySeries)
+		{
+			card.Series.ForceNotify();
+		}
 
 		// 登録待ち件数を更新（常に Store が保持している登録待ち作品数を表示）
+		var workSeriesList = this.mangaSeriesStore.GetWorkSeries();
 		this.WorkSeriesCount.Value = workSeriesList.Count;
-
-		// DisplaySeries の再構築：既存インスタンスと新規インスタンスを照合
-		// 既存インスタンスが存在する場合は巻情報を更新、新規インスタンスの場合は追加
-		this.updateDisplaySeriesWithRefresh(workSeriesList);
-
-		// 検索結果表示フラグを false に初期化
-		this.IsSearchResultsShown.Value = false;
 
 		// エンプティステート状態を更新
 		this.UpdateEmptyState();
@@ -254,7 +186,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>
 	/// 検索を実行します。
 	/// 検索文字列が空の場合は通常表示へ戻します。
-	/// Store.Merged に対して検索を実行し、検索文字列は維持したまま結果をリアルタイム更新します。
+	/// ISynchronizedView の Filter を切り替えることで検索結果をリアルタイム更新します。
 	/// </summary>
 	private async ValueTask executeSearchAsync()
 	{
@@ -262,48 +194,34 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		if (string.IsNullOrEmpty(searchQuery))
 		{
-			// 検索文字列が空 → 通常表示へ戻す
-			this.updateDisplaySeriesWithRefresh(this.mangaSeriesStore.WorkSeries.AsReadOnly());
+			// 検索文字列が空 → 通常表示へ戻す（登録待ち作品のみ Filter）
+			this.applyWorkSeriesOnlyFilter();
 			this.IsSearchResultsShown.Value = false;
 		}
 		else
 		{
-			// Store.Merged を対象に検索実行
-			var results = this.mangaSeriesManager.Search(searchQuery, this.mangaSeriesStore.Merged.AsReadOnly());
-
-			// DisplaySeries に検索結果を設定
-			this.updateDisplaySeriesWithRefresh(results);
-
-			// 検索結果表示フラグを設定
+			// 検索条件に一致する作品のみを表示する Filter を設定
+			this.applySearchFilter(searchQuery);
 			this.IsSearchResultsShown.Value = true;
-
-			// デバッグ出力
-			System.Diagnostics.Debug.WriteLine($"[Search] Query: {searchQuery}, Results: {results.Count}");
 		}
-
-		// EmptyState を更新
-		this.UpdateEmptyState();
 
 		await ValueTask.CompletedTask;
 	}
 
 	/// <summary>
 	/// 登録待ち一覧を表示します。
-	/// 検索をクリアし、WorkSeries を表示します。
+	/// 検索をクリアし、登録待ち作品のみを表示する Filter を設定します。
 	/// </summary>
 	private async ValueTask executeShowWorkSeriesAsync()
 	{
 		// SearchQuery をクリア
 		this.SearchQuery.Value = string.Empty;
 
-		// DisplaySeries を通常表示へ戻す
-		this.updateDisplaySeriesWithRefresh(this.mangaSeriesStore.WorkSeries.AsReadOnly());
+		// Filter を通常状態（登録待ち作品のみ）に戻す
+		this.applyWorkSeriesOnlyFilter();
 
 		// 検索結果表示フラグを false に設定
 		this.IsSearchResultsShown.Value = false;
-
-		// EmptyState を更新
-		this.UpdateEmptyState();
 
 		await ValueTask.CompletedTask;
 	}
@@ -334,63 +252,119 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	}
 
 	/// <summary>
-	/// DisplaySeries を指定された MangaSeries リストに基づいて更新します。
-	/// 既存の MaintenanceSeriesCardViewModel が存在する場合は巻情報を再同期し、
-	/// 新規の場合は新しい MaintenanceSeriesCardViewModel を作成します。
+	/// 登録待ち作品のみを表示する Filter を適用します。
 	/// </summary>
-	/// <param name="workSeriesList">更新対象の MangaSeries リスト。</param>
-	private void updateDisplaySeriesWithRefresh(IReadOnlyList<MangaSeries> workSeriesList)
+	private void applyWorkSeriesOnlyFilter()
 	{
-		// 新しい MaintenanceSeriesCardViewModel リストを構築
-		var newDisplaySeries = new List<MaintenanceSeriesCardViewModel>();
-
-		foreach (var series in workSeriesList)
-		{
-			// 既存の displaySeriesSource 内で同じ WorkId を持つ MaintenanceSeriesCardViewModel を検索
-			var existingCard = this.displaySeriesSource.FirstOrDefault(x => x.Series.WorkId == series.WorkId);
-
-			if (existingCard != null)
-			{
-				// 既存インスタンスが存在する場合は巻情報を再同期
-				existingCard.RefreshVolumeStatus();
-				newDisplaySeries.Add(existingCard);
-			}
-			else
-			{
-				// 新規インスタンスの場合は新しい MaintenanceSeriesCardViewModel を作成
-				newDisplaySeries.Add(new MaintenanceSeriesCardViewModel(series));
-			}
-		}
-
-		// displaySeriesSource を一括更新
-		// 不要になったカードを Dispose
-		foreach (var card in this.displaySeriesSource)
-		{
-			if (!newDisplaySeries.Contains(card))
-			{
-				card.Dispose();
-			}
-		}
-		this.displaySeriesSource.Clear();
-		this.displaySeriesSource.AddRange(newDisplaySeries);
+		var filter = new SynchronizedViewFilter(this.filterWorkSeriesOnly);
+		this.displayView.AttachFilter(filter);
 	}
 
 	/// <summary>
-	/// Store の変更により、検索中に再検索が必要な場合に実行される非同期メソッドです。
+	/// 検索条件に基づく Filter を適用します。
 	/// </summary>
-	private async void onStoreChangedWhileSearching()
+	/// <param name="searchQuery">検索文字列。</param>
+	private void applySearchFilter(string searchQuery)
 	{
-		await this.executeSearchAsync();
+		// 検索条件を一度だけ生成
+		var matcher = new MangaSeriesSearchMatcher(searchQuery);
+
+		// matcher を閉じた変数でキャプチャし、SynchronizedViewFilter 内で使用
+		Func<MaintenanceSeriesCardViewModel, bool> predicate = card => matcher.IsMatch(card.Series.Value);
+		var filter = new SynchronizedViewFilter(predicate);
+		this.displayView.AttachFilter(filter);
 	}
 
+	/// <summary>
+	/// ISynchronizedViewFilter<> を実装するヘルパークラス。
+	/// </summary>
+	private class SynchronizedViewFilter : ISynchronizedViewFilter<MangaSeries, MaintenanceSeriesCardViewModel>
+	{
+		private readonly Func<MaintenanceSeriesCardViewModel, bool> predicate;
+
+		/// <summary>
+		/// <see cref="SynchronizedViewFilter"/> の新しいインスタンスを初期化します。
+		/// </summary>
+		/// <param name="predicate">フィルター判定関数。</param>
+		public SynchronizedViewFilter(Func<MaintenanceSeriesCardViewModel, bool> predicate)
+		{
+			this.predicate = predicate;
+		}
+
+		/// <summary>
+		/// アイテムがフィルター条件に一致するかを判定します。
+		/// </summary>
+		/// <param name="key">ソース MangaSeries。</param>
+		/// <param name="value">フィルター対象の MaintenanceSeriesCardViewModel。</param>
+		/// <returns>true の場合は表示、false の場合は非表示。</returns>
+		public bool IsMatch(MangaSeries key, MaintenanceSeriesCardViewModel value)
+		{
+			return this.predicate(value);
+		}
+	}
+
+	/// <summary>
+	/// 登録待ち作品のみを表示する Filter 関数。
+	/// MangaSeries.IsWork プロパティで判定します。
+	/// </summary>
+	/// <param name="card">フィルター対象の MaintenanceSeriesCardViewModel。</param>
+	/// <returns>true の場合は表示、false の場合は非表示。</returns>
+	private bool filterWorkSeriesOnly(MaintenanceSeriesCardViewModel card)
+	{
+		return card.Series.Value.IsWork;
+	}
+
+	/// <summary>
+	/// DisplaySeries コレクションの変化を処理します。
+	/// 削除・置換されたカードの Dispose を行い、EmptyState を更新します。
+	/// </summary>
+	private void onDisplaySeriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+	{
+		switch (e.Action)
+		{
+			case NotifyCollectionChangedAction.Remove:
+				// 削除されたカードを処理
+				if (e.OldItems != null)
+				{
+					foreach (var oldCard in e.OldItems.Cast<MaintenanceSeriesCardViewModel>())
+					{
+						oldCard.Dispose();
+					}
+				}
+				break;
+
+			case NotifyCollectionChangedAction.Replace:
+				// 置換された古いカードを処理
+				if (e.OldItems != null)
+				{
+					foreach (var oldCard in e.OldItems.Cast<MaintenanceSeriesCardViewModel>())
+					{
+						oldCard.Dispose();
+					}
+				}
+				break;
+
+			case NotifyCollectionChangedAction.Reset:
+				// リセット時は、既存の全カードを Dispose（ただし、新しい要素は Filter で残される）
+				break;
+		}
+
+		// EmptyState を更新
+		this.UpdateEmptyState();
+	}
+
+	/// <summary>リソースを解放します。</summary>
 	public void Dispose()
 	{
-		// displaySeriesSource に残っているカードをすべて Dispose
-		foreach (var card in this.displaySeriesSource)
+		// CollectionChanged 購読を明示的に解除
+		((INotifyCollectionChanged)this.DisplaySeries).CollectionChanged -= this.onDisplaySeriesCollectionChanged;
+
+		// 残っているすべての MaintenanceSeriesCardViewModel をクリーンアップ
+		foreach (var card in this.DisplaySeries)
 		{
 			card.Dispose();
 		}
-		this.displaySeriesSource.Clear();
+
 		this.disposableBag.Dispose();
 	}
 }

@@ -33,9 +33,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>タグ変更追跡ストア。</summary>
     private readonly SeriesTagStore seriesTagStore;
 
-    /// <summary>MangaSeries 読み込みマネージャー。</summary>
-    private readonly MangaSeriesManager mangaSeriesManager;
-
     /// <summary>MangaSeries の正本リストを管理するストア。</summary>
     private readonly MangaSeriesStore mangaSeriesStore;
 
@@ -93,9 +90,8 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="workspaceStore">作品選択状態ストア。</param>
     /// <param name="appSettings">アプリケーション設定。</param>
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
-    /// <param name="mangaSeriesManager">MangaSeries 読み込みマネージャー。</param>
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
-    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, MangaSeriesManager mangaSeriesManager, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
     {
         this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;
@@ -103,7 +99,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         this.workspaceStore = workspaceStore;
         this.seriesTagStore = seriesTagStore;
         this.appSettings = appSettings;
-        this.mangaSeriesManager = mangaSeriesManager;
         this.mangaSeriesStore = mangaSeriesStore;
         this.bindingQueueStore = bindingQueueStore;
 
@@ -157,32 +152,13 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         // DEBUG: スクロール復元調査用
         // this.SavedSeriesListVerticalOffset
         // 	.Subscribe(v => Debug.WriteLine($"[HomePageViewModel] SavedSeriesListVerticalOffset 変化: {v}"))
-        // 	.AddTo(ref this.disposableBag);
-    }
-
-    /// <summary>
-    /// 各 <see cref="MangaSeries"/> のタグを <see cref="MangaSeriesStore"/> のタグへ再同期します。
-    /// </summary>
-    private void refreshSeriesTagsFromStore()
-    {
-        var tagMap = this.mangaSeriesStore.GetTags().ToDictionary(t => t.TagId);
-
-        foreach (var s in this.mangaSeriesStore.All)
-        {
-            var currentTagIds = s.Tags.Select(t => t.TagId).ToList();
-            s.Tags.Clear();
-            foreach (var tagId in currentTagIds)
-            {
-                if (tagMap.TryGetValue(tagId, out var currentTag))
-                    s.Tags.Add(currentTag);
-            }
+            // 	.AddTo(ref this.disposableBag);
         }
-    }
 
-    /// <summary>
-    /// 指定した SeriesCardViewModel の IsSelected プロパティ変化を監視し、BindingQueue と表示状態を更新します。
-    /// </summary>
-    /// <param name="cardViewModel">監視対象の SeriesCardViewModel。</param>
+        /// <summary>
+        /// 指定した SeriesCardViewModel の IsSelected プロパティ変化を監視し、BindingQueue と表示状態を更新します。
+        /// </summary>
+        /// <param name="cardViewModel">監視対象の SeriesCardViewModel。</param>
     private void subscribeIsSelectedForSeries(SeriesCardViewModel cardViewModel)
     {
         var subscription = cardViewModel.IsSelected
@@ -289,8 +265,11 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         // 初回のみ DB から取得して Store へ反映する
         if (this.mangaSeriesStore.All.Count == 0)
         {
-            var result = await this.mangaSeriesManager.GetAllSeriesAsync();
-            this.mangaSeriesStore.ReplaceAll(result);
+            using var managerScope = this.serviceScopeFactory.CreateScope();
+            var manager = managerScope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+            await manager.GetAllSeriesAsync();
+            // MangaSeriesManager内部でMangaSeriesStore.ReplaceAll()が実行済み
+            // CreateViewが自動追従するため、Home側での二重ReplaceAllは不要
         }
 
         // 毎回: Store の状態を元に SeriesCardViewModel.IsSelected を復元する
@@ -300,9 +279,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         {
             cardViewModel.IsSelected.Value = dispatcher.Contains(cardViewModel.Series.Value.SeriesId);
         }
-
-        // 毎回: タグ再同期
-        this.refreshSeriesTagsFromStore();
 
         // 毎回: ボタン状態更新
         var count = this.Series.Count(c => c.IsSelected.Value);

@@ -31,8 +31,8 @@ public class SeriesStatusBadgeBrushConverter : IValueConverter
         }
         else if (value is Controls.SeriesVolumeStatusViewModel viewModel)
         {
-            seriesCompleted = viewModel.SeriesCompleted;
-            isOwnedCompleted = viewModel.IsOwnedCompleted;
+            seriesCompleted = viewModel.SeriesCompleted.Value;
+            isOwnedCompleted = viewModel.IsOwnedCompleted.Value;
         }
         else
         {

@@ -227,7 +227,7 @@
                                     ClipToBounds="True"
                                     Margin="0,0,8,0">
                                     <Image
-                                        Source="{Binding Series, Converter={extensions:ThumbnailImageConverterExtension}}"
+                                        Source="{Binding Series.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
                                         Width="80"
                                         Height="112"
                                         Stretch="UniformToFill"
@@ -242,7 +242,7 @@
 
                                     <!-- タイトル -->
                                     <TextBlock
-                                        Text="{Binding Series.Title}"
+                                        Text="{Binding Series.Value.Title}"
                                         FontSize="13"
                                         FontWeight="SemiBold"
                                         MaxHeight="36"
@@ -254,7 +254,7 @@
 
                                     <!-- あらすじ（省略） -->
                                     <TextBlock
-                                        Text="{Binding Series.Description}"
+                                        Text="{Binding Series.Value.Description}"
                                         FontSize="11"
                                         Opacity="0.6"
                                         MaxHeight="48"
@@ -278,7 +278,7 @@
                                     MouseOverBorderBrush="Transparent"
                                     ToolTip="編集"
                                     Command="{Binding DataContext.EditSeriesCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=Page}}"
-                                    CommandParameter="{Binding Series}">
+                                    CommandParameter="{Binding Series.Value}">
                                     <TextBlock
                                         Text="▶"
                                         FontSize="12"
