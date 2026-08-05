@@ -5,51 +5,41 @@ using System.Windows.Media;
 namespace MangaBinder.Converters;
 
 /// <summary>
-/// <see cref="MangaSeries"/> の完結状態・所持状況をバッジ背景色 <see cref="Brush"/> に変換する <see cref="IValueConverter"/> です。
+/// 完結状態・所持状況をバッジ背景色 <see cref="Brush"/> に変換する <see cref="IMultiValueConverter"/> です。
 /// </summary>
-public class SeriesStatusBadgeBrushConverter : IValueConverter
+public class SeriesStatusBadgeBrushConverter : IMultiValueConverter
 {
-    /// <summary>完結済み・全巻所持済みの場合の背景色（金系）です。</summary>
-    private static readonly SolidColorBrush CompletedAndOwnedBrush = makeFrozen("#C89B3C");
+	/// <summary>完結済み・全巻所持済みの場合の背景色（金系）です。</summary>
+	private static readonly SolidColorBrush CompletedAndOwnedBrush = makeFrozen("#C89B3C");
 
-    /// <summary>連載中の場合の背景色（青系）です。</summary>
-    private static readonly SolidColorBrush OngoingBrush = makeFrozen("#3B82C4");
+	/// <summary>連載中の場合の背景色（青系）です。</summary>
+	private static readonly SolidColorBrush OngoingBrush = makeFrozen("#3B82C4");
 
-    /// <summary>完結済み・未所持ありの場合の背景色（薄いグレー）です。</summary>
-    private static readonly SolidColorBrush CompletedNotOwnedBrush = makeFrozen("#909090", 0.6);
+	/// <summary>完結済み・未所持ありの場合の背景色（薄いグレー）です。</summary>
+	private static readonly SolidColorBrush CompletedNotOwnedBrush = makeFrozen("#909090", 0.6);
 
-    /// <inheritdoc/>
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-    {
-        var seriesCompleted = false;
-        var isOwnedCompleted = false;
+	/// <inheritdoc/>
+	public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+	{
+		// values[0]: SeriesCompleted (bool)
+		// values[1]: IsOwnedCompleted (bool)
+		if (values == null || values.Length < 2)
+			return CompletedNotOwnedBrush;
 
-        if (value is MangaSeries series)
-        {
-            seriesCompleted = series.SeriesCompleted;
-            isOwnedCompleted = series.IsOwnedCompleted;
-        }
-        else if (value is Controls.SeriesVolumeStatusViewModel viewModel)
-        {
-            seriesCompleted = viewModel.SeriesCompleted.Value;
-            isOwnedCompleted = viewModel.IsOwnedCompleted.Value;
-        }
-        else
-        {
-            return CompletedNotOwnedBrush;
-        }
+		var seriesCompleted = (bool)values[0];
+		var isOwnedCompleted = (bool)values[1];
 
-        if (!seriesCompleted)
-            return OngoingBrush;
+		if (!seriesCompleted)
+			return OngoingBrush;
 
-        return isOwnedCompleted
-            ? CompletedAndOwnedBrush
-            : CompletedNotOwnedBrush;
-    }
+		return isOwnedCompleted
+			? CompletedAndOwnedBrush
+			: CompletedNotOwnedBrush;
+	}
 
-    /// <inheritdoc/>
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        => System.Windows.Data.Binding.DoNothing;
+	/// <inheritdoc/>
+	public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+		=> throw new NotSupportedException();
 
 	/// <summary>
 	/// 16進数カラーコードから Freeze 済みの <see cref="SolidColorBrush"/> を生成します。

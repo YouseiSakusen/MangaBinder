@@ -46,10 +46,32 @@ public class SeriesCardViewModel : IDisposable
 		this.Series = new BindableReactiveProperty<MangaSeries>(series)
 			.AddTo(ref this.disposableBag);
 
-		// VolumeStatus の初期化
-		this.VolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel>(
-			SeriesVolumeStatusViewModel.FromSeries(series))
+		// 巻情報表示用の SeriesVolumeStatusViewModel を生成（1インスタンスのみ保持）
+		var volumeStatus = SeriesVolumeStatusViewModel.FromSeries(series);
+		this.VolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel>(volumeStatus)
 			.AddTo(ref this.disposableBag);
+
+		// volumeStatus は BindableReactiveProperty に保持されるため、ここでは管理不要だが
+		// IDisposable であるため、Dispose 時に破棄されるよう disposableBag に登録
+		volumeStatus.AddTo(ref this.disposableBag);
+
+		// Series 通知を SeriesVolumeStatusViewModel.Series へ流す
+		// 同一インスタンスの ForceNotify() にも対応するため、通知が来たら内容をチェック
+		this.Series.Subscribe(newSeries =>
+		{
+			// 新しい Series インスタンスが設定された場合は、VolumeStatus.Value.Series.Value に設定
+			// 同一インスタンスの ForceNotify() 時も、ここに到達する
+			if (this.VolumeStatus.Value.Series.Value != newSeries)
+			{
+				this.VolumeStatus.Value.Series.Value = newSeries;
+			}
+			else if (this.VolumeStatus.Value.Series.Value == newSeries)
+			{
+				// 同一インスタンスの場合は ForceNotify() で再通知させる
+				this.VolumeStatus.Value.Series.ForceNotify();
+			}
+		})
+		.AddTo(ref this.disposableBag);
 
 		// IsSelected の初期値を BindingQueueStore から決定
 		var isInQueue = bindingQueueStore?.Contains(series.SeriesId) ?? false;
@@ -68,21 +90,13 @@ public class SeriesCardViewModel : IDisposable
 	}
 
 	/// <summary>
-	/// 現在の Series インスタンスから VolumeStatus を再生成します。
-	/// </summary>
-	public void RefreshVolumeStatus()
-	{
-		this.VolumeStatus.Value = SeriesVolumeStatusViewModel.FromSeries(this.Series.Value);
-	}
-
-	/// <summary>
 	/// 現在の Series の情報から表示を更新します。
-	/// 巻情報とタグ表示を最新の状態に反映させます。
+	/// タグ表示を最新の状態に反映させます。
+	/// Series 情報と巻情報は Series.ForceNotify() の通知ラインで自動更新されます。
 	/// </summary>
 	public void RefreshDisplay()
 	{
 		this.Series.ForceNotify();
-		this.RefreshVolumeStatus();
 		this.tagSelector.Refresh();
 	}
 

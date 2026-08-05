@@ -23,11 +23,16 @@
 		<!-- 全巻数バッジ -->
 		<Border
 			Grid.Column="0"
-			Background="{Binding Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
 			CornerRadius="3"
 			Padding="6,2"
 			Margin="0,0,10,0"
 			VerticalAlignment="Center">
+			<Border.Background>
+				<MultiBinding Converter="{extensions:SeriesStatusBadgeBrushConverterExtension}">
+					<Binding Path="SeriesCompleted.Value" />
+					<Binding Path="IsOwnedCompleted.Value" />
+				</MultiBinding>
+			</Border.Background>
 			<TextBlock
 				Text="{Binding TotalVolumeText.Value}"
 				FontSize="11"
