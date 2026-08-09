@@ -138,8 +138,14 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <inheritdoc/>
 	public ValueTask InitializeDataAsync()
 	{
-		// Store の Count 監視は既にコンストラクタで ObserveCountChanged() で設定済み
-		// 表示一覧も CreateView で Store 直結のため、初期化処理不要
+		// 現在表示されているカードへ Series.ForceNotify() を呼び出す
+		// これにより、他画面で同じ MangaSeries 正本インスタンスの内容が更新された場合でも、
+		// 現在表示されているカードが最新内容を再評価できる
+		foreach (var card in this.Series)
+		{
+			card.Series.ForceNotify();
+		}
+
 		return ValueTask.CompletedTask;
 	}
 

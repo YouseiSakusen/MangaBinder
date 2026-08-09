@@ -7,6 +7,7 @@ using MangaBinder.Tags;
 using ObservableCollections;
 using R3;
 using Reactive.Bindings.R3;
+using Reactive.Bindings.R3.Notifiers;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.IO;
@@ -91,6 +92,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>タイトル入力欄へのフォーカス要求を取得します。</summary>
 	public BindableReactiveProperty<int> TitleFocusRequest { get; }
+
+	/// <summary>EditorPage 全体の初期化要求を取得します。</summary>
+	public BooleanNotifier EditorPageInitializeRequest { get; }
 
 	/// <summary>素材ファイル一覧を取得します。</summary>
 	public ObservableCollection<MaterialFileItemViewModel> MaterialFiles { get; }
@@ -343,6 +347,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		this.TitleFocusRequest = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
+
+		this.EditorPageInitializeRequest = new BooleanNotifier(false);
 
 		var materialFilesSource = new ObservableCollection<MaterialFileItemViewModel>();
 		this.MaterialFiles = materialFilesSource;
@@ -647,9 +653,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			this.IsMaterialFilesEmpty.Value = isEmpty;
 			this.HasMaterialFiles.Value = !isEmpty;
 
-			// タイトル入力欄へのフォーカスを要求
-			this.TitleFocusRequest.Value++;
-
 			// 登録先素材フォルダの選択可否を判定
 			if (editingSeries.SeriesId != 0 && editingSeries.HasMaterialSources)
 			{
@@ -673,6 +676,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 			// MaterialFiles の構築完了後、素材サイズを計算
 			await this.updateMaterialTotalSizeAsync();
+
+			// EditorPage 全体を初期表示状態へ戻す
+			this.EditorPageInitializeRequest.SwitchValue();
 		}
 	}
 

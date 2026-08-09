@@ -111,9 +111,9 @@
 								</Grid.ColumnDefinitions>
 
 								<Border Grid.Column="0" Width="140" Height="196" VerticalAlignment="Top"
-										Background="{DynamicResource ControlFillColorDefaultBrush}"
-										CornerRadius="4" ClipToBounds="True">
-									<Image Source="{Binding Series, Converter={extensions:ThumbnailImageConverterExtension}}"
+									Background="{DynamicResource ControlFillColorDefaultBrush}"
+									CornerRadius="4" ClipToBounds="True">
+									<Image Source="{Binding Series.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
 										   Width="140" Height="196" Stretch="UniformToFill"
 										   RenderOptions.BitmapScalingMode="LowQuality" />
 								</Border>
@@ -141,7 +141,7 @@
 										<!-- タイトル -->
 										<TextBox Grid.Column="0"
 												 Style="{StaticResource TitleReadOnlyTextBoxStyle}"
-												 Text="{Binding Series.Title}"
+												 Text="{Binding Series.Value.Title}"
 												 FontSize="16" FontWeight="SemiBold"
 												 MaxHeight="72"
 												 HorizontalAlignment="Stretch"
@@ -150,7 +150,23 @@
 									</Grid>
 
 									<!-- Row1: 巻数情報 -->
-									<controls:SeriesVolumeStatus Grid.Row="1" DataContext="{Binding VolumeStatus}" Margin="0,0,0,8" />
+									<Grid Grid.Row="1" Margin="0,0,0,8">
+
+										<Grid.ColumnDefinitions>
+											<ColumnDefinition Width="*" />
+											<ColumnDefinition Width="Auto" />
+										</Grid.ColumnDefinitions>
+
+										<!-- 巻数情報 -->
+										<controls:SeriesVolumeStatus Grid.Column="0" DataContext="{Binding VolumeStatus.Value}" />
+
+										<!-- メモアイコン -->
+										<controls:SeriesMemo
+											Grid.Column="1"
+											DataContext="{Binding MemoStatus.Value}"
+											HorizontalAlignment="Right"
+											VerticalAlignment="Center" />
+									</Grid>
 
 									<!-- Row2: あらすじボタン -->
 									<ui:Button Grid.Row="2" 
@@ -158,7 +174,7 @@
 											   HorizontalAlignment="Left"
 											   Margin="0,0,0,8"
 											   Padding="4,2"
-											   IsEnabled="{Binding HasSynopsis}"
+											   IsEnabled="{Binding HasSynopsis.Value}"
 											   behaviors:ShowFlyoutOnClickBehavior.Flyout="{Binding ElementName=SynopsisFlyout}">
 										<StackPanel Orientation="Horizontal">
 											<ui:SymbolIcon Symbol="DocumentText24" FontSize="16" Margin="0,0,6,0" />
@@ -170,26 +186,26 @@
 									<ui:Flyout Grid.Row="2" x:Name="SynopsisFlyout" Placement="Right"  Margin="50, 0, 0, 0">
 										<StackPanel MaxWidth="550" Margin="0">
 											<!-- タイトル -->
-											<TextBlock Text="{Binding Series.Title}" 
+											<TextBlock Text="{Binding Series.Value.Title}" 
 													   FontSize="14" FontWeight="SemiBold"
 													   TextWrapping="Wrap" Margin="0,0,0,12" />
 
 											<!-- あらすじ本文 -->
 											<ScrollViewer MaxHeight="300" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Margin="0,0,0,12">
-												<TextBlock Text="{Binding Series.Description}"
+												<TextBlock Text="{Binding Series.Value.Description}"
 														   FontSize="12" TextWrapping="Wrap"
 														   Opacity="0.85" />
 											</ScrollViewer>
 
 											<!-- あらすじ出典 -->
 											<StackPanel Orientation="Horizontal"
-														Visibility="{Binding Series.HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}"
+														Visibility="{Binding Series.Value.HasDescriptionSource, Converter={StaticResource BooleanToVisibilityConverter}}"
 														Margin="0,0,0,0">
 												<TextBlock FontSize="11" Opacity="0.6" VerticalAlignment="Center">出典：</TextBlock>
-												<TextBlock Text="{Binding Series.DescriptionSourceName}" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
+												<TextBlock Text="{Binding Series.Value.DescriptionSourceName}" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
 												<TextBlock FontSize="11" Opacity="0.6" VerticalAlignment="Center">&#x20;/&#x20;</TextBlock>
 												<TextBox Style="{StaticResource TitleReadOnlyTextBoxStyle}"
-														 Text="{Binding Series.DescriptionSourceTitle}"
+														 Text="{Binding Series.Value.DescriptionSourceTitle}"
 														 FontSize="11" Opacity="0.6" VerticalAlignment="Center"
 														 Focusable="True" Cursor="IBeam" />
 											</StackPanel>
@@ -210,7 +226,7 @@
 											<Style TargetType="Border">
 												<Setter Property="Visibility" Value="Collapsed" />
 												<Style.Triggers>
-													<DataTrigger Binding="{Binding Series.HasNestedArchive}" Value="True">
+													<DataTrigger Binding="{Binding Series.Value.HasNestedArchive}" Value="True">
 														<Setter Property="Visibility" Value="Visible" />
 													</DataTrigger>
 												</Style.Triggers>
@@ -235,7 +251,7 @@
 										</Grid.ColumnDefinitions>
 
 										<!-- 作者名 -->
-										<TextBlock Grid.Column="0" Text="{Binding Series.Author}"
+										<TextBlock Grid.Column="0" Text="{Binding Series.Value.Author}"
 												   FontSize="11" Opacity="0.55"
 												   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
 												   VerticalAlignment="Center" Margin="0,0,16,0" />

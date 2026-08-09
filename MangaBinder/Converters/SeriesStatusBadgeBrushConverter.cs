@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 
@@ -9,9 +10,6 @@ namespace MangaBinder.Converters;
 /// </summary>
 public class SeriesStatusBadgeBrushConverter : IMultiValueConverter
 {
-	/// <summary>完結済み・全巻所持済みの場合の背景色（金系）です。</summary>
-	private static readonly SolidColorBrush CompletedAndOwnedBrush = makeFrozen("#C89B3C");
-
 	/// <summary>連載中の場合の背景色（青系）です。</summary>
 	private static readonly SolidColorBrush OngoingBrush = makeFrozen("#3B82C4");
 
@@ -32,9 +30,14 @@ public class SeriesStatusBadgeBrushConverter : IMultiValueConverter
 		if (!seriesCompleted)
 			return OngoingBrush;
 
-		return isOwnedCompleted
-			? CompletedAndOwnedBrush
-			: CompletedNotOwnedBrush;
+		if (isOwnedCompleted)
+		{
+			// App.xaml で定義した OwnedCompletedBrush を取得する
+			var completedAndOwnedBrush = Application.Current.Resources["OwnedCompletedBrush"] as Brush;
+			return completedAndOwnedBrush ?? CompletedNotOwnedBrush;
+		}
+
+		return CompletedNotOwnedBrush;
 	}
 
 	/// <inheritdoc/>

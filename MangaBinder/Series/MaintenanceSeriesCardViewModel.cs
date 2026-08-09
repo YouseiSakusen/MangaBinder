@@ -23,6 +23,11 @@ public class MaintenanceSeriesCardViewModel : IDisposable
 	public BindableReactiveProperty<SeriesVolumeStatusViewModel> VolumeStatus { get; }
 
 	/// <summary>
+	/// メモ表示用の ViewModel です。
+	/// </summary>
+	public BindableReactiveProperty<SeriesMemoViewModel> MemoStatus { get; }
+
+	/// <summary>
 	/// <see cref="MaintenanceSeriesCardViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="series">ラップする MangaSeries。</param>
@@ -41,6 +46,15 @@ public class MaintenanceSeriesCardViewModel : IDisposable
 		// IDisposable であるため、Dispose 時に破棄されるよう disposableBag に登録
 		volumeStatus.AddTo(ref this.disposableBag);
 
+		// メモ表示用の SeriesMemoViewModel を生成（1インスタンスのみ保持）
+		var memoStatus = SeriesMemoViewModel.FromSeries(series);
+		this.MemoStatus = new BindableReactiveProperty<SeriesMemoViewModel>(memoStatus)
+			.AddTo(ref this.disposableBag);
+
+		// memoStatus は BindableReactiveProperty に保持されるため、ここでは管理不要だが
+		// IDisposable であるため、Dispose 時に破棄されるよう disposableBag に登録
+		memoStatus.AddTo(ref this.disposableBag);
+
 		// Series 通知を SeriesVolumeStatusViewModel.Series へ流す
 		// 同一インスタンスの ForceNotify() にも対応するため、通知が来たら内容をチェック
 		this.Series.Subscribe(newSeries =>
@@ -55,6 +69,17 @@ public class MaintenanceSeriesCardViewModel : IDisposable
 			{
 				// 同一インスタンスの場合は ForceNotify() で再通知させる
 				this.VolumeStatus.Value.Series.ForceNotify();
+			}
+
+			// メモ表示用の通知も同じ形式で流す
+			if (this.MemoStatus.Value.Series.Value != newSeries)
+			{
+				this.MemoStatus.Value.Series.Value = newSeries;
+			}
+			else if (this.MemoStatus.Value.Series.Value == newSeries)
+			{
+				// 同一インスタンスの場合は ForceNotify() で再通知させる
+				this.MemoStatus.Value.Series.ForceNotify();
 			}
 		})
 		.AddTo(ref this.disposableBag);

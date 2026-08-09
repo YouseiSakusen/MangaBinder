@@ -16,6 +16,8 @@
       </ResourceDictionary.MergedDictionaries>
       <!-- MangaBinder アプリカラー：製本・本・クラフト感に合う落ち着いた茶系 -->
       <SolidColorBrush x:Key="BindingAccentBrush" Color="#7B5235" />
+      <!-- 完結済み・全巻所持済み＆メモあり表示用の共通色（金系） -->
+      <SolidColorBrush x:Key="OwnedCompletedBrush" Color="#C89B3C" />
     </ResourceDictionary>
   </Application.Resources>
 </Application>

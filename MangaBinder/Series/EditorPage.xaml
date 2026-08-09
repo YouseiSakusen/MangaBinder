@@ -14,7 +14,8 @@
       Title="作品編集"
       ui:NavigationView.HeaderContent="作品編集"
       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-      ScrollViewer.CanContentScroll="False">
+      ScrollViewer.CanContentScroll="False"
+      behaviors:EditorPageInitializeBehavior.Request="{Binding EditorPageInitializeRequest.Value}">
 
 	<Page.Resources>
 		<converters:ThumbnailPreviewOrDefaultConverter x:Key="ThumbnailPreviewOrDefaultConverter" />
@@ -212,12 +213,13 @@
                                 <Run Text=" *" Foreground="Red" />
                             </TextBlock>
                             <ui:TextBox
+                                x:Name="TitleTextBox"
                                 Grid.Row="0"
                                 Grid.Column="1"
                                 InputMethod.PreferredImeState="On"
                                 Margin="0,0,0,8"
                                 Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                behaviors:FocusOnChangedBehavior.Request="{Binding TitleFocusRequest.Value}"
+                                behaviors:FocusAndSelectAllBehavior.Request="{Binding TitleFocusRequest.Value}"
                                 behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                 behaviors:LostFocusNotificationBehavior.Command="{Binding TitleLostFocusCommand}"
                                 PlaceholderText="作品のタイトルを入力してください" />
@@ -300,6 +302,7 @@
 
                         <!-- あらすじ -->
                         <ui:TextBox
+                            x:Name="DescriptionTextBox"
                             Grid.Row="1"
                             Grid.Column="0"
                             InputMethod.PreferredImeState="On"
@@ -351,6 +354,7 @@
 
                         <!-- メモ -->
                         <ui:TextBox
+                            x:Name="MemoTextBox"
                             Grid.Row="1"
                             Grid.Column="1"
                             InputMethod.PreferredImeState="On"
@@ -424,6 +428,7 @@
 									Grid.Column="1"
 									Value="{Binding VolumeStatus.EndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 									behaviors:NumberBoxTextChangedBehavior.Command="{Binding VolumeStatus.EndVolumeTextInputCommand}"
+									behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
 									Width="120"
 									PlaceholderText="0"
 									Minimum="1"
@@ -466,6 +471,7 @@
 								<ui:NumberBox
 									Grid.Column="7"
 									Value="{Binding VolumeStatus.StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
 									Width="120"
 									PlaceholderText="0"
 									Minimum="1"
@@ -583,6 +589,7 @@
 
 							<!-- Row 1: ListView -->
 							<ListView
+								x:Name="MaterialFilesListView"
 								Grid.Row="1"
 								Margin="0,0,0,12"
 								ItemsSource="{Binding MaterialFiles}"
@@ -699,6 +706,7 @@
 							<ui:NumberBox
 								Grid.Column="1"
 								Value="{Binding VolumeStatus.OwnedMaxVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+								behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
 								PlaceholderText="0"
 								Minimum="0"
 								Maximum="999"

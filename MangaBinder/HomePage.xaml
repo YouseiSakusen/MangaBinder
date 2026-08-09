@@ -410,14 +410,18 @@
                                 <!-- Col1: 補助情報領域（作者 + タグ） -->
                                 <Grid Grid.Column="1">
                                     <Grid.RowDefinitions>
-                                        <!-- 余白 -->
+                                        <!-- メモアイコン領域 -->
                                         <RowDefinition Height="*" />
                                         <!-- 作者名 + タグ -->
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <!-- Row0: 余白 -->
-                                    <Border Grid.Row="0" />
+                                    <!-- Row0: メモアイコン -->
+                                    <controls:SeriesMemo
+                                        Grid.Row="0"
+                                        DataContext="{Binding MemoStatus.Value}"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top" />
 
                                     <!-- Row1: 作者名 + タグ -->
                                     <Grid Grid.Row="1">

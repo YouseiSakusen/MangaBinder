@@ -25,7 +25,7 @@
             CornerRadius="4"
             ClipToBounds="True">
             <Image
-                Source="{Binding Series, Converter={extensions:ThumbnailImageConverterExtension}}"
+                Source="{Binding Series.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
                 Stretch="UniformToFill"
                 RenderOptions.BitmapScalingMode="LowQuality" />
         </Border>
@@ -42,7 +42,7 @@
             <!-- タイトル -->
             <TextBlock
                 Grid.Row="0"
-                Text="{Binding Series.Title}"
+                Text="{Binding Series.Value.Title}"
                 FontSize="14"
                 FontWeight="SemiBold"
                 TextWrapping="Wrap"
