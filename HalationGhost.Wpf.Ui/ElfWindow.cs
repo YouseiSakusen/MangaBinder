@@ -5,6 +5,7 @@ using System.Windows.Media;
 using HalationGhost.Wpf.Ui.Navigation;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
+using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
 namespace HalationGhost.Wpf.Ui;
@@ -24,6 +25,7 @@ public class ElfWindow : FluentWindow, INavigationWindow
 
 	/// <summary>
 	/// <see cref="ElfWindow"/> の新しいインスタンスを初期化します。
+	/// Windows のシステムテーマへの追従を開始します。
 	/// </summary>
 	public ElfWindow()
 	{
@@ -31,6 +33,9 @@ public class ElfWindow : FluentWindow, INavigationWindow
 		this.Loaded += this.ElfWindow_Loaded;
 		this.ContentRendered += this.ElfWindow_ContentRendered;
 		this.PreviewMouseDown += this.ElfWindow_PreviewMouseDown;
+
+		// Windows のシステムテーマへ追従
+		SystemThemeWatcher.Watch(this);
 	}
 
 	/// <summary>
@@ -270,11 +275,20 @@ public class ElfWindow : FluentWindow, INavigationWindow
 
 	/// <summary>
 	/// ウィンドウが閉じられるときに呼ばれます。
-	/// ここでウィンドウ位置・サイズの保存を行います。
+	/// ここで Windows システムテーマ監視を解除し、ウィンドウ位置・サイズの保存を行います。
 	/// </summary>
 	protected override void OnClosing(CancelEventArgs e)
 	{
 		base.OnClosing(e);
+
+		if (e.Cancel)
+		{
+			return;
+		}
+
+		// Windows のシステムテーマ監視を解除
+		// Window Handle がまだ有効なタイミングで実行する必要があります
+		SystemThemeWatcher.UnWatch(this);
 
 		if (!this.IsWindowPlacementEnabled || string.IsNullOrEmpty(this.windowPlacementFilePath))
 		{
@@ -283,6 +297,7 @@ public class ElfWindow : FluentWindow, INavigationWindow
 
 		this.SaveWindowPlacement();
 	}
+
 
 	/// <summary>
 	/// ウィンドウ位置・サイズ情報を保存ファイルから復元します。

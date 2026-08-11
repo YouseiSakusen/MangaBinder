@@ -18,6 +18,8 @@
       <SolidColorBrush x:Key="BindingAccentBrush" Color="#7B5235" />
       <!-- 完結済み・全巻所持済み＆メモあり表示用の共通色（金系） -->
       <SolidColorBrush x:Key="OwnedCompletedBrush" Color="#C89B3C" />
+      <!-- タグ表示用の共通色（薄いオレンジ～黄色） -->
+	  <SolidColorBrush x:Key="TagBrush" Color="#FFD983" />
     </ResourceDictionary>
   </Application.Resources>
 </Application>

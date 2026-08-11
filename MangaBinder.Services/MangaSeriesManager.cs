@@ -635,7 +635,8 @@ public class MangaSeriesManager
 	public async ValueTask<SeriesSaveResult> SaveSeriesAsync(
 		EditorStore editorStore,
 		IReadOnlyList<MaterialFile> materialFiles,
-		byte[]? thumbnailBytes)
+		byte[]? thumbnailBytes,
+		bool isBindingQueued)
 	{
 		ArgumentNullException.ThrowIfNull(editorStore);
 		ArgumentNullException.ThrowIfNull(editorStore.EditingSeries);
@@ -644,6 +645,8 @@ public class MangaSeriesManager
 		var selectedMaterialSourceFolder = editorStore.SelectedMaterialSourceFolder;
 
 		// editingSeries の状態で保存方法を判定
+		SeriesSaveResult saveResult;
+
 		if (editingSeries.SeriesId != 0 && !editingSeries.IsWork)
 		{
 			// 既存作品の場合：タイトル判定と DeepCopy を取得してから ExistingSeriesSaveManager へ委譲
@@ -657,15 +660,23 @@ public class MangaSeriesManager
 
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var saveManager = scope.ServiceProvider.GetRequiredKeyedService<ISeriesSaveManager>(SeriesSaveType.Existing);
-			return await saveManager.SaveAsync(editingSeries, originalSeries, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
+			saveResult = await saveManager.SaveAsync(editingSeries, originalSeries, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
 		}
 		else
 		{
 			// 新規・登録待ち作品の場合：NewSeriesSaveManager へ委譲（originalSeries = null）
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var saveManager = scope.ServiceProvider.GetRequiredKeyedService<ISeriesSaveManager>(SeriesSaveType.New);
-			return await saveManager.SaveAsync(editingSeries, null, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
+			saveResult = await saveManager.SaveAsync(editingSeries, null, materialFiles, selectedMaterialSourceFolder, thumbnailBytes);
 		}
+
+		// 保存成功後、製本待ち状態を反映
+		if (saveResult.Series != null)
+		{
+			this.updateBindingQueue(saveResult.Series, isBindingQueued);
+		}
+
+		return saveResult;
 	}
 
 	/// <summary>
@@ -724,6 +735,37 @@ public class MangaSeriesManager
 
 		// MangaSeriesStore からも削除
 		this.mangaSeriesStore.Remove(series.SeriesId);
+	}
+
+	/// <summary>
+	/// 保存後の製本待ち状態をBindingQueueDispatcherに反映します。
+	/// </summary>
+	/// <remarks>
+	/// ON: BindingQueueDispatcher.Add(...)
+	/// OFF: BindingQueueDispatcher.Remove(series.SeriesId)
+	/// 
+	/// BindingQueueStore側で重複Add/存在しないRemoveを無視するため、
+	/// 事前の状態判定は不要です。
+	/// </remarks>
+	/// <param name="series">保存済みの正式作品。</param>
+	/// <param name="isBindingQueued">製本待ちへの登録状態。</param>
+	private void updateBindingQueue(MangaSeries series, bool isBindingQueued)
+	{
+		if (isBindingQueued)
+		{
+			this.bindingQueueDispatcher.Add(
+				new BindingSeries
+				{
+					Series = series,
+					Status = BindingStartStatus.Configuring,
+					AddedAt = DateTime.Now,
+					UpdatedAt = DateTime.Now,
+				});
+		}
+		else
+		{
+			this.bindingQueueDispatcher.Remove(series.SeriesId);
+		}
 	}
 
 	/// <summary>

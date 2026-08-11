@@ -120,6 +120,8 @@ public class AppSettingsService
 		sql.AppendLine(" 	, ThumbnailFolderPath = :ThumbnailFolderPath ");
 		sql.AppendLine(" 	, ThumbnailWidth      = :ThumbnailWidth ");
 		sql.AppendLine(" 	, ThumbnailHeight     = :ThumbnailHeight ");
+		sql.AppendLine(" 	, ThumbnailJpegQuality = :ThumbnailJpegQuality ");
+		sql.AppendLine(" 	, ThumbnailBackgroundColor = :ThumbnailBackgroundColor ");
 		sql.AppendLine(" 	, BindingDefaultImageExtension   = :BindingDefaultImageExtension ");
 		sql.AppendLine(" 	, BindingDefaultArchiveExtension = :BindingDefaultArchiveExtension ");
 		sql.AppendLine(" 	, BindingConvertImagesToDefaultFormat = :BindingConvertImagesToDefaultFormat ");
@@ -133,6 +135,8 @@ public class AppSettingsService
 			ThumbnailFolderPath = this.appSettings.ThumbnailFolderPath.Value,
 			ThumbnailWidth = this.appSettings.ThumbnailWidth.Value,
 			ThumbnailHeight = this.appSettings.ThumbnailHeight.Value,
+			ThumbnailJpegQuality = this.appSettings.ThumbnailJpegQuality.Value,
+			ThumbnailBackgroundColor = this.appSettings.ThumbnailBackgroundColor.Value,
 			BindingDefaultImageExtension = this.appSettings.BindingDefaultImageExtension.Value,
 			BindingDefaultArchiveExtension = this.appSettings.BindingDefaultArchiveExtension.Value,
 			BindingConvertImagesToDefaultFormat = this.appSettings.BindingConvertImagesToDefaultFormat.Value ? 1 : 0,
@@ -184,6 +188,8 @@ public class AppSettingsService
 		sql.AppendLine(" 	, ThumbnailFolderPath ");
 		sql.AppendLine(" 	, ThumbnailWidth ");
 		sql.AppendLine(" 	, ThumbnailHeight ");
+		sql.AppendLine(" 	, ThumbnailJpegQuality ");
+		sql.AppendLine(" 	, ThumbnailBackgroundColor ");
 		sql.AppendLine(" 	, BindingDefaultImageExtension ");
 		sql.AppendLine(" 	, BindingDefaultArchiveExtension ");
 		sql.AppendLine(" 	, BindingConvertImagesToDefaultFormat ");
@@ -213,23 +219,25 @@ public class AppSettingsService
 			this.appSettings.ThumbnailFolderPath.Value = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
 			this.appSettings.ThumbnailWidth.Value = reader.IsDBNull(2) ? 160 : reader.GetInt32(2);
 			this.appSettings.ThumbnailHeight.Value = reader.IsDBNull(3) ? 224 : reader.GetInt32(3);
-			this.appSettings.BindingDefaultImageExtension.Value = reader.IsDBNull(4) ? ".jpg" : reader.GetString(4);
-			this.appSettings.BindingDefaultArchiveExtension.Value = reader.IsDBNull(5) ? ".zip" : reader.GetString(5);
-			this.appSettings.BindingConvertImagesToDefaultFormat.Value = !reader.IsDBNull(6) && reader.GetInt32(6) != 0;
-			this.appSettings.WorkVolumeFolderNamePrefix.Value = reader.IsDBNull(7) ? string.Empty : reader.GetString(7);
-			this.appSettings.WorkVolumeFolderNameSuffix.Value = reader.IsDBNull(8) ? "巻" : reader.GetString(8);
-			this.appSettings.SeriesListVerticalOffset.Value = reader.IsDBNull(9) ? 0.0 : reader.GetDouble(9);
-			this.appSettings.BindingZipAuthorLeftBracket.Value = reader.IsDBNull(10) ? "[" : reader.GetString(10);
-			this.appSettings.BindingZipAuthorRightBracket.Value = reader.IsDBNull(11) ? "]" : reader.GetString(11);
-			this.appSettings.BindingZipNameSeparator.Value = reader.IsDBNull(12) ? " " : reader.GetString(12);
-			this.appSettings.BindingZipNormalVolumePrefix.Value = reader.IsDBNull(13) ? "第" : reader.GetString(13);
-			this.appSettings.BindingZipNormalVolumeSeparator.Value = reader.IsDBNull(14) ? "-" : reader.GetString(14);
-			this.appSettings.BindingZipNormalVolumeSuffix.Value = reader.IsDBNull(15) ? "巻" : reader.GetString(15);
-			this.appSettings.BindingZipCompleteVolumePrefix.Value = reader.IsDBNull(16) ? "全" : reader.GetString(16);
-			this.appSettings.BindingZipCompleteVolumeSuffix.Value = reader.IsDBNull(17) ? "巻" : reader.GetString(17);
-			this.appSettings.BindingZipPartialCompleteVolumePrefix.Value = reader.IsDBNull(18) ? "第" : reader.GetString(18);
-			this.appSettings.BindingZipPartialCompleteVolumeSeparator.Value = reader.IsDBNull(19) ? "-全" : reader.GetString(19);
-			this.appSettings.BindingZipPartialCompleteVolumeSuffix.Value = reader.IsDBNull(20) ? "巻" : reader.GetString(20);
+			this.appSettings.ThumbnailJpegQuality.Value = reader.IsDBNull(4) ? 80 : reader.GetInt32(4);
+			this.appSettings.ThumbnailBackgroundColor.Value = reader.IsDBNull(5) ? "#FEFEFE" : reader.GetString(5);
+			this.appSettings.BindingDefaultImageExtension.Value = reader.IsDBNull(6) ? ".jpg" : reader.GetString(6);
+			this.appSettings.BindingDefaultArchiveExtension.Value = reader.IsDBNull(7) ? ".zip" : reader.GetString(7);
+			this.appSettings.BindingConvertImagesToDefaultFormat.Value = !reader.IsDBNull(8) && reader.GetInt32(8) != 0;
+			this.appSettings.WorkVolumeFolderNamePrefix.Value = reader.IsDBNull(9) ? string.Empty : reader.GetString(9);
+			this.appSettings.WorkVolumeFolderNameSuffix.Value = reader.IsDBNull(10) ? "巻" : reader.GetString(10);
+			this.appSettings.SeriesListVerticalOffset.Value = reader.IsDBNull(11) ? 0.0 : reader.GetDouble(11);
+			this.appSettings.BindingZipAuthorLeftBracket.Value = reader.IsDBNull(12) ? "[" : reader.GetString(12);
+			this.appSettings.BindingZipAuthorRightBracket.Value = reader.IsDBNull(13) ? "]" : reader.GetString(13);
+			this.appSettings.BindingZipNameSeparator.Value = reader.IsDBNull(14) ? " " : reader.GetString(14);
+			this.appSettings.BindingZipNormalVolumePrefix.Value = reader.IsDBNull(15) ? "第" : reader.GetString(15);
+			this.appSettings.BindingZipNormalVolumeSeparator.Value = reader.IsDBNull(16) ? "-" : reader.GetString(16);
+			this.appSettings.BindingZipNormalVolumeSuffix.Value = reader.IsDBNull(17) ? "巻" : reader.GetString(17);
+			this.appSettings.BindingZipCompleteVolumePrefix.Value = reader.IsDBNull(18) ? "全" : reader.GetString(18);
+			this.appSettings.BindingZipCompleteVolumeSuffix.Value = reader.IsDBNull(19) ? "巻" : reader.GetString(19);
+			this.appSettings.BindingZipPartialCompleteVolumePrefix.Value = reader.IsDBNull(20) ? "第" : reader.GetString(20);
+			this.appSettings.BindingZipPartialCompleteVolumeSeparator.Value = reader.IsDBNull(21) ? "-全" : reader.GetString(21);
+			this.appSettings.BindingZipPartialCompleteVolumeSuffix.Value = reader.IsDBNull(22) ? "巻" : reader.GetString(22);
 		}
 	}
 

@@ -40,6 +40,12 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>サムネイル画像の高さ（ピクセル）を取得します。</summary>
 	public BindableReactiveProperty<int> ThumbnailHeight { get; }
 
+	/// <summary>JPEG品質（0～100）を取得します。</summary>
+	public BindableReactiveProperty<int> ThumbnailJpegQuality { get; }
+
+	/// <summary>サムネイル背景色（HTMLカラーコード）を取得します。</summary>
+	public BindableReactiveProperty<string> ThumbnailBackgroundColor { get; }
+
 	/// <summary>製本工程で出力する画像ファイルの既定拡張子を取得します。</summary>
 	public BindableReactiveProperty<string> BindingDefaultImageExtension { get; }
 
@@ -102,7 +108,13 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 
 	/// <inheritdoc/>
 	ThumbnailOptions IMangaBinderConfig.ThumbnailOptions =>
-		new() { Width = this.ThumbnailWidth.Value, Height = this.ThumbnailHeight.Value };
+		new() 
+		{ 
+			Width = this.ThumbnailWidth.Value, 
+			Height = this.ThumbnailHeight.Value,
+			JpegQuality = this.ThumbnailJpegQuality.Value,
+			BackgroundColor = this.ThumbnailBackgroundColor.Value,
+		};
 
 	/// <inheritdoc/>
 	string IMangaBinderConfig.ThumbnailFolderPath => this.ThumbnailFolderPath.Value;
@@ -122,6 +134,12 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 			.AddTo(ref this.disposableBag);
 
 		this.ThumbnailHeight = new BindableReactiveProperty<int>(224)
+			.AddTo(ref this.disposableBag);
+
+		this.ThumbnailJpegQuality = new BindableReactiveProperty<int>(80)
+			.AddTo(ref this.disposableBag);
+
+		this.ThumbnailBackgroundColor = new BindableReactiveProperty<string>("#FEFEFE")
 			.AddTo(ref this.disposableBag);
 
 		this.BindingDefaultImageExtension = new BindableReactiveProperty<string>(".jpg")

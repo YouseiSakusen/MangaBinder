@@ -49,6 +49,13 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// </summary>
 	private bool needsTitleRevalidation;
 
+	/// <summary>
+	/// タイトル未入力時の通知を既に表示したかどうかを表します。
+	/// 同一 EditorPageViewModel インスタンスで通知は1回だけ表示するため、初回表示時に true に設定されます。
+	/// EditorPageViewModel は Transient のため、編集開始時にリセットする必要はありません。
+	/// </summary>
+	private bool hasShownTitleRequiredNotification;
+
 	/// <summary>編集対象の Series を取得します。</summary>
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
 
@@ -90,11 +97,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <summary>全巻所持が編集可能かどうかを取得または設定します。完結巻が null ではない場合のみ編集可能です。</summary>
 	public BindableReactiveProperty<bool> CanEditOwnedCompleted { get; }
 
-	/// <summary>タイトル入力欄へのフォーカス要求を取得します。</summary>
-	public BindableReactiveProperty<int> TitleFocusRequest { get; }
-
 	/// <summary>EditorPage 全体の初期化要求を取得します。</summary>
 	public BooleanNotifier EditorPageInitializeRequest { get; }
+
+	/// <summary>ユーザーがタイトル再入力を選択した場合のフォーカス要求を取得します。</summary>
+	public BindableReactiveProperty<int> TitleReinputFocusRequest { get; }
 
 	/// <summary>素材ファイル一覧を取得します。</summary>
 	public ObservableCollection<MaterialFileItemViewModel> MaterialFiles { get; }
@@ -128,7 +135,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public BindableReactiveProperty<BitmapSource?> ThumbnailPreviewImageSource { get; }
 
 	/// <summary>
-	/// 貼り付けたサムネイルの PNG byte[] を取得します。
+	/// サムネイルの JPEG byte[] を一時保持します。
+	/// ファイル参照と貼り付けの両方で使用されます。
 	/// 保存時に利用するための一時保持です。
 	/// </summary>
 	private byte[]? PastedThumbnailBytes { get; set; }
@@ -175,6 +183,20 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// 素材ファイルがある場合に有効になります。
 	/// </summary>
 	public BindableReactiveProperty<bool> RegisterSeriesCommandCanExecute { get; }
+
+	/// <summary>
+	/// 製本待ちへの登録状態を取得または設定します。
+	/// 正式登録済み作品の場合は現在のBindingQueue状態を反映し、
+	/// 新規作品・登録待ち作品の場合は初期値falseです。
+	/// </summary>
+	public BindableReactiveProperty<bool> IsBindingQueued { get; }
+
+	/// <summary>
+	/// タイトルが確定し、他の編集項目を操作可能かどうかを取得します。
+	/// 新規作品では初期値 false、登録待ち作品・既存作品では初期値 true です。
+	/// タイトル入力後の LostFocus で state が更新されます。
+	/// </summary>
+	public BindableReactiveProperty<bool> IsTitleConfirmed { get; }
 
 	/// <summary>
 	/// 作品を正式に MangaSeries へ登録するコマンドを取得します。
@@ -234,7 +256,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public ReactiveCommand<Unit> ShowDeleteSeriesDialogCommand { get; }
 
 	/// <summary>
-	/// タイトル再入力待ち状態をリセットするコマンドを取得します。
+	/// タイトル再Validation フラグをリセットするコマンドを取得します。
+	/// 作品削除操作時にタイトルの再Validationが発生しないようにするために使用します。
 	/// </summary>
 	public ReactiveCommand<Unit> ResetTitleRevalidationCommand { get; }
 
@@ -345,10 +368,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			})
 			.AddTo(ref this.disposableBag);
 
-		this.TitleFocusRequest = new BindableReactiveProperty<int>(0)
-			.AddTo(ref this.disposableBag);
-
 		this.EditorPageInitializeRequest = new BooleanNotifier(false);
+
+		this.TitleReinputFocusRequest = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
 
 		var materialFilesSource = new ObservableCollection<MaterialFileItemViewModel>();
 		this.MaterialFiles = materialFilesSource;
@@ -407,9 +430,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		// PasteThumbnailCommand: クリップボードからサムネイルを貼り付けるコマンド
 		this.PasteThumbnailCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
-		this.PasteThumbnailCommand.Subscribe(_ =>
+		this.PasteThumbnailCommand.Subscribe(async _ =>
 		{
-			this.PasteThumbnailAsync();
+			await this.PasteThumbnailAsync();
 		});
 
 		// SelectThumbnailCommand: ファイルから画像を選択するコマンド
@@ -455,6 +478,21 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		// RegisterSeriesCommandCanExecute: 登録ボタンの有効/無効状態
 		this.RegisterSeriesCommandCanExecute = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
+
+		// IsBindingQueued: 製本待ち登録状態
+		this.IsBindingQueued = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		// IsTitleConfirmed: タイトル確定状態
+		this.IsTitleConfirmed = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		// IsTitleConfirmed の変更を監視して一時保存ボタンの有効状態を更新
+		this.IsTitleConfirmed.Subscribe(_ =>
+		{
+			this.UpdateSaveWorkSeriesCommandCanExecute();
+		})
+		.AddTo(ref this.disposableBag);
 
 		// RegisterSeriesCommand: 正式登録コマンド
 		this.RegisterSeriesCommand = new ReactiveCommand<Unit>()
@@ -544,7 +582,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			await this.showDeleteSeriesDialogAsync();
 		});
 
-		// ResetTitleRevalidationCommand: タイトル再入力待ち状態をリセットするコマンド
+		// ResetTitleRevalidationCommand: タイトル再Validation フラグをリセット
 		this.ResetTitleRevalidationCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
 		this.ResetTitleRevalidationCommand.Subscribe(_ =>
@@ -674,12 +712,29 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			// 貼り付けたサムネイルをクリア
 			this.ClearPastedThumbnail();
 
-			// MaterialFiles の構築完了後、素材サイズを計算
-			await this.updateMaterialTotalSizeAsync();
+				// 製本待ち状態を読み込む
+				// 正式登録済み作品の場合は現在のBindingQueue状態を反映
+				// 新規作品・登録待ち作品の場合は false
+				if (editingSeries.SeriesId != 0 && !editingSeries.IsWork)
+				{
+					this.IsBindingQueued.Value = seriesManager.IsBindingQueued(editingSeries.SeriesId);
+				}
+				else
+				{
+					this.IsBindingQueued.Value = false;
+				}
 
-			// EditorPage 全体を初期表示状態へ戻す
-			this.EditorPageInitializeRequest.SwitchValue();
-		}
+				// タイトル確定状態を初期化
+				// 初期表示時はすべての作品で true とし、編集項目を操作可能にする
+				// タイトルが空のままLostFocusした場合のみ false になる
+				this.IsTitleConfirmed.Value = true;
+
+				// MaterialFiles の構築完了後、素材サイズを計算
+				await this.updateMaterialTotalSizeAsync();
+
+				// EditorPage 全体を初期表示状態へ戻す
+				this.EditorPageInitializeRequest.SwitchValue();
+			}
 	}
 
 	/// <summary>
@@ -770,8 +825,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
-	/// 一時保存ボタンと登録ボタンの有効/無効状態を更新します。
+	/// 一時保存ボタンの有効/無効状態を更新します。
 	/// 新規作品・登録待ち作品の場合は一時保存ボタンが有効、既存作品の場合は登録ボタンが有効になります。
+	/// タイトル確定状態も条件に含まれます。
 	/// </summary>
 	private void UpdateSaveWorkSeriesCommandCanExecute()
 	{
@@ -800,13 +856,15 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		}
 
 		// 新規作品・登録待ち作品で素材なし
-		this.SaveWorkSeriesCommandCanExecute.Value = true;
+		// さらに、タイトル確定状態も確認
+		this.SaveWorkSeriesCommandCanExecute.Value = this.IsTitleConfirmed.Value;
 		this.RegisterSeriesCommandCanExecute.Value = false;
 	}
 
 	/// <summary>
 	/// タイトルのバリデーション処理。
-	/// タイトル重複チェックを行い、結果に応じてエラーメッセージまたは null を返す。
+	/// タイトルが null / 空白の場合は必須エラーを返し、
+	/// それ以外の場合は重複チェックを行い、結果に応じてエラーメッセージまたは null を返す。
 	/// 編集対象に応じて判定ロジックを変更します：
 	/// - 新規作品・登録待ち作品：編集中の作品自身を候補から除外
 	/// - 既存作品：編集中の作品と入力タイトルの一致を確認してから判定
@@ -815,11 +873,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <returns>エラーメッセージ、またはエラーなしの場合は null。</returns>
 	private string? validateTitle(string? title)
 	{
-		// null / 空白なら重複チェックしない
+		// null / 空白の場合は必須エラー
 		if (string.IsNullOrWhiteSpace(title))
 		{
 			this.DuplicateSeriesFound.Value = null;
-			return null;
+			return "タイトルを入力してください。";
 		}
 
 		// Scope を生成
@@ -1120,10 +1178,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			// 次回の LostFocus 時に再判定を実行するようフラグを設定
 			this.needsTitleRevalidation = true;
 
-			// EditorPage に留まり、タイトルへフォーカスを戻す
-			// TitleFocusRequest を更新してタイトル入力欄へフォーカスを移す
-			// SelectAllOnFocusBehavior により、入力済みタイトルが全選択される
-			this.TitleFocusRequest.Value++;
+			// タイトルTextBoxへフォーカスして全選択できるようにする
+			this.TitleReinputFocusRequest.Value++;
 		}
 		else
 		{
@@ -1135,10 +1191,41 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>
 	/// タイトル欄がフォーカスを失ったときの処理を実行します。
-	/// 再判定待ちフラグが立っている場合のみ、現在値のまま ForceValidate() を実行します。
+	/// タイトルが空（null / 空白）の場合、初回のみ「タイトル未入力理由」の通知を表示します。
+	/// 再判定待ちフラグが立っている場合は、現在値のまま ForceValidate() を実行します。
+	/// タイトル状態に応じて IsTitleConfirmed を更新します。
 	/// </summary>
 	private void handleTitleLostFocus()
 	{
+		// タイトルが空かどうかを判定
+		var isTitleEmpty = string.IsNullOrWhiteSpace(this.Title.Value);
+
+		if (isTitleEmpty)
+		{
+			// タイトルが空の場合：通知を表示
+
+			// 初回だけ通知を表示
+			if (!this.hasShownTitleRequiredNotification)
+			{
+				this.hasShownTitleRequiredNotification = true;
+
+				// Danger 通知を表示（自動的に消えない）
+				this.snackbarService.Show(
+					"タイトル入力が必須です",
+					"このアプリケーションでは同一タイトルを複数登録できないため、最初にタイトルを入力する必要があります。",
+					ControlAppearance.Danger,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.FromSeconds(10));
+			}
+
+			// タイトルが空なので、他の編集項目は操作不可に
+			this.IsTitleConfirmed.Value = false;
+
+			return;
+		}
+
+		// タイトルが入力されている場合
+
 		// 再判定待ちフラグが false の場合は何もしない（通常のバリデーションに任せる）
 		if (!this.needsTitleRevalidation)
 		{
@@ -1150,6 +1237,17 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		// 現在値のまま validateTitle() を再実行
 		this.Title.ForceValidate();
+
+		// ForceValidate() 後、タイトルにエラーがなく、
+		// 重複判定ダイアログで別作品と判定されていない場合のみタイトル確定
+		if (!this.Title.HasErrors && this.DuplicateSeriesFound.Value == null)
+		{
+			this.IsTitleConfirmed.Value = true;
+		}
+		else
+		{
+			this.IsTitleConfirmed.Value = false;
+		}
 	}
 
 	/// <summary>
@@ -1412,10 +1510,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>
 	/// クリップボードからサムネイルを貼り付けます。
-	/// 成功時はプレビュー画像を更新し、PNG byte[] を保持します。
-	/// 失敗時はログのみ出力し、UI には何も反映されません。
+	/// 成功時はプレビュー画像を更新し、JPEG byte[] を保持します。
+	/// 失敗またはキャンセル時は何もしません。
 	/// </summary>
-	private void PasteThumbnailAsync()
+	private async ValueTask PasteThumbnailAsync()
 	{
 		try
 		{
@@ -1423,25 +1521,26 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var thumbnailPicker = scope.ServiceProvider.GetRequiredService<ThumbnailPicker>();
 
-			// ThumbnailPicker からクリップボード画像を取得
-			var bitmapSource = thumbnailPicker.GetFromClipboard();
-			if (bitmapSource == null)
+			// ThumbnailPicker からクリップボード画像を処理
+			var result = await thumbnailPicker.PickFromClipboardAsync(CancellationToken.None);
+
+			if (result.IsCanceled)
 			{
-				System.Diagnostics.Debug.WriteLine("[EditorPageViewModel.PasteThumbnailAsync] クリップボードに画像がありません。");
+				// クリップボードに画像がない場合は何もしない
 				return;
 			}
 
-			// BitmapSource を PNG byte[] に変換
-			var pngBytes = thumbnailPicker.ToBytes(bitmapSource);
-			if (pngBytes == null || pngBytes.Length == 0)
+			if (!result.Success || result.PreviewImage == null || result.ThumbnailBytes == null)
 			{
-				System.Diagnostics.Debug.WriteLine("[EditorPageViewModel.PasteThumbnailAsync] 画像を PNG 形式に変換できませんでした。");
+				// 処理失敗時：ログのみ出力
+				var errorMessage = result.ErrorMessage ?? "画像の処理に失敗しました。";
+				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.PasteThumbnailAsync] {errorMessage}");
 				return;
 			}
 
-			// 成功時：プレビュー画像を更新し、PNG byte[] を保持
-			this.ThumbnailPreviewImageSource.Value = bitmapSource;
-			this.PastedThumbnailBytes = pngBytes;
+			// 成功時：プレビュー画像を更新し、JPEG byte[] を保持
+			this.ThumbnailPreviewImageSource.Value = result.PreviewImage;
+			this.PastedThumbnailBytes = result.ThumbnailBytes;
 		}
 		catch (Exception ex)
 		{
@@ -1451,10 +1550,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
-	/// 貼り付けたサムネイルの PNG byte[] を取得します。
-	/// 保存処理で利用します。
+	/// サムネイルの JPEG byte[] を取得します。
+	/// 参照と貼り付けで設定され、保存処理で利用します。
 	/// </summary>
-	/// <returns>貼り付けた PNG byte[]、存在しない場合は null。</returns>
+	/// <returns>サムネイル JPEG byte[]、存在しない場合は null。</returns>
 	public byte[]? GetPastedThumbnailBytes()
 		=> this.PastedThumbnailBytes;
 
@@ -1700,6 +1799,18 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 			// EditingSeries を完成状態へ更新
 			this.UpdateEditingSeriesFromUI(editingSeries);
+
+			// タイトル必須チェック
+			if (string.IsNullOrWhiteSpace(editingSeries.Title))
+			{
+				this.snackbarService.Show(
+					"エラー",
+					"タイトルを入力してください。",
+					ControlAppearance.Danger,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.MaxValue);
+				return;
+			}
 
 			// サムネイル JPEG byte[] を取得
 			var thumbnailBytes = this.GetPastedThumbnailBytes();
@@ -1975,9 +2086,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 				this.snackbarService.Show(
 					"エラー",
 					"タイトルを入力してください。",
-					ControlAppearance.Caution,
+					ControlAppearance.Danger,
 					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.FromSeconds(3));
+					TimeSpan.MaxValue);
 				return;
 			}
 
@@ -2131,7 +2242,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 									saveResult = await seriesManager.SaveSeriesAsync(
 										this.editorStore,
 										materialFileDtos,
-										this.PastedThumbnailBytes);
+										this.PastedThumbnailBytes,
+										this.IsBindingQueued.Value);
 								}
 
 								// 保存結果の判定

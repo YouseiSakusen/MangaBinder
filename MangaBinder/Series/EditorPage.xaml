@@ -92,7 +92,7 @@
             <!-- ══════════════════════════════════ -->
             <!-- 左パネル：サムネイル・巻数・ボタン   -->
             <!-- ══════════════════════════════════ -->
-            <ui:Card Grid.Column="0" VerticalAlignment="Top" Padding="12,12" Margin="40,0,40,0">
+            <ui:Card Grid.Column="0" VerticalAlignment="Top" Padding="12,12" Margin="40,0,40,0" IsEnabled="{Binding IsTitleConfirmed.Value}">
                 <StackPanel>
                     <!-- 見出し：作品サムネイル -->
                     <TextBlock
@@ -219,7 +219,7 @@
                                 InputMethod.PreferredImeState="On"
                                 Margin="0,0,0,8"
                                 Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                behaviors:FocusAndSelectAllBehavior.Request="{Binding TitleFocusRequest.Value}"
+                                behaviors:FocusAndSelectAllBehavior.Request="{Binding TitleReinputFocusRequest.Value}"
                                 behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                 behaviors:LostFocusNotificationBehavior.Command="{Binding TitleLostFocusCommand}"
                                 PlaceholderText="作品のタイトルを入力してください" />
@@ -246,6 +246,7 @@
                                     InputMethod.PreferredImeState="On"
                                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                     Text="{Binding Author.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    IsEnabled="{Binding IsTitleConfirmed.Value}"
                                     Margin="0,0,0,0"
                                     PlaceholderText="作者名を入力してください" />
 
@@ -263,6 +264,7 @@
                                     InputMethod.PreferredImeState="On"
                                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                     Text="{Binding Publisher.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    IsEnabled="{Binding IsTitleConfirmed.Value}"
                                     PlaceholderText="出版社名を入力してください" />
                             </Grid>
 						</Grid>
@@ -314,6 +316,7 @@
                             Height="160"
                             Margin="0,0,6,0"
                             Text="{Binding Description.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            IsEnabled="{Binding IsTitleConfirmed.Value}"
                             PlaceholderText="作品のあらすじを入力してください" />
 
                         <!-- あらすじ出典 -->
@@ -364,14 +367,15 @@
                             MinHeight="160"
                             Margin="6,0,0,0"
                             Text="{Binding Memo.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            IsEnabled="{Binding IsTitleConfirmed.Value}"
                             PlaceholderText="メモを入力してください" />
                     </Grid>
 
                     </Grid>
                     </ui:Card>
 
-                <!-- Row1: 巻情報カード ── -->
-				<ui:Card Grid.Row="1" VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
+				<!-- Row1: 巻情報カード ── -->
+				<ui:Card Grid.Row="1" VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12" IsEnabled="{Binding IsTitleConfirmed.Value}">
 					<Grid>
 						<Grid.RowDefinitions>
 							<RowDefinition Height="Auto" />
@@ -490,7 +494,8 @@
 			<ui:Card Grid.Row="2"
 				Padding="12,14"
 				Margin="0,0,0,12"
-				VerticalAlignment="Top">
+				VerticalAlignment="Top"
+				IsEnabled="{Binding IsTitleConfirmed.Value}">
 				<Grid>
 					<Grid.RowDefinitions>
 						<!-- Row 0: 上段（ラベル・状態・ボタン） -->
@@ -749,94 +754,153 @@
 			</ui:Card>
 
 			<!-- Row3: タグカード ── -->
-			<ui:Card Grid.Row="3" VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,12">
-				<Grid>
-					<Grid.RowDefinitions>
-						<RowDefinition Height="Auto" />
-						<RowDefinition Height="Auto" />
-					</Grid.RowDefinitions>
+			<!-- Row3: タグ・製本待ちカード（左右2カード） -->
+			<Grid Grid.Row="3" Margin="0,0,0,12">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*" />
+					<ColumnDefinition Width="Auto" />
+				</Grid.ColumnDefinitions>
 
-                    <!-- ヘッダー -->
-                    <TextBlock
-                        Grid.Row="0"
-                        Text="タグ"
-                        FontSize="12"
-                        FontWeight="SemiBold"
-                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                        Margin="0,0,0,8" />
+				<!-- 左：タグカード -->
+				<ui:Card Grid.Column="0" VerticalAlignment="Top" Padding="12,14" Margin="0,0,12,0" IsEnabled="{Binding IsTitleConfirmed.Value}">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="Auto" />
+						</Grid.RowDefinitions>
 
-                    <!-- タグ選択エリア -->
-                    <Grid Grid.Row="1">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
+						<!-- ヘッダー -->
+						<TextBlock
+							Grid.Row="0"
+							Text="タグ"
+							FontSize="12"
+							FontWeight="SemiBold"
+							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+							Margin="0,0,0,8" />
 
-                        <!-- + タグ ボタン -->
-                        <StackPanel Grid.Column="0" VerticalAlignment="Bottom" Margin="0,0,12,0">
-                            <ToggleButton
-                                x:Name="TagToggleButton"
-                                Padding="6,2"
-                                FontSize="11"
-                                Content="⊕ タグを設定"
-                                Cursor="Hand"
-                                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                BorderThickness="0"
-                                Command="{Binding TagSelector.PreparePopupCommand}" />
+						<!-- タグ選択エリア -->
+						<Grid Grid.Row="1">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="Auto" />
+								<ColumnDefinition Width="*" />
+							</Grid.ColumnDefinitions>
 
-                            <!-- Popup: タグ選択チェックボックス一覧 -->
-                            <Popup
-                                x:Name="TagPopup"
-                                PlacementTarget="{Binding ElementName=TagToggleButton}"
-                                Placement="Top"
-                                IsOpen="{Binding IsChecked, ElementName=TagToggleButton, Mode=TwoWay}"
-                                StaysOpen="False"
-                                AllowsTransparency="True"
-                                PopupAnimation="Fade">
-                                <Border
-                                    Background="{DynamicResource ApplicationBackgroundBrush}"
-                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="8,6"
-                                    MinWidth="280"
-                                    MaxWidth="420"
-                                    MaxHeight="250">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                        <controls:SeriesTagSelector
-                                            ItemsSource="{Binding TagSelector.SelectableTagItems}"
-                                            Columns="{Binding TagSelector.Columns.Value}"
-                                            Rows="{Binding TagSelector.Rows.Value}"/>
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </StackPanel>
+							<!-- + タグ ボタン -->
+							<StackPanel Grid.Column="0" VerticalAlignment="Bottom" Margin="0,0,12,0">
+								<ToggleButton
+									x:Name="TagToggleButton"
+									Padding="6,2"
+									FontSize="11"
+									Content="⊕ タグを設定"
+									Cursor="Hand"
+									Background="{DynamicResource ControlFillColorDefaultBrush}"
+									BorderThickness="0"
+									Command="{Binding TagSelector.PreparePopupCommand}" />
 
-                        <!-- 選択済みタグ表示エリア -->
-                        <ItemsControl Grid.Column="1" ItemsSource="{Binding TagSelector.SelectedTags}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border
-                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                        CornerRadius="4"
-                                        Padding="6,2"
-                                        Margin="4,2">
-                                        <TextBlock
-                                            Text="{Binding Name}"
-                                            FontSize="12"
-                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Grid>
-                </Grid>
-            </ui:Card>
+								<!-- Popup: タグ選択チェックボックス一覧 -->
+								<Popup
+									x:Name="TagPopup"
+									PlacementTarget="{Binding ElementName=TagToggleButton}"
+									Placement="Top"
+									IsOpen="{Binding IsChecked, ElementName=TagToggleButton, Mode=TwoWay}"
+									StaysOpen="False"
+									AllowsTransparency="True"
+									PopupAnimation="Fade">
+									<Border
+										Background="{DynamicResource ApplicationBackgroundBrush}"
+										BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+										BorderThickness="1"
+										CornerRadius="6"
+										Padding="8,6"
+										MinWidth="280"
+										MaxWidth="420"
+										MaxHeight="250">
+										<ScrollViewer VerticalScrollBarVisibility="Auto">
+											<controls:SeriesTagSelector
+												ItemsSource="{Binding TagSelector.SelectableTagItems}"
+												Columns="{Binding TagSelector.Columns.Value}"
+												Rows="{Binding TagSelector.Rows.Value}"/>
+										</ScrollViewer>
+									</Border>
+								</Popup>
+							</StackPanel>
+
+							<!-- 選択済みタグ表示エリア（1行固定横スクロール） -->
+							<ScrollViewer
+								Grid.Column="1"
+								MinHeight="28"
+								HorizontalScrollBarVisibility="Auto"
+								VerticalScrollBarVisibility="Disabled"
+								VerticalAlignment="Center">
+								<ItemsControl ItemsSource="{Binding TagSelector.SelectedTags}">
+									<ItemsControl.ItemsPanel>
+										<ItemsPanelTemplate>
+											<StackPanel Orientation="Horizontal" />
+										</ItemsPanelTemplate>
+									</ItemsControl.ItemsPanel>
+									<ItemsControl.ItemTemplate>
+										<DataTemplate>
+											<Border
+												Background="{DynamicResource ControlFillColorDefaultBrush}"
+												CornerRadius="4"
+												Padding="6,2"
+												Margin="4,2">
+												<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+													<ui:SymbolIcon
+														Symbol="Tag24"
+														FontSize="12"
+														Margin="0,0,4,0"
+														Foreground="{DynamicResource TagBrush}"
+														Filled="True"
+														VerticalAlignment="Center" />
+													<TextBlock
+														Text="{Binding Name}"
+														FontSize="12"
+														Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+														VerticalAlignment="Center" />
+												</StackPanel>
+											</Border>
+										</DataTemplate>
+									</ItemsControl.ItemTemplate>
+								</ItemsControl>
+							</ScrollViewer>
+						</Grid>
+					</Grid>
+				</ui:Card>
+
+				<!-- 右：製本待ちカード -->
+				<ui:Card Grid.Column="1" VerticalAlignment="Top" Padding="12,14" Margin="0,0,0,0" IsEnabled="{Binding IsTitleConfirmed.Value}">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="Auto" />
+						</Grid.RowDefinitions>
+
+						<!-- ヘッダー -->
+						<TextBlock
+							Grid.Row="0"
+							Text="製本待ち"
+							FontSize="12"
+							FontWeight="SemiBold"
+							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+							Margin="0,0,0,8" />
+
+						<!-- ToggleSwitch エリア -->
+						<StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
+							<TextBlock
+								Text="追加する"
+								FontSize="12"
+								Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+								VerticalAlignment="Center"
+								Margin="0,0,8,0" />
+							<ui:ToggleSwitch
+								IsEnabled="{Binding RegisterSeriesCommandCanExecute.Value}"
+								IsChecked="{Binding IsBindingQueued.Value, Mode=TwoWay}"
+								VerticalAlignment="Center" />
+						</StackPanel>
+					</Grid>
+				</ui:Card>
+			</Grid>
             </Grid>
 
             <!-- ── 右パネル：関連操作カード ── -->

@@ -5,6 +5,7 @@ using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Converters;
 using MangaBinder.Core.Series;
+using MangaBinder.Helpers;
 using MangaBinder.Jobs;
 using MangaBinder.Series;
 using MangaBinder.Settings;
@@ -111,6 +112,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<MaterialFolderOpener>();
 		services.AddScoped<MaterialManager>();
+		services.AddScoped<ThemeBackgroundColorInitializer>();
 
 		return services;
 	}

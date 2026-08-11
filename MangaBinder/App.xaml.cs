@@ -99,7 +99,18 @@ public partial class App
 		var appSettings = host.Services.GetRequiredService<AppSettings>();
 		SupportedExtensionHelper.Initialize(appSettings.SupportedExtensions);
 
-		host.Services.GetRequiredService<MainWindow>().Show();
+		// MainWindow を DI から生成してテーマを適用
+		var mainWindow = host.Services.GetRequiredService<MainWindow>();
+
+		// テーマ依存初期設定：ThumbnailBackgroundColor が未設定の場合、テーマから生成して保存
+		var themeBackgroundColorInitializer = host.Services.GetRequiredService<ThemeBackgroundColorInitializer>();
+		await themeBackgroundColorInitializer.InitializeAsync();
+
+		// Worker は起動時にDBからThumbnailBackgroundColor等の設定を読み込むため、
+		// Workerの初回起動・スタートアップ登録処理は、
+		// テーマ依存初期設定のDB保存完了後に実行すること。
+
+		mainWindow.Show();
 	}
 
 	/// <summary>
