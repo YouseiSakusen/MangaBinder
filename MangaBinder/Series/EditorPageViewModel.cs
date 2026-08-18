@@ -94,6 +94,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <summary>メモを取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Memo { get; }
 
+	/// <summary>未完作品として手動設定されているかどうかを取得または設定します。</summary>
+	public BindableReactiveProperty<bool> IsIncomplete { get; }
+
 	/// <summary>全巻所持が編集可能かどうかを取得または設定します。完結巻が null ではない場合のみ編集可能です。</summary>
 	public BindableReactiveProperty<bool> CanEditOwnedCompleted { get; }
 
@@ -346,6 +349,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.Memo = new BindableReactiveProperty<string?>(null)
 			.AddTo(ref this.disposableBag);
 
+		this.IsIncomplete = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
 		// CanEditOwnedCompleted: EndVolume が null ではない場合のみ true
 		this.CanEditOwnedCompleted = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
@@ -554,6 +560,17 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
 			.AddTo(ref this.disposableBag);
 
+		// IsIncomplete の変更を VolumeStatus の表示用 DisplayStatus へ同期（表示色反映のため）
+		this.IsIncomplete
+			.Subscribe(isIncomplete =>
+			{
+				if (this.VolumeStatus.DisplayStatus.Value != null)
+				{
+					this.VolumeStatus.DisplayStatus.Value.IsIncomplete.Value = isIncomplete;
+				}
+			})
+			.AddTo(ref this.disposableBag);
+
 		// CanDeleteSeries: 作品削除ボタンの表示制御
 		this.CanDeleteSeries = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
@@ -649,6 +666,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			this.Publisher.Value = editingSeries.Publisher;
 			this.Description.Value = editingSeries.Description;
 			this.Memo.Value = editingSeries.Memo;
+			this.IsIncomplete.Value = editingSeries.IsIncomplete;
 
 			// 巻情報を VolumeStatus に読み込み
 			this.VolumeStatus.LoadFromSeries(editingSeries);
@@ -1643,6 +1661,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		targetSeries.Publisher = this.Publisher.Value ?? string.Empty;
 		targetSeries.Description = this.Description.Value ?? string.Empty;
 		targetSeries.Memo = this.Memo.Value ?? string.Empty;
+		targetSeries.IsIncomplete = this.IsIncomplete.Value;
 
 		// === 【共通処理】タイトル派生値（MangaTitleHelper を利用） ===
 		targetSeries.NormalizedTitleInternal = MangaTitleHelper.NormalizeTitleInternal(titleInput);

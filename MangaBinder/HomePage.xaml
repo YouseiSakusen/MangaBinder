@@ -360,9 +360,8 @@
                                         Text="{Binding Series.Value.Description}"
                                         FontSize="12"
                                         TextWrapping="Wrap"
-                                        MaxHeight="120"
                                         TextTrimming="CharacterEllipsis"
-                                        Opacity="0.85"
+                                        Opacity="0.9"
                                         VerticalAlignment="Top"
                                         Margin="0,0,0,4" />
 
@@ -469,8 +468,7 @@
                                                     CornerRadius="6"
                                                     Padding="8,6"
                                                     MinWidth="280"
-                                                    MaxWidth="420"
-                                                    MaxHeight="250">
+                                                    MaxWidth="420">
                                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                                         <controls:SeriesTagSelector
                                                             ItemsSource="{Binding TagSelector.SelectableTagItems}"

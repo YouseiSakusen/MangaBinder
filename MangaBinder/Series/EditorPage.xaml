@@ -413,6 +413,12 @@
 									<ColumnDefinition Width="Auto" />
 									<!-- スペーサー -->
 									<ColumnDefinition Width="Auto" />
+									<!-- 未完チェック -->
+									<ColumnDefinition Width="Auto" />
+									<!-- 未完ラベル -->
+									<ColumnDefinition Width="Auto" />
+									<!-- スペーサー -->
+									<ColumnDefinition Width="Auto" />
 									<!-- 開始巻ラベル -->
 									<ColumnDefinition Width="Auto" />
 									<!-- StartVolumeNumberBox -->
@@ -463,19 +469,38 @@
 								<!-- Column 5: スペーサー -->
 								<Border Grid.Column="5" Width="0" />
 
-								<!-- Column 6: 開始巻ラベル -->
-								<TextBlock
+								<!-- Column 6: 未完チェック -->
+								<CheckBox
 									Grid.Column="6"
+									IsChecked="{Binding IsIncomplete.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									VerticalAlignment="Center"
+									Margin="0,0,6,0" />
+
+								<!-- Column 7: 未完ラベル -->
+								<TextBlock
+									Grid.Column="7"
+									Text="未完"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+									VerticalAlignment="Center"
+									Margin="0,0,18,0" />
+
+								<!-- Column 8: スペーサー -->
+								<Border Grid.Column="8" Width="0" />
+
+								<!-- Column 9: 開始巻ラベル -->
+								<TextBlock
+									Grid.Column="9"
 									Text="開始巻"
 									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
 									VerticalAlignment="Center"
 									Margin="0,0,6,0" />
 
-								<!-- Column 7: StartVolumeNumberBox -->
+								<!-- Column 10: StartVolumeNumberBox -->
 								<ui:NumberBox
-									Grid.Column="7"
+									Grid.Column="10"
 									Value="{Binding VolumeStatus.StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 									behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
+									IsTabStop="False"
 									Width="120"
 									PlaceholderText="0"
 									Minimum="1"
@@ -813,8 +838,7 @@
 										CornerRadius="6"
 										Padding="8,6"
 										MinWidth="280"
-										MaxWidth="420"
-										MaxHeight="250">
+										MaxWidth="420">
 										<ScrollViewer VerticalScrollBarVisibility="Auto">
 											<controls:SeriesTagSelector
 												ItemsSource="{Binding TagSelector.SelectableTagItems}"

@@ -9,17 +9,23 @@
   Startup="OnStartup"
 >
   <Application.Resources>
-    <ResourceDictionary>
-      <ResourceDictionary.MergedDictionaries>
-        <ui:ThemesDictionary Theme="Light" />
-        <ui:ControlsDictionary />
-      </ResourceDictionary.MergedDictionaries>
-      <!-- MangaBinder アプリカラー：製本・本・クラフト感に合う落ち着いた茶系 -->
-      <SolidColorBrush x:Key="BindingAccentBrush" Color="#7B5235" />
-      <!-- 完結済み・全巻所持済み＆メモあり表示用の共通色（金系） -->
-      <SolidColorBrush x:Key="OwnedCompletedBrush" Color="#C89B3C" />
-      <!-- タグ表示用の共通色（薄いオレンジ～黄色） -->
+	<ResourceDictionary>
+	  <ResourceDictionary.MergedDictionaries>
+		<ui:ThemesDictionary Theme="Light" />
+		<ui:ControlsDictionary />
+	  </ResourceDictionary.MergedDictionaries>
+	  <!-- MangaBinder アプリカラー：製本・本・クラフト感に合う落ち着いた茶系 -->
+	  <SolidColorBrush x:Key="BindingAccentBrush" Color="#7B5235" />
+	  <!-- 巻情報バッジ：連載中の場合の背景色（青系） -->
+	  <SolidColorBrush x:Key="InProgressBrush" Color="#3B82C4" />
+	  <!-- 巻情報バッジ：完結済み・全巻所持済みの場合の背景色（金系） -->
+	  <SolidColorBrush x:Key="OwnedCompletedBrush" Color="#C89B3C" />
+	  <!-- 巻情報バッジ：完結済み・全巻未所持の場合の背景色（グレー） -->
+	  <SolidColorBrush x:Key="NotOwnedCompletedBrush" Color="#909090" Opacity="0.6" />
+	  <!-- 巻情報バッジ：未完の場合の背景色（将来使用） -->
+	  <SolidColorBrush x:Key="IncompleteBrush" Color="#5F6B7A" Opacity="0.65" />
+	  <!-- タグ表示用の共通色（薄いオレンジ～黄色） -->
 	  <SolidColorBrush x:Key="TagBrush" Color="#FFD983" />
-    </ResourceDictionary>
+	</ResourceDictionary>
   </Application.Resources>
 </Application>

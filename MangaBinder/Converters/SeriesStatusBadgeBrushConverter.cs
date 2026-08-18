@@ -10,34 +10,33 @@ namespace MangaBinder.Converters;
 /// </summary>
 public class SeriesStatusBadgeBrushConverter : IMultiValueConverter
 {
-	/// <summary>連載中の場合の背景色（青系）です。</summary>
-	private static readonly SolidColorBrush OngoingBrush = makeFrozen("#3B82C4");
-
-	/// <summary>完結済み・未所持ありの場合の背景色（薄いグレー）です。</summary>
-	private static readonly SolidColorBrush CompletedNotOwnedBrush = makeFrozen("#909090", 0.6);
-
 	/// <inheritdoc/>
 	public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
 	{
 		// values[0]: SeriesCompleted (bool)
 		// values[1]: IsOwnedCompleted (bool)
+		// values[2]: IsIncomplete (bool)
 		if (values == null || values.Length < 2)
-			return CompletedNotOwnedBrush;
+			return this.GetBrushFromResource("NotOwnedCompletedBrush");
+
+		// IsIncomplete を優先判定
+		if (values.Length >= 3)
+		{
+			var isIncomplete = (bool)values[2];
+			if (isIncomplete)
+				return this.GetBrushFromResource("IncompleteBrush");
+		}
 
 		var seriesCompleted = (bool)values[0];
 		var isOwnedCompleted = (bool)values[1];
 
 		if (!seriesCompleted)
-			return OngoingBrush;
+			return this.GetBrushFromResource("InProgressBrush");
 
 		if (isOwnedCompleted)
-		{
-			// App.xaml で定義した OwnedCompletedBrush を取得する
-			var completedAndOwnedBrush = Application.Current.Resources["OwnedCompletedBrush"] as Brush;
-			return completedAndOwnedBrush ?? CompletedNotOwnedBrush;
-		}
+			return this.GetBrushFromResource("OwnedCompletedBrush");
 
-		return CompletedNotOwnedBrush;
+		return this.GetBrushFromResource("NotOwnedCompletedBrush");
 	}
 
 	/// <inheritdoc/>
@@ -45,15 +44,13 @@ public class SeriesStatusBadgeBrushConverter : IMultiValueConverter
 		=> throw new NotSupportedException();
 
 	/// <summary>
-	/// 16進数カラーコードから Freeze 済みの <see cref="SolidColorBrush"/> を生成します。
+	/// Application Resourceから指定されたキーでBrushを取得します。
 	/// </summary>
-	/// <param name="hex">16進数カラーコード（例: "#C89B3C"）。</param>
-	/// <returns>Freeze 済みの <see cref="SolidColorBrush"/>。</returns>
-	private static SolidColorBrush makeFrozen(string hex, double opacity = 1.0)
+	/// <param name="resourceKey">Brushリソースのキー。</param>
+	/// <returns>取得したBrush。リソースが見つからない場合は NotOwnedCompletedBrush をフォールバック。</returns>
+	private Brush GetBrushFromResource(string resourceKey)
 	{
-		var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-		brush.Opacity = opacity;
-		brush.Freeze();
-		return brush;
+		var brush = Application.Current.Resources[resourceKey] as Brush;
+		return brush ?? (Application.Current.Resources["NotOwnedCompletedBrush"] as Brush)!;
 	}
 }

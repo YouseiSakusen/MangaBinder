@@ -61,6 +61,7 @@ public class WorkMangaSeriesRepository
 		seriesSql.AppendLine(" 	, DescriptionSourceTitle ");
 		seriesSql.AppendLine(" 	, HasNestedArchive ");
 		seriesSql.AppendLine(" 	, Memo ");
+		seriesSql.AppendLine(" 	, IsIncomplete ");
 		seriesSql.AppendLine(" 	, WorkId ");
 		seriesSql.AppendLine(" FROM ");
 		seriesSql.AppendLine(" 	WorkMangaSeries ");
@@ -171,6 +172,7 @@ public class WorkMangaSeriesRepository
 		sql.AppendLine(" 	, DescriptionSourceTitle ");
 		sql.AppendLine(" 	, HasNestedArchive ");
 		sql.AppendLine(" 	, Memo ");
+		sql.AppendLine(" 	, IsIncomplete ");
 		sql.AppendLine(" ) VALUES ( ");
 		sql.AppendLine(" 	  :NormalizedTitleInternal ");
 		sql.AppendLine(" 	, :Title ");
@@ -195,6 +197,7 @@ public class WorkMangaSeriesRepository
 		sql.AppendLine(" 	, :DescriptionSourceTitle ");
 		sql.AppendLine(" 	, :HasNestedArchive ");
 		sql.AppendLine(" 	, :Memo ");
+		sql.AppendLine(" 	, :IsIncomplete ");
 		sql.AppendLine(" ); ");
 		sql.AppendLine(" SELECT CAST(last_insert_rowid() AS INT); ");
 
@@ -223,6 +226,7 @@ public class WorkMangaSeriesRepository
 			DescriptionSourceTitle = series.DescriptionSourceTitle,
 			HasNestedArchive = series.HasNestedArchive,
 			Memo = series.Memo,
+			IsIncomplete = series.IsIncomplete,
 		}, transaction);
 
 		return workId;
@@ -280,6 +284,7 @@ public class WorkMangaSeriesRepository
 		sql.AppendLine(" 	, DescriptionSourceTitle = :DescriptionSourceTitle ");
 		sql.AppendLine(" 	, HasNestedArchive = :HasNestedArchive ");
 		sql.AppendLine(" 	, Memo = :Memo ");
+		sql.AppendLine(" 	, IsIncomplete = :IsIncomplete ");
 		sql.AppendLine(" 	, UpdatedAt = DATETIME('now', 'localtime') ");
 		sql.AppendLine(" WHERE ");
 		sql.AppendLine(" 	WorkId = :WorkId; ");
@@ -309,6 +314,7 @@ public class WorkMangaSeriesRepository
 			DescriptionSourceTitle = series.DescriptionSourceTitle,
 			HasNestedArchive = series.HasNestedArchive,
 			Memo = series.Memo,
+			IsIncomplete = series.IsIncomplete,
 			WorkId = series.WorkId,
 		}, transaction);
 	}

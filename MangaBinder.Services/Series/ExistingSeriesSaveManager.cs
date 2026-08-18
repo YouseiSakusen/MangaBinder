@@ -516,6 +516,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 		destination.GoogleBooksImportStatus = source.GoogleBooksImportStatus;
 		destination.GoogleBooksImportedAt = source.GoogleBooksImportedAt;
 		destination.GoogleBooksImportMessage = source.GoogleBooksImportMessage;
+		destination.IsIncomplete = source.IsIncomplete;
 
 		// タグもコピー
 		destination.Tags.Clear();
@@ -546,6 +547,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 		destination.IsOwnedMaxVolumeManuallyEdited = source.IsOwnedMaxVolumeManuallyEdited;
 		destination.DescriptionSource = source.DescriptionSource;
 		destination.DescriptionSourceTitle = source.DescriptionSourceTitle;
+		destination.IsIncomplete = source.IsIncomplete;
 
 		// タグもコピー
 		destination.Tags.Clear();

@@ -31,6 +31,7 @@
 				<MultiBinding Converter="{extensions:SeriesStatusBadgeBrushConverterExtension}">
 					<Binding Path="SeriesCompleted.Value" />
 					<Binding Path="IsOwnedCompleted.Value" />
+					<Binding Path="IsIncomplete.Value" />
 				</MultiBinding>
 			</Border.Background>
 			<TextBlock

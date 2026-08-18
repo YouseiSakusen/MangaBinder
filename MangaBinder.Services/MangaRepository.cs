@@ -62,6 +62,7 @@ public class MangaRepository
         seriesSql.AppendLine(" 	, Memo ");
         seriesSql.AppendLine(" 	, ManuallyEditedAt ");
         seriesSql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
+        seriesSql.AppendLine(" 	, IsIncomplete ");
         seriesSql.AppendLine(" FROM ");
         seriesSql.AppendLine(" 	MangaSeries; ");
 
@@ -387,6 +388,7 @@ public class MangaRepository
         sql.AppendLine(" 	, IsOwnedCompleted = :IsOwnedCompleted ");
         sql.AppendLine(" 	, OwnedMaxVolume = :OwnedMaxVolume ");
         sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited = :IsOwnedMaxVolumeManuallyEdited ");
+        sql.AppendLine(" 	, IsIncomplete = :IsIncomplete ");
         sql.AppendLine(" WHERE ");
         sql.AppendLine(" 	SeriesId = :SeriesId; ");
 
@@ -408,6 +410,7 @@ public class MangaRepository
                 IsOwnedCompleted = series.IsOwnedCompleted,
                 OwnedMaxVolume = series.OwnedMaxVolume,
                 IsOwnedMaxVolumeManuallyEdited = series.IsOwnedMaxVolumeManuallyEdited,
+                IsIncomplete = series.IsIncomplete,
             },
             transaction: transaction);
     }
@@ -566,6 +569,7 @@ public class MangaRepository
         insertSql.AppendLine(" 	, DescriptionSource ");
         insertSql.AppendLine(" 	, Memo ");
         insertSql.AppendLine(" 	, HasNestedArchive ");
+        insertSql.AppendLine(" 	, IsIncomplete ");
         insertSql.AppendLine(" ) VALUES ( ");
         insertSql.AppendLine(" 	  :NormalizedTitleInternal ");
         insertSql.AppendLine(" 	, :Title ");
@@ -585,6 +589,7 @@ public class MangaRepository
         insertSql.AppendLine(" 	, :DescriptionSource ");
         insertSql.AppendLine(" 	, :Memo ");
         insertSql.AppendLine(" 	, :HasNestedArchive ");
+        insertSql.AppendLine(" 	, :IsIncomplete ");
         insertSql.AppendLine(" ) ");
         insertSql.AppendLine(" RETURNING SeriesId; ");
 
@@ -608,6 +613,7 @@ public class MangaRepository
             DescriptionSource = (int)DescriptionSource.None,
             series.Memo,
             series.HasNestedArchive,
+            series.IsIncomplete,
         }, transaction);
 
         return seriesId;

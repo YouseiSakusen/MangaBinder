@@ -32,6 +32,9 @@ public class SeriesVolumeStatusViewModel : IDisposable
 	/// <summary>全巻所持済みかを示します。バッジ背景色判定用です。</summary>
 	public BindableReactiveProperty<bool> IsOwnedCompleted { get; }
 
+	/// <summary>未完作品として手動設定されているかを示します。バッジ背景色判定用です。</summary>
+	public BindableReactiveProperty<bool> IsIncomplete { get; }
+
 	/// <summary>
 	/// <see cref="SeriesVolumeStatusViewModel"/> の新しいインスタンスを初期化します。
 	/// 初期状態は空の表示値を持ちます。
@@ -56,6 +59,9 @@ public class SeriesVolumeStatusViewModel : IDisposable
 		this.IsOwnedCompleted = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
+		this.IsIncomplete = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
 		// Series の値変更を監視し、表示値を更新する
 		this.Series
 			.Subscribe(series => this.updateDisplayValues(series))
@@ -75,6 +81,7 @@ public class SeriesVolumeStatusViewModel : IDisposable
 			this.BoundEndVolumeText.Value = string.Empty;
 			this.SeriesCompleted.Value = false;
 			this.IsOwnedCompleted.Value = false;
+			this.IsIncomplete.Value = false;
 			return;
 		}
 
@@ -93,6 +100,8 @@ public class SeriesVolumeStatusViewModel : IDisposable
 		this.SeriesCompleted.Value = series.SeriesCompleted;
 
 		this.IsOwnedCompleted.Value = series.IsOwnedCompleted;
+
+		this.IsIncomplete.Value = series.IsIncomplete;
 	}
 
 	/// <summary>

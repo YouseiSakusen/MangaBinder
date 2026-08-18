@@ -134,6 +134,7 @@ public sealed class MangaSeriesStore
 			existing.DescriptionSourceTitle = workSeries.DescriptionSourceTitle;
 			existing.HasNestedArchive = workSeries.HasNestedArchive;
 			existing.Memo = workSeries.Memo;
+			existing.IsIncomplete = workSeries.IsIncomplete;
 
 			// タグも更新
 			existing.Tags.Clear();

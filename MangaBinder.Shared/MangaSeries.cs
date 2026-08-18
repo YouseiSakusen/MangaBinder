@@ -227,6 +227,11 @@ public class MangaSeries
     public bool IsOwnedMaxVolumeManuallyEdited { get; set; }
 
     /// <summary>
+    /// 作品が未完作品として手動設定されているかを取得または設定します。
+    /// </summary>
+    public bool IsIncomplete { get; set; }
+
+    /// <summary>
     /// 手動編集済み作品かどうかを取得します。
     /// </summary>
     public bool IsManuallyEdited => this.ManuallyEditedAt is not null;
