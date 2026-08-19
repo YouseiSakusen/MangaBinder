@@ -1,21 +1,25 @@
 ﻿<Page x:Class="MangaBinder.Series.EditorPage"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      xmlns:local="clr-namespace:MangaBinder.Series"
-      xmlns:controls="clr-namespace:MangaBinder.Controls"
-      xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
-      xmlns:extensions="clr-namespace:MangaBinder.Extensions"
-      xmlns:converters="clr-namespace:MangaBinder.Converters"
-      mc:Ignorable="d"
-      d:DesignHeight="800" d:DesignWidth="1200"
-      Title="作品編集"
-      ui:NavigationView.HeaderContent="作品編集"
-      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-      ScrollViewer.CanContentScroll="False"
-      behaviors:EditorPageInitializeBehavior.Request="{Binding EditorPageInitializeRequest.Value}">
+	  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+	  xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+	  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+	  xmlns:local="clr-namespace:MangaBinder.Series"
+	  xmlns:controls="clr-namespace:MangaBinder.Controls"
+	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
+	  xmlns:extensions="clr-namespace:MangaBinder.Extensions"
+	  xmlns:converters="clr-namespace:MangaBinder.Converters"
+	  mc:Ignorable="d"
+	  d:DesignHeight="800" d:DesignWidth="1200"
+	  Title="作品編集"
+	  ui:NavigationView.HeaderContent="作品編集"
+	  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+	  ScrollViewer.CanContentScroll="False"
+	  behaviors:EditorPageInitializeBehavior.Request="{Binding EditorPageInitializeRequest.Value}">
+
+	<Page.InputBindings>
+		<KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding RegisterSeriesCommand}" />
+	</Page.InputBindings>
 
 	<Page.Resources>
 		<converters:ThumbnailPreviewOrDefaultConverter x:Key="ThumbnailPreviewOrDefaultConverter" />
@@ -27,6 +31,16 @@
 
 		<!-- bool を Visibility に変換（true -> Visible, false -> Collapsed） -->
 		<BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
+		<!-- 素材フォルダ作成日時が null の場合に非表示にするスタイル -->
+		<Style x:Key="MaterialFolderCreatedAtTextBlockStyle" TargetType="TextBlock">
+			<Setter Property="Visibility" Value="Visible" />
+			<Style.Triggers>
+				<DataTrigger Binding="{Binding EditingSeries.Value.MaterialFolderCreatedAt}" Value="{x:Null}">
+					<Setter Property="Visibility" Value="Collapsed" />
+				</DataTrigger>
+			</Style.Triggers>
+		</Style>
 
 		<!-- 読み取り専用TextBoxスタイル（出典表示用） -->
 		<Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
@@ -221,6 +235,7 @@
                                 Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                 behaviors:FocusAndSelectAllBehavior.Request="{Binding TitleReinputFocusRequest.Value}"
                                 behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
+                                behaviors:TrimOnPasteBehavior.IsEnabled="True"
                                 behaviors:LostFocusNotificationBehavior.Command="{Binding TitleLostFocusCommand}"
                                 PlaceholderText="作品のタイトルを入力してください" />
 
@@ -245,6 +260,7 @@
                                     Grid.Column="0"
                                     InputMethod.PreferredImeState="On"
                                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
+                                    behaviors:TrimOnPasteBehavior.IsEnabled="True"
                                     Text="{Binding Author.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     IsEnabled="{Binding IsTitleConfirmed.Value}"
                                     Margin="0,0,0,0"
@@ -263,6 +279,7 @@
                                     Grid.Column="2"
                                     InputMethod.PreferredImeState="On"
                                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
+                                    behaviors:TrimOnPasteBehavior.IsEnabled="True"
                                     Text="{Binding Publisher.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     IsEnabled="{Binding IsTitleConfirmed.Value}"
                                     PlaceholderText="出版社名を入力してください" />
@@ -282,15 +299,51 @@
 							<RowDefinition Height="Auto" />
 						</Grid.RowDefinitions>
 
-                        <!-- あらすじラベル -->
-                        <TextBlock
-                            Grid.Row="0"
-                            Grid.Column="0"
-                            Text="あらすじ"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                            Margin="0,0,6,8" />
+						<!-- あらすじ見出しヘッダー（Grid.Row="0" Grid.Column="0"を内側Gridに変更） -->
+						<Grid
+							Grid.Row="0"
+							Grid.Column="0"
+							Margin="0,0,6,8">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="Auto" />
+								<ColumnDefinition Width="*" />
+								<ColumnDefinition Width="Auto" />
+								<ColumnDefinition Width="Auto" />
+							</Grid.ColumnDefinitions>
+
+							<!-- Column 0: あらすじラベル -->
+							<TextBlock
+								Grid.Column="0"
+								Text="あらすじ"
+								FontSize="12"
+								FontWeight="SemiBold"
+								Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+							<!-- Column 1: 可変余白 -->
+							<Border Grid.Column="1" />
+
+							<!-- Column 2: 貼付整形ラベル -->
+							<TextBlock
+								Grid.Column="2"
+								Text="整形貼付"
+								FontSize="11"
+								Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+								VerticalAlignment="Center"
+								Margin="0,0,8,0" />
+
+							<!-- Column 3: ToggleSwitch -->
+							<ui:ToggleSwitch
+								x:Name="DescriptionFormattingToggleSwitch"
+								Grid.Column="3"
+								IsChecked="True"
+								IsTabStop="False"
+								VerticalAlignment="Center"
+								Margin="0,0,6,0">
+								<ui:ToggleSwitch.LayoutTransform>
+									<ScaleTransform ScaleX="0.7" ScaleY="0.7" />
+								</ui:ToggleSwitch.LayoutTransform>
+							</ui:ToggleSwitch>
+						</Grid>
 
                         <!-- メモラベル -->
                         <TextBlock
@@ -316,6 +369,7 @@
                             Height="160"
                             Margin="0,0,6,0"
                             Text="{Binding Description.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            behaviors:DescriptionPasteFormattingBehavior.IsEnabled="{Binding ElementName=DescriptionFormattingToggleSwitch, Path=IsChecked, Mode=OneWay}"
                             IsEnabled="{Binding IsTitleConfirmed.Value}"
                             PlaceholderText="作品のあらすじを入力してください" />
 
@@ -401,23 +455,11 @@
 							<!-- Column 0: 内側Grid で入力項目を1行で配置 -->
 							<Grid Grid.Column="0">
 								<Grid.ColumnDefinitions>
-									<!-- 完結巻ラベル -->
+									<!-- 完結/未完ComboBox -->
 									<ColumnDefinition Width="Auto" />
 									<!-- EndVolumeNumberBox -->
 									<ColumnDefinition Width="Auto" />
-									<!-- スペーサー -->
-									<ColumnDefinition Width="Auto" />
-									<!-- 全巻所持チェック -->
-									<ColumnDefinition Width="Auto" />
-									<!-- 全巻所持ラベル -->
-									<ColumnDefinition Width="Auto" />
-									<!-- スペーサー -->
-									<ColumnDefinition Width="Auto" />
-									<!-- 未完チェック -->
-									<ColumnDefinition Width="Auto" />
-									<!-- 未完ラベル -->
-									<ColumnDefinition Width="Auto" />
-									<!-- スペーサー -->
+									<!-- 巻ラベル -->
 									<ColumnDefinition Width="Auto" />
 									<!-- 開始巻ラベル -->
 									<ColumnDefinition Width="Auto" />
@@ -425,13 +467,19 @@
 									<ColumnDefinition Width="Auto" />
 								</Grid.ColumnDefinitions>
 
-								<!-- Column 0: 完結巻ラベル -->
-								<TextBlock
+								<!-- Column 0: 完結/未完ComboBox -->
+								<ComboBox
 									Grid.Column="0"
-									Text="完結巻"
-									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+									Width="90"
+									Height="35"
+									FontSize="13"
 									VerticalAlignment="Center"
-									Margin="0,0,6,0" />
+									Margin="0,0,6,0"
+									SelectedValuePath="Tag"
+									SelectedValue="{Binding IsIncomplete.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+									<ComboBoxItem Tag="False">完結</ComboBoxItem>
+									<ComboBoxItem Tag="True">未完</ComboBoxItem>
+								</ComboBox>
 
 								<!-- Column 1: EndVolumeNumberBox -->
 								<ui:NumberBox
@@ -445,59 +493,27 @@
 									Maximum="999"
 									SpinButtonPlacementMode="Hidden"
 									InputMethod.PreferredImeState="Off"
-									Margin="0,0,18,0" />
+									Margin="0,0,6,0" />
 
-								<!-- Column 2: スペーサー -->
-								<Border Grid.Column="2" Width="0" />
+								<!-- Column 2: 巻ラベル -->
+								<TextBlock
+									Grid.Column="2"
+									Text="巻"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+									VerticalAlignment="Center"
+									Margin="0,0,130,0" />
 
-								<!-- Column 3: 全巻所持チェック -->
-								<CheckBox
+								<!-- Column 3: 開始巻ラベル -->
+								<TextBlock
 									Grid.Column="3"
-									IsChecked="{Binding VolumeStatus.IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-									IsEnabled="{Binding VolumeStatus.CanEditOwnedCompleted.Value}"
-									VerticalAlignment="Center"
-									Margin="0,0,6,0" />
-
-								<!-- Column 4: 全巻所持ラベル -->
-								<TextBlock
-									Grid.Column="4"
-									Text="全巻所持"
-									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-									VerticalAlignment="Center"
-									Margin="0,0,18,0" />
-
-								<!-- Column 5: スペーサー -->
-								<Border Grid.Column="5" Width="0" />
-
-								<!-- Column 6: 未完チェック -->
-								<CheckBox
-									Grid.Column="6"
-									IsChecked="{Binding IsIncomplete.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-									VerticalAlignment="Center"
-									Margin="0,0,6,0" />
-
-								<!-- Column 7: 未完ラベル -->
-								<TextBlock
-									Grid.Column="7"
-									Text="未完"
-									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-									VerticalAlignment="Center"
-									Margin="0,0,18,0" />
-
-								<!-- Column 8: スペーサー -->
-								<Border Grid.Column="8" Width="0" />
-
-								<!-- Column 9: 開始巻ラベル -->
-								<TextBlock
-									Grid.Column="9"
 									Text="開始巻"
 									Foreground="{DynamicResource TextFillColorSecondaryBrush}"
 									VerticalAlignment="Center"
 									Margin="0,0,6,0" />
 
-								<!-- Column 10: StartVolumeNumberBox -->
+								<!-- Column 4: StartVolumeNumberBox -->
 								<ui:NumberBox
-									Grid.Column="10"
+									Grid.Column="4"
 									Value="{Binding VolumeStatus.StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 									behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
 									IsTabStop="False"
@@ -506,7 +522,8 @@
 									Minimum="1"
 									Maximum="999"
 									SpinButtonPlacementMode="Hidden"
-									InputMethod.PreferredImeState="Off" />
+									InputMethod.PreferredImeState="Off"
+									Margin="0,0,18,0" />
 							</Grid>
 
 							<!-- Column 1: 余白 -->
@@ -706,19 +723,27 @@
 								</StackPanel>
 							</Grid>
 
-					<!-- Row 2: 下段（所持推定・登録先素材フォルダ） -->
+					<!-- Row 2: 下段（所持推定・全巻所持・登録先素材フォルダ・素材フォルダ作成日時） -->
 					<Grid Grid.Row="2">
 						<Grid.ColumnDefinitions>
 							<!-- Column 0: 所持推定 -->
 							<ColumnDefinition Width="Auto" />
-							<!-- Column 1: 登録先素材フォルダ -->
+							<!-- Column 1: 全巻所持とのスペーサー -->
+							<ColumnDefinition Width="24" />
+							<!-- Column 2: 全巻所持 -->
+							<ColumnDefinition Width="Auto" />
+							<!-- Column 3: 登録先素材フォルダ -->
+							<ColumnDefinition Width="400" />
+							<!-- Column 4: 素材フォルダ作成日時とのスペーサー -->
+							<ColumnDefinition Width="14" />
+							<!-- Column 5: 素材フォルダ作成日時 -->
+							<ColumnDefinition Width="Auto" />
+							<!-- Column 6: 余白 -->
 							<ColumnDefinition Width="*" />
-							<!-- Column 2: 余白 -->
-							<ColumnDefinition Width="1*" />
 						</Grid.ColumnDefinitions>
 
 						<!-- Column 0: 所持推定 -->
-						<Grid Grid.Column="0" Margin="0,0,24,0">
+						<Grid Grid.Column="0">
 							<Grid.ColumnDefinitions>
 								<ColumnDefinition Width="Auto" />
 								<ColumnDefinition Width="100" />
@@ -745,15 +770,31 @@
 								behaviors:NumberBoxTextChangedBehavior.Command="{Binding VolumeStatus.OwnedMaxVolumeTextInputCommand}" />
 						</Grid>
 
-						<!-- Column 1: 登録先素材フォルダ -->
-						<Grid Grid.Column="1">
+						<!-- Column 2: 全巻所持（CheckBox + ラベル） -->
+						<StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+							<!-- 全巻所持チェック -->
+							<CheckBox
+								IsChecked="{Binding VolumeStatus.IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+								IsEnabled="{Binding VolumeStatus.CanEditOwnedCompleted.Value}"
+								VerticalAlignment="Center"
+								Margin="0,0,6,0" />
+
+							<!-- 全巻所持ラベル -->
+							<ui:TextBlock
+								Text="全巻所持"
+								Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+								VerticalAlignment="Center" />
+						</StackPanel>
+
+						<!-- Column 3: 登録先素材フォルダ -->
+						<Grid Grid.Column="3" Margin="24,0,0,0">
 							<Grid.ColumnDefinitions>
 								<ColumnDefinition Width="Auto" />
 								<ColumnDefinition Width="*" />
 							</Grid.ColumnDefinitions>
 
 							<!-- ラベル -->
-							<TextBlock
+							<ui:TextBlock
 								Grid.Column="0"
 								Text="登録先素材フォルダ"
 								VerticalAlignment="Center"
@@ -772,8 +813,18 @@
 								VerticalAlignment="Center" />
 						</Grid>
 
-						<!-- Column 2: 余白 -->
-						<Border Grid.Column="2" />
+						<!-- Column 5: 素材フォルダ作成日時 -->
+						<TextBlock
+							Grid.Column="5"
+							Style="{StaticResource MaterialFolderCreatedAtTextBlockStyle}"
+							Text="{Binding EditingSeries.Value.MaterialFolderCreatedAt, StringFormat='[ {0:yyyy/MM/dd HH:mm} ]'}"
+							FontSize="12"
+							Opacity="0.8"
+							VerticalAlignment="Center"
+							ToolTip="素材フォルダ作成日時" />
+
+						<!-- Column 6: 余白 -->
+						<Border Grid.Column="6" />
 					</Grid>
 				</Grid>
 			</ui:Card>

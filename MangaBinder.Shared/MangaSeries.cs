@@ -240,6 +240,11 @@ public class MangaSeries
     /// メモが存在するかを取得します。
     /// </summary>
     public bool HasMemo => !string.IsNullOrWhiteSpace(this.Memo);
+
+    /// <summary>
+    /// MangaBinder が確認した素材フォルダの作成日時です。
+    /// </summary>
+    public DateTime? MaterialFolderCreatedAt { get; set; }
 }
 
 

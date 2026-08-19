@@ -152,6 +152,15 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 				moveResult.SeriesFolderPath,
 				FolderRole.Material);
 
+			// Material作品フォルダの作成日時を取得してDBへ保存
+			var seriesFolderInfo = new DirectoryInfo(moveResult.SeriesFolderPath);
+			var materialFolderCreatedAt = seriesFolderInfo.CreationTime;
+			await this.mangaRepository.UpdateMaterialFolderCreatedAtAsync(
+				connection,
+				tx,
+				seriesId,
+				materialFolderCreatedAt);
+
 			// 登録待ち作品の場合は WorkMangaSeriesTags と WorkMangaSeries を削除
 			if (isWorkSeries)
 			{

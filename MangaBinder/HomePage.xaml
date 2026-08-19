@@ -22,6 +22,15 @@
         <converters:HomeEmptyStateKindToVisibilityConverter x:Key="EmptyStateKindToVis" />
         <!-- ViewModel をポップアップ内（切断ツリー）から参照するためのプロキシ -->
         <tags:BindingProxy x:Key="VmProxy" Data="{Binding}" />
+        <!-- 素材フォルダ作成日時が null の場合に非表示にするスタイル -->
+        <Style x:Key="MaterialFolderCreatedAtTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Series.Value.MaterialFolderCreatedAt}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <!-- タイトル表示専用 TextBox スタイル：TextBlock 寄りの見た目、選択可能 -->
         <Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
             <Setter Property="Background" Value="Transparent" />
@@ -330,9 +339,32 @@
                                 </ui:Button>
                             </Grid>
 
-                            <!-- Row1: 巻数情報 -->
-                            <controls:SeriesVolumeStatus Grid.Row="1" Margin="0,0,0,8" VerticalAlignment="Center"
-                                DataContext="{Binding VolumeStatus.Value}" />
+                            <!-- Row1: 巻数情報とその補助情報 -->
+                            <Grid Grid.Row="1" Margin="0,0,0,8" VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <!-- Col0: 巻数情報 -->
+                                    <ColumnDefinition Width="Auto" />
+                                    <!-- Col1: 巻数情報と素材フォルダ作成日時の間隔調整用 -->
+                                    <ColumnDefinition Width="14" />
+                                    <!-- Col2: 素材フォルダ作成日時 -->
+                                    <ColumnDefinition Width="Auto" />
+                                    <!-- Col3: 残りの余白 -->
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Col0: 巻数情報 -->
+                                <controls:SeriesVolumeStatus Grid.Column="0"
+                                    DataContext="{Binding VolumeStatus.Value}" />
+
+                                <!-- Col2: 素材フォルダ作成日時 -->
+                                <TextBlock Grid.Column="2"
+                                    Style="{StaticResource MaterialFolderCreatedAtTextBlockStyle}"
+                                    Text="{Binding Series.Value.MaterialFolderCreatedAt, StringFormat='[ {0:yyyy/MM/dd HH:mm} ]'}"
+                                    FontSize="12"
+                                    Opacity="0.8"
+                                    VerticalAlignment="Center"
+                                    ToolTip="素材フォルダ作成日時" />
+                            </Grid>
 
                             <!-- Row2: Grid（あらすじ領域 + 補助情報領域 + 編集ボタン） -->
                             <Grid Grid.Row="2" Margin="0,0,0,4">

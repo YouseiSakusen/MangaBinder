@@ -501,7 +501,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		.AddTo(ref this.disposableBag);
 
 		// RegisterSeriesCommand: 正式登録コマンド
-		this.RegisterSeriesCommand = new ReactiveCommand<Unit>()
+		this.RegisterSeriesCommand = new ReactiveCommand<Unit>(this.RegisterSeriesCommandCanExecute, initialCanExecute: false)
 			.AddTo(ref this.disposableBag);
 		this.RegisterSeriesCommand.Subscribe(async _ =>
 		{
@@ -645,6 +645,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		System.Diagnostics.Debug.WriteLine("==============================");
 
 		ArgumentNullException.ThrowIfNull(series);
+
+		// 編集対象を SeriesWorkspaceStore へ同期
+		// これにより、EditorStore側の編集対象とSeriesWorkspaceStore.EditTargetが常に一致し、
+		// ContentDialogから既存作品を読み込む場合に、Home側のRefreshDisplay()が正しい作品に対して動作する
+		this.workspaceStore.EditTarget = series;
 
 		// Scope を生成
 		using var scope = this.serviceScopeFactory.CreateScope();

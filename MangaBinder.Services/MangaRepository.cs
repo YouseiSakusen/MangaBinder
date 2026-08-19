@@ -63,6 +63,7 @@ public class MangaRepository
         seriesSql.AppendLine(" 	, ManuallyEditedAt ");
         seriesSql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
         seriesSql.AppendLine(" 	, IsIncomplete ");
+        seriesSql.AppendLine(" 	, MaterialFolderCreatedAt ");
         seriesSql.AppendLine(" FROM ");
         seriesSql.AppendLine(" 	MangaSeries; ");
 
@@ -214,6 +215,8 @@ public class MangaRepository
         seriesSql.AppendLine(" 	, Memo ");
         seriesSql.AppendLine(" 	, ManuallyEditedAt ");
         seriesSql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
+        seriesSql.AppendLine(" 	, IsIncomplete ");
+        seriesSql.AppendLine(" 	, MaterialFolderCreatedAt ");
         seriesSql.AppendLine(" FROM ");
         seriesSql.AppendLine(" 	MangaSeries ");
         seriesSql.AppendLine(" WHERE ");
@@ -389,6 +392,7 @@ public class MangaRepository
         sql.AppendLine(" 	, OwnedMaxVolume = :OwnedMaxVolume ");
         sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited = :IsOwnedMaxVolumeManuallyEdited ");
         sql.AppendLine(" 	, IsIncomplete = :IsIncomplete ");
+        sql.AppendLine(" 	, MaterialFolderCreatedAt = :MaterialFolderCreatedAt ");
         sql.AppendLine(" WHERE ");
         sql.AppendLine(" 	SeriesId = :SeriesId; ");
 
@@ -411,6 +415,7 @@ public class MangaRepository
                 OwnedMaxVolume = series.OwnedMaxVolume,
                 IsOwnedMaxVolumeManuallyEdited = series.IsOwnedMaxVolumeManuallyEdited,
                 IsIncomplete = series.IsIncomplete,
+                MaterialFolderCreatedAt = series.MaterialFolderCreatedAt,
             },
             transaction: transaction);
     }
@@ -537,6 +542,38 @@ public class MangaRepository
     }
 
     /// <summary>
+    /// MangaSeries の素材フォルダ作成日時（MaterialFolderCreatedAt）を更新します。
+    /// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
+    /// </summary>
+    /// <param name="connection">DB接続。</param>
+    /// <param name="transaction">トランザクション。</param>
+    /// <param name="seriesId">更新対象の SeriesId。</param>
+    /// <param name="materialFolderCreatedAt">素材フォルダの作成日時。</param>
+    /// <returns>完了時にコンプリートする ValueTask。</returns>
+    public async ValueTask UpdateMaterialFolderCreatedAtAsync(
+        SQLiteConnection connection,
+        SQLiteTransaction transaction,
+        long seriesId,
+        DateTime? materialFolderCreatedAt)
+    {
+        var updateSql = new StringBuilder();
+        updateSql.AppendLine(" UPDATE MangaSeries ");
+        updateSql.AppendLine(" SET ");
+        updateSql.AppendLine(" 	  MaterialFolderCreatedAt = :MaterialFolderCreatedAt ");
+        updateSql.AppendLine(" WHERE ");
+        updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+        await connection.ExecuteAsync(
+            updateSql.ToString(),
+            new
+            {
+                MaterialFolderCreatedAt = materialFolderCreatedAt,
+                SeriesId = seriesId,
+            },
+            transaction);
+    }
+
+    /// <summary>
     /// 新規 MangaSeries をインサートし、採番された SeriesId を返します。
     /// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
     /// </summary>
@@ -570,6 +607,7 @@ public class MangaRepository
         insertSql.AppendLine(" 	, Memo ");
         insertSql.AppendLine(" 	, HasNestedArchive ");
         insertSql.AppendLine(" 	, IsIncomplete ");
+        insertSql.AppendLine(" 	, MaterialFolderCreatedAt ");
         insertSql.AppendLine(" ) VALUES ( ");
         insertSql.AppendLine(" 	  :NormalizedTitleInternal ");
         insertSql.AppendLine(" 	, :Title ");
@@ -590,6 +628,7 @@ public class MangaRepository
         insertSql.AppendLine(" 	, :Memo ");
         insertSql.AppendLine(" 	, :HasNestedArchive ");
         insertSql.AppendLine(" 	, :IsIncomplete ");
+        insertSql.AppendLine(" 	, :MaterialFolderCreatedAt ");
         insertSql.AppendLine(" ) ");
         insertSql.AppendLine(" RETURNING SeriesId; ");
 
@@ -614,6 +653,7 @@ public class MangaRepository
             series.Memo,
             series.HasNestedArchive,
             series.IsIncomplete,
+            series.MaterialFolderCreatedAt,
         }, transaction);
 
         return seriesId;

@@ -55,6 +55,7 @@ public class MaterialFolderScanner : FolderScannerBase
         var series = MangaTitleHelper.ParseAsMaterial(info.Name, this.titleSeparatorChars);
         var estimate = this.ownedVolumeEstimator.Estimate(info.FullName);
         series.OwnedMaxVolume = estimate.OwnedMaxVolume;
+        series.MaterialFolderCreatedAt = info.CreationTime;
         series.Sources.Add(new MangaSource
         {
             Role = FolderRole.Material,

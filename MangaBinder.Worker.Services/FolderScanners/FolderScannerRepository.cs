@@ -131,6 +131,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, Memo ");
         sql.AppendLine(" 	, ManuallyEditedAt ");
         sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
+        sql.AppendLine(" 	, MaterialFolderCreatedAt ");
         sql.AppendLine(" ) VALUES ( ");
         sql.AppendLine(" 	  :NormalizedTitleInternal ");
         sql.AppendLine(" 	, :Title ");
@@ -145,6 +146,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, '' ");
         sql.AppendLine(" 	, NULL ");
         sql.AppendLine(" 	, 0 ");
+        sql.AppendLine(" 	, :MaterialFolderCreatedAt ");
         sql.AppendLine(" ) ");
         sql.AppendLine(" ON CONFLICT (NormalizedTitleInternal) DO UPDATE SET ");
         // フォルダ名由来の正規情報としてスキャン結果で上書き
@@ -163,6 +165,12 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	                        WHEN excluded.OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
         sql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, excluded.OwnedMaxVolume) ");
         sql.AppendLine(" 	                      END ");
+        // MaterialFolderCreatedAt は最古日時のみ保持
+        sql.AppendLine(" 	, MaterialFolderCreatedAt = CASE ");
+        sql.AppendLine(" 	                        WHEN MaterialFolderCreatedAt IS NULL THEN excluded.MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	                        WHEN excluded.MaterialFolderCreatedAt < MaterialFolderCreatedAt THEN excluded.MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	                        ELSE MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	                      END ");
         sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
         sql.AppendLine(" RETURNING SeriesId; ");
 
@@ -176,6 +184,7 @@ public class FolderScannerRepository : IFolderScannerRepository
             series.StartVolume,
             series.EndVolume,
             series.OwnedMaxVolume,
+            series.MaterialFolderCreatedAt,
         }, tx);
     }
 
@@ -417,6 +426,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         seriesSql.AppendLine(" 	, DescriptionSource ");
         seriesSql.AppendLine(" 	, DescriptionSourceTitle ");
         seriesSql.AppendLine(" 	, HasNestedArchive ");
+        seriesSql.AppendLine(" 	, MaterialFolderCreatedAt ");
         seriesSql.AppendLine(" FROM ");
         seriesSql.AppendLine(" 	MangaSeries ");
         seriesSql.AppendLine(" WHERE ");
