@@ -196,8 +196,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>
 	/// タイトルが確定し、他の編集項目を操作可能かどうかを取得します。
-	/// 新規作品では初期値 false、登録待ち作品・既存作品では初期値 true です。
-	/// タイトル入力後の LostFocus で state が更新されます。
+	/// 初期表示時は常に true であり、新規・登録待ち・既存のすべての作品で編集項目が操作可能です。
+	/// タイトル入力後の LostFocus で false になるのはタイトルが空の場合のみです。
 	/// </summary>
 	public BindableReactiveProperty<bool> IsTitleConfirmed { get; }
 
