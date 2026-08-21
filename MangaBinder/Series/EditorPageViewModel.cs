@@ -43,19 +43,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private bool suppressMaterialSizeCalculation;
 	private bool disposed;
 
-	/// <summary>
-	/// 次回のタイトル LostFocus 時に再判定が必要かどうかを表します。
-	/// showDifferentSeriesDialogAsync() で「タイトルを再入力」が選択された場合に true に設定されます。
-	/// </summary>
-	private bool needsTitleRevalidation;
-
-	/// <summary>
-	/// タイトル未入力時の通知を既に表示したかどうかを表します。
-	/// 同一 EditorPageViewModel インスタンスで通知は1回だけ表示するため、初回表示時に true に設定されます。
-	/// EditorPageViewModel は Transient のため、編集開始時にリセットする必要はありません。
-	/// </summary>
-	private bool hasShownTitleRequiredNotification;
-
 	/// <summary>編集対象の Series を取得します。</summary>
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
 
@@ -64,11 +51,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// </summary>
 	public SeriesTagSelectorViewModel TagSelector => this.tagSelector;
 
-	/// <summary>タイトルを取得または設定します。バリデーション機能付き。</summary>
-	public ValidatableReactiveProperty<string?> Title { get; }
-
-	/// <summary>1件ヒット時の既存作品候補を取得します。</summary>
-	public BindableReactiveProperty<MangaSeries?> DuplicateSeriesFound { get; }
+	/// <summary>タイトルを取得または設定します。</summary>
+	public BindableReactiveProperty<string?> Title { get; }
 
 	/// <summary>作者を取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Author { get; }
@@ -102,9 +86,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>EditorPage 全体の初期化要求を取得します。</summary>
 	public BooleanNotifier EditorPageInitializeRequest { get; }
-
-	/// <summary>ユーザーがタイトル再入力を選択した場合のフォーカス要求を取得します。</summary>
-	public BindableReactiveProperty<int> TitleReinputFocusRequest { get; }
 
 	/// <summary>素材ファイル一覧を取得します。</summary>
 	public ObservableCollection<MaterialFileItemViewModel> MaterialFiles { get; }
@@ -195,13 +176,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public BindableReactiveProperty<bool> IsBindingQueued { get; }
 
 	/// <summary>
-	/// タイトルが確定し、他の編集項目を操作可能かどうかを取得します。
-	/// 初期表示時は常に true であり、新規・登録待ち・既存のすべての作品で編集項目が操作可能です。
-	/// タイトル入力後の LostFocus で false になるのはタイトルが空の場合のみです。
-	/// </summary>
-	public BindableReactiveProperty<bool> IsTitleConfirmed { get; }
-
-	/// <summary>
 	/// 作品を正式に MangaSeries へ登録するコマンドを取得します。
 	/// </summary>
 	public ReactiveCommand<Unit> RegisterSeriesCommand { get; }
@@ -238,11 +212,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public ReactiveCommand<Unit> AddMaterialFolderCommand { get; }
 
 	/// <summary>
-	/// タイトル欄がフォーカスを失ったことを通知するコマンドを取得します。
-	/// </summary>
-	public ReactiveCommand<Unit> TitleLostFocusCommand { get; }
-
-	/// <summary>
 	/// 素材フォルダを開くコマンドを取得します。
 	/// </summary>
 	public ReactiveCommand<Unit> OpenMaterialFolderCommand { get; }
@@ -257,12 +226,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// 作品削除ダイアログを表示するコマンドを取得します。
 	/// </summary>
 	public ReactiveCommand<Unit> ShowDeleteSeriesDialogCommand { get; }
-
-	/// <summary>
-	/// タイトル再Validation フラグをリセットするコマンドを取得します。
-	/// 作品削除操作時にタイトルの再Validationが発生しないようにするために使用します。
-	/// </summary>
-	public ReactiveCommand<Unit> ResetTitleRevalidationCommand { get; }
 
 	/// <summary>
 	/// EditorPageViewModel の新しいインスタンスを初期化します。
@@ -304,25 +267,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.tagSelector = new SeriesTagSelectorViewModel(mangaSeriesStore)
 			.AddTo(ref this.disposableBag);
 
-		this.DuplicateSeriesFound = new BindableReactiveProperty<MangaSeries?>(null)
-			.AddTo(ref this.disposableBag);
-
-		// DuplicateSeriesFound が非 null に更新された場合、既存作品ダイアログを表示
-		this.DuplicateSeriesFound
-			.Subscribe(duplicateSeries =>
-			{
-				if (duplicateSeries != null)
-				{
-					// 二重実行を防ぐため、即座に DuplicateSeriesFound をクリア
-					this.DuplicateSeriesFound.Value = null;
-					// 非同期で dialog を表示
-					_ = this.showExistingSeriesDialogAsync(duplicateSeries);
-				}
-			})
-			.AddTo(ref this.disposableBag);
-
-		this.Title = new ValidatableReactiveProperty<string?>(null)
-			.SetValidateNotifyError(this.validateTitle)
+		this.Title = new BindableReactiveProperty<string?>(null)
 			.AddTo(ref this.disposableBag);
 
 		this.Author = new BindableReactiveProperty<string?>(null)
@@ -375,9 +320,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			.AddTo(ref this.disposableBag);
 
 		this.EditorPageInitializeRequest = new BooleanNotifier(false);
-
-		this.TitleReinputFocusRequest = new BindableReactiveProperty<int>(0)
-			.AddTo(ref this.disposableBag);
 
 		var materialFilesSource = new ObservableCollection<MaterialFileItemViewModel>();
 		this.MaterialFiles = materialFilesSource;
@@ -489,17 +431,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.IsBindingQueued = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
-		// IsTitleConfirmed: タイトル確定状態
-		this.IsTitleConfirmed = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
-
-		// IsTitleConfirmed の変更を監視して一時保存ボタンの有効状態を更新
-		this.IsTitleConfirmed.Subscribe(_ =>
-		{
-			this.UpdateSaveWorkSeriesCommandCanExecute();
-		})
-		.AddTo(ref this.disposableBag);
-
 		// RegisterSeriesCommand: 正式登録コマンド
 		this.RegisterSeriesCommand = new ReactiveCommand<Unit>(this.RegisterSeriesCommandCanExecute, initialCanExecute: false)
 			.AddTo(ref this.disposableBag);
@@ -535,20 +466,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		// AddMaterialFolderCommand: フォルダ選択コマンド
 		this.AddMaterialFolderCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
-		this.AddMaterialFolderCommand.Subscribe(_ =>
-		{
-			this.AddMaterialFolderAsync();
-		});
+			this.AddMaterialFolderCommand.Subscribe(_ =>
+			{
+				this.AddMaterialFolderAsync();
+			});
 
-		// TitleLostFocusCommand: タイトル欄がフォーカスを失った通知
-		this.TitleLostFocusCommand = new ReactiveCommand<Unit>()
-			.AddTo(ref this.disposableBag);
-		this.TitleLostFocusCommand.Subscribe(_ =>
-		{
-			this.handleTitleLostFocus();
-		});
-
-		// OpenMaterialFolderCommand: 素材フォルダを開くコマンド
+			// OpenMaterialFolderCommand: 素材フォルダを開くコマンド
 		this.OpenMaterialFolderCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
 		this.OpenMaterialFolderCommand.Subscribe(async _ =>
@@ -597,14 +520,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.ShowDeleteSeriesDialogCommand.Subscribe(async _ =>
 		{
 			await this.showDeleteSeriesDialogAsync();
-		});
-
-		// ResetTitleRevalidationCommand: タイトル再Validation フラグをリセット
-		this.ResetTitleRevalidationCommand = new ReactiveCommand<Unit>()
-			.AddTo(ref this.disposableBag);
-		this.ResetTitleRevalidationCommand.Subscribe(_ =>
-		{
-			this.needsTitleRevalidation = false;
 		});
 	}
 
@@ -666,7 +581,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		if (editingSeries != null)
 		{
 			this.Title.Value = editingSeries.Title;
-			this.DuplicateSeriesFound.Value = null;
 			this.Author.Value = editingSeries.Author;
 			this.Publisher.Value = editingSeries.Publisher;
 			this.Description.Value = editingSeries.Description;
@@ -742,22 +656,17 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 				{
 					this.IsBindingQueued.Value = seriesManager.IsBindingQueued(editingSeries.SeriesId);
 				}
-				else
-				{
-					this.IsBindingQueued.Value = false;
+					else
+					{
+						this.IsBindingQueued.Value = false;
+					}
+
+					// MaterialFiles の構築完了後、素材サイズを計算
+					await this.updateMaterialTotalSizeAsync();
+
+					// EditorPage 全体を初期表示状態へ戻す
+					this.EditorPageInitializeRequest.SwitchValue();
 				}
-
-				// タイトル確定状態を初期化
-				// 初期表示時はすべての作品で true とし、編集項目を操作可能にする
-				// タイトルが空のままLostFocusした場合のみ false になる
-				this.IsTitleConfirmed.Value = true;
-
-				// MaterialFiles の構築完了後、素材サイズを計算
-				await this.updateMaterialTotalSizeAsync();
-
-				// EditorPage 全体を初期表示状態へ戻す
-				this.EditorPageInitializeRequest.SwitchValue();
-			}
 	}
 
 	/// <summary>
@@ -879,142 +788,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		}
 
 		// 新規作品・登録待ち作品で素材なし
-		// さらに、タイトル確定状態も確認
-		this.SaveWorkSeriesCommandCanExecute.Value = this.IsTitleConfirmed.Value;
+		// 一時保存は常に可能（実際の保存時にタイトル必須チェックが行われる）
+		this.SaveWorkSeriesCommandCanExecute.Value = true;
 		this.RegisterSeriesCommandCanExecute.Value = false;
-	}
-
-	/// <summary>
-	/// タイトルのバリデーション処理。
-	/// タイトルが null / 空白の場合は必須エラーを返し、
-	/// それ以外の場合は重複チェックを行い、結果に応じてエラーメッセージまたは null を返す。
-	/// 編集対象に応じて判定ロジックを変更します：
-	/// - 新規作品・登録待ち作品：編集中の作品自身を候補から除外
-	/// - 既存作品：編集中の作品と入力タイトルの一致を確認してから判定
-	/// </summary>
-	/// <param name="title">検証するタイトル。</param>
-	/// <returns>エラーメッセージ、またはエラーなしの場合は null。</returns>
-	private string? validateTitle(string? title)
-	{
-		// null / 空白の場合は必須エラー
-		if (string.IsNullOrWhiteSpace(title))
-		{
-			this.DuplicateSeriesFound.Value = null;
-			return "タイトルを入力してください。";
-		}
-
-		// Scope を生成
-		using var scope = this.serviceScopeFactory.CreateScope();
-		var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
-
-		// タイトル重複チェック
-		var duplicates = seriesManager.FindSameTitle(title);
-
-		// 既存作品編集時の特別処理
-		if (this.EditingSeries.Value != null &&
-			this.EditingSeries.Value.SeriesId != 0 &&
-			!this.EditingSeries.Value.IsWork)
-		{
-			// 既存作品編集中
-			// 自分自身が含まれているかを確認
-			var selfInDuplicates = duplicates.FirstOrDefault(s =>
-				s.SeriesId == this.EditingSeries.Value.SeriesId);
-
-			if (selfInDuplicates != null)
-			{
-				// 自分自身が含まれている
-				// 他作品を候補から取り出す
-				var othersExceptSelf = duplicates
-					.Where(s => s.SeriesId != this.EditingSeries.Value.SeriesId)
-					.ToList();
-
-				if (othersExceptSelf.Count == 0)
-				{
-					// 自分自身のみ一致 → 正常
-					this.DuplicateSeriesFound.Value = null;
-					return null;
-				}
-				else if (othersExceptSelf.Count == 1)
-				{
-					// 自分自身 + 他作品1件 → ContentDialog表示
-					this.DuplicateSeriesFound.Value = othersExceptSelf[0];
-					return null;
-				}
-				else
-				{
-					// 自分自身 + 他作品2件以上 → 複数一致エラー
-					this.DuplicateSeriesFound.Value = null;
-
-					// Snackbarでエラー通知
-					this.snackbarService.Show(
-						"エラー",
-						"同じタイトルの作品が複数見つかりました。",
-						ControlAppearance.Danger,
-						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.MaxValue);
-
-					return "同じタイトルの作品が複数見つかりました。";
-				}
-			}
-			else
-			{
-				// 自分自身が含まれていない（0件一致）
-				// 入力タイトルが別作品として判定された
-				this.DuplicateSeriesFound.Value = null;
-
-				// ContentDialog を表示
-				_ = this.showDifferentSeriesDialogAsync();
-
-				return null;
-			}
-		}
-
-		// 新規作品または登録待ち作品の処理
-		// 編集中の作品自身を除外
-		if (this.EditingSeries.Value != null)
-		{
-			// 正式作品の場合は SeriesId で除外
-			if (this.EditingSeries.Value.SeriesId != 0)
-			{
-				duplicates = duplicates
-					.Where(s => s.SeriesId != this.EditingSeries.Value.SeriesId)
-					.ToList();
-			}
-			// 登録待ち作品の場合は WorkId で除外
-			else if (this.EditingSeries.Value.WorkId != 0)
-			{
-				duplicates = duplicates
-					.Where(s => s.WorkId != this.EditingSeries.Value.WorkId)
-					.ToList();
-			}
-		}
-
-		// 0件なら重複候補なし
-		if (duplicates.Count == 0)
-		{
-			this.DuplicateSeriesFound.Value = null;
-			return null;
-		}
-
-		// 1件なら既存作品候補として保持（エラーではない）
-		if (duplicates.Count == 1)
-		{
-			this.DuplicateSeriesFound.Value = duplicates[0];
-			return null;
-		}
-
-		// 2件以上ならエラー
-		this.DuplicateSeriesFound.Value = null;
-
-		// Snackbarでエラー通知
-		this.snackbarService.Show(
-			"エラー",
-			"同じタイトルの作品が複数見つかりました。",
-			ControlAppearance.Danger,
-			new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-			TimeSpan.MaxValue);
-
-		return "同じタイトルの作品が複数見つかりました。";
 	}
 
 	/// <summary>
@@ -1183,140 +959,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
-	/// 既存作品編集中に入力タイトルが別作品として判定された場合の ContentDialog を表示します。
-	/// ユーザーがタイトルを再入力するか、前画面へ戻るかを選択できます。
-	/// </summary>
-	private async ValueTask showDifferentSeriesDialogAsync()
-	{
-		// ダイアログを表示して結果を取得
-		var result = await this.ShowContentDialogAsync(
-			"タイトル変更の確認",
-			"入力したタイトルが別作品として判定されたため変更できません。\n新規作品として登録してください。",
-			"タイトルを再入力",
-			"前画面に戻る");
-
-		// ユーザーが「タイトルを再入力」を選択した場合
-		if (result == ContentDialogResult.Primary)
-		{
-			// 次回の LostFocus 時に再判定を実行するようフラグを設定
-			this.needsTitleRevalidation = true;
-
-			// タイトルTextBoxへフォーカスして全選択できるようにする
-			this.TitleReinputFocusRequest.Value++;
-		}
-		else
-		{
-			// 「前画面に戻る」の場合
-			// ナビゲーション履歴に従って戻る
-			this.navigationService.GoBack();
-		}
-	}
-
-	/// <summary>
-	/// タイトル欄がフォーカスを失ったときの処理を実行します。
-	/// タイトルが空（null / 空白）の場合、初回のみ「タイトル未入力理由」の通知を表示します。
-	/// 再判定待ちフラグが立っている場合は、現在値のまま ForceValidate() を実行します。
-	/// タイトル状態に応じて IsTitleConfirmed を更新します。
-	/// </summary>
-	private void handleTitleLostFocus()
-	{
-		// タイトルが空かどうかを判定
-		var isTitleEmpty = string.IsNullOrWhiteSpace(this.Title.Value);
-
-		if (isTitleEmpty)
-		{
-			// タイトルが空の場合：通知を表示
-
-			// 初回だけ通知を表示
-			if (!this.hasShownTitleRequiredNotification)
-			{
-				this.hasShownTitleRequiredNotification = true;
-
-				// Danger 通知を表示（自動的に消えない）
-				this.snackbarService.Show(
-					"タイトル入力が必須です",
-					"このアプリケーションでは同一タイトルを複数登録できないため、最初にタイトルを入力する必要があります。",
-					ControlAppearance.Danger,
-					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.FromSeconds(10));
-			}
-
-			// タイトルが空なので、他の編集項目は操作不可に
-			this.IsTitleConfirmed.Value = false;
-
-			return;
-		}
-
-		// タイトルが入力されている場合
-
-		// 再判定待ちフラグが false の場合は何もしない（通常のバリデーションに任せる）
-		if (!this.needsTitleRevalidation)
-		{
-			return;
-		}
-
-		// フラグをリセット
-		this.needsTitleRevalidation = false;
-
-		// 現在値のまま validateTitle() を再実行
-		this.Title.ForceValidate();
-
-		// ForceValidate() 後、タイトルにエラーがなく、
-		// 重複判定ダイアログで別作品と判定されていない場合のみタイトル確定
-		if (!this.Title.HasErrors && this.DuplicateSeriesFound.Value == null)
-		{
-			this.IsTitleConfirmed.Value = true;
-		}
-		else
-		{
-			this.IsTitleConfirmed.Value = false;
-		}
-	}
-
-	/// <summary>
-	/// 既存作品ダイアログを非同期で表示し、ユーザーの選択に応じた処理を実行します。
-	/// </summary>
-	/// <param name="duplicateSeries">既存の作品。</param>
-	private async ValueTask showExistingSeriesDialogAsync(MangaSeries duplicateSeries)
-	{
-		// ダイアログ用に MaintenanceSeriesCardViewModel を生成
-		var cardViewModel = new MaintenanceSeriesCardViewModel(duplicateSeries);
-
-		// ダイアログコンテンツを作成
-		var content = new ExistingSeriesDialogContent
-		{
-			DataContext = cardViewModel,
-		};
-
-		// ダイアログを表示して結果を取得
-		var result = await this.ShowContentDialogAsync(
-			"既に登録済みです。",
-			content,
-			"作品を開く",
-			"前画面に戻る");
-
-		// ユーザーが「作品を開く」を選択した場合
-		if (result == ContentDialogResult.Primary)
-		{
-			// DuplicateSeriesFound を null にリセット（ダイアログループ防止）
-			this.DuplicateSeriesFound.Value = null;
-			// 既存作品を読み込み
-			await this.StartEditAsync(duplicateSeries);
-		}
-		else
-		{
-			// 「前画面に戻る」の場合、遷移元の画面へ戻る
-			// DuplicateSeriesFound を null にリセット
-			this.DuplicateSeriesFound.Value = null;
-			// ナビゲーション履歴に従って戻る
-			this.navigationService.GoBack();
-		}
-
-		// ダイアログ終了後にカード ViewModel を Dispose
-		cardViewModel.Dispose();
-	}
-
-	/// <summary>
 	/// 作品削除ダイアログを非同期で表示し、ユーザーの選択結果を返します。
 	/// </summary>
 	private async ValueTask showDeleteSeriesDialogAsync()
@@ -1384,8 +1026,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		}
 		else
 		{
-			// キャンセルした場合、タイトル再入力待ち状態を戻す
-			this.needsTitleRevalidation = true;
+			// キャンセルした場合、何もしない
 		}
 
 		// ダイアログ終了後に ViewModel を Dispose

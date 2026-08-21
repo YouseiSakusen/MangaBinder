@@ -81,6 +81,7 @@
                     InputMethod.PreferredImeState="On"
                     Margin="0,0,0,8"
                     Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    behaviors:FocusAndSelectAllBehavior.Request="{Binding TitleInputFocusRequest.Value, Mode=OneWay}"
                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                     behaviors:TrimOnPasteBehavior.IsEnabled="True"
                     PlaceholderText="作品のタイトルを入力してください"

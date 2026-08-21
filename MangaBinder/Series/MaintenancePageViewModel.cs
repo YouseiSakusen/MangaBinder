@@ -20,17 +20,11 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>ナビゲーションサービス。</summary>
 	private readonly INavigationService navigationService;
 
-	/// <summary>コンテントダイアログサービス。</summary>
-	private readonly IContentDialogService contentDialogService;
-
 	/// <summary>作品選択状態ストア。</summary>
 	private readonly SeriesWorkspaceStore workspaceStore;
 
 	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
 	private readonly MangaSeriesStore mangaSeriesStore;
-
-	/// <summary>作品の検索を担う Manager。</summary>
-	private readonly MangaSeriesManager mangaSeriesManager;
 
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
@@ -76,18 +70,14 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <see cref="MaintenancePageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
-	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
 	/// <param name="workspaceStore">作品選択状態ストア。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
-	/// <param name="mangaSeriesManager">作品の検索を担う Manager。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
-	public MaintenancePageViewModel(INavigationService navigationService, IContentDialogService contentDialogService, SeriesWorkspaceStore workspaceStore, MangaSeriesStore mangaSeriesStore, MangaSeriesManager mangaSeriesManager, IServiceScopeFactory serviceScopeFactory)
+	public MaintenancePageViewModel(INavigationService navigationService, SeriesWorkspaceStore workspaceStore, MangaSeriesStore mangaSeriesStore, IServiceScopeFactory serviceScopeFactory)
 	{
 		this.navigationService = navigationService;
-		this.contentDialogService = contentDialogService;
 		this.workspaceStore = workspaceStore;
 		this.mangaSeriesStore = mangaSeriesStore;
-		this.mangaSeriesManager = mangaSeriesManager;
 		this.serviceScopeFactory = serviceScopeFactory;
 
 		this.SearchQuery = new BindableReactiveProperty<string>(string.Empty)
@@ -240,66 +230,18 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	}
 
 	/// <summary>
-	/// EditorPage を表示します。新規作品登録フロー第2段階として、新規タイトル入力 ContentDialog を表示し、
-	/// タイトル確定後に MangaSeries を生成して EditorPage へ遷移します。
+	/// EditorPage を表示します。新規作品登録フローを開始します。
 	/// </summary>
 	private async void showEditor()
 	{
 		// Dialog 表示期間用の Scope を作成
 		using var scope = this.serviceScopeFactory.CreateScope();
 
-		// Scope から MangaSeriesManager を Resolve
-		var scopedMangaSeriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+		// Scope から NewSeriesCoordinator を Resolve
+		var coordinator = scope.ServiceProvider.GetRequiredService<NewSeriesCoordinator>();
 
-		// NewSeriesTitleDialogContentViewModel を生成（Manager を渡す）
-		var viewModel = new NewSeriesTitleDialogContentViewModel(scopedMangaSeriesManager);
-
-		// NewSeriesTitleDialogContent を生成
-		var content = new NewSeriesTitleDialogContent
-		{
-			DataContext = viewModel
-		};
-
-		// 親ウィンドウの ActualWidth から Dialog 幅を計算（約 2/3）
-		var mainWindow = System.Windows.Application.Current?.MainWindow;
-		if (mainWindow != null)
-		{
-			content.Width = mainWindow.ActualWidth * 2 / 3;
-		}
-
-		// ContentDialog を生成
-		var dialog = new ContentDialog
-		{
-			Title = "新規作品登録",
-			Content = content,
-			PrimaryButtonText = "作品編集開始",
-			CloseButtonText = "キャンセル",
-			DefaultButton = ContentDialogButton.Primary
-		};
-
-		// Dialog 表示前に Closing イベントハンドラを接続
-		dialog.Closing += viewModel.HandleDialogClosing;
-
-		// ContentDialog を表示
-		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
-
-		// Closing イベントの購読解除
-		dialog.Closing -= viewModel.HandleDialogClosing;
-
-		// Primary（作品編集開始）で正常終了し、タイトルが確定している場合
-		if (result == ContentDialogResult.Primary && viewModel.ConfirmedSeries != null)
-		{
-			// 編集対象を新規作品に設定
-			this.workspaceStore.EditTarget = viewModel.ConfirmedSeries;
-
-			// EditorPage へ遷移
-			this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
-		}
-
-		// リソースを解放
-		viewModel.Dispose();
-
-		// Scope は using 終了時に自動的に破棄される
+		// 新規作品登録フローを開始
+		await coordinator.StartAsync();
 	}
 
 	/// <summary>

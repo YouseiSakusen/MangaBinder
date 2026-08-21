@@ -67,6 +67,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<SeriesTagDispatcher>();
 		services.AddScoped<ThumbnailManager>();
 		services.AddScoped<MangaSeriesManager>();
+		services.AddScoped<NewSeriesCoordinator>();
 		services.AddKeyedScoped<ISeriesSaveManager, NewSeriesSaveManager>(SeriesSaveType.New);
 		services.AddKeyedScoped<ISeriesSaveManager, ExistingSeriesSaveManager>(SeriesSaveType.Existing);
 		services.AddKeyedScoped<ISeriesSaveManager, WorkSeriesSaveManager>(SeriesSaveType.Work);
