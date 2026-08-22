@@ -1,3 +1,4 @@
+using System.Windows;
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
 using Microsoft.Extensions.DependencyInjection;
@@ -60,26 +61,24 @@ public class NewSeriesCoordinator
 		var titleViewModel = new NewSeriesTitleDialogContentViewModel();
 
 		// NewSeriesTitleDialogContent を生成
+		var mainWindow = Application.Current?.MainWindow;
+		var contentWidth = mainWindow?.ActualWidth * 2 / 3 ?? 800;
+
 		var titleContent = new NewSeriesTitleDialogContent
 		{
-			DataContext = titleViewModel
+			DataContext = titleViewModel,
+			Width = contentWidth,
 		};
 
-		// 親ウィンドウの ActualWidth から Dialog 幅を計算（約 2/3）
-		var mainWindow = System.Windows.Application.Current?.MainWindow;
-		if (mainWindow != null)
-		{
-			titleContent.Width = mainWindow.ActualWidth * 2 / 3;
-		}
-
-		// ContentDialog を生成
 		var dialog = new ContentDialog
 		{
 			Title = "新規作品登録",
 			Content = titleContent,
 			PrimaryButtonText = "作品編集開始",
 			CloseButtonText = "キャンセル",
-			DefaultButton = ContentDialogButton.Primary
+
+			// UserControl の指定幅を ContentDialog の標準最大幅で切らせない
+			DialogMaxWidth = double.PositiveInfinity,
 		};
 
 		// 確定された MangaSeries を格納する変数

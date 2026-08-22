@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using HalationGhost.Utilities;
 
 namespace MangaBinder.Helpers;
 
@@ -200,32 +201,75 @@ public static class MangaTitleHelper
     /// <summary>略称タイトルの最大文字数。</summary>
     private const int MaxShortTitleLength = 30;
 
-    /// <summary>30文字以内の略称タイトルを生成します。</summary>
+    /// <summary>
+    /// 30文字以内の略称タイトルを生成します。
+    /// 戻り値はファイル名として安全にサニタイズ済みの ShortTitle です。
+    /// サムネイルファイル名に直接使用可能です。
+    /// </summary>
+    /// <remarks>
+    /// <para>短縮ルール（実行順）:</para>
+    /// <list type="number">
+    ///   <item>最大文字数（30文字）以下ならそのまま使用</item>
+    ///   <item>separatorChars で分割し、先頭要素が30文字以下なら使用</item>
+    ///   <item>全角/半角スペース（U+3000/U+0020）で分割し、先頭要素が30文字以下なら使用</item>
+    ///   <item>先頭30文字で短縮</item>
+    /// </list>
+    /// <para>すべての戻り値は FileSystemCharSanitizer によってサニタイズ済みであり、
+    /// Windows ファイルシステムの禁則文字を含みません。</para>
+    /// </remarks>
     /// <param name="title">元のタイトル文字列。</param>
     /// <param name="separatorChars">DBから取得した区切り文字群。</param>
-    /// <returns>30文字以内に収めた略称タイトル。</returns>
+    /// <returns>30文字以内に収めた、ファイル名として安全なサニタイズ済み略称タイトル。</returns>
     public static string GetShortTitle(string title, string separatorChars)
     {
-        // タイトルが最大文字数以下ならそのまま返す
+        // 短縮ルールに基づいて候補を決定
+        string candidate;
+
+        // タイトルが最大文字数以下ならそのまま使用
         if (title.Length <= MaxShortTitleLength)
-            return title;
+        {
+            candidate = title;
+        }
         // ① separatorChars による Split（先頭要素）
-        if (!string.IsNullOrEmpty(separatorChars))
+        else if (!string.IsNullOrEmpty(separatorChars))
         {
             var part = title.Split(separatorChars.ToCharArray())[0].Trim();
             if (part.Length <= MaxShortTitleLength)
-                return part;
+            {
+                candidate = part;
+            }
+            // ② 全角/半角スペースによる Split（先頭要素）
+            else
+            {
+                var spacePart = title.Split([' ', '\u3000'])[0].Trim();
+                if (spacePart.Length <= MaxShortTitleLength)
+                {
+                    candidate = spacePart;
+                }
+                // ③ 先頭30文字での Substring
+                else
+                {
+                    candidate = title[..MaxShortTitleLength].Trim();
+                }
+            }
         }
-
         // ② 全角/半角スペースによる Split（先頭要素）
+        else
         {
             var part = title.Split([' ', '\u3000'])[0].Trim();
             if (part.Length <= MaxShortTitleLength)
-                return part;
+            {
+                candidate = part;
+            }
+            // ③ 先頭30文字での Substring
+            else
+            {
+                candidate = title[..MaxShortTitleLength].Trim();
+            }
         }
 
-        // ③ 先頭30文字での Substring
-        return title[..MaxShortTitleLength].Trim();
+        // 最後に1か所でサニタイズを適用し、ファイル名として安全な値を返す
+        return FileSystemCharSanitizer.Sanitize(candidate);
     }
 
     /// <summary>先頭の [作者名] を抽出する正規表現です。</summary>

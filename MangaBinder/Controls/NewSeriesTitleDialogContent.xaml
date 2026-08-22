@@ -84,10 +84,11 @@
                     behaviors:FocusAndSelectAllBehavior.Request="{Binding TitleInputFocusRequest.Value, Mode=OneWay}"
                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                     behaviors:TrimOnPasteBehavior.IsEnabled="True"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                     PlaceholderText="作品のタイトルを入力してください"
                     TextWrapping="Wrap"
                     AcceptsReturn="False"
-                    MinHeight="48" />
+                    MinHeight="58" />
 
                 <!-- InfoBar：未入力エラー表示 -->
                 <ui:InfoBar

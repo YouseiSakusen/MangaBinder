@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\HalationGhost.Utilities\HalationGhost.Utilities.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ObservableCollections" Version="3.3.4" />
   </ItemGroup>
 

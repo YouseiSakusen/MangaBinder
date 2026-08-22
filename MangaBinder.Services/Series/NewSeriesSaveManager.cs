@@ -115,14 +115,8 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 				tx,
 				editingSeries);
 
-			// SeriesId を editingSeries に反映
-			editingSeries.SeriesId = seriesId;
-
 			// タグを MangaSeriesTags へ保存
 			await this.SaveSeriesTagsInTransactionAsync(connection, tx, seriesId, editingSeries.Tags);
-
-			// サムネイル保存
-			workThumbnailToDelete = await this.SaveSeriesThumbnailAsync(connection, tx, editingSeries, thumbnailBytes, isWorkSeries, workId);
 
 			// 素材移動
 			var moveResult = await this.materialManager.MoveMaterialsAsync(
@@ -133,7 +127,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 			// 素材移動の成否判定：MovedItems が0件の場合は正式登録を成立させない
 			if (moveResult.MovedItems.Count == 0)
 			{
-				// 全件移動失敗：DB をロールバック、WorkThumbnail は削除しない
+				// 全件移動失敗：DB をロールバック、WorkThumbnail は削除しない、正式サムネイルも作成しない
 				tx.Rollback();
 
 				return new SeriesSaveResult
@@ -142,6 +136,9 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 					FailedItems = moveResult.FailedItems,
 				};
 			}
+
+			// MovedItems が1件以上の場合のみサムネイル保存を実行
+			workThumbnailToDelete = await this.SaveSeriesThumbnailAsync(connection, tx, seriesId, editingSeries, thumbnailBytes, isWorkSeries, workId);
 
 			// MovedItems が1件以上：正式登録処理を継続
 			// MangaSources へ作品フォルダ情報を登録
@@ -267,10 +264,18 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 	/// WorkThumbnail をコピーした場合、削除対象のファイル名を戻り値で返します。
 	/// 呼び出し元は戻り値が null でない場合、COMMIT 成功後に DeleteWorkThumbnailIfExists を呼び出してください。
 	/// </summary>
+	/// <param name="connection">DB接続。</param>
+	/// <param name="tx">DBトランザクション。</param>
+	/// <param name="seriesId">正式登録に採番された SeriesId。正式サムネイル名の生成に使用します。</param>
+	/// <param name="editingSeries">編集中の作品情報。ShortTitle とログ出力に使用します。</param>
+	/// <param name="thumbnailBytes">新しいサムネイルのバイト列。null またはLengthが0の場合はスキップします。</param>
+	/// <param name="isWorkSeries">登録待ち作品かどうか。</param>
+	/// <param name="workId">作品のWorkId。WorkThumbnail ファイル名の生成に使用します。</param>
 	/// <returns>削除対象の WorkThumbnail ファイル名、または null。</returns>
 	private async ValueTask<string?> SaveSeriesThumbnailAsync(
 		SQLiteConnection connection,
 		SQLiteTransaction tx,
+		long seriesId,
 		MangaSeries editingSeries,
 		byte[]? thumbnailBytes,
 		bool isWorkSeries,
@@ -279,17 +284,20 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 		{
 			// 1. thumbnailBytes を正式 Thumbnail へ保存
-			var fileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.ThumbnailFileNameBase)}.jpg";
+			// 正式サムネイル名を seriesId と editingSeries.ShortTitle を使用して生成
+			// ShortTitle は生成時点でファイル名として安全にサニタイズ済み
+			var thumbnailFileNameBase = $"{seriesId:D6}_{editingSeries.ShortTitle}";
+			var fileName = $"{thumbnailFileNameBase}.jpg";
 			await this.thumbnailManager.SaveThumbnailAsync(fileName, thumbnailBytes);
 
 			editingSeries.ThumbnailFileName = fileName;
 			editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
 
-			// DB に反映
+			// DB に反映（seriesId を明示的に渡す）
 			await this.mangaRepository.UpdateSeriesThumbnailAsync(
 				connection,
 				tx,
-				editingSeries.SeriesId,
+				seriesId,
 				fileName,
 				ThumbnailStatus.Completed);
 
@@ -298,22 +306,27 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		else if (isWorkSeries)
 		{
 			// 2. WorkThumbnail が存在する場合、正式 Thumbnail へコピー
-			var workThumbnailFileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.WorkThumbnailFileNameBase)}.jpg";
+			// WorkThumbnailFileNameBase は ShortTitle を含むため、生成時点でサニタイズ済み
+			var workThumbnailFileName = $"{editingSeries.WorkThumbnailFileNameBase}.jpg";
+			// 正式サムネイル名を seriesId と editingSeries.ShortTitle を使用して生成
+			// ShortTitle は生成時点でファイル名として安全にサニタイズ済み
+			var thumbnailFileNameBase = $"{seriesId:D6}_{editingSeries.ShortTitle}";
+			var thumbnailFileName = $"{thumbnailFileNameBase}.jpg";
 			var copied = await this.thumbnailManager.CopyWorkThumbnailToThumbnailAsync(
 				workThumbnailFileName,
-				$"{FileSystemCharSanitizer.Sanitize(editingSeries.ThumbnailFileNameBase)}.jpg");
+				thumbnailFileName);
 
 			if (copied)
 			{
-				editingSeries.ThumbnailFileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.ThumbnailFileNameBase)}.jpg";
+				editingSeries.ThumbnailFileName = thumbnailFileName;
 				editingSeries.ThumbnailStatus = ThumbnailStatus.Completed;
 
-				// DB に反映
+				// DB に反映（seriesId を明示的に渡す）
 				await this.mangaRepository.UpdateSeriesThumbnailAsync(
 					connection,
 					tx,
-					editingSeries.SeriesId,
-					editingSeries.ThumbnailFileName,
+					seriesId,
+					thumbnailFileName,
 					ThumbnailStatus.Completed);
 
 				// COMMIT 成功後に削除するため、ファイル名を返す

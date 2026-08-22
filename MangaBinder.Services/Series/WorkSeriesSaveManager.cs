@@ -69,7 +69,8 @@ public sealed class WorkSeriesSaveManager : ISeriesSaveManager
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 			{
 				// ファイル名を決定（WorkThumbnailFileNameBase を使用）
-				var fileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.WorkThumbnailFileNameBase)}.jpg";
+				// WorkThumbnailFileNameBase は ShortTitle を含むため、生成時点でサニタイズ済み
+				var fileName = $"{editingSeries.WorkThumbnailFileNameBase}.jpg";
 
 				// ThumbnailManager で保存
 				await this.thumbnailManager.SaveWorkThumbnailAsync(fileName, thumbnailBytes);
@@ -101,7 +102,8 @@ public sealed class WorkSeriesSaveManager : ISeriesSaveManager
 			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
 			{
 				// ファイル名を決定（WorkThumbnailFileNameBase を使用）
-				var fileName = $"{FileSystemCharSanitizer.Sanitize(editingSeries.WorkThumbnailFileNameBase)}.jpg";
+				// WorkThumbnailFileNameBase は ShortTitle を含むため、生成時点でサニタイズ済み
+				var fileName = $"{editingSeries.WorkThumbnailFileNameBase}.jpg";
 
 				// ThumbnailManager で保存
 				await this.thumbnailManager.SaveWorkThumbnailAsync(fileName, thumbnailBytes);
@@ -114,14 +116,14 @@ public sealed class WorkSeriesSaveManager : ISeriesSaveManager
 				await this.workMangaSeriesRepository.UpdateAsync(editingSeries);
 			}
 
-					// Store へ即座に反映
-					this.mangaSeriesStore.UpdateWorkSeries(editingSeries);
+			// Store へ即座に反映
+			this.mangaSeriesStore.UpdateWorkSeries(editingSeries);
 
-					return new SeriesSaveResult
-					{
-						Series = editingSeries,
-						FailedItems = [],
-					};
-				}
-			}
+			return new SeriesSaveResult
+			{
+				Series = editingSeries,
+				FailedItems = [],
+			};
+		}
+	}
 }

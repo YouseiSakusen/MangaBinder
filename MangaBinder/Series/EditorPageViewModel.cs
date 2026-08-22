@@ -42,6 +42,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private bool isInitializing;
 	private bool suppressMaterialSizeCalculation;
 	private bool disposed;
+	private double? editingStartOwnedMaxVolume;
 
 	/// <summary>編集対象の Series を取得します。</summary>
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
@@ -210,6 +211,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// フォルダ選択ダイアログから素材フォルダを追加するコマンドを取得します。
 	/// </summary>
 	public ReactiveCommand<Unit> AddMaterialFolderCommand { get; }
+
+	/// <summary>
+	/// 素材一覧から追加素材を削除するコマンドを取得します。
+	/// 削除対象の MaterialFileItemViewModel を CommandParameter として受け取ります。
+	/// </summary>
+	public ReactiveCommand<MaterialFileItemViewModel?> RemoveMaterialFileCommand { get; }
 
 	/// <summary>
 	/// 素材フォルダを開くコマンドを取得します。
@@ -472,14 +479,22 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			});
 
 			// OpenMaterialFolderCommand: 素材フォルダを開くコマンド
-		this.OpenMaterialFolderCommand = new ReactiveCommand<Unit>()
-			.AddTo(ref this.disposableBag);
-		this.OpenMaterialFolderCommand.Subscribe(async _ =>
-		{
-			await this.openMaterialFolderAsync();
-		});
+			this.OpenMaterialFolderCommand = new ReactiveCommand<Unit>()
+				.AddTo(ref this.disposableBag);
+			this.OpenMaterialFolderCommand.Subscribe(async _ =>
+			{
+				await this.openMaterialFolderAsync();
+			});
 
-		// VolumeStatus: 巻情報編集用ViewModel
+			// RemoveMaterialFileCommand: 追加素材を一覧から削除するコマンド
+			this.RemoveMaterialFileCommand = new ReactiveCommand<MaterialFileItemViewModel?>()
+				.AddTo(ref this.disposableBag);
+			this.RemoveMaterialFileCommand.Subscribe(targetItem =>
+			{
+				this.RemoveMaterialFile(targetItem);
+			});
+
+			// VolumeStatus: 巻情報編集用ViewModel
 		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
 			.AddTo(ref this.disposableBag);
 
@@ -589,6 +604,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 			// 巻情報を VolumeStatus に読み込み
 			this.VolumeStatus.LoadFromSeries(editingSeries);
+
+			// 編集開始時の OwnedMaxVolume を保持（素材削除時の復元用）
+			this.editingStartOwnedMaxVolume = this.VolumeStatus.OwnedMaxVolume.Value;
 
 			// TagSelector へ対象作品を設定（onTagsChanged は不要）
 			this.tagSelector.SetTarget(editingSeries);
@@ -1915,19 +1933,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 								if (saveResult.Series == null)
 								{
 									// 全件失敗：EditorPage に留まる
-									// 1. CanRemove == true の追加素材を MaterialFiles から削除
-									for (int i = this.MaterialFiles.Count - 1; i >= 0; i--)
-									{
-										if (this.MaterialFiles[i].CanRemove)
-										{
-											this.MaterialFiles.RemoveAt(i);
-										}
-									}
-
-									// 2. 状態を元に戻す
+									// 素材一覧を保持したまま StatusCommand の有効状態を更新
 									this.UpdateSaveWorkSeriesCommandCanExecute();
 
-									// 3. Danger + TimeSpan.MaxValue の Snackbar を表示
+									// Danger + TimeSpan.MaxValue の Snackbar を表示
 									this.snackbarService.Show(
 										"素材を移動できませんでした",
 										"素材ファイルまたはフォルダが他のアプリで使用されている可能性があります。\n他のアプリで開いている場合は終了して、再度実行してください。",
@@ -2188,6 +2197,83 @@ internal sealed record MaterialFolderSelectionResult
 /// </summary>
 public partial class EditorPageViewModel
 {
+	/// <summary>
+	/// 素材一覧から指定された素材を削除します。
+	/// 削除可能（CanRemove == true）な素材のみ削除でき、その他の素材は削除できません。
+	/// </summary>
+	/// <param name="targetItem">削除対象の MaterialFileItemViewModel。</param>
+	private void RemoveMaterialFile(MaterialFileItemViewModel? targetItem)
+	{
+		// 対象が null の場合は処理しない
+		if (targetItem == null)
+		{
+			return;
+		}
+
+		// CanRemove が false の場合は削除不可
+		if (!targetItem.CanRemove)
+		{
+			return;
+		}
+
+		// 削除対象が MaterialFiles に含まれているか確認
+		if (!this.MaterialFiles.Contains(targetItem))
+		{
+			return;
+		}
+
+		// MaterialFiles から削除
+		// CollectionChanged イベントでコレクション関連の表示は自動更新される
+		this.MaterialFiles.Remove(targetItem);
+
+		// 登録/保存コマンドの有効状態を更新
+		this.UpdateSaveWorkSeriesCommandCanExecute();
+
+		// 巻数推定の再計算
+		this.RecalculateOwnedVolumeEstimateAfterRemoval();
+	}
+
+	/// <summary>
+	/// 素材削除後の所持推定巻数を再計算します。
+	/// 推定できない場合は編集開始時の値を復元します。
+	/// </summary>
+	private void RecalculateOwnedVolumeEstimateAfterRemoval()
+	{
+		try
+		{
+			// 素材が0件の場合は編集開始時の値に戻す
+			if (this.MaterialFiles.Count == 0)
+			{
+				this.VolumeStatus.OwnedMaxVolume.Value = this.editingStartOwnedMaxVolume;
+				return;
+			}
+
+			// 残っている素材から OwnedVolumeEstimator で再推定
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var ownedVolumeEstimator = scope.ServiceProvider.GetRequiredService<OwnedVolumeEstimator>();
+
+			var entryNames = this.MaterialFiles.Select(m => m.FileName).ToList();
+			var result = ownedVolumeEstimator.Estimate(entryNames);
+
+			if (result.OwnedMaxVolume > 0)
+			{
+				// 推定できた場合は新しい推定値を設定
+				this.VolumeStatus.OwnedMaxVolume.Value = result.OwnedMaxVolume;
+			}
+			else
+			{
+				// 推定できない場合は編集開始時の値に戻す
+				this.VolumeStatus.OwnedMaxVolume.Value = this.editingStartOwnedMaxVolume;
+			}
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RecalculateOwnedVolumeEstimateAfterRemoval] 例外発生: {ex.Message}");
+			// 例外が発生した場合は編集開始時の値に戻す
+			this.VolumeStatus.OwnedMaxVolume.Value = this.editingStartOwnedMaxVolume;
+		}
+	}
+
 	/// <summary>
 	/// 素材フォルダを開きます。
 	/// </summary>

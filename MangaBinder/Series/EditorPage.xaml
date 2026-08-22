@@ -47,13 +47,13 @@
 			<Setter Property="Background" Value="Transparent" />
 			<Setter Property="BorderThickness" Value="0" />
 			<Setter Property="BorderBrush" Value="Transparent" />
-			<Setter Property="Padding" Value="0" />
-			<Setter Property="FocusVisualStyle" Value="{x:Null}" />
-			<Setter Property="CaretBrush" Value="Transparent" />
-			<Setter Property="IsReadOnly" Value="True" />
-			<Setter Property="IsTabStop" Value="False" />
-		</Style>
-	</Page.Resources>
+					<Setter Property="Padding" Value="0" />
+						<Setter Property="FocusVisualStyle" Value="{x:Null}" />
+						<Setter Property="CaretBrush" Value="Transparent" />
+						<Setter Property="IsReadOnly" Value="True" />
+						<Setter Property="IsTabStop" Value="False" />
+						</Style>
+					</Page.Resources>
 
 	<!-- ドラッグアンドドロップオーバーレイを含むルートGrid -->
 	<Grid x:Name="RootGrid"
@@ -679,17 +679,20 @@
 											</GridViewColumn.CellTemplate>
 										</GridViewColumn>
 										<!-- 操作列 -->
-										<GridViewColumn Header="操作" Width="50">
+										<GridViewColumn Header="操作" Width="100">
 											<GridViewColumn.CellTemplate>
 												<DataTemplate>
 													<ui:Button
-														Appearance="Secondary"
-														Padding="4,4"
-														VerticalAlignment="Center"
-														HorizontalAlignment="Center"
-														ToolTip="素材の追加を取り消す"
-														Visibility="{Binding CanRemove, Converter={StaticResource BoolToVisibilityConverter}}">
-														<ui:SymbolIcon Symbol="Dismiss12" Foreground="Red" FontSize="14" />
+														Command="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Page}}, Path=DataContext.RemoveMaterialFileCommand}"
+														CommandParameter="{Binding}"
+														Visibility="{Binding CanRemove, Converter={StaticResource BoolToVisibilityConverter}}"
+														Appearance="Transparent"
+														Content="削除"
+														Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+														MouseOverBackground="{DynamicResource SystemFillColorCriticalBackgroundBrush}">
+														<ui:Button.Icon>
+															<ui:SymbolIcon Symbol="Dismiss12" />
+														</ui:Button.Icon>
 													</ui:Button>
 												</DataTemplate>
 											</GridViewColumn.CellTemplate>
