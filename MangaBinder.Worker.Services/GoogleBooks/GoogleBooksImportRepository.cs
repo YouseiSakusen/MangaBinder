@@ -47,6 +47,7 @@ public class GoogleBooksImportRepository : IGoogleBooksImportRepository
 		sql.AppendLine(" 	, DescriptionSource ");
 		sql.AppendLine(" 	, DescriptionSourceTitle ");
 		sql.AppendLine(" 	, HasNestedArchive ");
+		sql.AppendLine(" 	, UpdateSource ");
 		sql.AppendLine(" FROM ");
 		sql.AppendLine(" 	MangaSeries ");
 		sql.AppendLine(" WHERE ");
@@ -92,7 +93,6 @@ public class GoogleBooksImportRepository : IGoogleBooksImportRepository
 		sql.AppendLine(" 	, GoogleBooksImportStatus  = :GoogleBooksImportStatus ");
 		sql.AppendLine(" 	, GoogleBooksImportedAt    = DATETIME('now', 'localtime') ");
 		sql.AppendLine(" 	, GoogleBooksImportMessage = :GoogleBooksImportMessage ");
-		sql.AppendLine(" 	, UpdatedAt                = DATETIME('now', 'localtime') ");
 		sql.AppendLine(" WHERE ");
 		sql.AppendLine(" 	SeriesId = :SeriesId; ");
 
@@ -123,7 +123,6 @@ public class GoogleBooksImportRepository : IGoogleBooksImportRepository
 		sql.AppendLine(" 	  GoogleBooksImportStatus  = :GoogleBooksImportStatus ");
 		sql.AppendLine(" 	, GoogleBooksImportedAt    = DATETIME('now', 'localtime') ");
 		sql.AppendLine(" 	, GoogleBooksImportMessage = :GoogleBooksImportMessage ");
-		sql.AppendLine(" 	, UpdatedAt                = DATETIME('now', 'localtime') ");
 		sql.AppendLine(" WHERE ");
 		sql.AppendLine(" 	SeriesId = :SeriesId; ");
 
@@ -149,7 +148,6 @@ public class GoogleBooksImportRepository : IGoogleBooksImportRepository
 		sql.AppendLine(" 	  GoogleBooksImportStatus  = :GoogleBooksImportStatus ");
 		sql.AppendLine(" 	, GoogleBooksImportedAt    = DATETIME('now', 'localtime') ");
 		sql.AppendLine(" 	, GoogleBooksImportMessage = :GoogleBooksImportMessage ");
-		sql.AppendLine(" 	, UpdatedAt                = DATETIME('now', 'localtime') ");
 		sql.AppendLine(" WHERE ");
 		sql.AppendLine(" 	SeriesId = :SeriesId; ");
 

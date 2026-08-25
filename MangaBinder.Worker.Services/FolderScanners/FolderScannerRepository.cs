@@ -57,8 +57,9 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// Author は更新対象から除外し、EndVolume / IsOwnedCompleted 等を反映します。
     /// </summary>
     /// <param name="series">保存対象の作品。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    public async ValueTask<MangaSeries> SaveMaterialSeriesAsync(MangaSeries series, CancellationToken ct)
+    public async ValueTask<MangaSeries> SaveMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
     {
         using var conn = new SQLiteConnection(this.connectionString);
         await conn.OpenAsync(ct);
@@ -67,8 +68,83 @@ public class FolderScannerRepository : IFolderScannerRepository
         long seriesId;
         try
         {
-            seriesId = await this.UpsertMaterialSeriesAsync(conn, tx, series);
+            seriesId = await this.UpsertMaterialSeriesAsync(conn, tx, series, updateSource);
             await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Material });
+            tx.Commit();
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+
+        return await this.GetSeriesWithSourcesAsync(conn, seriesId);
+    }
+
+    /// <summary>
+    /// Path 一致によって既存 SeriesId が確定している素材フォルダについて、
+    /// 既存の MangaSeries を直接更新します。
+    /// 更新ルールは UpsertMaterialSeriesAsync の既存作品 UPDATE と同一です。
+    /// </summary>
+    /// <param name="seriesId">更新対象の既存作品ID。</param>
+    /// <param name="series">更新内容を持つ作品オブジェクト。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>DB上でマージ済みの最新 <see cref="MangaSeries"/>。</returns>
+    public async ValueTask<MangaSeries> UpdateMaterialSeriesByPathAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
+    {
+        using var conn = new SQLiteConnection(this.connectionString);
+        await conn.OpenAsync(ct);
+        using var tx = conn.BeginTransaction();
+
+        try
+        {
+            // 既存作品を直接 UPDATE（UpsertMaterialSeriesAsync の UPDATE ルール適用）
+            var updateSql = new StringBuilder();
+            updateSql.AppendLine(" UPDATE MangaSeries ");
+            updateSql.AppendLine(" SET ");
+            updateSql.AppendLine(" 	  Title             = :Title ");
+            updateSql.AppendLine(" 	, ShortTitle        = :ShortTitle ");
+            updateSql.AppendLine(" 	, SeriesCompleted   = :SeriesCompleted ");
+            updateSql.AppendLine(" 	, IsOwnedCompleted  = :IsOwnedCompleted ");
+            updateSql.AppendLine(" 	, IsSourceMissing   = 0 ");
+            updateSql.AppendLine(" 	, StartVolume       = :StartVolume ");
+            updateSql.AppendLine(" 	, EndVolume         = :EndVolume ");
+            // OwnedMaxVolume は IsOwnedMaxVolumeManuallyEdited で保護
+            updateSql.AppendLine(" 	, OwnedMaxVolume    = CASE ");
+            updateSql.AppendLine(" 	                        WHEN IsOwnedMaxVolumeManuallyEdited = 1 THEN OwnedMaxVolume ");
+            updateSql.AppendLine(" 	                        WHEN OwnedMaxVolume IS NULL THEN :OwnedMaxVolume ");
+            updateSql.AppendLine(" 	                        WHEN :OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
+            updateSql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, :OwnedMaxVolume) ");
+            updateSql.AppendLine(" 	                      END ");
+            // MaterialFolderCreatedAt は最古日時のみ保持
+            updateSql.AppendLine(" 	, MaterialFolderCreatedAt = CASE ");
+            updateSql.AppendLine(" 	                        WHEN MaterialFolderCreatedAt IS NULL THEN :MaterialFolderCreatedAt ");
+            updateSql.AppendLine(" 	                        WHEN :MaterialFolderCreatedAt < MaterialFolderCreatedAt THEN :MaterialFolderCreatedAt ");
+            updateSql.AppendLine(" 	                        ELSE MaterialFolderCreatedAt ");
+            updateSql.AppendLine(" 	                      END ");
+            updateSql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
+            updateSql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
+            updateSql.AppendLine(" WHERE ");
+            updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+            await conn.ExecuteAsync(updateSql.ToString(), new
+            {
+                SeriesId = seriesId,
+                series.Title,
+                series.ShortTitle,
+                series.SeriesCompleted,
+                series.IsOwnedCompleted,
+                series.StartVolume,
+                series.EndVolume,
+                series.OwnedMaxVolume,
+                series.MaterialFolderCreatedAt,
+                UpdateSource = updateSource,
+            }, tx);
+
+            // Material Sources を同期（既存紐付け維持）
+            await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Material });
+
             tx.Commit();
         }
         catch
@@ -85,8 +161,9 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// Author を上書きし、BoundEndVolume / SeriesCompleted 等を反映します。
     /// </summary>
     /// <param name="series">保存対象の作品。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    public async ValueTask<MangaSeries> SaveBindingSeriesAsync(MangaSeries series, CancellationToken ct)
+    public async ValueTask<MangaSeries> SaveBindingSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
     {
         using var conn = new SQLiteConnection(this.connectionString);
         await conn.OpenAsync(ct);
@@ -95,7 +172,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         long seriesId;
         try
         {
-            seriesId = await this.UpsertBindingSeriesAsync(conn, tx, series);
+            seriesId = await this.UpsertBindingSeriesAsync(conn, tx, series, updateSource);
             await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Binding, (int)FolderRole.DefaultBinding });
             tx.Commit();
         }
@@ -114,7 +191,7 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// フォルダ名由来の情報（Title, ShortTitle, SeriesCompleted, IsOwnedCompleted, StartVolume, EndVolume）はスキャン結果で上書きします。
     /// OwnedMaxVolume は IsOwnedMaxVolumeManuallyEdited フラグで保護します。
     /// </summary>
-    private async ValueTask<long> UpsertMaterialSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series)
+    private async ValueTask<long> UpsertMaterialSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series, string updateSource)
     {
         var sql = new StringBuilder();
         sql.AppendLine(" INSERT INTO MangaSeries ( ");
@@ -132,6 +209,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, ManuallyEditedAt ");
         sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
         sql.AppendLine(" 	, MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	, UpdateSource ");
         sql.AppendLine(" ) VALUES ( ");
         sql.AppendLine(" 	  :NormalizedTitleInternal ");
         sql.AppendLine(" 	, :Title ");
@@ -147,6 +225,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, NULL ");
         sql.AppendLine(" 	, 0 ");
         sql.AppendLine(" 	, :MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	, :UpdateSource ");
         sql.AppendLine(" ) ");
         sql.AppendLine(" ON CONFLICT (NormalizedTitleInternal) DO UPDATE SET ");
         // フォルダ名由来の正規情報としてスキャン結果で上書き
@@ -172,6 +251,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	                        ELSE MaterialFolderCreatedAt ");
         sql.AppendLine(" 	                      END ");
         sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
+        sql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
         sql.AppendLine(" RETURNING SeriesId; ");
 
         return await conn.QuerySingleAsync<long>(sql.ToString(), new
@@ -185,6 +265,7 @@ public class FolderScannerRepository : IFolderScannerRepository
             series.EndVolume,
             series.OwnedMaxVolume,
             series.MaterialFolderCreatedAt,
+            UpdateSource = updateSource,
         }, tx);
     }
 
@@ -193,7 +274,7 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// 既存作品に一致した場合、メタ情報（Title、ShortTitle、Author、SeriesCompleted、StartVolume、EndVolume）は上書きしません。
     /// 更新対象は BoundEndVolume と UpdatedAt のみです。
     /// </summary>
-    private async ValueTask<long> UpsertBindingSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series)
+    private async ValueTask<long> UpsertBindingSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series, string updateSource)
     {
         var sql = new StringBuilder();
         sql.AppendLine(" INSERT INTO MangaSeries ( ");
@@ -209,6 +290,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, Memo ");
         sql.AppendLine(" 	, ManuallyEditedAt ");
         sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
+        sql.AppendLine(" 	, UpdateSource ");
         sql.AppendLine(" ) VALUES ( ");
         sql.AppendLine(" 	  :NormalizedTitleInternal ");
         sql.AppendLine(" 	, :Title ");
@@ -222,6 +304,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, '' ");
         sql.AppendLine(" 	, NULL ");
         sql.AppendLine(" 	, 0 ");
+        sql.AppendLine(" 	, :UpdateSource ");
         sql.AppendLine(" ) ");
         sql.AppendLine(" ON CONFLICT (NormalizedTitleInternal) DO UPDATE SET ");
         // 既存作品の場合、メタ情報は上書きしない
@@ -232,6 +315,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	                        ELSE MAX(BoundEndVolume, excluded.BoundEndVolume) ");
         sql.AppendLine(" 	                      END ");
         sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
+        sql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
         sql.AppendLine(" RETURNING SeriesId; ");
 
         return await conn.QuerySingleAsync<long>(sql.ToString(), new
@@ -244,6 +328,7 @@ public class FolderScannerRepository : IFolderScannerRepository
             series.StartVolume,
             series.EndVolume,
             series.BoundEndVolume,
+            UpdateSource = updateSource,
         }, tx);
     }
 
@@ -297,6 +382,7 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// 既存の MangaSources と スキャン結果を比較し、追加・削除を実施します。
     /// SourceId を維持するため、DELETE/INSERT ではなく差分同期で対応します。
     /// 削除対象の Source に紐づくアーカイブキャッシュ（MaterialArchiveEntries、MaterialArchives）も削除します。
+    /// Windows環境において Path は大文字小文字を区別しないため、Path比較は OrdinalIgnoreCase で実施します。
     /// </summary>
     /// <param name="conn">DB接続。</param>
     /// <param name="tx">トランザクション。</param>
@@ -322,9 +408,9 @@ public class FolderScannerRepository : IFolderScannerRepository
             new { SeriesId = seriesId, Roles = roles },
             tx)).ToList();
 
-        // 既存 Sources を (SeriesId, Role, Path) で Dictionary 化
+        // 既存 Sources を (SeriesId, Role, Path) で Dictionary 化（Path は OrdinalIgnoreCase で比較）
         // Value には SourceId の情報を保持
-        var existingDict = new Dictionary<(long, int, string), long>();
+        var existingDict = new Dictionary<(long, int, string), long>(new PathIgnoreCaseEqualityComparer());
         foreach (var row in existingSourceRows)
         {
             var sourceId = (long)row.SourceId;
@@ -393,6 +479,25 @@ public class FolderScannerRepository : IFolderScannerRepository
     }
 
     /// <summary>
+    /// Path 比較を OrdinalIgnoreCase（大文字小文字区別なし）で実施する EqualityComparer です。
+    /// (SeriesId, Role, Path) のタプル比較時に、Path のみ OrdinalIgnoreCase で比較します。
+    /// </summary>
+    private class PathIgnoreCaseEqualityComparer : IEqualityComparer<(long, int, string)>
+    {
+        /// <summary>
+        /// 2つのタプルが等しいかを判定します。SeriesId と Role は完全一致、Path は OrdinalIgnoreCase で比較します。
+        /// </summary>
+        public bool Equals((long, int, string) x, (long, int, string) y)
+            => x.Item1 == y.Item1 && x.Item2 == y.Item2 && string.Equals(x.Item3, y.Item3, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// ハッシュコードを取得します。Path は小文字に正規化してハッシュを計算します。
+        /// </summary>
+        public int GetHashCode((long, int, string) obj)
+            => HashCode.Combine(obj.Item1, obj.Item2, obj.Item3?.ToUpperInvariant());
+    }
+
+    /// <summary>
     /// 指定された SeriesId に対応する MangaSeries と MangaSources を取得します。
     /// 保存後のDB最新状態を再構築するために使用します。
     /// </summary>
@@ -427,6 +532,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         seriesSql.AppendLine(" 	, DescriptionSourceTitle ");
         seriesSql.AppendLine(" 	, HasNestedArchive ");
         seriesSql.AppendLine(" 	, MaterialFolderCreatedAt ");
+        seriesSql.AppendLine(" 	, UpdateSource ");
         seriesSql.AppendLine(" FROM ");
         seriesSql.AppendLine(" 	MangaSeries ");
         seriesSql.AppendLine(" WHERE ");
@@ -459,7 +565,6 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" SET ");
         sql.AppendLine(" 	  ThumbnailFileName = :ThumbnailFileName ");
         sql.AppendLine(" 	, ThumbnailStatus = :ThumbnailStatus ");
-        sql.AppendLine(" 	, UpdatedAt = DATETIME('now', 'localtime') ");
         sql.AppendLine(" WHERE ");
         sql.AppendLine(" 	SeriesId = :SeriesId; ");
 

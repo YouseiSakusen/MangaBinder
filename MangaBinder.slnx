@@ -8,6 +8,7 @@
     <Project Path="MangaBinder.Sandbox/MangaBinder.Sandbox.csproj" />
     <Project Path="MangaBinder.Services/MangaBinder.Services.csproj" Id="312054fe-ee30-407d-a263-da5c2c73e3f4" />
     <Project Path="MangaBinder.Shared.Services/MangaBinder.Shared.Services.csproj" Id="982b0977-bda5-419a-aa2f-fe8725a45b20" />
+    <Project Path="MangaBinder.Shared.Tests/MangaBinder.Shared.Tests.csproj" Id="e115587e-2748-4392-a77f-326c752e6687" />
     <Project Path="MangaBinder.Shared/MangaBinder.Shared.csproj" Id="e9202dfe-11ed-45e8-9be3-9ac71e2a8fb4" />
     <Project Path="MangaBinder/MangaBinder.csproj" />
   </Folder>

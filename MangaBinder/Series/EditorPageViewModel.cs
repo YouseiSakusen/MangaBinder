@@ -55,6 +55,18 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <summary>タイトルを取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Title { get; }
 
+	/// <summary>
+	/// タイトル入力欄がフォーカスを失ったときに実行するコマンドを取得します。
+	/// 既存正式作品の場合、タイトルが変更されたかを確認し、ContentDialog を表示します。
+	/// </summary>
+	public ReactiveCommand<Unit> TitleLostFocusCommand { get; }
+
+	/// <summary>
+	/// タイトル入力欄へのフォーカス要求カウンタを取得または設定します。
+	/// FocusAndSelectAllBehavior.Request にバインドされ、値が変化するとフォーカスが移ります。
+	/// </summary>
+	public BindableReactiveProperty<int> TitleFocusRequest { get; }
+
 	/// <summary>作者を取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Author { get; }
 
@@ -277,6 +289,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.Title = new BindableReactiveProperty<string?>(null)
 			.AddTo(ref this.disposableBag);
 
+		this.TitleFocusRequest = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
+
+		this.TitleLostFocusCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+
 		this.Author = new BindableReactiveProperty<string?>(null)
 			.AddTo(ref this.disposableBag);
 
@@ -376,6 +394,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.EndVolumeTextInputCommand.Subscribe(text =>
 		{
 			this.HandleEndVolumeTextInput(text);
+		});
+
+		// TitleLostFocusCommand: タイトル入力欄の LostFocus 時に実行するコマンド
+		this.TitleLostFocusCommand.Subscribe(async _ =>
+		{
+			await this.HandleTitleLostFocusAsync();
 		});
 
 		// ThumbnailPreviewImageSource: プレビュー用画像ソース
@@ -1737,6 +1761,75 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
+	/// タイトル入力欄が LostFocus した場合の処理を実行します。
+	/// 既存正式作品のみ、タイトルの変更確認を行います。
+	/// </summary>
+	private async ValueTask HandleTitleLostFocusAsync()
+	{
+		// 現在入力されているタイトルを取得
+		var currentTitle = this.Title.Value;
+
+		// タイトルが null / 空文字 / 空白のみの場合は何もしない
+		if (string.IsNullOrWhiteSpace(currentTitle))
+		{
+			return;
+		}
+
+		// 編集対象がない場合は何もしない
+		var editingSeries = this.EditingSeries.Value;
+		if (editingSeries == null)
+		{
+			return;
+		}
+
+		// 既存正式作品のみ対象（SeriesId != 0 かつ IsWork == false）
+		if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
+		{
+			return;
+		}
+
+		// 元作品の情報を取得
+		var originalSeries = this.editorStore.OriginalSeries;
+		if (originalSeries == null || string.IsNullOrWhiteSpace(originalSeries.Title))
+		{
+			return;
+		}
+
+		// タイトルを正規化して比較
+		var normalizedOriginal = MangaTitleHelper.NormalizeTitleInternal(originalSeries.Title);
+		var normalizedCurrent = MangaTitleHelper.NormalizeTitleInternal(currentTitle);
+
+		// 正規化結果が一致する場合は何もしない
+		if (normalizedOriginal == normalizedCurrent)
+		{
+			return;
+		}
+
+		// タイトルが変更されたため、ContentDialog を表示
+		var dialog = new ContentDialog
+		{
+			Title = "タイトル不一致",
+			Content = "タイトルが別作品と判定されました。続行しますか？",
+			PrimaryButtonText = "変更する",
+			CloseButtonText = "元に戻す",
+			DefaultButton = ContentDialogButton.Close,
+		};
+
+		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+
+		if (result == ContentDialogResult.Primary)
+		{
+			// 「変更する」を選択した場合は、現在のタイトルをそのまま維持
+			// 特に処理なし
+		}
+		else
+		{
+			// 「元に戻す」を選択した場合は、タイトルを元の値に戻す
+			this.Title.Value = originalSeries.Title;
+		}
+	}
+
+	/// <summary>
 	/// 編集中の作品を正式な MangaSeries として保存します。
 	/// 保存方式（新規登録・既存作品更新）の判定は MangaSeriesManager の責務です。
 	/// </summary>
@@ -1772,7 +1865,25 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 					ControlAppearance.Danger,
 					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
 					TimeSpan.MaxValue);
+				// タイトル入力欄へフォーカスを移す
+				this.TitleFocusRequest.Value++;
 				return;
+			}
+
+			// 新規作品・登録待ち作品の場合は重複判定を実行
+			if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
+			{
+				var duplicates = seriesManager.FindDuplicateSeries(editingSeries);
+				if (duplicates.Count > 0)
+				{
+					this.snackbarService.Show(
+						"登録できません",
+						"同一作品が既に登録されています。",
+						ControlAppearance.Danger,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.MaxValue);
+					return;
+				}
 			}
 
 			// 新規作品・登録待ち作品の場合は、素材ファイルと登録先フォルダが必須

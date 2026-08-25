@@ -18,21 +18,28 @@ public class OwnedVolumeEstimator
         var entries = entryNames.ToList();
 
         var allCandidates = new List<OwnedVolumeEstimateCandidate>();
+        var decidedVolumes = new List<int>();
+
+        // 各素材ごとに候補から最適な1つを選別
         foreach (var name in entries)
         {
             var candidates = OwnedVolumeCandidateExtractor.Extract(name);
             allCandidates.AddRange(candidates);
+
+            // この素材内で最高Priorityの候補を見つける
+            if (candidates.Count > 0)
+            {
+                var maxPriority = candidates.Max(c => c.Priority);
+                // 同じ最高Priorityの候補の中から最大Volumeを採用
+                var decidedVolume = candidates
+                    .Where(c => c.Priority == maxPriority)
+                    .Max(c => c.Volume);
+                decidedVolumes.Add(decidedVolume);
+            }
         }
 
-        var maxVolume = 0;
-        if (allCandidates.Count > 0)
-        {
-            // 最も優先度が高い候補グループのみ取得し、その中から最大巻を選択
-            var maxPriority = allCandidates.Max(c => c.Priority);
-            maxVolume = allCandidates
-                .Where(c => c.Priority == maxPriority)
-                .Max(c => c.Volume);
-        }
+        // 各素材で確定した巻数の最大値を採用
+        var maxVolume = decidedVolumes.Count > 0 ? decidedVolumes.Max() : 0;
 
         return new OwnedVolumeEstimateResult
         {

@@ -11,11 +11,13 @@ public static class MangaTitleHelper
 {
     /// <summary>
     /// タイトルの表記ゆれを吸収するための内部用正規化を行います。
+    /// 表現の違いは吸収しますが、情報の違いは吸収しません。
     /// <list type="bullet">
+    ///   <item>Unicode NFD を NFC に正規化</item>
     ///   <item>全角英数字・記号の半角化</item>
-    ///   <item>波ダッシュ（U+301C / U+FF5E）を U+301C に統一</item>
-    ///   <item>波ダッシュ前後の空白（全角・半角）の除去</item>
-    ///   <item>文字列前後の空白（全角・半角）の除去</item>
+    ///   <item>タイトル内のすべての空白（char.IsWhiteSpace 判定）を除去</item>
+    ///   <item>ASCII英字 A-Z / a-z の大小文字を統一（大文字へ）</item>
+    ///   <item>波ダッシュ（U+007E / U+301C / U+FF5E）を U+301C に統一</item>
     /// </list>
     /// </summary>
     /// <param name="title">正規化前のタイトル文字列。</param>
@@ -25,45 +27,41 @@ public static class MangaTitleHelper
         // macOS由来のNFD（濁点分離）文字をNFC（合成済み）に変換し、DB上での名寄せを保証する
         var nfc = title.Normalize(NormalizationForm.FormC);
 
-        // 波ダッシュの統一：全角チルダ(U+FF5E)を波ダッシュ(U+301C)に置換
-        // ※全角変換ループより先に処理することで、U+FF5Eが半角チルダに変換されるのを防ぐ
-        var unified = nfc.Replace('\uFF5E', '\u301C');
+        // 波ダッシュの統一：ASCII TILDE (U+007E) と FULLWIDTH TILDE (U+FF5E) を WAVE DASH (U+301C) に統一
+        // ※全角変換ループより先に処理することで、U+FF5E が半角チルダに変換されるのを防ぐ
+        var unified = nfc.Replace('\u007E', '\u301C').Replace('\uFF5E', '\u301C');
 
         // 全角英数字・記号（U+FF01〜U+FF5E）を半角（U+0021〜U+007E）に変換
         var sb = new StringBuilder(unified.Length);
         foreach (var c in unified)
         {
+            // 全角から半角への変換
             if (c >= '\uFF01' && c <= '\uFF5E')
-                sb.Append((char)(c - 0xFEE0));
+            {
+                var halfWidthChar = (char)(c - 0xFEE0);
+                // 半角に変換された英字を大文字へ統一
+                sb.Append(char.IsAsciiLetter(halfWidthChar) ? char.ToUpperInvariant(halfWidthChar) : halfWidthChar);
+            }
             else
-                sb.Append(c);
+            {
+                // 空白文字を除去、ASCII英字を大文字へ統一
+                if (char.IsWhiteSpace(c))
+                {
+                    // 空白は除外（sb に追加しない）
+                    continue;
+                }
+                else if (char.IsAsciiLetter(c))
+                {
+                    sb.Append(char.ToUpperInvariant(c));
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
         }
 
-        var normalized = sb.ToString();
-
-        // 波ダッシュ前後の空白除去
-        // 波ダッシュの直前・直後に存在する半角スペース / 全角スペース を除去
-        // 例: "シュート! 〜新たなる" → "シュート!〜新たなる"
-        //     "シュート!　〜新たなる" → "シュート!〜新たなる"
-        normalized = RemoveWhitespaceAroundWaveDash(normalized);
-
-        // 前後の空白除去（char.IsWhiteSpace が全角スペース U+3000 も対象とするため Trim() で統一処理）
-        return normalized.Trim();
-    }
-
-    /// <summary>
-    /// 波ダッシュ（U+301C）の直前・直後に存在する空白文字を除去します。
-    /// 対象となる空白は半角スペース（U+0020）と全角スペース（U+3000）です。
-    /// </summary>
-    /// <param name="text">処理対象の文字列。</param>
-    /// <returns>波ダッシュ前後の空白が除去された文字列。</returns>
-    private static string RemoveWhitespaceAroundWaveDash(string text)
-    {
-        // 正規表現で波ダッシュ前後の空白を一括削除
-        // [ \u3000]：半角スペース U+0020 または 全角スペース U+3000
-        // \u301C：波ダッシュ U+301C
-        // パターン：「空白+ 波ダッシュ +空白」を「波ダッシュ」に置換
-        return Regex.Replace(text, @"[ \u3000]*\u301C[ \u3000]*", "\u301C");
+        return sb.ToString();
     }
 
     /// <summary>

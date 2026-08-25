@@ -235,6 +235,8 @@
                                 Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                 behaviors:TrimOnPasteBehavior.IsEnabled="True"
+                                behaviors:LostFocusNotificationBehavior.Command="{Binding TitleLostFocusCommand}"
+                                behaviors:FocusAndSelectAllBehavior.Request="{Binding TitleFocusRequest.Value}"
                                 PlaceholderText="作品のタイトルを入力してください" />
 
                             <!-- 作者・出版社 -->
@@ -689,9 +691,10 @@
 														Appearance="Transparent"
 														Content="削除"
 														Foreground="{DynamicResource SystemFillColorCriticalBrush}"
-														MouseOverBackground="{DynamicResource SystemFillColorCriticalBackgroundBrush}">
+														MouseOverBackground="{DynamicResource SystemFillColorCriticalBackgroundBrush}"
+														Padding="3 0 3 0">
 														<ui:Button.Icon>
-															<ui:SymbolIcon Symbol="Dismiss12" />
+															<ui:SymbolIcon Symbol="Dismiss12" FontSize="12" />
 														</ui:Button.Icon>
 													</ui:Button>
 												</DataTemplate>

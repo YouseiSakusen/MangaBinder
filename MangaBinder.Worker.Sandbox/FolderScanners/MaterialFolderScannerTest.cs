@@ -106,16 +106,47 @@ file class StubMaterialRepository : IFolderScannerRepository
     /// 受け取った <see cref="MangaSeries"/> を萁積リストに追加します。
     /// </summary>
     /// <param name="series">保存対象の作品。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    public ValueTask<MangaSeries> SaveMaterialSeriesAsync(MangaSeries series, CancellationToken ct)
+    public ValueTask<MangaSeries> SaveMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
     {
         series.SeriesId = _id++;
         this.seriesList.Add(series);
         return ValueTask.FromResult(series);
     }
 
+    /// <summary>
+    /// Path一致による既存作品の更新処理です。このテストでは萁積リストから該当作品を更新します。
+    /// </summary>
+    /// <param name="seriesId">更新対象の作品ID。</param>
+    /// <param name="series">更新内容。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    public ValueTask<MangaSeries> UpdateMaterialSeriesByPathAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
+    {
+        var existing = this.seriesList.FirstOrDefault(s => s.SeriesId == seriesId);
+        if (existing != null)
+        {
+            existing.Title = series.Title;
+            existing.ShortTitle = series.ShortTitle;
+            existing.SeriesCompleted = series.SeriesCompleted;
+            existing.IsOwnedCompleted = series.IsOwnedCompleted;
+            existing.StartVolume = series.StartVolume;
+            existing.EndVolume = series.EndVolume;
+            if (!existing.IsOwnedMaxVolumeManuallyEdited || existing.OwnedMaxVolume == null)
+            {
+                existing.OwnedMaxVolume = series.OwnedMaxVolume;
+            }
+            if (existing.MaterialFolderCreatedAt == null || series.MaterialFolderCreatedAt < existing.MaterialFolderCreatedAt)
+            {
+                existing.MaterialFolderCreatedAt = series.MaterialFolderCreatedAt;
+            }
+        }
+        return ValueTask.FromResult(series);
+    }
+
     /// <summary>製本スキャンはこのテストでは使用しません。</summary>
-    public ValueTask<MangaSeries> SaveBindingSeriesAsync(MangaSeries series, CancellationToken ct)
+    public ValueTask<MangaSeries> SaveBindingSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
         => throw new NotImplementedException();
 
     /// <summary>このテストでは常に false を返します。</summary>

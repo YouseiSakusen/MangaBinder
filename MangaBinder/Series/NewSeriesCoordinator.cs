@@ -135,8 +135,21 @@ public class NewSeriesCoordinator
 				// Dialog を正常に閉じる
 				// e.Cancel を設定しない（自動的に閉じる）
 			}
-			// 既存作品確認状態での Secondary（前画面に戻る）
+			// 既存作品確認状態での Secondary（新規作品として続行）
 			else if (isShowingExistingSeries && e.Result == ContentDialogResult.Secondary)
+			{
+				// 入力されたタイトルを使用して新規作品を作成
+				var titleValue = titleViewModel.Title.Value ?? string.Empty;
+				confirmedSeries = new MangaSeries
+				{
+					Title = titleValue
+				};
+
+				// Dialog を正常に閉じる
+				// e.Cancel を設定しない（自動的に閉じる）
+			}
+			// 既存作品確認状態での Close（タイトルを修正する）
+			else if (isShowingExistingSeries && e.Result == ContentDialogResult.None)
 			{
 				// Closing をキャンセル
 				e.Cancel = true;
@@ -156,11 +169,6 @@ public class NewSeriesCoordinator
 
 				// タイトルTextBoxへフォーカス＆全選択をリクエスト
 				titleViewModel.TitleInputFocusRequest.Value++;
-			}
-			// 既存作品確認状態での Close（キャンセル）
-			else if (isShowingExistingSeries && e.Result == ContentDialogResult.None)
-			{
-				// 何もしない（Dialog正常終了 = 新規作品登録フロー終了）
 			}
 		}
 
@@ -268,10 +276,10 @@ public class NewSeriesCoordinator
 
 		// Dialog の設定を既存作品確認用に変更
 		dialog.Content = existingContent;
-		dialog.Title = "既に登録済みです。";
+		dialog.Title = "同一タイトルの作品が登録済みです。";
 		dialog.PrimaryButtonText = "作品を開く";
-		dialog.SecondaryButtonText = "前画面に戻る";
-		dialog.CloseButtonText = "キャンセル";
+		dialog.SecondaryButtonText = "新規作品として続行";
+		dialog.CloseButtonText = "タイトルを修正する";
 		dialog.DefaultButton = ContentDialogButton.Primary;
 	}
 }

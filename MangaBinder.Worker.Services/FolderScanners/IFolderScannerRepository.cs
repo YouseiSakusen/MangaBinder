@@ -20,18 +20,32 @@ public interface IFolderScannerRepository
     /// Author は更新対象から除外され、EndVolume / IsOwnedCompleted 等が反映されます。
     /// </summary>
     /// <param name="series">保存対象の作品。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
     /// <returns>DB上でマージ済みの最新 <see cref="MangaBinder.MangaSeries"/>。</returns>
-    ValueTask<MangaBinder.MangaSeries> SaveMaterialSeriesAsync(MangaBinder.MangaSeries series, CancellationToken ct);
+    ValueTask<MangaBinder.MangaSeries> SaveMaterialSeriesAsync(MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
+
+    /// <summary>
+    /// Path 一致によって既存 SeriesId が確定している素材フォルダについて、
+    /// 既存の MangaSeries を直接更新します。
+    /// 更新ルールは SaveMaterialSeriesAsync の既存作品 UPDATE と同一です。
+    /// </summary>
+    /// <param name="seriesId">更新対象の既存作品ID。</param>
+    /// <param name="series">更新内容を持つ作品オブジェクト。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>DB上でマージ済みの最新 <see cref="MangaBinder.MangaSeries"/>。</returns>
+    ValueTask<MangaBinder.MangaSeries> UpdateMaterialSeriesByPathAsync(long seriesId, MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
 
     /// <summary>
     /// 製本済みスキャン結果を 1 件単位で UPSERT 保存し、保存後のDB最新状態の <see cref="MangaBinder.MangaSeries"/> を返します。
     /// Author を上書きし、BoundEndVolume / SeriesCompleted 等が反映されます。
     /// </summary>
     /// <param name="series">保存対象の作品。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
     /// <returns>DB上でマージ済みの最新 <see cref="MangaBinder.MangaSeries"/>。</returns>
-    ValueTask<MangaBinder.MangaSeries> SaveBindingSeriesAsync(MangaBinder.MangaSeries series, CancellationToken ct);
+    ValueTask<MangaBinder.MangaSeries> SaveBindingSeriesAsync(MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
 
     /// <summary>
     /// サムネイル情報を更新します。

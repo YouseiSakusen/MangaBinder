@@ -64,6 +64,7 @@ public class MangaRepository
         seriesSql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
         seriesSql.AppendLine(" 	, IsIncomplete ");
         seriesSql.AppendLine(" 	, MaterialFolderCreatedAt ");
+        seriesSql.AppendLine(" 	, UpdateSource ");
         seriesSql.AppendLine(" FROM ");
         seriesSql.AppendLine(" 	MangaSeries; ");
 
@@ -217,6 +218,7 @@ public class MangaRepository
         seriesSql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
         seriesSql.AppendLine(" 	, IsIncomplete ");
         seriesSql.AppendLine(" 	, MaterialFolderCreatedAt ");
+        seriesSql.AppendLine(" 	, UpdateSource ");
         seriesSql.AppendLine(" FROM ");
         seriesSql.AppendLine(" 	MangaSeries ");
         seriesSql.AppendLine(" WHERE ");
@@ -366,11 +368,13 @@ public class MangaRepository
     /// <param name="connection">DB接続。</param>
     /// <param name="transaction">トランザクション。</param>
     /// <param name="series">更新対象の MangaSeries。</param>
+    /// <param name="updateSource">更新元を表す文字列（例：EditorPage など）。</param>
     /// <returns>完了時にコンプリートする ValueTask。</returns>
     public async ValueTask UpdateSeriesAsync(
         SQLiteConnection connection,
         SQLiteTransaction transaction,
-        MangaSeries series)
+        MangaSeries series,
+        string updateSource)
     {
         if (series.SeriesId == 0)
             throw new InvalidOperationException("UpdateSeriesAsync は新規作品（SeriesId=0）では実行できません。");
@@ -393,6 +397,9 @@ public class MangaRepository
         sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited = :IsOwnedMaxVolumeManuallyEdited ");
         sql.AppendLine(" 	, IsIncomplete = :IsIncomplete ");
         sql.AppendLine(" 	, MaterialFolderCreatedAt = :MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	, ManuallyEditedAt = :ManuallyEditedAt ");
+        sql.AppendLine(" 	, UpdatedAt = DATETIME('now', 'localtime') ");
+        sql.AppendLine(" 	, UpdateSource = :UpdateSource ");
         sql.AppendLine(" WHERE ");
         sql.AppendLine(" 	SeriesId = :SeriesId; ");
 
@@ -416,6 +423,8 @@ public class MangaRepository
                 IsOwnedMaxVolumeManuallyEdited = series.IsOwnedMaxVolumeManuallyEdited,
                 IsIncomplete = series.IsIncomplete,
                 MaterialFolderCreatedAt = series.MaterialFolderCreatedAt,
+                ManuallyEditedAt = series.ManuallyEditedAt,
+                UpdateSource = updateSource,
             },
             transaction: transaction);
     }
@@ -580,11 +589,13 @@ public class MangaRepository
     /// <param name="connection">DB接続。</param>
     /// <param name="transaction">トランザクション。</param>
     /// <param name="series">挿入する MangaSeries。SeriesId は上書きされます。</param>
+    /// <param name="updateSource">更新元を表す文字列（例：EditorPage、MaterialFolderScanner など）。</param>
     /// <returns>採番された SeriesId。</returns>
     public async ValueTask<long> InsertSeriesInTransactionAsync(
         SQLiteConnection connection,
         SQLiteTransaction transaction,
-        MangaSeries series)
+        MangaSeries series,
+        string updateSource)
     {
         var insertSql = new StringBuilder();
         insertSql.AppendLine(" INSERT INTO MangaSeries ( ");
@@ -608,6 +619,8 @@ public class MangaRepository
         insertSql.AppendLine(" 	, HasNestedArchive ");
         insertSql.AppendLine(" 	, IsIncomplete ");
         insertSql.AppendLine(" 	, MaterialFolderCreatedAt ");
+        insertSql.AppendLine(" 	, ManuallyEditedAt ");
+        insertSql.AppendLine(" 	, UpdateSource ");
         insertSql.AppendLine(" ) VALUES ( ");
         insertSql.AppendLine(" 	  :NormalizedTitleInternal ");
         insertSql.AppendLine(" 	, :Title ");
@@ -629,6 +642,8 @@ public class MangaRepository
         insertSql.AppendLine(" 	, :HasNestedArchive ");
         insertSql.AppendLine(" 	, :IsIncomplete ");
         insertSql.AppendLine(" 	, :MaterialFolderCreatedAt ");
+        insertSql.AppendLine(" 	, :ManuallyEditedAt ");
+        insertSql.AppendLine(" 	, :UpdateSource ");
         insertSql.AppendLine(" ) ");
         insertSql.AppendLine(" RETURNING SeriesId; ");
 
@@ -654,6 +669,8 @@ public class MangaRepository
             series.HasNestedArchive,
             series.IsIncomplete,
             series.MaterialFolderCreatedAt,
+            series.ManuallyEditedAt,
+            UpdateSource = updateSource,
         }, transaction);
 
         return seriesId;

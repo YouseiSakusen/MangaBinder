@@ -65,8 +65,18 @@ public class MaterialFolderScanner : FolderScannerBase
     }
 
     /// <summary>
-    /// ルートパスを走査し、各項目をパースして即座に保存します。
+    /// ルートパスを走査し、各項目をパースして 2 フェーズで保存します。
     /// DriveInfo.IsReady == false の場合はスキップし、Warning ログを出力します。
+    /// 
+    /// 処理フロー（2フェーズ処理）：
+    /// Phase 1: DB既存 Material Path に一致した素材を処理
+    ///   - UpdateMaterialSeriesByPathAsync で既存 SeriesId に直接更新
+    ///   - targetSourcesByFolder から除外
+    /// Phase 2: 新規あるいは Path 不一致の素材を処理
+    ///   - SaveMaterialSeriesAsync で従来の NormalizedTitleInternal ベース判定
+    ///   - targetSourcesByFolder から除外
+    /// 
+    /// 注：Path一致群と不一致群は順序立てて処理され、同時にDB更新しません。
     /// </summary>
     /// <param name="rootPaths">スキャン対象のルートフォルダパス一覧。</param>
     /// <param name="ct">キャンセルトークン。</param>
@@ -97,11 +107,99 @@ public class MaterialFolderScanner : FolderScannerBase
         var repository       = scope.ServiceProvider.GetRequiredService<IFolderScannerRepository>();
         var thumbnailCreator = scope.ServiceProvider.GetRequiredService<ThumbnailCreator>();
 
+        // DB登録済み Material MangaSource を Path（物理フルパス）をキーに、(SeriesId, MangaSource) をキャッシュ
+        var pathToExistingSourceMap = new Dictionary<string, (long SeriesId, MangaSource Source)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sourceId in this.targetSourcesByFolder.Keys.ToList())
+        {
+            var source = this.targetSourcesByFolder[sourceId];
+            if ((int)source.Role == (int)FolderRole.Material)
+            {
+                pathToExistingSourceMap[source.Path] = (source.SeriesId, source);
+            }
+        }
+
+        // 素材フォルダを処理経路別に分類
+        var pathMatchedSeries = new List<(MangaSeries series, long existingSeriesId)>();
+        var pathUnmatchedSeries = new List<MangaSeries>();
+
+        foreach (var series in seriesList)
+        {
+            // 素材フォルダのパスは Sources[0].Path に格納されている
+            var folderPath = series.Sources.FirstOrDefault()?.Path;
+
+            if (!string.IsNullOrEmpty(folderPath) && pathToExistingSourceMap.TryGetValue(folderPath, out var existingEntry))
+            {
+                // Path一致：既存SeriesIdで更新する群
+                pathMatchedSeries.Add((series, existingEntry.SeriesId));
+                this.logger.ZLogInformation($"Path一致により既存作品で処理: {folderPath}");
+            }
+            else
+            {
+                // Path不一致：従来のタイトル判定で処理する群
+                pathUnmatchedSeries.Add(series);
+            }
+        }
+
         var savedCount = 0;
 
-        await Parallel.ForEachAsync(seriesList, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (series, token) =>
+        // Phase 1: Path一致群を処理
+        this.logger.ZLogInformation($"Phase 1: Path一致群の処理を開始（{pathMatchedSeries.Count}件）");
+
+        var pathMatchedSourceIds = new HashSet<long>();
+
+        await Parallel.ForEachAsync(pathMatchedSeries, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (item, token) =>
         {
+            var (series, existingSeriesId) = item;
+
+            // Path一致時：既存SeriesIdで直接更新
+            var savedSeries = await repository.UpdateMaterialSeriesByPathAsync(existingSeriesId, series, nameof(MaterialFolderScanner), token);
+            this.logger.ZLogInformation($"既存作品を直接更新（Path一致）: {series.Sources.FirstOrDefault()?.Path}");
+
+            // 実在確認済み MangaSource の SourceId を収集
+            foreach (var source in savedSeries.Sources.Where(s => (int)s.Role == (int)FolderRole.Material))
+            {
+                var sourceIdsToAdd = this.targetSourcesByFolder
+                    .Where(kvp => kvp.Value.Path.Equals(source.Path, StringComparison.OrdinalIgnoreCase))
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+                foreach (var sourceId in sourceIdsToAdd)
+                {
+                    lock (pathMatchedSourceIds)
+                    {
+                        pathMatchedSourceIds.Add(sourceId);
+                    }
+                }
+            }
+
+            // DB保存完了
+            this.logger.ZLogInformation($"作品情報保存完了：{savedSeries.Title}");
+
+            if (this.HasCompletedThumbnail(savedSeries))
+            {
+                this.logger.ZLogInformation($"サムネイル生成済みのためスキップ");
+                Interlocked.Increment(ref savedCount);
+                return;
+            }
+            var result = await thumbnailCreator.CreateAsync(savedSeries, this.SkipThumbnailSizeLimit, token);
+            await repository.UpdateThumbnailAsync(savedSeries.SeriesId, result.ThumbnailFileName, result.Status, token);
+            Interlocked.Increment(ref savedCount);
+        });
+
+        // Phase 1 完了後、Path一致群の SourceId を targetSourcesByFolder から除外
+        this.logger.ZLogInformation($"Phase 1 完了: Path一致群の SourceId を除外（{pathMatchedSourceIds.Count}件）");
+        foreach (var sourceId in pathMatchedSourceIds)
+        {
+            this.targetSourcesByFolder.Remove(sourceId);
+        }
+
+        // Phase 2: Path不一致群を処理
+        this.logger.ZLogInformation($"Phase 2: Path不一致群の処理を開始（{pathUnmatchedSeries.Count}件）");
+
+        await Parallel.ForEachAsync(pathUnmatchedSeries, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (series, token) =>
+        {
+            // Path不一致時：従来の SaveMaterialSeriesAsync を使用
             var savedSeries = await this.SaveResultsAsync(series, repository, token);
+            this.logger.ZLogInformation($"タイトル判定で処理（Path不一致）: {series.Title}");
 
             // スキャン中に見つかった MangaSource をメモリから除外
             foreach (var source in savedSeries.Sources.Where(s => (int)s.Role == (int)FolderRole.Material))
@@ -130,6 +228,9 @@ public class MaterialFolderScanner : FolderScannerBase
             Interlocked.Increment(ref savedCount);
         });
 
+        // Phase 2 完了
+        this.logger.ZLogInformation($"Phase 2 完了: Path不一致群の処理が完了");
+
         return savedCount;
     }
 
@@ -141,7 +242,7 @@ public class MaterialFolderScanner : FolderScannerBase
     /// <param name="ct">キャンセルトークン。</param>
     /// <returns>DB上でマージ済みの最新 <see cref="MangaSeries"/>。</returns>
     protected override ValueTask<MangaSeries> SaveResultsAsync(MangaSeries series, IFolderScannerRepository repository, CancellationToken ct)
-        => repository.SaveMaterialSeriesAsync(series, ct);
+        => repository.SaveMaterialSeriesAsync(series, nameof(MaterialFolderScanner), ct);
 
     /// <summary>
     /// 素材フォルダスキャンを実行し、完了後に後続ジョブを自動投入します。

@@ -93,6 +93,10 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 			throw new InvalidOperationException("NewSeriesSaveManager は SeriesId == 0 の新規作品のみ受け付けます。");
 		}
 
+		// === ManuallyEditedAt の設定 ===
+		// 正式登録時に現在日時を設定
+		editingSeries.ManuallyEditedAt = DateTime.Now;
+
 		var isWorkSeries = editingSeries.IsWork;
 		var workId = editingSeries.WorkId;
 
@@ -113,7 +117,8 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 			var seriesId = await this.mangaRepository.InsertSeriesInTransactionAsync(
 				connection,
 				tx,
-				editingSeries);
+				editingSeries,
+				Constants.ViewNames.EditorPage);
 
 			// タグを MangaSeriesTags へ保存
 			await this.SaveSeriesTagsInTransactionAsync(connection, tx, seriesId, editingSeries.Tags);

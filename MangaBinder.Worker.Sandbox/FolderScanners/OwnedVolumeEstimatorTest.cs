@@ -170,6 +170,74 @@ public class OwnedVolumeEstimatorTest
     }
 
     /// <summary>
+    /// ケース4：高Priorityの既存素材より、新しい低Priority素材の巻数が大きい。
+    /// 入力：v01-09.rar と [イトノコ×蔵人幸明] まりも兄弟の茶飯事 第10巻.rar
+    /// 期待：OwnedMaxVolume = 10
+    /// Priority の適用は素材内だけで、素材間では比較しないこと
+    /// </summary>
+    [Fact]
+    public void Estimate_高Priorityの素材より新しい低Priority素材の巻数が大きい場合正しく採用する()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            // 既存素材：v01-09（Priority 高）
+            File.Create(Path.Combine(tempDir, "Example v01-09.rar")).Dispose();
+            // 新素材：第10巻（Priority 低いが、巻数が大きい）
+            File.Create(Path.Combine(tempDir, "[イトノコ×蔵人幸明] まりも兄弟の茶飯事 第10巻.rar")).Dispose();
+
+            var estimator = new OwnedVolumeEstimator();
+
+            // Act
+            var result = estimator.Estimate(tempDir);
+
+            // Assert
+            Assert.Equal(10, result.OwnedMaxVolume);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// ケース5：実例。v/vol系の高Priority素材と第n巻形式の低Priority素材を混在させても、
+    /// 低Priority形式でより大きい巻数が見つかった場合は、それを採用すること。
+    /// 入力：複数の第n巻形式ファイル
+    /// 期待：OwnedMaxVolume = 28（第28巻が最大）
+    /// </summary>
+    [Fact]
+    public void Estimate_実例の第n巻形式と既存形式の混在で正しく採用する()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            // 第n巻形式の素材（複数）
+            File.Create(Path.Combine(tempDir, "[びび×五示正司] ひとりぼっちの異世界攻略 第28巻.rar")).Dispose();
+            File.Create(Path.Combine(tempDir, "[すかいふぁーむ×高幡隆盛] 俺だけ不遇スキルの異世界召喚叛逆記 第17巻.rar")).Dispose();
+            File.Create(Path.Combine(tempDir, "[にことがめ] ヒト科のゆいか 第04巻.rar")).Dispose();
+
+            var estimator = new OwnedVolumeEstimator();
+
+            // Act
+            var result = estimator.Estimate(tempDir);
+
+            // Assert
+            Assert.Equal(28, result.OwnedMaxVolume);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// CSV用にフィールド値をエスケープします。カンマ・改行・ダブルクォートを含む場合はダブルクォートで囲みます。
     /// </summary>
     /// <param name="value">エスケープ対象の文字列。</param>

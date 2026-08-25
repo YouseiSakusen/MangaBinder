@@ -228,5 +228,5 @@ public class BindingFolderScanner : FolderScannerBase
     /// <param name="ct">キャンセルトークン。</param>
     /// <returns>DB上でマージ済みの最新 <see cref="MangaSeries"/>。</returns>
     protected override ValueTask<MangaSeries> SaveResultsAsync(MangaSeries series, IFolderScannerRepository repository, CancellationToken ct)
-        => repository.SaveBindingSeriesAsync(series, ct);
+        => repository.SaveBindingSeriesAsync(series, nameof(BindingFolderScanner), ct);
 }

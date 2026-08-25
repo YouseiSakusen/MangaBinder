@@ -96,7 +96,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 		try
 		{
 			// === DB UPDATE（DeepCopy を対象） ===
-			await this.mangaRepository.UpdateSeriesAsync(connection, tx, originalSeries);
+			await this.mangaRepository.UpdateSeriesAsync(connection, tx, originalSeries, Constants.ViewNames.EditorPage);
 
 			// === MangaSources更新 ===
 			// Rename後の新しいPathでMangaSourcesテーブルを更新（Material の MangaSource のみ）
@@ -306,6 +306,10 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 			originalSeries.IsOwnedMaxVolumeManuallyEdited = true;
 		}
 		// 変更がない場合は現在値を維持
+
+		// === ManuallyEditedAt の設定 ===
+		// 編集画面から保存される場合、現在日時を設定
+		originalSeries.ManuallyEditedAt = DateTime.Now;
 
 		// === Description の変更判定 ===
 		// 既存作品では、実際にあらすじが変更された場合のみ出典を変更する
@@ -548,6 +552,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 		destination.DescriptionSource = source.DescriptionSource;
 		destination.DescriptionSourceTitle = source.DescriptionSourceTitle;
 		destination.IsIncomplete = source.IsIncomplete;
+		destination.ManuallyEditedAt = source.ManuallyEditedAt;
 
 		// タグもコピー
 		destination.Tags.Clear();

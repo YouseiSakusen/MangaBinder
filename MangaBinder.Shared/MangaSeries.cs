@@ -245,6 +245,11 @@ public class MangaSeries
     /// MangaBinder が確認した素材フォルダの作成日時です。
     /// </summary>
     public DateTime? MaterialFolderCreatedAt { get; set; }
+
+    /// <summary>
+    /// 作品の主要な更新元です。
+    /// </summary>
+    public string? UpdateSource { get; set; }
 }
 
 

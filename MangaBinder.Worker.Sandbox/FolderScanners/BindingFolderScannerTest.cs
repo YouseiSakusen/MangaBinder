@@ -74,15 +74,20 @@ file class StubFolderRepository : IFolderScannerRepository
     /// 受け取った <see cref="MangaSeries"/> を蓄積リストに追加します。
     /// </summary>
     /// <param name="series">保存対象の作品。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    public ValueTask<MangaSeries> SaveBindingSeriesAsync(MangaSeries series, CancellationToken ct)
+    public ValueTask<MangaSeries> SaveBindingSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
     {
         this.seriesList.Add(series);
         return ValueTask.FromResult(series);
     }
 
     /// <summary>素材スキャンはこのテストでは使用しません。</summary>
-    public ValueTask<MangaSeries> SaveMaterialSeriesAsync(MangaSeries series, CancellationToken ct)
+    public ValueTask<MangaSeries> SaveMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
+        => throw new NotImplementedException();
+
+    /// <summary>Path一致による素材作品の更新処理です。このテストでは使用しません。</summary>
+    public ValueTask<MangaSeries> UpdateMaterialSeriesByPathAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
         => throw new NotImplementedException();
 
     /// <summary>サムネイル更新はこのテストでは記録しません。</summary>

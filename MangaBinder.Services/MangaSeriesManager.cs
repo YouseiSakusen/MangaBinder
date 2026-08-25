@@ -187,6 +187,86 @@ public class MangaSeriesManager
 	/// </summary>
 	/// <param name="title">検索するタイトル。</param>
 	/// <returns>同一タイトルの作品リスト。タイトルが null または空白の場合は空リスト。</returns>
+
+	/// <summary>
+	/// 2つの作品が同一作品であるかを判定します。
+	/// NormalizedTitleInternal と Author の両方が一致する場合、同一作品と判定します。
+	/// Author の比較は前後の空白を Trim した完全一致です。
+	/// </summary>
+	/// <param name="series1">比較対象の作品1。</param>
+	/// <param name="series2">比較対象の作品2。</param>
+	/// <returns>同一作品の場合は true、そうでない場合は false。</returns>
+	private bool IsSameSeries(MangaSeries series1, MangaSeries series2)
+	{
+		// NormalizedTitleInternal が一致しない場合は別作品
+		if (series1.NormalizedTitleInternal != series2.NormalizedTitleInternal)
+			return false;
+
+		// Author を Trim して比較（前後の空白のみ除去）
+		var author1 = series1.Author?.Trim() ?? string.Empty;
+		var author2 = series2.Author?.Trim() ?? string.Empty;
+
+		// Author も一致する場合は同一作品
+		return author1 == author2;
+	}
+
+	/// <summary>
+	/// 編集対象の作品と重複する別作品を検索します。
+	/// 対象は MergedSeriesList（正式作品＋登録待ち作品）です。
+	/// 同じ NormalizedTitleInternal かつ同じ Author を持つ作品を検索し、編集対象自身は除外します。
+	/// </summary>
+	/// <remarks>
+	/// 除外対象：
+	/// - 既存正式作品の場合：同じ SeriesId の作品
+	/// - 登録待ち作品の場合：同じ WorkId の作品
+	/// - 新規作品の場合：除外対象なし
+	/// </remarks>
+	/// <param name="editingSeries">編集対象の作品。</param>
+	/// <returns>重複する別作品のリスト。重複なし、または入力が不正な場合は空リスト。</returns>
+	public IReadOnlyList<MangaSeries> FindDuplicateSeries(MangaSeries editingSeries)
+	{
+		ArgumentNullException.ThrowIfNull(editingSeries);
+
+		// タイトルが入力されていない場合は空リスト
+		if (string.IsNullOrWhiteSpace(editingSeries.Title))
+			return new List<MangaSeries>();
+
+		// 候補検索
+		var candidates = this.FindSameTitle(editingSeries.Title);
+
+		// 編集対象自身を除外
+		var results = candidates
+			.Where(candidate =>
+			{
+				// 既存正式作品の場合、SeriesId で判定
+				if (editingSeries.SeriesId != 0 && !editingSeries.IsWork)
+				{
+					return candidate.SeriesId != editingSeries.SeriesId;
+				}
+
+				// 登録待ち作品の場合、WorkId で判定
+				if (editingSeries.WorkId != 0)
+				{
+					return candidate.WorkId != editingSeries.WorkId;
+				}
+
+				// 新規作品の場合は除外対象なし（すべてが対象）
+				return true;
+			})
+			// さらに IsSameSeries で Author を確認
+			.Where(candidate => this.IsSameSeries(editingSeries, candidate))
+			.ToList();
+
+		return results;
+	}
+
+	/// <summary>
+	/// 指定されたタイトルで候補検索を実行します。
+	/// 対象は MergedSeriesList（正式作品＋登録待ち作品）です。
+	/// 検索は正規化タイトルの完全一致で行います。
+	/// </summary>
+	/// <param name="title">検索するタイトル。</param>
+	/// <returns>同一タイトルの作品リスト。タイトルが null または空白の場合は空リスト。</returns>
 	public IReadOnlyList<MangaSeries> FindSameTitle(string? title)
 	{
 		// title が null、空文字、または空白のみの場合は空リストを返す
@@ -211,83 +291,43 @@ public class MangaSeriesManager
 	}
 
 	/// <summary>
-	/// 編集中の正式作品に対して、編集後タイトルが同一タイトルの作品と一致するかを判定します。
-	/// 既存作品の保存処理で使用されることを想定しています。
+	/// 編集中の正式作品に対して、重複する作品が存在するかを判定します。
+	/// 新仕様：NormalizedTitleInternal と Author の両方が一致する作品が存在する場合のみ「重複」と判定します。
+	/// タイトル変更自体や NormalizedTitleInternal の変更は保存エラーの理由にはしません。
 	/// </summary>
 	/// <remarks>
 	/// 処理フロー：
-	/// 1. 入力タイトルを正規化
-	/// 2. 正規化タイトルで完全一致検索を実行
-	/// 3. 検索結果から以下を判定：
-	///    - 編集中作品自身のみ一致 → SameAsEditingSeriesSelf
-	///    - 一致作品なし → NoMatchFound
-	///    - 別の SeriesId の作品が一致 → DifferentSeriesMatched
+	/// 1. タイトルを正規化して候補を検索
+	/// 2. 候補から編集中作品自身を除外
+	/// 3. Author も含めて同一作品かを判定（IsSameSeries）
+	/// 4. 重複作品が存在する場合 → DifferentSeriesMatched
+	/// 5. 重複作品がない場合 → NoMatchFound
 	/// 
-	/// 編集中作品とは、EditorStore.EditingSeries が示す作品を指します。
-	/// 既存作品（SeriesId != 0 かつ IsWork == false）対象です。
+	/// SameAsEditingSeriesSelf は新仕様では返却されません。
+	/// 編集中作品の作品自体はタイトル変更が許可されているため、
+	/// 正規化タイトルが変わっても「自分自身」として扱います。
 	/// </remarks>
-	/// <param name="editorStore">編集状態を保持するストア。EditingSeries と比較対象のタイトルを取得します。</param>
-	/// <returns>タイトル一致結果を表す ExistingSeriesTitleMatchResult。タイトルが null / 空白の場合は NoMatchFound を返します。</returns>
+	/// <param name="editorStore">編集状態を保持するストア。EditingSeries と Title を参照します。</param>
+	/// <returns>重複作品判定結果。重複なし時は NoMatchFound、重複あり時は DifferentSeriesMatched。</returns>
 	/// <exception cref="ArgumentNullException">editorStore が null または EditingSeries が null の場合にスローされます。</exception>
 	public ExistingSeriesTitleMatchResult CheckExistingSeriesTitleMatch(EditorStore editorStore)
 	{
 		ArgumentNullException.ThrowIfNull(editorStore);
 		ArgumentNullException.ThrowIfNull(editorStore.EditingSeries);
 
-		// 編集中の作品を取得
 		var editingSeries = editorStore.EditingSeries;
-		var newTitle = editingSeries.Title;
 
-		// 新しいタイトルが空白の場合は一致なしとして扱う
-		if (string.IsNullOrWhiteSpace(newTitle))
-			return ExistingSeriesTitleMatchResult.NoMatchFound;
+		// FindDuplicateSeries で重複作品を検索
+		var duplicates = this.FindDuplicateSeries(editingSeries);
 
-		// 新しいタイトルを正規化
-		var normalizedNewTitle = MangaTitleHelper.NormalizeTitleInternal(newTitle);
-
-		// 正規化後に空になった場合は一致なしとして扱う
-		if (string.IsNullOrEmpty(normalizedNewTitle))
-			return ExistingSeriesTitleMatchResult.NoMatchFound;
-
-		// 正規化タイトルで完全一致検索を実行
-		var matchedSeries = this.FindSameTitle(newTitle);
-
-		// 一致作品がない場合
-		if (matchedSeries.Count == 0)
-			return ExistingSeriesTitleMatchResult.NoMatchFound;
-
-		// 一致作品から編集中作品を特定
-		var editingSeriesInMatch = matchedSeries.FirstOrDefault(s =>
+		// 重複作品が存在する場合
+		if (duplicates.Count > 0)
 		{
-			// 編集中の正式作品の場合、SeriesId で判定
-			if (editingSeries.SeriesId != 0 && editingSeries.IsWork == false)
-			{
-				return s.SeriesId == editingSeries.SeriesId;
-			}
-
-			// 編集中の登録待ち作品の場合、WorkId で判定
-			if (editingSeries.WorkId != 0)
-			{
-				return s.WorkId == editingSeries.WorkId;
-			}
-
-			// 新規作品の場合は該当なし
-			return false;
-		});
-
-		// 編集中作品が一致に含まれている場合
-		if (editingSeriesInMatch != null)
-		{
-			// 一致作品がちょうど1件（編集中作品のみ）の場合
-			if (matchedSeries.Count == 1)
-				return ExistingSeriesTitleMatchResult.SameAsEditingSeriesSelf;
-
-			// 編集中作品以外にも一致作品が存在する場合
 			return ExistingSeriesTitleMatchResult.DifferentSeriesMatched;
 		}
 
-		// 編集中作品が一致に含まれていない場合は、別の SeriesId と一致
-		return ExistingSeriesTitleMatchResult.DifferentSeriesMatched;
+		// 重複作品がない場合
+		return ExistingSeriesTitleMatchResult.NoMatchFound;
 	}
 
 	/// <summary>
@@ -649,10 +689,10 @@ public class MangaSeriesManager
 
 		if (editingSeries.SeriesId != 0 && !editingSeries.IsWork)
 		{
-			// 既存作品の場合：タイトル判定と DeepCopy を取得してから ExistingSeriesSaveManager へ委譲
+			// 既存作品の場合：重複作品判定を実行
 			var titleMatchResult = this.CheckExistingSeriesTitleMatch(editorStore);
-			if (titleMatchResult != ExistingSeriesTitleMatchResult.SameAsEditingSeriesSelf)
-				throw new InvalidOperationException($"タイトル判定が不一致です。結果: {titleMatchResult}");
+			if (titleMatchResult == ExistingSeriesTitleMatchResult.DifferentSeriesMatched)
+				throw new InvalidOperationException("タイトル重複エラー：同じタイトルと作者の別作品が既に存在します。");
 
 			var originalSeries = editorStore.OriginalSeries;
 			if (originalSeries == null)

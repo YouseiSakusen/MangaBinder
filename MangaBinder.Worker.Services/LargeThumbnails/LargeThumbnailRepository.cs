@@ -60,6 +60,7 @@ public class LargeThumbnailRepository
 		seriesSql.AppendLine(" 	, GoogleBooksImportedAt ");
 		seriesSql.AppendLine(" 	, GoogleBooksImportMessage ");
 		seriesSql.AppendLine(" 	, HasNestedArchive ");
+		seriesSql.AppendLine(" 	, UpdateSource ");
 		seriesSql.AppendLine(" FROM ");
 		seriesSql.AppendLine(" 	MangaSeries ");
 		seriesSql.AppendLine(" WHERE ");
