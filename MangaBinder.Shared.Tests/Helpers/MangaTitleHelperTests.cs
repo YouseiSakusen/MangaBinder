@@ -183,4 +183,50 @@ public class MangaTitleHelperTests
 		// 波ダッシュが複数含まれることを確認
 		Assert.Equal(3, result.Count(c => c == '\u301C'));
 	}
+
+	/// <summary>
+	/// U+2010 HYPHEN の統一テスト：
+	/// U+002D (HYPHEN-MINUS) と U+2010 (HYPHEN) が同一に正規化されることを確認します。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_U2010Hyphen_UnifiesAsU002D()
+	{
+		// Arrange
+		// U+002D HYPHEN-MINUS: ASCII ハイフン (標準的なキーボード入力)
+		var title1 = "キミガシネ -多数決デスゲーム-";
+
+		// U+2010 HYPHEN: Unicode ハイフン (BookWalker など一部サービスで使用)
+		var title2 = "キミガシネ ‐多数決デスゲーム‐";
+
+		// Act
+		var result1 = MangaTitleHelper.NormalizeTitleInternal(title1);
+		var result2 = MangaTitleHelper.NormalizeTitleInternal(title2);
+
+		// Assert - 両方とも同じ正規化結果
+		Assert.Equal(result1, result2);
+		// 期待値（U+002D に統一され、空白が除去される）
+		var expected = "キミガシネ-多数決デスゲーム-";
+		Assert.Equal(expected, result1);
+		Assert.Equal(expected, result2);
+	}
+
+	/// <summary>
+	/// U+2010 単独テスト：
+	/// U+2010 HYPHEN 文字が U+002D に変換されることを確認します。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_U2010HyphenOnly_ConvertedToASCIIHyphen()
+	{
+		// Arrange
+		var title = "Title‐Name";  // U+2010 HYPHEN
+
+		// Act
+		var result = MangaTitleHelper.NormalizeTitleInternal(title);
+
+		// Assert
+		Assert.Equal("TITLE-NAME", result);
+		// 結果に U+002D が含まれることを確認（U+2010 は含まれない）
+		Assert.Contains('\u002D', result);
+		Assert.DoesNotContain('\u2010', result);
+	}
 }

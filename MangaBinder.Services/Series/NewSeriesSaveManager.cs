@@ -100,8 +100,14 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		var isWorkSeries = editingSeries.IsWork;
 		var workId = editingSeries.WorkId;
 
+		// 同じ NormalizedTitleInternal を持つ正式作品が存在するかを判定
+		var existingSeriesStore = this.mangaSeriesStore.GetAll();
+		var hasSameTitleInFormal = existingSeriesStore
+			.Any(series => series.NormalizedTitleInternal == editingSeries.NormalizedTitleInternal);
+
 		// サニタイズ済みフォルダ名を取得（素材移動時に使用）
-		var materialFolderName = MaterialFolderNameHelper.Create(editingSeries);
+		// 同じタイトルの正式作品が既に存在する場合は Author プレフィックスを付加
+		var materialFolderName = MaterialFolderNameHelper.Create(editingSeries, hasSameTitleInFormal);
 
 		// 削除対象の WorkThumbnail ファイル名を保持する変数
 		string? workThumbnailToDelete = null;

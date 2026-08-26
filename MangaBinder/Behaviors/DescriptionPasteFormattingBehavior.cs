@@ -6,6 +6,8 @@ namespace MangaBinder.Behaviors;
 /// <summary>
 /// TextBoxのあらすじ欄へ文字列を貼り付けた際に、Webサイト等から取得した文章を読みやすく自動整形する添付ビヘイビアです。
 /// 文末記号（。！？!?―）の後で改行を挿入し、各行の先頭・末尾の空白を除去します。
+/// 括弧内（「」『』（）【】《》〈〉）では文末記号による自動改行は行いません。
+/// また、U+2015（―）が2文字以上連続する場合は改行対象にしません。
 /// </summary>
 public static class DescriptionPasteFormattingBehavior
 {
@@ -147,6 +149,8 @@ public static class DescriptionPasteFormattingBehavior
 	/// 文末記号の後に改行を挿入します。
 	/// 連続する文末記号は最後の1つの後でのみ改行し、
 	/// 既に改行の場合や閉じ記号直前の場合は改行を挿入しません。
+	/// 括弧内（「」『』（）【】《》〈〉）では文末記号による自動改行は行いません。
+	/// U+2015（―）が2文字以上連続する場合は改行対象にしません。
 	/// </summary>
 	/// <param name="line">処理対象の行。</param>
 	/// <param name="endMarks">対象となる文末記号。</param>
@@ -154,27 +158,68 @@ public static class DescriptionPasteFormattingBehavior
 	/// <returns>処理後の行（内部に改行を含む可能性あり）。</returns>
 	private static string InsertLineBreaksAtEndMarks(string line, string endMarks, string closingMarks)
 	{
+		// 括弧の対応マッピング（開き括弧 -> 閉じ括弧）
+		const string openBrackets = "「『（【《〈";
+		const string closeBrackets = "」』）】》〉";
+		const char horizontalBar = '―'; // U+2015 HORIZONTAL BAR
+
 		var result = new System.Text.StringBuilder();
 		int i = 0;
+		var bracketStack = new System.Collections.Generic.Stack<char>();
 
 		while (i < line.Length)
 		{
 			char currentChar = line[i];
 			result.Append(currentChar);
 
+			// 括弧の開閉状態を管理
+			int openBracketIndex = openBrackets.IndexOf(currentChar);
+			if (openBracketIndex >= 0)
+			{
+				// 開き括弧を見つけた
+				bracketStack.Push(closeBrackets[openBracketIndex]);
+				i++;
+				continue;
+			}
+
+			// 閉じ括弧のチェック（スタックに対応する閉じ括弧がある場合のみ）
+			if (bracketStack.Count > 0 && currentChar == bracketStack.Peek())
+			{
+				bracketStack.Pop();
+				i++;
+				continue;
+			}
+
+			// 括弧内にいる場合は文末記号処理を行わない
+			if (bracketStack.Count > 0)
+			{
+				i++;
+				continue;
+			}
+
 			// 現在の文字が文末記号であるかチェック
 			if (endMarks.Contains(currentChar))
 			{
-				// 連続する文末記号の終了位置を探す
+				// 連続する文末記号の終了位置と、その連続グループの情報を取得
 				int endMarkEndIndex = i + 1;
+				bool isAllHorizontalBar = (currentChar == horizontalBar);
+
 				while (endMarkEndIndex < line.Length && endMarks.Contains(line[endMarkEndIndex]))
 				{
+					if (line[endMarkEndIndex] != horizontalBar)
+					{
+						isAllHorizontalBar = false;
+					}
 					result.Append(line[endMarkEndIndex]);
 					endMarkEndIndex++;
 				}
 
-				// endMarkEndIndex が行の末尾でない場合、さらに処理を続ける必要がある
-				if (endMarkEndIndex < line.Length)
+				// U+2015 が2文字以上連続している場合は改行を挿入しない
+				int horizontalBarCount = endMarkEndIndex - i;
+				bool shouldSkipLineBreak = isAllHorizontalBar && horizontalBarCount >= 2;
+
+				// endMarkEndIndex が行の末尾でない場合、改行挿入の判定を行う
+				if (!shouldSkipLineBreak && endMarkEndIndex < line.Length)
 				{
 					// 次の文字が閉じ記号であるかチェック
 					char nextChar = line[endMarkEndIndex];

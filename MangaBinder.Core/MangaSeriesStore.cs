@@ -71,13 +71,17 @@ public sealed class MangaSeriesStore
 
 	/// <summary>
 	/// MangaSeries の一覧を指定したリストで一括置換します。
-	/// 自動的に NormalizedTitleInternal 昇順でソートされます。
+	/// 自動的に Title → Author → SeriesId の昇順でソートされます。
 	/// </summary>
 	/// <param name="newSeries">新しい MangaSeries 一覧。</param>
 	public void ReplaceAll(IEnumerable<MangaSeries> newSeries)
 	{
 		this.series.Clear();
-		var sorted = newSeries.OrderBy(s => s.NormalizedTitleInternal, titleComparer).ToList();
+		var sorted = newSeries
+			.OrderBy(s => s.Title, titleComparer)
+			.ThenBy(s => s.Author, titleComparer)
+			.ThenBy(s => s.SeriesId)
+			.ToList();
 		this.series.AddRange(sorted);
 		this.RebuildMergedSeries();
 	}
@@ -155,7 +159,7 @@ public sealed class MangaSeriesStore
 	/// <summary>
 	/// 指定した MangaSeries を追加します。
 	/// 同一 SeriesId は重複登録しません。
-	/// 自動的に NormalizedTitleInternal 昇順が保たれます。
+	/// 自動的に Title → Author → SeriesId の昇順が保たれます。
 	/// </summary>
 	/// <param name="item">追加する MangaSeries。</param>
 	public void Add(MangaSeries item)
@@ -180,14 +184,35 @@ public sealed class MangaSeriesStore
 			return;
 		}
 
-		// NormalizedTitleInternal 昇順を保つため、挿入位置を検索
+		// Title → Author → SeriesId 昇順を保つため、挿入位置を検索
 		var insertIndex = 0;
 		for (var i = 0; i < this.series.Count; i++)
 		{
-			if (titleComparer.Compare(item.NormalizedTitleInternal, this.series[i].NormalizedTitleInternal) < 0)
+			var existingSeries = this.series[i];
+			var titleCompare = titleComparer.Compare(item.Title, existingSeries.Title);
+			if (titleCompare < 0)
 			{
 				insertIndex = i;
 				break;
+			}
+			else if (titleCompare == 0)
+			{
+				// Title が同じ場合は Author で比較
+				var authorCompare = titleComparer.Compare(item.Author, existingSeries.Author);
+				if (authorCompare < 0)
+				{
+					insertIndex = i;
+					break;
+				}
+				else if (authorCompare == 0)
+				{
+					// Title と Author が同じ場合は SeriesId で比較
+					if (item.SeriesId < existingSeries.SeriesId)
+					{
+						insertIndex = i;
+						break;
+					}
+				}
 			}
 			insertIndex = i + 1;
 		}

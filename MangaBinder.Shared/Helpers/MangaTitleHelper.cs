@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.RegularExpressions;
 using HalationGhost.Utilities;
 
 namespace MangaBinder.Helpers;
@@ -15,6 +14,7 @@ public static class MangaTitleHelper
     /// <list type="bullet">
     ///   <item>Unicode NFD を NFC に正規化</item>
     ///   <item>全角英数字・記号の半角化</item>
+    ///   <item>U+2010 HYPHEN を U+002D HYPHEN-MINUS に統一</item>
     ///   <item>タイトル内のすべての空白（char.IsWhiteSpace 判定）を除去</item>
     ///   <item>ASCII英字 A-Z / a-z の大小文字を統一（大文字へ）</item>
     ///   <item>波ダッシュ（U+007E / U+301C / U+FF5E）を U+301C に統一</item>
@@ -27,9 +27,12 @@ public static class MangaTitleHelper
         // macOS由来のNFD（濁点分離）文字をNFC（合成済み）に変換し、DB上での名寄せを保証する
         var nfc = title.Normalize(NormalizationForm.FormC);
 
+        // U+2010 HYPHEN を U+002D HYPHEN-MINUS に統一
+        var hyphenUnified = nfc.Replace('\u2010', '\u002D');
+
         // 波ダッシュの統一：ASCII TILDE (U+007E) と FULLWIDTH TILDE (U+FF5E) を WAVE DASH (U+301C) に統一
         // ※全角変換ループより先に処理することで、U+FF5E が半角チルダに変換されるのを防ぐ
-        var unified = nfc.Replace('\u007E', '\u301C').Replace('\uFF5E', '\u301C');
+        var unified = hyphenUnified.Replace('\u007E', '\u301C').Replace('\uFF5E', '\u301C');
 
         // 全角英数字・記号（U+FF01〜U+FF5E）を半角（U+0021〜U+007E）に変換
         var sb = new StringBuilder(unified.Length);
@@ -62,138 +65,6 @@ public static class MangaTitleHelper
         }
 
         return sb.ToString();
-    }
-
-    /// <summary>
-    /// 製本済みファイル名を解析し、<see cref="MangaSeries"/> を生成します。
-    /// <para>対応形式例: <c>[著者名] タイトル 第01-10巻.zip</c>、<c>[著者名] タイトル 第01-全10巻.zip</c></para>
-    /// </summary>
-    /// <param name="rawName">拡張子を含む元のファイル名。</param>
-    /// <returns>解析結果を格納した <see cref="MangaSeries"/>。</returns>
-    public static MangaSeries ParseAsBinding(string rawName, string separatorChars = "")
-    {
-        // 拡張子を除去
-        var stem = Path.GetFileNameWithoutExtension(rawName);
-
-        // 先頭の [作者] を抽出
-        var authorMatch = AuthorPattern.Match(stem);
-        var author = authorMatch.Success ? authorMatch.Groups["author"].Value.Trim() : string.Empty;
-        var remaining = authorMatch.Success ? stem[authorMatch.Length..].Trim() : stem.Trim();
-
-        // 巻数表記を抽出（第n-全m巻 / 第n-m巻 / 全n巻 / 第n巻）
-        var volMatch = BindingVolumePattern.Match(remaining);
-
-        var startVolume = 0;
-        var boundEndVolume = 0;
-        var endVolume = 0;
-        var seriesCompleted = false;
-
-        if (volMatch.Success)
-        {
-            // マッチ文字列に「全」が含まれる場合は完結扱い
-            seriesCompleted = volMatch.Value.Contains('全');
-
-            if (volMatch.Groups["start"].Value is { Length: > 0 } startStr)
-                startVolume = int.Parse(startStr);
-
-            if (volMatch.Groups["bound"].Value is { Length: > 0 } boundStr)
-                boundEndVolume = int.Parse(boundStr);
-            else
-                // 単巻（第n巻）の場合は start をそのまま BoundEndVolume にも格納
-                boundEndVolume = startVolume;
-
-            // 「全」が含まれる場合は EndVolume にも総巻数を格納
-            if (seriesCompleted)
-                endVolume = boundEndVolume;
-        }
-
-        // 巻数表記より前をタイトルとして切り出す
-        var titleRaw = volMatch.Success
-            ? remaining[..volMatch.Index].Trim()
-            : remaining.Trim();
-
-        return new MangaSeries
-        {
-            Title = titleRaw,
-            NormalizedTitleInternal = NormalizeTitleInternal(titleRaw),
-            ShortTitle = GetShortTitle(titleRaw, separatorChars),
-            Author = author,
-            SeriesCompleted = seriesCompleted,
-            StartVolume = startVolume,
-            EndVolume = endVolume,
-            BoundEndVolume = boundEndVolume,
-            HasNestedArchive = false,
-            ManuallyEditedAt = null,
-            IsOwnedMaxVolumeManuallyEdited = false,
-        };
-    }
-
-    /// <summary>
-    /// 素材フォルダ名を解析し、<see cref="MangaSeries"/> を生成します。
-    /// <para>対応形式例: <c>タイトル 全4巻</c>、<c>#タイトル （全3巻）</c></para>
-    /// </summary>
-    /// <param name="rawName">素材フォルダの元の名前。</param>
-    /// <returns>解析結果を格納した <see cref="MangaSeries"/>。</returns>
-    public static MangaSeries ParseAsMaterial(string rawName, string separatorChars = "")
-    {
-        // 括弧あり「 （全n巻）」: SeriesCompleted=true, IsOwnedCompleted=false
-        var parenMatch = MaterialParenPattern.Match(rawName);
-        if (parenMatch.Success)
-        {
-            var titleRaw = rawName[..parenMatch.Index].Trim();
-            return new MangaSeries
-            {
-                Title = titleRaw,
-                NormalizedTitleInternal = NormalizeTitleInternal(titleRaw),
-                ShortTitle = GetShortTitle(titleRaw, separatorChars),
-                Author = string.Empty,
-                SeriesCompleted = true,
-                IsOwnedCompleted = false,
-                StartVolume = 0,
-                EndVolume = int.Parse(parenMatch.Groups["vol"].Value),
-                HasNestedArchive = false,
-                ManuallyEditedAt = null,
-                IsOwnedMaxVolumeManuallyEdited = false,
-            };
-        }
-
-        // 括弧なし「 全n巻」: SeriesCompleted=true, IsOwnedCompleted=true
-        var bareMatch = MaterialBarePattern.Match(rawName);
-        if (bareMatch.Success)
-        {
-            var titleRaw = rawName[..bareMatch.Index].Trim();
-            return new MangaSeries
-            {
-                Title = titleRaw,
-                NormalizedTitleInternal = NormalizeTitleInternal(titleRaw),
-                ShortTitle = GetShortTitle(titleRaw, separatorChars),
-                Author = string.Empty,
-                SeriesCompleted = true,
-                IsOwnedCompleted = true,
-                StartVolume = 0,
-                EndVolume = int.Parse(bareMatch.Groups["vol"].Value),
-                HasNestedArchive = false,
-                ManuallyEditedAt = null,
-                IsOwnedMaxVolumeManuallyEdited = false,
-            };
-        }
-
-        // 表記なし
-        var title = rawName.Trim();
-        return new MangaSeries
-        {
-            Title = title,
-            NormalizedTitleInternal = NormalizeTitleInternal(title),
-            ShortTitle = GetShortTitle(title, separatorChars),
-            Author = string.Empty,
-            SeriesCompleted = false,
-            IsOwnedCompleted = false,
-            StartVolume = 0,
-            EndVolume = 0,
-            HasNestedArchive = false,
-            ManuallyEditedAt = null,
-            IsOwnedMaxVolumeManuallyEdited = false,
-        };
     }
 
     /// <summary>略称タイトルの最大文字数。</summary>
@@ -269,32 +140,4 @@ public static class MangaTitleHelper
         // 最後に1か所でサニタイズを適用し、ファイル名として安全な値を返す
         return FileSystemCharSanitizer.Sanitize(candidate);
     }
-
-    /// <summary>先頭の [作者名] を抽出する正規表現です。</summary>
-    private static readonly Regex AuthorPattern =
-        new(@"^\[(?<author>[^\]]+)\]\s*", RegexOptions.Compiled);
-
-    /// <summary>
-    /// 製本済みファイル名の巻数表記を抽出する正規表現です。
-    /// <list type="bullet">
-    ///   <item><c>第n-全m巻</c>: start=n, bound=m, 完結あり</item>
-    ///   <item><c>第n-m巻</c>: start=n, bound=m</item>
-    ///   <item><c>全n巻</c>: bound=n, 完結あり（start なし）</item>
-    ///   <item><c>第n巻</c>: start=n（単巻）</item>
-    /// </list>
-    /// </summary>
-    private static readonly Regex BindingVolumePattern = new(
-        @"第(?<start>\d+)[-－]\s*全(?<bound>\d+)巻" +
-        @"|第(?<start>\d+)[-－]\s*(?<bound>\d+)巻" +
-        @"|全(?<bound>\d+)巻" +
-        @"|第(?<start>\d+)巻",
-        RegexOptions.Compiled);
-
-    /// <summary>括弧あり「 （全n巻）」を末尾で捉える正規表現です。</summary>
-    private static readonly Regex MaterialParenPattern =
-        new(@" （全(?<vol>\d+)巻）$", RegexOptions.Compiled);
-
-    /// <summary>括弧なし「 全n巻」を末尾で捉える正規表現です。</summary>
-    private static readonly Regex MaterialBarePattern =
-        new(@" 全(?<vol>\d+)巻$", RegexOptions.Compiled);
 }

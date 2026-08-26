@@ -52,7 +52,7 @@ public class MaterialFolderScanner : FolderScannerBase
     /// <returns>解析結果の <see cref="MangaSeries"/>。</returns>
     protected override MangaSeries ParseToSeries(FileSystemInfo info)
     {
-        var series = MangaTitleHelper.ParseAsMaterial(info.Name, this.titleSeparatorChars);
+        var series = FileSystemNameHelper.ParseAsMaterial(info.Name, this.titleSeparatorChars);
         var estimate = this.ownedVolumeEstimator.Estimate(info.FullName);
         series.OwnedMaxVolume = estimate.OwnedMaxVolume;
         series.MaterialFolderCreatedAt = info.CreationTime;

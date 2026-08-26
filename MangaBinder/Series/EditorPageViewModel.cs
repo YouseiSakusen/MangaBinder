@@ -1870,6 +1870,33 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 				return;
 			}
 
+			// 新規作品・登録待ち作品の場合、同一タイトルの正式作品が存在する場合は Author が必須
+			if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
+			{
+				if (string.IsNullOrWhiteSpace(editingSeries.Author))
+				{
+					// 同一タイトルの作品を検索
+					var sameTitleWorks = seriesManager.FindSameTitle(editingSeries.Title);
+
+					// 正式作品のみをフィルタリング（SeriesId != 0 && IsWork == false）
+					var existingSeriesWithSameTitle = sameTitleWorks
+						.Where(series => series.SeriesId != 0 && !series.IsWork)
+						.ToList();
+
+					// 同一タイトルの正式作品が存在する場合は Author を要求
+					if (existingSeriesWithSameTitle.Count > 0)
+					{
+						this.snackbarService.Show(
+							"登録できません",
+							"同一タイトルの作品が登録済みのため、作者を入力してください。",
+							ControlAppearance.Danger,
+							new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+							TimeSpan.MaxValue);
+						return;
+					}
+				}
+			}
+
 			// 新規作品・登録待ち作品の場合は重複判定を実行
 			if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
 			{

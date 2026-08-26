@@ -117,8 +117,9 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 			// === 追加素材の移動処理 ===
 			// CanRemove=true の追加素材を既存の作品素材フォルダへ移動
-			// サニタイズ済みフォルダ名を取得（素材移動時に使用）
-			var materialFolderName = MaterialFolderNameHelper.Create(originalSeries);
+			// materialFolderName は以下のルールで決定：
+			// 1. MaterialSource が既に存在する場合 → 現在の物理フォルダが作者付き形式かで判定
+			// 2. MaterialSource がない場合 → 自分以外に同一 NormalizedTitleInternal の正式作品がいるかで判定
 
 			this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 素材移動処理開始。materialFiles count: {materialFiles?.Count}, selectedMaterialSourceFolder: {selectedMaterialSourceFolder?.FolderPath.Value}");
 
@@ -127,9 +128,18 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 				var materialSource = originalSeries.SingleMaterialSource;
 				this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] materialSource: {materialSource?.Path}");
 
+				string materialFolderName;
+
 				if (materialSource != null)
 				{
 					// === MaterialSource が既に存在する場合 ===
+					// 現在の物理フォルダが作者付き形式かで期待フォルダ名を生成
+					var currentFolderName = Path.GetFileName(materialSource.Path);
+					var includeAuthorPrefix = FileSystemNameHelper.TryExtractAuthorPrefix(currentFolderName, out _, out _);
+					materialFolderName = MaterialFolderNameHelper.Create(originalSeries, includeAuthorPrefix);
+
+					this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MaterialSource 既存。currentFolderName: {currentFolderName}, includeAuthorPrefix: {includeAuthorPrefix}, materialFolderName: {materialFolderName}");
+
 					// CanRemove=true の追加素材のみを抽出
 					var addedMaterials = materialFiles
 						.Where(m => m.CanRemove)
@@ -164,12 +174,24 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 				else
 				{
 					// === MaterialSource が存在しない場合 ===
+					// 自分以外に同一 NormalizedTitleInternal の正式作品がいるかで著者プレフィックスを決定
+					var hasSameTitleInFormal = this.mangaSeriesStore.GetAll()
+						.Where(s => s.SeriesId != originalSeries.SeriesId) // 自分自身を除外
+						.Any(s => string.Equals(
+							s.NormalizedTitleInternal,
+							originalSeries.NormalizedTitleInternal,
+							StringComparison.Ordinal));
+
+					materialFolderName = MaterialFolderNameHelper.Create(originalSeries, includeAuthorPrefix: hasSameTitleInFormal);
+
+					this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MaterialSource なし。hasSameTitleInFormal: {hasSameTitleInFormal}, materialFolderName: {materialFolderName}");
+
 					// CanRemove=true の追加素材のみを抽出
 					var addedMaterials = materialFiles
 						.Where(m => m.CanRemove)
 						.ToList();
 
-					this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] MaterialSource なし。移動対象素材数（CanRemove=true）: {addedMaterials.Count}");
+					this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 移動対象素材数（CanRemove=true）: {addedMaterials.Count}");
 
 					if (addedMaterials.Count > 0)
 					{
@@ -370,6 +392,12 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 	}
 
 	/// <summary>
+	/// 素材フォルダ名が作者付き形式（`[作者] タイトル...`）であるかを判定します。
+	/// 先頭が `[` で始まり、対応する `]` 直後に半角スペースがある形式を作者付き形式とします。
+	/// </summary>
+	/// <param name="folderName">判定するフォルダ名。</param>
+	/// <returns>作者付き形式の場合は true、それ以外は false。</returns>
+	/// <summary>
 	/// 既存作品更新時に、素材フォルダ名の変更判定を実施します。
 	/// 編集後の作品情報から生成される期待フォルダ名と、現在登録されている素材フォルダ名を比較し、
 	/// Rename の必要性を判定します。フォルダ存在確認も事前に行い、問題がある場合は適切な状態を返します。
@@ -391,8 +419,9 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 		var currentFolderPath = originalMaterialSource.Path;
 		var currentFolderName = Path.GetFileName(currentFolderPath);
 
-		// 期待フォルダ名を生成（編集後の作品情報を使用）
-		var expectedFolderName = MaterialFolderNameHelper.Create(editedSeries);
+		// 現在の物理素材フォルダが作者付き形式かで期待フォルダ名を生成
+		var includeAuthorPrefix = FileSystemNameHelper.TryExtractAuthorPrefix(currentFolderName, out _, out _);
+		var expectedFolderName = MaterialFolderNameHelper.Create(editedSeries, includeAuthorPrefix);
 
 		// 大小文字を区別しない比較
 		if (string.Equals(currentFolderName, expectedFolderName, StringComparison.OrdinalIgnoreCase))
@@ -463,13 +492,16 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 		var currentMaterialSource = originalSeries.Sources[materialSourceIndex];
 		var currentFolderPath = currentMaterialSource.Path;
+		var currentFolderName = Path.GetFileName(currentFolderPath);
 		var parentDirectoryPath = Path.GetDirectoryName(currentFolderPath);
 		if (string.IsNullOrEmpty(parentDirectoryPath))
 		{
 			throw new InvalidOperationException($"素材フォルダの親ディレクトリを取得できません。Path: {currentFolderPath}");
 		}
 
-		var expectedFolderName = MaterialFolderNameHelper.Create(editedSeries);
+		// 現在の物理素材フォルダが作者付き形式かで期待フォルダ名を生成
+		var includeAuthorPrefix = FileSystemNameHelper.TryExtractAuthorPrefix(currentFolderName, out _, out _);
+		var expectedFolderName = MaterialFolderNameHelper.Create(editedSeries, includeAuthorPrefix);
 		var newFolderPath = Path.Combine(parentDirectoryPath, expectedFolderName);
 
 		// === Directory.Move() でRenameを実行 ===

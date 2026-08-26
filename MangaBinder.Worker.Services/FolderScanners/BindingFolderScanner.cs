@@ -57,7 +57,7 @@ public class BindingFolderScanner : FolderScannerBase
     /// <returns>解析結果の <see cref="MangaSeries"/>。</returns>
     protected override MangaSeries ParseToSeries(FileSystemInfo info)
     {
-        var series = MangaTitleHelper.ParseAsBinding(info.Name, this.titleSeparatorChars);
+        var series = FileSystemNameHelper.ParseAsBinding(info.Name, this.titleSeparatorChars);
 
         // ファイルパスから対応するフォルダパスと Role を特定
         var filePath = info.FullName;
