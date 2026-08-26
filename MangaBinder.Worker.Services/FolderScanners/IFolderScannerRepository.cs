@@ -79,4 +79,13 @@ public interface IFolderScannerRepository
     /// <param name="sourceIds">削除対象の SourceId 一覧。</param>
     /// <param name="ct">キャンセルトークン。</param>
     ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct);
+
+    /// <summary>
+    /// 指定された NormalizedTitleInternal に一致する正式登録済み MangaSeries を取得します。
+    /// Phase 2 で複数の同一タイトル作品が存在する場合の判定に使用します。
+    /// </summary>
+    /// <param name="normalizedTitleInternal">検索対象の正規化タイトル。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>一致する MangaSeries の一覧。SeriesId と Author を含みます。</returns>
+    ValueTask<IReadOnlyList<MangaBinder.MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct);
 }

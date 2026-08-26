@@ -161,6 +161,10 @@ file class StubMaterialRepository : IFolderScannerRepository
     public ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct)
         => ValueTask.CompletedTask;
 
+    /// <summary>このテストでは候補検索は使用しません。</summary>
+    public ValueTask<IReadOnlyList<MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct)
+        => throw new NotImplementedException();
+
     /// <summary>サムネイル更新はこのテストでは記録しません。</summary>
     public ValueTask UpdateThumbnailAsync(long seriesId, string thumbnailFileName, ThumbnailStatus thumbnailStatus, CancellationToken ct)
         => ValueTask.CompletedTask;

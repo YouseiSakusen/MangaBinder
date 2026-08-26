@@ -106,6 +106,10 @@ file class StubFolderRepository : IFolderScannerRepository
     public ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct)
         => ValueTask.CompletedTask;
 
+    /// <summary>このテストでは候補検索は使用しません。</summary>
+    public ValueTask<IReadOnlyList<MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct)
+        => throw new NotImplementedException();
+
     /// <summary>
     /// 蓄積した <see cref="MangaSeries"/> リストをCSVファイルに書き出します。
     /// Sources 列には統合された全ファイルのフルパスをセミコロン連結で出力します。
