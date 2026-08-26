@@ -3,6 +3,8 @@
 ################################################################################
 
 /.vs
+**/bin/
+**/obj/
 /AppIconImageSources
 /HalationGhost.Utilities/bin/Debug/net10.0
 /HalationGhost.Utilities/obj
@@ -30,3 +32,19 @@
 /MangaBinder.Worker.Services/bin/Debug
 /MangaBinder.Worker.Services/obj
 /MangaBinder/google-books-settings.json
+/MangaBinder.Shared.Tests/bin/Debug/net10.0/HalationGhost.Utilities.dll
+/MangaBinder.Shared.Tests/bin/Debug/net10.0/HalationGhost.Utilities.pdb
+/MangaBinder.Shared.Tests/bin/Debug/net10.0/MangaBinder.Shared.dll
+/MangaBinder.Shared.Tests/bin/Debug/net10.0/MangaBinder.Shared.pdb
+/MangaBinder.Shared.Tests/bin/Debug/net10.0/MangaBinder.Shared.Tests.dll
+/MangaBinder.Shared.Tests/bin/Debug/net10.0/MangaBinder.Shared.Tests.pdb
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/ref/MangaBinder.Shared.Tests.dll
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/refint/MangaBinder.Shared.Tests.dll
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/MangaBinder.Shared.Tests.AssemblyInfo.cs
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/MangaBinder.Shared.Tests.AssemblyInfoInputs.cache
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/MangaBinder.Shared.Tests.csproj.AssemblyReference.cache
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/MangaBinder.Shared.Tests.csproj.BuildWithSkipAnalyzers
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/MangaBinder.Shared.Tests.csproj.CoreCompileInputs.cache
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/MangaBinder.Shared.Tests.dll
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/MangaBinder.Shared.Tests.pdb
+/MangaBinder.Shared.Tests/obj/Debug/net10.0/MangaBinder.Shared.Tests.sourcelink.json
