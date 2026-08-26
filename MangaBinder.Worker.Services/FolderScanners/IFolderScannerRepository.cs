@@ -16,26 +16,38 @@ public interface IFolderScannerRepository
     ValueTask<IEnumerable<string>> GetSourceFoldersAsync(int role, CancellationToken ct);
 
     /// <summary>
-    /// 素材スキャン結果を 1 件単位で UPSERT 保存し、保存後のDB最新状態の <see cref="MangaBinder.MangaSeries"/> を返します。
-    /// Author は更新対象から除外され、EndVolume / IsOwnedCompleted 等が反映されます。
-    /// </summary>
-    /// <param name="series">保存対象の作品。</param>
-    /// <param name="updateSource">更新元を表す文字列。</param>
-    /// <param name="ct">キャンセルトークン。</param>
-    /// <returns>DB上でマージ済みの最新 <see cref="MangaBinder.MangaSeries"/>。</returns>
-    ValueTask<MangaBinder.MangaSeries> SaveMaterialSeriesAsync(MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
-
-    /// <summary>
     /// Path 一致によって既存 SeriesId が確定している素材フォルダについて、
     /// 既存の MangaSeries を直接更新します。
-    /// 更新ルールは SaveMaterialSeriesAsync の既存作品 UPDATE と同一です。
+    /// Title / ShortTitle / SeriesCompleted / IsOwnedCompleted / StartVolume / EndVolume / OwnedMaxVolume / MaterialFolderCreatedAt / IsSourceMissing=0 / Author不変を反映します。
     /// </summary>
     /// <param name="seriesId">更新対象の既存作品ID。</param>
-    /// <param name="series">更新内容を持つ作品オブジェクト。</param>
+    /// <param name="series">更新内容を持つ作品オブジェクト。Sources 含む。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
     /// <returns>DB上でマージ済みの最新 <see cref="MangaBinder.MangaSeries"/>。</returns>
     ValueTask<MangaBinder.MangaSeries> UpdateMaterialSeriesByPathAsync(long seriesId, MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
+
+    /// <summary>
+    /// 素材スキャン（Phase 2 Path 不一致）で、新規 MangaSeries を新規作成する場合に使用します。
+    /// ParseAsMaterial() で取得した Author を保存対象に含めます。
+    /// </summary>
+    /// <param name="series">新規作成対象の作品。Sources 含む。Author も含める場合は設定済みの状態で渡す。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>DB上に生成された最新 <see cref="MangaBinder.MangaSeries"/>（SeriesId を含む）。</returns>
+    ValueTask<MangaBinder.MangaSeries> InsertMaterialSeriesAsync(MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
+
+    /// <summary>
+    /// 素材スキャン（Phase 2 Path 不一致）で、既存 MangaSeries を更新する場合に使用します。
+    /// Title / ShortTitle / SeriesCompleted / IsOwnedCompleted / StartVolume / EndVolume / OwnedMaxVolume / MaterialFolderCreatedAt / IsSourceMissing=0 を反映します。
+    /// Author は既存値を維持し、上書きしません。
+    /// </summary>
+    /// <param name="seriesId">更新対象の既存作品ID。</param>
+    /// <param name="series">更新内容を持つ作品オブジェクト。Sources 含む。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>DB上でマージ済みの最新 <see cref="MangaBinder.MangaSeries"/>。</returns>
+    ValueTask<MangaBinder.MangaSeries> UpdateMaterialSeriesAsync(long seriesId, MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
 
     /// <summary>
     /// 製本済みスキャン結果を 1 件単位で UPSERT 保存し、保存後のDB最新状態の <see cref="MangaBinder.MangaSeries"/> を返します。
@@ -83,9 +95,19 @@ public interface IFolderScannerRepository
     /// <summary>
     /// 指定された NormalizedTitleInternal に一致する正式登録済み MangaSeries を取得します。
     /// Phase 2 で複数の同一タイトル作品が存在する場合の判定に使用します。
+    /// （スナップショット取得用：スキャン開始時に一度呼び出し、その時点での候補を固定化）
     /// </summary>
     /// <param name="normalizedTitleInternal">検索対象の正規化タイトル。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    /// <returns>一致する MangaSeries の一覧。SeriesId と Author を含みます。</returns>
+    /// <returns>一致する MangaSeries の一覧（SeriesId と Author を含む、SeriesId でソート済み）。</returns>
     ValueTask<IReadOnlyList<MangaBinder.MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct);
+
+    /// <summary>
+    /// 複数の NormalizedTitleInternal に対応する MangaSeries 候補を一括取得します。
+    /// Phase 2 のスナップショット取得に使用（Parallel 前に一度だけ呼び出し）。
+    /// </summary>
+    /// <param name="normalizedTitles">検索対象の正規化タイトル一覧。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>NormalizedTitleInternal をキーとした、候補 MangaSeries の辞書。キーに存在しないタイトルは空リストに対応。</returns>
+    ValueTask<IReadOnlyDictionary<string, IReadOnlyList<MangaBinder.MangaSeries>>> GetCandidateSeriesByNormalizedTitlesAsync(IEnumerable<string> normalizedTitles, CancellationToken ct);
 }

@@ -639,7 +639,7 @@
 								Visibility="{Binding HasMaterialFiles.Value, Converter={StaticResource BoolToVisibilityConverter}}"
 								ScrollViewer.VerticalScrollBarVisibility="Auto"
 								ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-								ScrollViewer.CanContentScroll="True">
+								ScrollViewer.CanContentScroll="False">
 								<ListView.View>
 									<GridView>
 										<!-- 種別アイコン列（固定幅、右寄せ） -->

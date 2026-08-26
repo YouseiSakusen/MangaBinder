@@ -1,5 +1,4 @@
 using System.IO;
-using Dapper;
 using MangaBinder.Helpers;
 using MangaBinder.Jobs.Contexts;
 using MangaBinder.Series;
@@ -271,296 +270,55 @@ public class MaterialFolderScanner : FolderScannerBase
     /// <exception cref="AmbiguousSeriesMatchException">自動判定不能な複数候補が存在する場合。</exception>
     protected override async ValueTask<MangaSeries> SaveResultsAsync(MangaSeries series, IFolderScannerRepository repository, CancellationToken ct)
     {
-        using var scope = this.scopeFactory.CreateScope();
-        var repo = scope.ServiceProvider.GetRequiredService<IFolderScannerRepository>();
-        using var conn = new System.Data.SQLite.SQLiteConnection(
-            scope.ServiceProvider.GetRequiredService<MangaBinder.Jobs.Contexts.WorkerContext>().ConnectionString);
-        await conn.OpenAsync(ct);
-        using var tx = conn.BeginTransaction();
+        // NormalizedTitleInternal で候補検索
+        var candidates = await repository.GetCandidateSeriesByNormalizedTitleAsync(series.NormalizedTitleInternal, ct);
 
-        try
+        long seriesId;
+
+        if (candidates.Count == 0)
         {
-            // NormalizedTitleInternal で候補検索
-            var candidates = await repo.GetCandidateSeriesByNormalizedTitleAsync(series.NormalizedTitleInternal, ct);
+            // === 候補 0 件 === 新しい MangaSeries として INSERT
+            var savedSeries = await repository.InsertMaterialSeriesAsync(series, nameof(MaterialFolderScanner), ct);
+            seriesId = savedSeries.SeriesId;
+            this.logger.ZLogInformation($"新規作品として INSERT: SeriesId={seriesId}, Title={series.Title}");
+        }
+        else if (candidates.Count == 1)
+        {
+            // === 候補 1 件 === Author は判定に使用しない、既存作品として UPDATE
+            seriesId = candidates[0].SeriesId;
+            await repository.UpdateMaterialSeriesAsync(seriesId, series, nameof(MaterialFolderScanner), ct);
+            this.logger.ZLogInformation($"既存作品として UPDATE: SeriesId={seriesId}, Title={series.Title}");
+        }
+        else
+        {
+            // === 候補 2 件以上 === Author を補助情報として使用
+            var matchedByAuthor = candidates
+                .Where(c => c.Author?.Trim() == series.Author?.Trim())
+                .ToList();
 
-            long seriesId;
-
-            if (candidates.Count == 0)
+            if (matchedByAuthor.Count == 1)
             {
-                // === 候補 0 件 === 新しい MangaSeries として INSERT
-                var insertSql = new System.Text.StringBuilder();
-                insertSql.AppendLine(" INSERT INTO MangaSeries ( ");
-                insertSql.AppendLine(" 	  NormalizedTitleInternal ");
-                insertSql.AppendLine(" 	, Title ");
-                insertSql.AppendLine(" 	, ShortTitle ");
-                insertSql.AppendLine(" 	, Author ");
-                insertSql.AppendLine(" 	, SeriesCompleted ");
-                insertSql.AppendLine(" 	, IsOwnedCompleted ");
-                insertSql.AppendLine(" 	, IsSourceMissing ");
-                insertSql.AppendLine(" 	, StartVolume ");
-                insertSql.AppendLine(" 	, EndVolume ");
-                insertSql.AppendLine(" 	, OwnedMaxVolume ");
-                insertSql.AppendLine(" 	, UpdatedAt ");
-                insertSql.AppendLine(" 	, Memo ");
-                insertSql.AppendLine(" 	, ManuallyEditedAt ");
-                insertSql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
-                insertSql.AppendLine(" 	, MaterialFolderCreatedAt ");
-                insertSql.AppendLine(" 	, UpdateSource ");
-                insertSql.AppendLine(" ) VALUES ( ");
-                insertSql.AppendLine(" 	  :NormalizedTitleInternal ");
-                insertSql.AppendLine(" 	, :Title ");
-                insertSql.AppendLine(" 	, :ShortTitle ");
-                insertSql.AppendLine(" 	, :Author ");
-                insertSql.AppendLine(" 	, :SeriesCompleted ");
-                insertSql.AppendLine(" 	, :IsOwnedCompleted ");
-                insertSql.AppendLine(" 	, 0 ");
-                insertSql.AppendLine(" 	, :StartVolume ");
-                insertSql.AppendLine(" 	, :EndVolume ");
-                insertSql.AppendLine(" 	, :OwnedMaxVolume ");
-                insertSql.AppendLine(" 	, DATETIME('now', 'localtime') ");
-                insertSql.AppendLine(" 	, '' ");
-                insertSql.AppendLine(" 	, NULL ");
-                insertSql.AppendLine(" 	, 0 ");
-                insertSql.AppendLine(" 	, :MaterialFolderCreatedAt ");
-                insertSql.AppendLine(" 	, :UpdateSource ");
-                insertSql.AppendLine(" ) ");
-                insertSql.AppendLine(" RETURNING SeriesId; ");
-
-                seriesId = await conn.QuerySingleAsync<long>(insertSql.ToString(), new
-                {
-                    series.NormalizedTitleInternal,
-                    series.Title,
-                    series.ShortTitle,
-                    series.Author,
-                    series.SeriesCompleted,
-                    series.IsOwnedCompleted,
-                    series.StartVolume,
-                    series.EndVolume,
-                    series.OwnedMaxVolume,
-                    series.MaterialFolderCreatedAt,
-                    UpdateSource = nameof(MaterialFolderScanner),
-                }, tx);
-
-                this.logger.ZLogInformation($"新規作品として INSERT: SeriesId={seriesId}, Title={series.Title}");
-            }
-            else if (candidates.Count == 1)
-            {
-                // === 候補 1 件 === Author は判定に使用しない、既存作品として UPDATE
-                seriesId = candidates[0].SeriesId;
-
-                var updateSql = new System.Text.StringBuilder();
-                updateSql.AppendLine(" UPDATE MangaSeries ");
-                updateSql.AppendLine(" SET ");
-                updateSql.AppendLine(" 	  Title             = :Title ");
-                updateSql.AppendLine(" 	, ShortTitle        = :ShortTitle ");
-                updateSql.AppendLine(" 	, SeriesCompleted   = :SeriesCompleted ");
-                updateSql.AppendLine(" 	, IsOwnedCompleted  = :IsOwnedCompleted ");
-                updateSql.AppendLine(" 	, IsSourceMissing   = 0 ");
-                updateSql.AppendLine(" 	, StartVolume       = :StartVolume ");
-                updateSql.AppendLine(" 	, EndVolume         = :EndVolume ");
-                updateSql.AppendLine(" 	, OwnedMaxVolume    = CASE ");
-                updateSql.AppendLine(" 	                        WHEN IsOwnedMaxVolumeManuallyEdited = 1 THEN OwnedMaxVolume ");
-                updateSql.AppendLine(" 	                        WHEN OwnedMaxVolume IS NULL THEN :OwnedMaxVolume ");
-                updateSql.AppendLine(" 	                        WHEN :OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
-                updateSql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, :OwnedMaxVolume) ");
-                updateSql.AppendLine(" 	                      END ");
-                updateSql.AppendLine(" 	, MaterialFolderCreatedAt = CASE ");
-                updateSql.AppendLine(" 	                        WHEN MaterialFolderCreatedAt IS NULL THEN :MaterialFolderCreatedAt ");
-                updateSql.AppendLine(" 	                        WHEN :MaterialFolderCreatedAt < MaterialFolderCreatedAt THEN :MaterialFolderCreatedAt ");
-                updateSql.AppendLine(" 	                        ELSE MaterialFolderCreatedAt ");
-                updateSql.AppendLine(" 	                      END ");
-                updateSql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
-                updateSql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
-                updateSql.AppendLine(" WHERE SeriesId = :SeriesId; ");
-
-                await conn.ExecuteAsync(updateSql.ToString(), new
-                {
-                    SeriesId = seriesId,
-                    series.Title,
-                    series.ShortTitle,
-                    series.SeriesCompleted,
-                    series.IsOwnedCompleted,
-                    series.StartVolume,
-                    series.EndVolume,
-                    series.OwnedMaxVolume,
-                    series.MaterialFolderCreatedAt,
-                    UpdateSource = nameof(MaterialFolderScanner),
-                }, tx);
-
-                this.logger.ZLogInformation($"既存作品として UPDATE: SeriesId={seriesId}, Title={series.Title}");
+                // Author 完全一致 1 件
+                seriesId = matchedByAuthor[0].SeriesId;
+                await repository.UpdateMaterialSeriesAsync(seriesId, series, nameof(MaterialFolderScanner), ct);
+                this.logger.ZLogInformation($"Author 一致で既存作品として UPDATE: SeriesId={seriesId}, Title={series.Title}");
             }
             else
             {
-                // === 候補 2 件以上 === Author を補助情報として使用
-                var matchedByAuthor = candidates
-                    .Where(c => c.Author?.Trim() == series.Author?.Trim())
-                    .ToList();
-
-                if (matchedByAuthor.Count == 1)
-                {
-                    // Author 完全一致 1 件
-                    seriesId = matchedByAuthor[0].SeriesId;
-
-                    var updateSql = new System.Text.StringBuilder();
-                    updateSql.AppendLine(" UPDATE MangaSeries ");
-                    updateSql.AppendLine(" SET ");
-                    updateSql.AppendLine(" 	  Title             = :Title ");
-                    updateSql.AppendLine(" 	, ShortTitle        = :ShortTitle ");
-                    updateSql.AppendLine(" 	, SeriesCompleted   = :SeriesCompleted ");
-                    updateSql.AppendLine(" 	, IsOwnedCompleted  = :IsOwnedCompleted ");
-                    updateSql.AppendLine(" 	, IsSourceMissing   = 0 ");
-                    updateSql.AppendLine(" 	, StartVolume       = :StartVolume ");
-                    updateSql.AppendLine(" 	, EndVolume         = :EndVolume ");
-                    updateSql.AppendLine(" 	, OwnedMaxVolume    = CASE ");
-                    updateSql.AppendLine(" 	                        WHEN IsOwnedMaxVolumeManuallyEdited = 1 THEN OwnedMaxVolume ");
-                    updateSql.AppendLine(" 	                        WHEN OwnedMaxVolume IS NULL THEN :OwnedMaxVolume ");
-                    updateSql.AppendLine(" 	                        WHEN :OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
-                    updateSql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, :OwnedMaxVolume) ");
-                    updateSql.AppendLine(" 	                      END ");
-                    updateSql.AppendLine(" 	, MaterialFolderCreatedAt = CASE ");
-                    updateSql.AppendLine(" 	                        WHEN MaterialFolderCreatedAt IS NULL THEN :MaterialFolderCreatedAt ");
-                    updateSql.AppendLine(" 	                        WHEN :MaterialFolderCreatedAt < MaterialFolderCreatedAt THEN :MaterialFolderCreatedAt ");
-                    updateSql.AppendLine(" 	                        ELSE MaterialFolderCreatedAt ");
-                    updateSql.AppendLine(" 	                      END ");
-                    updateSql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
-                    updateSql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
-                    updateSql.AppendLine(" WHERE SeriesId = :SeriesId; ");
-
-                    await conn.ExecuteAsync(updateSql.ToString(), new
-                    {
-                        SeriesId = seriesId,
-                        series.Title,
-                        series.ShortTitle,
-                        series.SeriesCompleted,
-                        series.IsOwnedCompleted,
-                        series.StartVolume,
-                        series.EndVolume,
-                        series.OwnedMaxVolume,
-                        series.MaterialFolderCreatedAt,
-                        UpdateSource = nameof(MaterialFolderScanner),
-                    }, tx);
-
-                    this.logger.ZLogInformation($"Author 一致で既存作品として UPDATE: SeriesId={seriesId}, Title={series.Title}");
-                }
-                else
-                {
-                    // 自動判定不能
-                    var candidateIds = candidates.Select(c => c.SeriesId).ToList().AsReadOnly();
-                    throw new AmbiguousSeriesMatchException(
-                        series.Sources.FirstOrDefault()?.Path ?? string.Empty,
-                        series.Title,
-                        series.NormalizedTitleInternal,
-                        series.Author ?? string.Empty,
-                        candidateIds);
-                }
+                // 自動判定不能
+                var candidateIds = candidates.Select(c => c.SeriesId).ToList().AsReadOnly();
+                throw new AmbiguousSeriesMatchException(
+                    series.Sources.FirstOrDefault()?.Path ?? string.Empty,
+                    series.Title,
+                    series.NormalizedTitleInternal,
+                    series.Author ?? string.Empty,
+                    candidateIds);
             }
-
-            // Sources を同期
-            await this.SyncSourcesInternalAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Material });
-
-            tx.Commit();
-
-            return await this.GetSeriesWithSourcesAsync(conn, seriesId);
         }
-        catch
-        {
-            tx.Rollback();
-            throw;
-        }
-    }
 
-    /// <summary>
-    /// 指定された SeriesId・役割に一致する MangaSources を同期します。
-    /// 内部用の DB 接続・トランザクション対応版。
-    /// </summary>
-    private async ValueTask SyncSourcesInternalAsync(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction tx, long seriesId, IEnumerable<MangaSource> sources, int[] roles)
-    {
-        var sourceList = sources.Where(s => roles.Contains((int)s.Role)).ToList();
-
-        // 既存の Sources を削除
-        var deleteSql = new System.Text.StringBuilder();
-        deleteSql.AppendLine(" DELETE FROM MangaSources ");
-        deleteSql.AppendLine(" WHERE SeriesId = :SeriesId AND Role IN :Roles; ");
-        await conn.ExecuteAsync(deleteSql.ToString(), new { SeriesId = seriesId, Roles = roles }, tx);
-
-        // 新しい Sources を追加
-        if (sourceList.Count > 0)
-        {
-            var insertSql = new System.Text.StringBuilder();
-            insertSql.AppendLine(" INSERT INTO MangaSources (SeriesId, Role, Path) ");
-            insertSql.AppendLine(" VALUES ");
-            for (var i = 0; i < sourceList.Count; i++)
-            {
-                if (i > 0)
-                    insertSql.AppendLine(" , ");
-                insertSql.AppendLine($" (:SeriesId{i}, :Role{i}, :Path{i}) ");
-            }
-            insertSql.AppendLine(" ; ");
-
-            var parameters = new System.Collections.Generic.Dictionary<string, object>();
-            parameters["SeriesId"] = seriesId;
-            for (var i = 0; i < sourceList.Count; i++)
-            {
-                parameters[$"Role{i}"] = (int)sourceList[i].Role;
-                parameters[$"Path{i}"] = sourceList[i].Path;
-            }
-
-            await conn.ExecuteAsync(insertSql.ToString(), parameters, tx);
-        }
-    }
-
-    /// <summary>
-    /// 指定された SeriesId の最新 MangaSeries を Sources 付きで取得します。
-    /// 内部用の DB 接続版。
-    /// </summary>
-    private async ValueTask<MangaSeries> GetSeriesWithSourcesAsync(System.Data.SQLite.SQLiteConnection conn, long seriesId)
-    {
-        var seriesSql = new System.Text.StringBuilder();
-        seriesSql.AppendLine(" SELECT ");
-        seriesSql.AppendLine(" 	  SeriesId ");
-        seriesSql.AppendLine(" 	, NormalizedTitleInternal ");
-        seriesSql.AppendLine(" 	, Title ");
-        seriesSql.AppendLine(" 	, ShortTitle ");
-        seriesSql.AppendLine(" 	, Author ");
-        seriesSql.AppendLine(" 	, SeriesCompleted ");
-        seriesSql.AppendLine(" 	, IsOwnedCompleted ");
-        seriesSql.AppendLine(" 	, IsSourceMissing ");
-        seriesSql.AppendLine(" 	, StartVolume ");
-        seriesSql.AppendLine(" 	, EndVolume ");
-        seriesSql.AppendLine(" 	, BoundEndVolume ");
-        seriesSql.AppendLine(" 	, OwnedMaxVolume ");
-        seriesSql.AppendLine(" 	, ThumbnailFileName ");
-        seriesSql.AppendLine(" 	, ThumbnailStatus ");
-        seriesSql.AppendLine(" 	, Publisher ");
-        seriesSql.AppendLine(" 	, GoogleBooksImportStatus ");
-        seriesSql.AppendLine(" 	, GoogleBooksImportedAt ");
-        seriesSql.AppendLine(" 	, GoogleBooksImportMessage ");
-        seriesSql.AppendLine(" 	, DescriptionSource ");
-        seriesSql.AppendLine(" 	, DescriptionSourceTitle ");
-        seriesSql.AppendLine(" 	, Description ");
-        seriesSql.AppendLine(" 	, HasNestedArchive ");
-        seriesSql.AppendLine(" 	, Memo ");
-        seriesSql.AppendLine(" 	, ManuallyEditedAt ");
-        seriesSql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
-        seriesSql.AppendLine(" 	, MaterialFolderCreatedAt ");
-        seriesSql.AppendLine(" 	, CreatedAt ");
-        seriesSql.AppendLine(" 	, UpdatedAt ");
-        seriesSql.AppendLine(" 	, UpdateSource ");
-        seriesSql.AppendLine(" FROM MangaSeries ");
-        seriesSql.AppendLine(" WHERE SeriesId = :SeriesId; ");
-
-        var series = await conn.QuerySingleAsync<MangaSeries>(seriesSql.ToString(), new { SeriesId = seriesId });
-
-        var sourcesSql = new System.Text.StringBuilder();
-        sourcesSql.AppendLine(" SELECT SourceId, SeriesId, Role, Path ");
-        sourcesSql.AppendLine(" FROM MangaSources ");
-        sourcesSql.AppendLine(" WHERE SeriesId = :SeriesId ");
-        sourcesSql.AppendLine(" ORDER BY SourceId; ");
-
-        var sources = (await conn.QueryAsync<MangaSource>(sourcesSql.ToString(), new { SeriesId = seriesId })).ToList();
-        series.Sources = sources;
-
-        return series;
+        // 最新の作品情報を Repository から取得して返却
+        var savedResult = await repository.GetCandidateSeriesByNormalizedTitleAsync(series.NormalizedTitleInternal, ct);
+        return savedResult.FirstOrDefault(s => s.SeriesId == seriesId) ?? series;
     }
 
     /// <summary>

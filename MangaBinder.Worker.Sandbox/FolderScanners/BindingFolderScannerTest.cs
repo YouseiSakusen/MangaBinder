@@ -82,12 +82,16 @@ file class StubFolderRepository : IFolderScannerRepository
         return ValueTask.FromResult(series);
     }
 
-    /// <summary>素材スキャンはこのテストでは使用しません。</summary>
-    public ValueTask<MangaSeries> SaveMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
-        => throw new NotImplementedException();
-
     /// <summary>Path一致による素材作品の更新処理です。このテストでは使用しません。</summary>
     public ValueTask<MangaSeries> UpdateMaterialSeriesByPathAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
+        => throw new NotImplementedException();
+
+    /// <summary>素材スキャンの新規作成はこのテストでは使用しません。</summary>
+    public ValueTask<MangaSeries> InsertMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
+        => throw new NotImplementedException();
+
+    /// <summary>素材スキャンの既存更新はこのテストでは使用しません。</summary>
+    public ValueTask<MangaSeries> UpdateMaterialSeriesAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
         => throw new NotImplementedException();
 
     /// <summary>サムネイル更新はこのテストでは記録しません。</summary>
@@ -108,6 +112,10 @@ file class StubFolderRepository : IFolderScannerRepository
 
     /// <summary>このテストでは候補検索は使用しません。</summary>
     public ValueTask<IReadOnlyList<MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct)
+        => throw new NotImplementedException();
+
+    /// <summary>このテストでは複数候補検索は使用しません。</summary>
+    public ValueTask<IReadOnlyDictionary<string, IReadOnlyList<MangaSeries>>> GetCandidateSeriesByNormalizedTitlesAsync(IEnumerable<string> normalizedTitles, CancellationToken ct)
         => throw new NotImplementedException();
 
     /// <summary>

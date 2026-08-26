@@ -53,38 +53,8 @@ public class FolderScannerRepository : IFolderScannerRepository
     }
 
     /// <summary>
-    /// 素材スキャン結果を 1 件単位で UPSERT 保存します。
-    /// Author は更新対象から除外し、EndVolume / IsOwnedCompleted 等を反映します。
-    /// </summary>
-    /// <param name="series">保存対象の作品。</param>
-    /// <param name="updateSource">更新元を表す文字列。</param>
-    /// <param name="ct">キャンセルトークン。</param>
-    public async ValueTask<MangaSeries> SaveMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
-    {
-        using var conn = new SQLiteConnection(this.connectionString);
-        await conn.OpenAsync(ct);
-        using var tx = conn.BeginTransaction();
-
-        long seriesId;
-        try
-        {
-            seriesId = await this.UpsertMaterialSeriesAsync(conn, tx, series, updateSource);
-            await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Material });
-            tx.Commit();
-        }
-        catch
-        {
-            tx.Rollback();
-            throw;
-        }
-
-        return await this.GetSeriesWithSourcesAsync(conn, seriesId);
-    }
-
-    /// <summary>
     /// Path 一致によって既存 SeriesId が確定している素材フォルダについて、
     /// 既存の MangaSeries を直接更新します。
-    /// 更新ルールは UpsertMaterialSeriesAsync の既存作品 UPDATE と同一です。
     /// </summary>
     /// <param name="seriesId">更新対象の既存作品ID。</param>
     /// <param name="series">更新内容を持つ作品オブジェクト。</param>
@@ -99,52 +69,69 @@ public class FolderScannerRepository : IFolderScannerRepository
 
         try
         {
-            // 既存作品を直接 UPDATE（UpsertMaterialSeriesAsync の UPDATE ルール適用）
-            var updateSql = new StringBuilder();
-            updateSql.AppendLine(" UPDATE MangaSeries ");
-            updateSql.AppendLine(" SET ");
-            updateSql.AppendLine(" 	  Title             = :Title ");
-            updateSql.AppendLine(" 	, ShortTitle        = :ShortTitle ");
-            updateSql.AppendLine(" 	, SeriesCompleted   = :SeriesCompleted ");
-            updateSql.AppendLine(" 	, IsOwnedCompleted  = :IsOwnedCompleted ");
-            updateSql.AppendLine(" 	, IsSourceMissing   = 0 ");
-            updateSql.AppendLine(" 	, StartVolume       = :StartVolume ");
-            updateSql.AppendLine(" 	, EndVolume         = :EndVolume ");
-            // OwnedMaxVolume は IsOwnedMaxVolumeManuallyEdited で保護
-            updateSql.AppendLine(" 	, OwnedMaxVolume    = CASE ");
-            updateSql.AppendLine(" 	                        WHEN IsOwnedMaxVolumeManuallyEdited = 1 THEN OwnedMaxVolume ");
-            updateSql.AppendLine(" 	                        WHEN OwnedMaxVolume IS NULL THEN :OwnedMaxVolume ");
-            updateSql.AppendLine(" 	                        WHEN :OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
-            updateSql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, :OwnedMaxVolume) ");
-            updateSql.AppendLine(" 	                      END ");
-            // MaterialFolderCreatedAt は最古日時のみ保持
-            updateSql.AppendLine(" 	, MaterialFolderCreatedAt = CASE ");
-            updateSql.AppendLine(" 	                        WHEN MaterialFolderCreatedAt IS NULL THEN :MaterialFolderCreatedAt ");
-            updateSql.AppendLine(" 	                        WHEN :MaterialFolderCreatedAt < MaterialFolderCreatedAt THEN :MaterialFolderCreatedAt ");
-            updateSql.AppendLine(" 	                        ELSE MaterialFolderCreatedAt ");
-            updateSql.AppendLine(" 	                      END ");
-            updateSql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
-            updateSql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
-            updateSql.AppendLine(" WHERE ");
-            updateSql.AppendLine(" 	SeriesId = :SeriesId; ");
-
-            await conn.ExecuteAsync(updateSql.ToString(), new
-            {
-                SeriesId = seriesId,
-                series.Title,
-                series.ShortTitle,
-                series.SeriesCompleted,
-                series.IsOwnedCompleted,
-                series.StartVolume,
-                series.EndVolume,
-                series.OwnedMaxVolume,
-                series.MaterialFolderCreatedAt,
-                UpdateSource = updateSource,
-            }, tx);
-
-            // Material Sources を同期（既存紐付け維持）
+            await this.UpdateMaterialSeriesInternalAsync(conn, tx, seriesId, series, updateSource);
             await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Material });
+            tx.Commit();
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
 
+        return await this.GetSeriesWithSourcesAsync(conn, seriesId);
+    }
+
+    /// <summary>
+    /// 素材スキャン（Phase 2 Path 不一致）で、新規 MangaSeries を新規作成します。
+    /// ParseAsMaterial() で取得した Author を保存対象に含めます。
+    /// </summary>
+    /// <param name="series">新規作成対象の作品。Sources 含む。Author も含める場合は設定済みの状態で渡す。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>DB上に生成された最新 <see cref="MangaSeries"/>（SeriesId を含む）。</returns>
+    public async ValueTask<MangaSeries> InsertMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
+    {
+        using var conn = new SQLiteConnection(this.connectionString);
+        await conn.OpenAsync(ct);
+        using var tx = conn.BeginTransaction();
+
+        long seriesId;
+        try
+        {
+            seriesId = await this.InsertMaterialSeriesInternalAsync(conn, tx, series, updateSource);
+            await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Material });
+            tx.Commit();
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+
+        return await this.GetSeriesWithSourcesAsync(conn, seriesId);
+    }
+
+    /// <summary>
+    /// 素材スキャン（Phase 2 Path 不一致）で、既存 MangaSeries を更新します。
+    /// Title / ShortTitle / SeriesCompleted / IsOwnedCompleted / StartVolume / EndVolume / OwnedMaxVolume / MaterialFolderCreatedAt / IsSourceMissing=0 を反映します。
+    /// Author は既存値を維持し、上書きしません。
+    /// </summary>
+    /// <param name="seriesId">更新対象の既存作品ID。</param>
+    /// <param name="series">更新内容を持つ作品オブジェクト。Sources 含む。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>DB上でマージ済みの最新 <see cref="MangaSeries"/>。</returns>
+    public async ValueTask<MangaSeries> UpdateMaterialSeriesAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
+    {
+        using var conn = new SQLiteConnection(this.connectionString);
+        await conn.OpenAsync(ct);
+        using var tx = conn.BeginTransaction();
+
+        try
+        {
+            await this.UpdateMaterialSeriesInternalAsync(conn, tx, seriesId, series, updateSource);
+            await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Material });
             tx.Commit();
         }
         catch
@@ -191,13 +178,23 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// フォルダ名由来の情報（Title, ShortTitle, SeriesCompleted, IsOwnedCompleted, StartVolume, EndVolume）はスキャン結果で上書きします。
     /// OwnedMaxVolume は IsOwnedMaxVolumeManuallyEdited フラグで保護します。
     /// </summary>
-    private async ValueTask<long> UpsertMaterialSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series, string updateSource)
+    /// <summary>
+    /// 素材スキャン（Phase 2 Path 不一致）用の MangaSeries を新規 INSERT し、SeriesId を返します。
+    /// Author は素材フォルダ名の [作者] プレフィックスから取得した値を保存します。
+    /// </summary>
+    /// <param name="conn">DB接続。</param>
+    /// <param name="tx">トランザクション。</param>
+    /// <param name="series">保存対象の作品。Author も含める場合は設定済みの状態で渡す。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <returns>挿入後の SeriesId。</returns>
+    private async ValueTask<long> InsertMaterialSeriesInternalAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series, string updateSource)
     {
         var sql = new StringBuilder();
         sql.AppendLine(" INSERT INTO MangaSeries ( ");
         sql.AppendLine(" 	  NormalizedTitleInternal ");
         sql.AppendLine(" 	, Title ");
         sql.AppendLine(" 	, ShortTitle ");
+        sql.AppendLine(" 	, Author ");
         sql.AppendLine(" 	, SeriesCompleted ");
         sql.AppendLine(" 	, IsOwnedCompleted ");
         sql.AppendLine(" 	, IsSourceMissing ");
@@ -214,6 +211,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	  :NormalizedTitleInternal ");
         sql.AppendLine(" 	, :Title ");
         sql.AppendLine(" 	, :ShortTitle ");
+        sql.AppendLine(" 	, :Author ");
         sql.AppendLine(" 	, :SeriesCompleted ");
         sql.AppendLine(" 	, :IsOwnedCompleted ");
         sql.AppendLine(" 	, 0 ");
@@ -227,36 +225,64 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, :MaterialFolderCreatedAt ");
         sql.AppendLine(" 	, :UpdateSource ");
         sql.AppendLine(" ) ");
-        sql.AppendLine(" ON CONFLICT (NormalizedTitleInternal) DO UPDATE SET ");
-        // フォルダ名由来の正規情報としてスキャン結果で上書き
-        sql.AppendLine(" 	  Title             = excluded.Title ");
-        sql.AppendLine(" 	, ShortTitle        = excluded.ShortTitle ");
-        sql.AppendLine(" 	, SeriesCompleted   = excluded.SeriesCompleted ");
-        sql.AppendLine(" 	, IsOwnedCompleted  = excluded.IsOwnedCompleted ");
-        sql.AppendLine(" 	, IsSourceMissing   = 0 ");
-        // StartVolume と EndVolume はフォルダ名由来の正規情報として直接更新
-        sql.AppendLine(" 	, StartVolume       = excluded.StartVolume ");
-        sql.AppendLine(" 	, EndVolume         = excluded.EndVolume ");
-        // OwnedMaxVolume は IsOwnedMaxVolumeManuallyEdited で保護
-        sql.AppendLine(" 	, OwnedMaxVolume    = CASE ");
-        sql.AppendLine(" 	                        WHEN IsOwnedMaxVolumeManuallyEdited = 1 THEN OwnedMaxVolume ");
-        sql.AppendLine(" 	                        WHEN OwnedMaxVolume IS NULL THEN excluded.OwnedMaxVolume ");
-        sql.AppendLine(" 	                        WHEN excluded.OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
-        sql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, excluded.OwnedMaxVolume) ");
-        sql.AppendLine(" 	                      END ");
-        // MaterialFolderCreatedAt は最古日時のみ保持
-        sql.AppendLine(" 	, MaterialFolderCreatedAt = CASE ");
-        sql.AppendLine(" 	                        WHEN MaterialFolderCreatedAt IS NULL THEN excluded.MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	                        WHEN excluded.MaterialFolderCreatedAt < MaterialFolderCreatedAt THEN excluded.MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	                        ELSE MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	                      END ");
-        sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
-        sql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
         sql.AppendLine(" RETURNING SeriesId; ");
 
         return await conn.QuerySingleAsync<long>(sql.ToString(), new
         {
             series.NormalizedTitleInternal,
+            series.Title,
+            series.ShortTitle,
+            series.Author,
+            series.SeriesCompleted,
+            series.IsOwnedCompleted,
+            series.StartVolume,
+            series.EndVolume,
+            series.OwnedMaxVolume,
+            series.MaterialFolderCreatedAt,
+            UpdateSource = updateSource,
+        }, tx);
+    }
+
+    /// <summary>
+    /// 素材スキャン（Phase 2 Path 不一致）用の既存 MangaSeries を更新します。
+    /// Author は既存値を維持し、上書きしません。
+    /// </summary>
+    /// <param name="conn">DB接続。</param>
+    /// <param name="tx">トランザクション。</param>
+    /// <param name="seriesId">更新対象の既存作品ID。</param>
+    /// <param name="series">更新内容を持つ作品オブジェクト。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    private async ValueTask UpdateMaterialSeriesInternalAsync(SQLiteConnection conn, SQLiteTransaction tx, long seriesId, MangaSeries series, string updateSource)
+    {
+        var sql = new StringBuilder();
+        sql.AppendLine(" UPDATE MangaSeries ");
+        sql.AppendLine(" SET ");
+        sql.AppendLine(" 	  Title             = :Title ");
+        sql.AppendLine(" 	, ShortTitle        = :ShortTitle ");
+        sql.AppendLine(" 	, SeriesCompleted   = :SeriesCompleted ");
+        sql.AppendLine(" 	, IsOwnedCompleted  = :IsOwnedCompleted ");
+        sql.AppendLine(" 	, IsSourceMissing   = 0 ");
+        sql.AppendLine(" 	, StartVolume       = :StartVolume ");
+        sql.AppendLine(" 	, EndVolume         = :EndVolume ");
+        sql.AppendLine(" 	, OwnedMaxVolume    = CASE ");
+        sql.AppendLine(" 	                        WHEN IsOwnedMaxVolumeManuallyEdited = 1 THEN OwnedMaxVolume ");
+        sql.AppendLine(" 	                        WHEN OwnedMaxVolume IS NULL THEN :OwnedMaxVolume ");
+        sql.AppendLine(" 	                        WHEN :OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
+        sql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, :OwnedMaxVolume) ");
+        sql.AppendLine(" 	                      END ");
+        sql.AppendLine(" 	, MaterialFolderCreatedAt = CASE ");
+        sql.AppendLine(" 	                        WHEN MaterialFolderCreatedAt IS NULL THEN :MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	                        WHEN :MaterialFolderCreatedAt < MaterialFolderCreatedAt THEN :MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	                        ELSE MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	                      END ");
+        sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
+        sql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
+        sql.AppendLine(" WHERE ");
+        sql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+        await conn.ExecuteAsync(sql.ToString(), new
+        {
+            SeriesId = seriesId,
             series.Title,
             series.ShortTitle,
             series.SeriesCompleted,
@@ -656,116 +682,6 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// <param name="series">保存対象の作品。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <returns>挿入後の SeriesId。</returns>
-    private async ValueTask<long> InsertMaterialSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series, string updateSource)
-    {
-        var sql = new StringBuilder();
-        sql.AppendLine(" INSERT INTO MangaSeries ( ");
-        sql.AppendLine(" 	  NormalizedTitleInternal ");
-        sql.AppendLine(" 	, Title ");
-        sql.AppendLine(" 	, ShortTitle ");
-        sql.AppendLine(" 	, Author ");
-        sql.AppendLine(" 	, SeriesCompleted ");
-        sql.AppendLine(" 	, IsOwnedCompleted ");
-        sql.AppendLine(" 	, IsSourceMissing ");
-        sql.AppendLine(" 	, StartVolume ");
-        sql.AppendLine(" 	, EndVolume ");
-        sql.AppendLine(" 	, OwnedMaxVolume ");
-        sql.AppendLine(" 	, UpdatedAt ");
-        sql.AppendLine(" 	, Memo ");
-        sql.AppendLine(" 	, ManuallyEditedAt ");
-        sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
-        sql.AppendLine(" 	, MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	, UpdateSource ");
-        sql.AppendLine(" ) VALUES ( ");
-        sql.AppendLine(" 	  :NormalizedTitleInternal ");
-        sql.AppendLine(" 	, :Title ");
-        sql.AppendLine(" 	, :ShortTitle ");
-        sql.AppendLine(" 	, :Author ");
-        sql.AppendLine(" 	, :SeriesCompleted ");
-        sql.AppendLine(" 	, :IsOwnedCompleted ");
-        sql.AppendLine(" 	, 0 ");
-        sql.AppendLine(" 	, :StartVolume ");
-        sql.AppendLine(" 	, :EndVolume ");
-        sql.AppendLine(" 	, :OwnedMaxVolume ");
-        sql.AppendLine(" 	, DATETIME('now', 'localtime') ");
-        sql.AppendLine(" 	, '' ");
-        sql.AppendLine(" 	, NULL ");
-        sql.AppendLine(" 	, 0 ");
-        sql.AppendLine(" 	, :MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	, :UpdateSource ");
-        sql.AppendLine(" ) ");
-        sql.AppendLine(" RETURNING SeriesId; ");
-
-        return await conn.QuerySingleAsync<long>(sql.ToString(), new
-        {
-            series.NormalizedTitleInternal,
-            series.Title,
-            series.ShortTitle,
-            series.Author,
-            series.SeriesCompleted,
-            series.IsOwnedCompleted,
-            series.StartVolume,
-            series.EndVolume,
-            series.OwnedMaxVolume,
-            series.MaterialFolderCreatedAt,
-            UpdateSource = updateSource,
-        }, tx);
-    }
-
-    /// <summary>
-    /// 既存の正式登録済み MangaSeries を素材スキャン結果で UPDATE します。
-    /// Author は既存値を維持します。
-    /// </summary>
-    /// <param name="conn">DB接続。</param>
-    /// <param name="tx">トランザクション。</param>
-    /// <param name="seriesId">更新対象の SeriesId。</param>
-    /// <param name="series">更新内容を持つ作品オブジェクト。</param>
-    /// <param name="updateSource">更新元を表す文字列。</param>
-    private async ValueTask UpdateMaterialSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, long seriesId, MangaSeries series, string updateSource)
-    {
-        var sql = new StringBuilder();
-        sql.AppendLine(" UPDATE MangaSeries ");
-        sql.AppendLine(" SET ");
-        sql.AppendLine(" 	  Title             = :Title ");
-        sql.AppendLine(" 	, ShortTitle        = :ShortTitle ");
-        sql.AppendLine(" 	, SeriesCompleted   = :SeriesCompleted ");
-        sql.AppendLine(" 	, IsOwnedCompleted  = :IsOwnedCompleted ");
-        sql.AppendLine(" 	, IsSourceMissing   = 0 ");
-        sql.AppendLine(" 	, StartVolume       = :StartVolume ");
-        sql.AppendLine(" 	, EndVolume         = :EndVolume ");
-        // OwnedMaxVolume は IsOwnedMaxVolumeManuallyEdited で保護
-        sql.AppendLine(" 	, OwnedMaxVolume    = CASE ");
-        sql.AppendLine(" 	                        WHEN IsOwnedMaxVolumeManuallyEdited = 1 THEN OwnedMaxVolume ");
-        sql.AppendLine(" 	                        WHEN OwnedMaxVolume IS NULL THEN :OwnedMaxVolume ");
-        sql.AppendLine(" 	                        WHEN :OwnedMaxVolume IS NULL THEN OwnedMaxVolume ");
-        sql.AppendLine(" 	                        ELSE MAX(OwnedMaxVolume, :OwnedMaxVolume) ");
-        sql.AppendLine(" 	                      END ");
-        // MaterialFolderCreatedAt は最古日時のみ保持
-        sql.AppendLine(" 	, MaterialFolderCreatedAt = CASE ");
-        sql.AppendLine(" 	                        WHEN MaterialFolderCreatedAt IS NULL THEN :MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	                        WHEN :MaterialFolderCreatedAt < MaterialFolderCreatedAt THEN :MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	                        ELSE MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	                      END ");
-        sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
-        sql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
-        sql.AppendLine(" WHERE ");
-        sql.AppendLine(" 	SeriesId = :SeriesId; ");
-
-        await conn.ExecuteAsync(sql.ToString(), new
-        {
-            SeriesId = seriesId,
-            series.Title,
-            series.ShortTitle,
-            series.SeriesCompleted,
-            series.IsOwnedCompleted,
-            series.StartVolume,
-            series.EndVolume,
-            series.OwnedMaxVolume,
-            series.MaterialFolderCreatedAt,
-            UpdateSource = updateSource,
-        }, tx);
-    }
-
     /// <inheritdoc/>
     public async ValueTask<IReadOnlyList<MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct)
     {
@@ -808,5 +724,66 @@ public class FolderScannerRepository : IFolderScannerRepository
         await conn.OpenAsync(ct);
         var result = await conn.QueryAsync<MangaSeries>(sql.ToString(), new { NormalizedTitleInternal = normalizedTitleInternal });
         return result.ToList().AsReadOnly();
+    }
+
+    /// <summary>
+    /// 複数の NormalizedTitleInternal に対応する MangaSeries 候補を一括取得します。
+    /// Phase 2 のスナップショット取得に使用（Parallel 前に一度だけ呼び出し）。
+    /// </summary>
+    /// <param name="normalizedTitles">検索対象の正規化タイトル一覧。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>NormalizedTitleInternal をキーとした、候補 MangaSeries の辞書。キーに存在しないタイトルは空リストに対応。</returns>
+    public async ValueTask<IReadOnlyDictionary<string, IReadOnlyList<MangaSeries>>> GetCandidateSeriesByNormalizedTitlesAsync(IEnumerable<string> normalizedTitles, CancellationToken ct)
+    {
+        var titleList = normalizedTitles.Distinct().ToList();
+        if (titleList.Count == 0)
+            return new Dictionary<string, IReadOnlyList<MangaSeries>>().AsReadOnly();
+
+        var sql = new StringBuilder();
+        sql.AppendLine(" SELECT ");
+        sql.AppendLine(" 	  SeriesId ");
+        sql.AppendLine(" 	, NormalizedTitleInternal ");
+        sql.AppendLine(" 	, Title ");
+        sql.AppendLine(" 	, ShortTitle ");
+        sql.AppendLine(" 	, Author ");
+        sql.AppendLine(" 	, SeriesCompleted ");
+        sql.AppendLine(" 	, IsOwnedCompleted ");
+        sql.AppendLine(" 	, IsSourceMissing ");
+        sql.AppendLine(" 	, StartVolume ");
+        sql.AppendLine(" 	, EndVolume ");
+        sql.AppendLine(" 	, BoundEndVolume ");
+        sql.AppendLine(" 	, OwnedMaxVolume ");
+        sql.AppendLine(" 	, ThumbnailFileName ");
+        sql.AppendLine(" 	, ThumbnailStatus ");
+        sql.AppendLine(" 	, Publisher ");
+        sql.AppendLine(" 	, GoogleBooksImportStatus ");
+        sql.AppendLine(" 	, GoogleBooksImportedAt ");
+        sql.AppendLine(" 	, GoogleBooksImportMessage ");
+        sql.AppendLine(" 	, DescriptionSource ");
+        sql.AppendLine(" 	, DescriptionSourceTitle ");
+        sql.AppendLine(" 	, Description ");
+        sql.AppendLine(" 	, HasNestedArchive ");
+        sql.AppendLine(" 	, Memo ");
+        sql.AppendLine(" 	, ManuallyEditedAt ");
+        sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
+        sql.AppendLine(" 	, MaterialFolderCreatedAt ");
+        sql.AppendLine(" 	, CreatedAt ");
+        sql.AppendLine(" 	, UpdatedAt ");
+        sql.AppendLine(" 	, UpdateSource ");
+        sql.AppendLine(" FROM MangaSeries ");
+        sql.AppendLine(" WHERE NormalizedTitleInternal IN :NormalizedTitles ");
+        sql.AppendLine(" ORDER BY NormalizedTitleInternal, SeriesId; ");
+
+        using var conn = new SQLiteConnection(this.connectionString);
+        await conn.OpenAsync(ct);
+        var results = await conn.QueryAsync<MangaSeries>(sql.ToString(), new { NormalizedTitles = titleList });
+
+        var dict = new Dictionary<string, IReadOnlyList<MangaSeries>>();
+        foreach (var title in titleList)
+        {
+            dict[title] = results.Where(r => r.NormalizedTitleInternal == title).ToList().AsReadOnly();
+        }
+
+        return dict.AsReadOnly();
     }
 }

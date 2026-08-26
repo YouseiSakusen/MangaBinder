@@ -108,7 +108,7 @@ file class StubMaterialRepository : IFolderScannerRepository
     /// <param name="series">保存対象の作品。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    public ValueTask<MangaSeries> SaveMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
+    public ValueTask<MangaSeries> InsertMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
     {
         series.SeriesId = _id++;
         this.seriesList.Add(series);
@@ -123,6 +123,36 @@ file class StubMaterialRepository : IFolderScannerRepository
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
     public ValueTask<MangaSeries> UpdateMaterialSeriesByPathAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
+    {
+        var existing = this.seriesList.FirstOrDefault(s => s.SeriesId == seriesId);
+        if (existing != null)
+        {
+            existing.Title = series.Title;
+            existing.ShortTitle = series.ShortTitle;
+            existing.SeriesCompleted = series.SeriesCompleted;
+            existing.IsOwnedCompleted = series.IsOwnedCompleted;
+            existing.StartVolume = series.StartVolume;
+            existing.EndVolume = series.EndVolume;
+            if (!existing.IsOwnedMaxVolumeManuallyEdited || existing.OwnedMaxVolume == null)
+            {
+                existing.OwnedMaxVolume = series.OwnedMaxVolume;
+            }
+            if (existing.MaterialFolderCreatedAt == null || series.MaterialFolderCreatedAt < existing.MaterialFolderCreatedAt)
+            {
+                existing.MaterialFolderCreatedAt = series.MaterialFolderCreatedAt;
+            }
+        }
+        return ValueTask.FromResult(series);
+    }
+
+    /// <summary>
+    /// 素材スキャン（Path 不一致）の既存更新はこのテストでは萁積リストから該当作品を更新します。
+    /// </summary>
+    /// <param name="seriesId">更新対象の作品ID。</param>
+    /// <param name="series">更新内容。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    public ValueTask<MangaSeries> UpdateMaterialSeriesAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
     {
         var existing = this.seriesList.FirstOrDefault(s => s.SeriesId == seriesId);
         if (existing != null)
@@ -163,6 +193,10 @@ file class StubMaterialRepository : IFolderScannerRepository
 
     /// <summary>このテストでは候補検索は使用しません。</summary>
     public ValueTask<IReadOnlyList<MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct)
+        => throw new NotImplementedException();
+
+    /// <summary>このテストでは複数候補検索は使用しません。</summary>
+    public ValueTask<IReadOnlyDictionary<string, IReadOnlyList<MangaSeries>>> GetCandidateSeriesByNormalizedTitlesAsync(IEnumerable<string> normalizedTitles, CancellationToken ct)
         => throw new NotImplementedException();
 
     /// <summary>サムネイル更新はこのテストでは記録しません。</summary>
