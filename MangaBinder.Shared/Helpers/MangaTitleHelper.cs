@@ -15,6 +15,7 @@ public static class MangaTitleHelper
     ///   <item>Unicode NFD を NFC に正規化</item>
     ///   <item>全角英数字・記号の半角化</item>
     ///   <item>U+2010 HYPHEN を U+002D HYPHEN-MINUS に統一</item>
+    ///   <item>合字的記号を標準表記へ統一（U+203C → !! / U+2047 → ?? / U+2048 → ?! / U+2049 → !?）</item>
     ///   <item>タイトル内のすべての空白（char.IsWhiteSpace 判定）を除去</item>
     ///   <item>ASCII英字 A-Z / a-z の大小文字を統一（大文字へ）</item>
     ///   <item>波ダッシュ（U+007E / U+301C / U+FF5E）を U+301C に統一</item>
@@ -34,9 +35,17 @@ public static class MangaTitleHelper
         // ※全角変換ループより先に処理することで、U+FF5E が半角チルダに変換されるのを防ぐ
         var unified = hyphenUnified.Replace('\u007E', '\u301C').Replace('\uFF5E', '\u301C');
 
+        // 合字的な記号を標準表記へ統一
+        // U+203C (‼) → !! / U+2047 (⁇) → ?? / U+2048 (⁈) → ?! / U+2049 (⁉) → !?
+        var symbolUnified = unified
+            .Replace("\u203C", "!!")
+            .Replace("\u2047", "??")
+            .Replace("\u2048", "?!")
+            .Replace("\u2049", "!?");
+
         // 全角英数字・記号（U+FF01〜U+FF5E）を半角（U+0021〜U+007E）に変換
-        var sb = new StringBuilder(unified.Length);
-        foreach (var c in unified)
+        var sb = new StringBuilder(symbolUnified.Length);
+        foreach (var c in symbolUnified)
         {
             // 全角から半角への変換
             if (c >= '\uFF01' && c <= '\uFF5E')

@@ -229,4 +229,133 @@ public class MangaTitleHelperTests
 		Assert.Contains('\u002D', result);
 		Assert.DoesNotContain('\u2010', result);
 	}
+
+	/// <summary>
+	/// G. 合字的記号（U+203C / U+2047 / U+2048 / U+2049）の統一テスト：
+	/// 以下の4種類の合字的記号がそれぞれ標準的な2文字表記に統一されることを確認します。
+	/// - U+203C (‼) → !!
+	/// - U+2047 (⁇) → ??
+	/// - U+2048 (⁈) → ?!
+	/// - U+2049 (⁉) → !?
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_LigaturesUnification_U203C_DoubleExclamation()
+	{
+		// Arrange
+		var title1 = "テスト‼";    // U+203C DOUBLE EXCLAMATION MARK
+		var title2 = "テスト!!";   // 標準的な !! (U+0021 U+0021)
+
+		// Act
+		var result1 = MangaTitleHelper.NormalizeTitleInternal(title1);
+		var result2 = MangaTitleHelper.NormalizeTitleInternal(title2);
+
+		// Assert - 両方とも同じ正規化結果
+		Assert.Equal(result1, result2);
+		Assert.Equal("テスト!!", result1);
+	}
+
+	/// <summary>
+	/// G-2. 合字的記号 U+2047 (⁇) の統一テスト：
+	/// U+2047 (⁇) が ?? に統一されることを確認します。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_LigaturesUnification_U2047_DoubleQuestion()
+	{
+		// Arrange
+		var title1 = "テスト⁇";    // U+2047 DOUBLE QUESTION MARK
+		var title2 = "テスト??";   // 標準的な ?? (U+003F U+003F)
+
+		// Act
+		var result1 = MangaTitleHelper.NormalizeTitleInternal(title1);
+		var result2 = MangaTitleHelper.NormalizeTitleInternal(title2);
+
+		// Assert - 両方とも同じ正規化結果
+		Assert.Equal(result1, result2);
+		Assert.Equal("テスト??", result1);
+	}
+
+	/// <summary>
+	/// G-3. 合字的記号 U+2048 (⁈) の統一テスト：
+	/// U+2048 (⁈) が ?! に統一されることを確認します。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_LigaturesUnification_U2048_QuestionExclamation()
+	{
+		// Arrange
+		var title1 = "テスト⁈";    // U+2048 QUESTION EXCLAMATION MARK
+		var title2 = "テスト?!";   // 標準的な ?! (U+003F U+0021)
+
+		// Act
+		var result1 = MangaTitleHelper.NormalizeTitleInternal(title1);
+		var result2 = MangaTitleHelper.NormalizeTitleInternal(title2);
+
+		// Assert - 両方とも同じ正規化結果
+		Assert.Equal(result1, result2);
+		Assert.Equal("テスト?!", result1);
+	}
+
+	/// <summary>
+	/// G-4. 合字的記号 U+2049 (⁉) の統一テスト：
+	/// U+2049 (⁉) が !? に統一されることを確認します。
+	/// 実データで確認されたケース：
+	/// `このお姉さんはフィクションです⁉` と `このお姉さんはフィクションです!?` が同一に正規化されます。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_LigaturesUnification_U2049_ExclamationQuestion()
+	{
+		// Arrange
+		var title1 = "テスト⁉";    // U+2049 EXCLAMATION QUESTION MARK
+		var title2 = "テスト!?";   // 標準的な !? (U+0021 U+003F)
+
+		// Act
+		var result1 = MangaTitleHelper.NormalizeTitleInternal(title1);
+		var result2 = MangaTitleHelper.NormalizeTitleInternal(title2);
+
+		// Assert - 両方とも同じ正規化結果
+		Assert.Equal(result1, result2);
+		Assert.Equal("テスト!?", result1);
+	}
+
+	/// <summary>
+	/// G-5. 実データ由来の複雑なケース：
+	/// 実際にスキャンで確認された以下の2つのタイトルが同一に正規化されることを確認します。
+	/// - `このお姉さんはフィクションです⁉`
+	/// - `このお姉さんはフィクションです!?`
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_RealWorldCase_FictionSisterTitle()
+	{
+		// Arrange
+		var title1 = "このお姉さんはフィクションです⁉";  // U+2049 使用
+		var title2 = "このお姉さんはフィクションです!?";  // 標準表記
+
+		// Act
+		var result1 = MangaTitleHelper.NormalizeTitleInternal(title1);
+		var result2 = MangaTitleHelper.NormalizeTitleInternal(title2);
+
+		// Assert - 両方とも同じ正規化結果
+		Assert.Equal(result1, result2);
+		var expected = "このお姉さんはフィクションです!?";
+		Assert.Equal(expected, result1);
+		Assert.Equal(expected, result2);
+	}
+
+	/// <summary>
+	/// G-6. 複数の合字的記号を含むケース：
+	/// 1つのタイトル内に複数の異なる合字的記号が含まれる場合、
+	/// それぞれ正しく標準表記に統一されることを確認します。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_MultipleSignsInOneTitle()
+	{
+		// Arrange
+		var title = "驚愕‼困惑⁇疑問⁈感動⁉";  // U+203C, U+2047, U+2048, U+2049 を全て含む
+
+		// Act
+		var result = MangaTitleHelper.NormalizeTitleInternal(title);
+
+		// Assert
+		var expected = "驚愕!!困惑??疑問?!感動!?";
+		Assert.Equal(expected, result);
+	}
 }

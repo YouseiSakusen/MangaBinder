@@ -20,6 +20,9 @@ public class MaterialFolderScanner : FolderScannerBase
     /// <summary>手持ち最大巻数の推定処理。</summary>
     private readonly OwnedVolumeEstimator ownedVolumeEstimator;
 
+    /// <summary>Phase 2 で使用する候補スナップショット（NormalizedTitleInternal → 候補 MangaSeries リスト）。</summary>
+    private IReadOnlyDictionary<string, IReadOnlyList<MangaSeries>>? phase2CandidateSnapshot;
+
     /// <summary>
     /// <see cref="MaterialFolderScanner"/> の新しいインスタンスを初期化します。
     /// </summary>
@@ -73,10 +76,12 @@ public class MaterialFolderScanner : FolderScannerBase
     ///   - UpdateMaterialSeriesByPathAsync で既存 SeriesId に直接更新
     ///   - targetSourcesByFolder から除外
     /// Phase 2: 新規あるいは Path 不一致の素材を処理
-    ///   - SaveMaterialSeriesAsync で従来の NormalizedTitleInternal ベース判定
+    ///   - Phase 2 開始前に、DB に存在する正式 MangaSeries の候補をスナップショット化
+    ///   - 候補スナップショットから 0件/1件/複数件を判定
+    ///   - 複数件の場合のみ Author を補助判定に使用
     ///   - targetSourcesByFolder から除外
     /// 
-    /// 注：Path一致群と不一致群は順序立てて処理され、同時にDB更新しません。
+    /// 注：Path一致群と不一致群は順序立てて処理。Phase 2 の候補判定は Parallel.ForEachAsync 開始前のDB状態で固定。
     /// </summary>
     /// <param name="rootPaths">スキャン対象のルートフォルダパス一覧。</param>
     /// <param name="ct">キャンセルトークン。</param>
@@ -195,6 +200,11 @@ public class MaterialFolderScanner : FolderScannerBase
         // Phase 2: Path不一致群を処理
         this.logger.ZLogInformation($"Phase 2: Path不一致群の処理を開始（{pathUnmatchedSeries.Count}件）");
 
+        // Phase 2 候補判定用スナップショット取得（Parallel 開始前に一度だけ実施）
+        var normalizedTitles = pathUnmatchedSeries.Select(s => s.NormalizedTitleInternal).Distinct().ToList();
+        this.logger.ZLogInformation($"Phase 2 候補スナップショット取得: {normalizedTitles.Count}個のタイトル");
+        this.phase2CandidateSnapshot = await repository.GetCandidateSeriesByNormalizedTitlesAsync(normalizedTitles, ct);
+
         var pathUnmatchedSourceIds = new HashSet<long>();
 
         await Parallel.ForEachAsync(pathUnmatchedSeries, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (series, token) =>
@@ -260,18 +270,32 @@ public class MaterialFolderScanner : FolderScannerBase
 
     /// <summary>
     /// 素材スキャン結果をリポジトリ経由で保存し、DB最新状態の <see cref="MangaSeries"/> を返します。
-    /// Phase 2 用の新しい実装。NormalizedTitleInternal の一意性を前提とせず、
-    /// 候補数に応じた判定（0件:新規/1件:既存/2件以上:Author補助判定）を行います。
+    /// 
+    /// Phase 2 用の実装。NormalizedTitleInternal の一意性を前提とせず、
+    /// Phase 2 開始時点で取得した候補スナップショットから候補を参照して判定を行います。
+    /// 
+    /// 候補判定ルール（読み取り専用スナップショット使用）：
+    /// - 0件: 新規作品として InsertMaterialSeriesAsync() で作成
+    /// - 1件: その作品を採用して UpdateMaterialSeriesAsync() で更新（Author判定なし）
+    /// - 2件以上: Author を補助判定に使用
+    ///   - Author が完全一致（StringComparison.Ordinal）する候補が exactly 1 件なら、その作品を採用
+    ///   - 0件または 2件以上なら AmbiguousSeriesMatchException を投げてスキップ
+    /// 
+    /// Repository は INSERT/UPDATE と MangaSources 同期を完了後、
+    /// 確定した SeriesId で DB から最新状態を再取得して返します。
     /// </summary>
     /// <param name="series">保存対象の作品。</param>
     /// <param name="repository">保存先リポジトリ。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    /// <returns>DB上でマージ済みの最新 <see cref="MangaSeries"/>。</returns>
+    /// <returns>DB上でマージ・確定済みの最新 <see cref="MangaSeries"/>。</returns>
     /// <exception cref="AmbiguousSeriesMatchException">自動判定不能な複数候補が存在する場合。</exception>
     protected override async ValueTask<MangaSeries> SaveResultsAsync(MangaSeries series, IFolderScannerRepository repository, CancellationToken ct)
     {
-        // NormalizedTitleInternal で候補検索
-        var candidates = await repository.GetCandidateSeriesByNormalizedTitleAsync(series.NormalizedTitleInternal, ct);
+        // Phase 2 候補スナップショットから、NormalizedTitleInternal に合致する候補を取得
+        if (this.phase2CandidateSnapshot == null || !this.phase2CandidateSnapshot.TryGetValue(series.NormalizedTitleInternal, out var candidates))
+        {
+            candidates = new List<MangaSeries>().AsReadOnly();
+        }
 
         long seriesId;
 
@@ -281,27 +305,30 @@ public class MaterialFolderScanner : FolderScannerBase
             var savedSeries = await repository.InsertMaterialSeriesAsync(series, nameof(MaterialFolderScanner), ct);
             seriesId = savedSeries.SeriesId;
             this.logger.ZLogInformation($"新規作品として INSERT: SeriesId={seriesId}, Title={series.Title}");
+            return savedSeries;
         }
         else if (candidates.Count == 1)
         {
             // === 候補 1 件 === Author は判定に使用しない、既存作品として UPDATE
             seriesId = candidates[0].SeriesId;
-            await repository.UpdateMaterialSeriesAsync(seriesId, series, nameof(MaterialFolderScanner), ct);
+            var savedSeries = await repository.UpdateMaterialSeriesAsync(seriesId, series, nameof(MaterialFolderScanner), ct);
             this.logger.ZLogInformation($"既存作品として UPDATE: SeriesId={seriesId}, Title={series.Title}");
+            return savedSeries;
         }
         else
         {
             // === 候補 2 件以上 === Author を補助情報として使用
             var matchedByAuthor = candidates
-                .Where(c => c.Author?.Trim() == series.Author?.Trim())
+                .Where(c => string.Equals(c.Author?.Trim(), series.Author?.Trim(), StringComparison.Ordinal))
                 .ToList();
 
             if (matchedByAuthor.Count == 1)
             {
                 // Author 完全一致 1 件
                 seriesId = matchedByAuthor[0].SeriesId;
-                await repository.UpdateMaterialSeriesAsync(seriesId, series, nameof(MaterialFolderScanner), ct);
+                var savedSeries = await repository.UpdateMaterialSeriesAsync(seriesId, series, nameof(MaterialFolderScanner), ct);
                 this.logger.ZLogInformation($"Author 一致で既存作品として UPDATE: SeriesId={seriesId}, Title={series.Title}");
+                return savedSeries;
             }
             else
             {
@@ -315,10 +342,6 @@ public class MaterialFolderScanner : FolderScannerBase
                     candidateIds);
             }
         }
-
-        // 最新の作品情報を Repository から取得して返却
-        var savedResult = await repository.GetCandidateSeriesByNormalizedTitleAsync(series.NormalizedTitleInternal, ct);
-        return savedResult.FirstOrDefault(s => s.SeriesId == seriesId) ?? series;
     }
 
     /// <summary>

@@ -13,6 +13,21 @@ namespace MangaBinder.Series;
 /// </summary>
 public class NewSeriesCoordinator
 {
+	/// <summary>
+	/// 新規作品登録フロー内のDialog表示状態を表します。
+	/// </summary>
+	private enum NewSeriesDialogState
+	{
+		/// <summary>タイトル入力状態。</summary>
+		TitleInput,
+
+		/// <summary>既存作品1件表示状態。</summary>
+		SingleExistingSeries,
+
+		/// <summary>既存作品複数件表示状態。</summary>
+		MultipleExistingSeries,
+	}
+
 	/// <summary>ナビゲーションサービス。</summary>
 	private readonly INavigationService navigationService;
 
@@ -87,26 +102,37 @@ public class NewSeriesCoordinator
 		// 現在表示中の既存作品確認用ViewModel（往復時に再利用・破棄の管理用）
 		MaintenanceSeriesCardViewModel? existingSeriesCardViewModel = null;
 
-		// 現在のDialog表示状態（タイトル入力か既存作品確認か）
-		bool isShowingExistingSeries = false;
+		// 複数候補表示用ViewModel（往復時に破棄の管理用）
+		MultipleExistingSeriesDialogContentViewModel? multipleExistingViewModel = null;
+
+		// 現在のDialog表示状態
+		NewSeriesDialogState dialogState = NewSeriesDialogState.TitleInput;
 
 		// Dialog 表示前に Closing イベントハンドラを定義
 		void handleDialogClosing(ContentDialog sender, ContentDialogClosingEventArgs e)
 		{
 			// タイトル入力状態での Primary（作品編集開始）
-			if (!isShowingExistingSeries && e.Result == ContentDialogResult.Primary)
+			if (dialogState == NewSeriesDialogState.TitleInput && e.Result == ContentDialogResult.Primary)
 			{
 				this.handleTitleInputPrimary(
 					titleViewModel,
 					mangaSeriesManager,
 					dialog,
 					e,
+					contentWidth,
 					(existingSeries) =>
 					{
 						// 検索結果1件時のコールバック
-						isShowingExistingSeries = true;
+						dialogState = NewSeriesDialogState.SingleExistingSeries;
 						existingSeriesCardViewModel = new MaintenanceSeriesCardViewModel(existingSeries);
-						switchToExistingSeriesContent(dialog, existingSeriesCardViewModel);
+						this.switchToExistingSeriesContent(dialog, existingSeriesCardViewModel, contentWidth);
+					},
+					(multipleSeriesList) =>
+					{
+						// 検索結果2件以上時のコールバック
+						dialogState = NewSeriesDialogState.MultipleExistingSeries;
+						multipleExistingViewModel = new MultipleExistingSeriesDialogContentViewModel(multipleSeriesList);
+						this.switchToMultipleExistingSeriesContent(dialog, multipleExistingViewModel, contentWidth);
 					},
 					(titleValue) =>
 					{
@@ -119,12 +145,12 @@ public class NewSeriesCoordinator
 					});
 			}
 			// タイトル入力状態での Close（キャンセル）
-			else if (!isShowingExistingSeries && e.Result == ContentDialogResult.None)
+			else if (dialogState == NewSeriesDialogState.TitleInput && e.Result == ContentDialogResult.None)
 			{
 				// 何もしない（Dialog正常終了 = 新規作品登録フロー終了）
 			}
-			// 既存作品確認状態での Primary（作品を開く）
-			else if (isShowingExistingSeries && e.Result == ContentDialogResult.Primary)
+			// 既存作品1件表示状態での Primary（作品を開く）
+			else if (dialogState == NewSeriesDialogState.SingleExistingSeries && e.Result == ContentDialogResult.Primary)
 			{
 				// 既存作品を最終確定とする
 				if (existingSeriesCardViewModel?.Series.Value is MangaSeries selectedSeries)
@@ -135,8 +161,8 @@ public class NewSeriesCoordinator
 				// Dialog を正常に閉じる
 				// e.Cancel を設定しない（自動的に閉じる）
 			}
-			// 既存作品確認状態での Secondary（新規作品として続行）
-			else if (isShowingExistingSeries && e.Result == ContentDialogResult.Secondary)
+			// 既存作品1件表示状態での Secondary（新規作品として続行）
+			else if (dialogState == NewSeriesDialogState.SingleExistingSeries && e.Result == ContentDialogResult.Secondary)
 			{
 				// 入力されたタイトルを使用して新規作品を作成
 				var titleValue = titleViewModel.Title.Value ?? string.Empty;
@@ -148,27 +174,33 @@ public class NewSeriesCoordinator
 				// Dialog を正常に閉じる
 				// e.Cancel を設定しない（自動的に閉じる）
 			}
-			// 既存作品確認状態での Close（タイトルを修正する）
-			else if (isShowingExistingSeries && e.Result == ContentDialogResult.None)
+			// 既存作品1件表示状態での Close（タイトルを修正する）
+			else if (dialogState == NewSeriesDialogState.SingleExistingSeries && e.Result == ContentDialogResult.None)
 			{
 				// Closing をキャンセル
 				e.Cancel = true;
-				isShowingExistingSeries = false;
-
-				// 古い既存作品ViewModel を破棄
-				existingSeriesCardViewModel?.Dispose();
-				existingSeriesCardViewModel = null;
-
-				// Content をタイトル入力に戻す
-				dialog.Content = titleContent;
-				dialog.Title = "新規作品登録";
-				dialog.PrimaryButtonText = "作品編集開始";
-				dialog.SecondaryButtonText = string.Empty;
-				dialog.CloseButtonText = "キャンセル";
-				dialog.DefaultButton = ContentDialogButton.Primary;
-
-				// タイトルTextBoxへフォーカス＆全選択をリクエスト
-				titleViewModel.TitleInputFocusRequest.Value++;
+				this.returnToTitleInputState(
+					dialog,
+					titleViewModel,
+					titleContent,
+					contentWidth,
+					ref existingSeriesCardViewModel,
+					ref multipleExistingViewModel);
+				dialogState = NewSeriesDialogState.TitleInput;
+			}
+			// 既存作品複数件表示状態での Close（タイトルを修正する）
+			else if (dialogState == NewSeriesDialogState.MultipleExistingSeries && e.Result == ContentDialogResult.None)
+			{
+				// Closing をキャンセル
+				e.Cancel = true;
+				this.returnToTitleInputState(
+					dialog,
+					titleViewModel,
+					titleContent,
+					contentWidth,
+					ref existingSeriesCardViewModel,
+					ref multipleExistingViewModel);
+				dialogState = NewSeriesDialogState.TitleInput;
 			}
 		}
 
@@ -197,6 +229,7 @@ public class NewSeriesCoordinator
 
 			// 既存作品ViewModel を破棄
 			existingSeriesCardViewModel?.Dispose();
+			multipleExistingViewModel?.Dispose();
 
 			// タイトル入力ViewModel を破棄
 			titleViewModel.Dispose();
@@ -213,7 +246,9 @@ public class NewSeriesCoordinator
 		MangaSeriesManager manager,
 		ContentDialog dialog,
 		ContentDialogClosingEventArgs closingArgs,
+		double contentWidth,
 		Action<MangaSeries> onSingleSeriesFound,
+		Action<IReadOnlyList<MangaSeries>> onMultipleSeriesFound,
 		Action<string> onZeroMatches)
 	{
 		// 判定前に前回の InfoBar をクリア
@@ -253,25 +288,26 @@ public class NewSeriesCoordinator
 				break;
 
 			default:
-				// 検索結果2件以上：エラー表示してダイアログを閉じない
-				viewModel.ErrorMessage.Value = "同じタイトルの作品が複数見つかりました。";
-				viewModel.IsErrorMessageVisible.Value = true;
+				// 検索結果2件以上：複数候補確認へ切り替え
 				closingArgs.Cancel = true;
+				onMultipleSeriesFound(sameSeriesList);
 				break;
 		}
 	}
 
 	/// <summary>
-	/// 既存作品確認ContentへContentDialogのコンテンツを切り替える。
+	/// 既存作品1件確認ContentへContentDialogのコンテンツを切り替える。
 	/// </summary>
 	private void switchToExistingSeriesContent(
 		ContentDialog dialog,
-		MaintenanceSeriesCardViewModel cardViewModel)
+		MaintenanceSeriesCardViewModel cardViewModel,
+		double contentWidth)
 	{
 		// 既存作品確認コンテンツを生成
 		var existingContent = new ExistingSeriesDialogContent
 		{
-			DataContext = cardViewModel
+			DataContext = cardViewModel,
+			Width = contentWidth,
 		};
 
 		// Dialog の設定を既存作品確認用に変更
@@ -281,5 +317,60 @@ public class NewSeriesCoordinator
 		dialog.SecondaryButtonText = "新規作品として続行";
 		dialog.CloseButtonText = "タイトルを修正する";
 		dialog.DefaultButton = ContentDialogButton.Primary;
+	}
+
+	/// <summary>
+	/// 既存作品複数件確認ContentへContentDialogのコンテンツを切り替える。
+	/// </summary>
+	private void switchToMultipleExistingSeriesContent(
+		ContentDialog dialog,
+		MultipleExistingSeriesDialogContentViewModel viewModel,
+		double contentWidth)
+	{
+		// 複数候補確認コンテンツを生成
+		var multipleContent = new MultipleExistingSeriesDialogContent
+		{
+			DataContext = viewModel,
+			Width = contentWidth,
+		};
+
+		// Dialog の設定を複数候補確認用に変更
+		dialog.Content = multipleContent;
+		dialog.Title = "同一タイトルの作品が登録済みです。";
+		dialog.PrimaryButtonText = string.Empty;
+		dialog.SecondaryButtonText = string.Empty;
+		dialog.CloseButtonText = "タイトルを修正する";
+		dialog.DefaultButton = ContentDialogButton.Close;
+	}
+
+	/// <summary>
+	/// Dialogをタイトル入力状態へ戻す共通処理。
+	/// </summary>
+	private void returnToTitleInputState(
+		ContentDialog dialog,
+		NewSeriesTitleDialogContentViewModel titleViewModel,
+		NewSeriesTitleDialogContent titleContent,
+		double contentWidth,
+		ref MaintenanceSeriesCardViewModel? existingSeriesCardViewModel,
+		ref MultipleExistingSeriesDialogContentViewModel? multipleExistingViewModel)
+	{
+		// 古い既存作品1件ViewModel を破棄
+		existingSeriesCardViewModel?.Dispose();
+		existingSeriesCardViewModel = null;
+
+		// 古い複数候補ViewModel を破棄
+		multipleExistingViewModel?.Dispose();
+		multipleExistingViewModel = null;
+
+		// Content をタイトル入力に戻す
+		dialog.Content = titleContent;
+		dialog.Title = "新規作品登録";
+		dialog.PrimaryButtonText = "作品編集開始";
+		dialog.SecondaryButtonText = string.Empty;
+		dialog.CloseButtonText = "キャンセル";
+		dialog.DefaultButton = ContentDialogButton.Primary;
+
+		// タイトルTextBoxへフォーカス＆全選択をリクエスト
+		titleViewModel.TitleInputFocusRequest.Value++;
 	}
 }

@@ -50,14 +50,24 @@ public interface IFolderScannerRepository
     ValueTask<MangaBinder.MangaSeries> UpdateMaterialSeriesAsync(long seriesId, MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
 
     /// <summary>
-    /// 製本済みスキャン結果を 1 件単位で UPSERT 保存し、保存後のDB最新状態の <see cref="MangaBinder.MangaSeries"/> を返します。
-    /// Author を上書きし、BoundEndVolume / SeriesCompleted 等が反映されます。
+    /// 製本済みスキャンの新規 MangaSeries を新規作成する場合に使用します。
     /// </summary>
-    /// <param name="series">保存対象の作品。</param>
+    /// <param name="series">新規作成対象の作品。Sources 含む。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>DB上に生成された最新 <see cref="MangaBinder.MangaSeries"/>（SeriesId を含む）。</returns>
+    ValueTask<MangaBinder.MangaSeries> InsertBindingSeriesAsync(MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
+
+    /// <summary>
+    /// 製本済みスキャンで、既存 MangaSeries を更新する場合に使用します。
+    /// BoundEndVolume / UpdatedAt / UpdateSource のみを更新し、その他のメタ情報は上書きしません。
+    /// </summary>
+    /// <param name="seriesId">更新対象の既存作品ID。</param>
+    /// <param name="series">更新内容を持つ作品オブジェクト。Sources 含む。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
     /// <returns>DB上でマージ済みの最新 <see cref="MangaBinder.MangaSeries"/>。</returns>
-    ValueTask<MangaBinder.MangaSeries> SaveBindingSeriesAsync(MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
+    ValueTask<MangaBinder.MangaSeries> UpdateBindingSeriesAsync(long seriesId, MangaBinder.MangaSeries series, string updateSource, CancellationToken ct);
 
     /// <summary>
     /// サムネイル情報を更新します。
@@ -93,18 +103,8 @@ public interface IFolderScannerRepository
     ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct);
 
     /// <summary>
-    /// 指定された NormalizedTitleInternal に一致する正式登録済み MangaSeries を取得します。
-    /// Phase 2 で複数の同一タイトル作品が存在する場合の判定に使用します。
-    /// （スナップショット取得用：スキャン開始時に一度呼び出し、その時点での候補を固定化）
-    /// </summary>
-    /// <param name="normalizedTitleInternal">検索対象の正規化タイトル。</param>
-    /// <param name="ct">キャンセルトークン。</param>
-    /// <returns>一致する MangaSeries の一覧（SeriesId と Author を含む、SeriesId でソート済み）。</returns>
-    ValueTask<IReadOnlyList<MangaBinder.MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct);
-
-    /// <summary>
     /// 複数の NormalizedTitleInternal に対応する MangaSeries 候補を一括取得します。
-    /// Phase 2 のスナップショット取得に使用（Parallel 前に一度だけ呼び出し）。
+    /// Material / Binding の両スキャナで使用されるスナップショット取得用（Parallel 前に一度だけ呼び出し）。
     /// </summary>
     /// <param name="normalizedTitles">検索対象の正規化タイトル一覧。</param>
     /// <param name="ct">キャンセルトークン。</param>

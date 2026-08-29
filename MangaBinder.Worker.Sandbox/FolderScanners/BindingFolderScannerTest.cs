@@ -76,7 +76,16 @@ file class StubFolderRepository : IFolderScannerRepository
     /// <param name="series">保存対象の作品。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    public ValueTask<MangaSeries> SaveBindingSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
+
+    /// <summary>製本スキャンの新規作成では、受け取った作品を蓄積リストに追加します。</summary>
+    public ValueTask<MangaSeries> InsertBindingSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
+    {
+        this.seriesList.Add(series);
+        return ValueTask.FromResult(series);
+    }
+
+    /// <summary>製本スキャンの既存更新では、受け取った作品を蓄積リストに追加します。</summary>
+    public ValueTask<MangaSeries> UpdateBindingSeriesAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
     {
         this.seriesList.Add(series);
         return ValueTask.FromResult(series);
@@ -109,10 +118,6 @@ file class StubFolderRepository : IFolderScannerRepository
     /// <summary>このテストでは削除は行いません。</summary>
     public ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct)
         => ValueTask.CompletedTask;
-
-    /// <summary>このテストでは候補検索は使用しません。</summary>
-    public ValueTask<IReadOnlyList<MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct)
-        => throw new NotImplementedException();
 
     /// <summary>このテストでは複数候補検索は使用しません。</summary>
     public ValueTask<IReadOnlyDictionary<string, IReadOnlyList<MangaSeries>>> GetCandidateSeriesByNormalizedTitlesAsync(IEnumerable<string> normalizedTitles, CancellationToken ct)

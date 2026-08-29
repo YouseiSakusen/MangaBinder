@@ -85,11 +85,12 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// <summary>
     /// 素材スキャン（Phase 2 Path 不一致）で、新規 MangaSeries を新規作成します。
     /// ParseAsMaterial() で取得した Author を保存対象に含めます。
+    /// INSERT と MangaSources 同期を完了後、確定した SeriesId で DB から最新状態を再取得して返します。
     /// </summary>
     /// <param name="series">新規作成対象の作品。Sources 含む。Author も含める場合は設定済みの状態で渡す。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    /// <returns>DB上に生成された最新 <see cref="MangaSeries"/>（SeriesId を含む）。</returns>
+    /// <returns>DB上に確定・作成された最新 <see cref="MangaSeries"/>（SeriesId と Sources を含む）。</returns>
     public async ValueTask<MangaSeries> InsertMaterialSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
     {
         using var conn = new SQLiteConnection(this.connectionString);
@@ -113,15 +114,47 @@ public class FolderScannerRepository : IFolderScannerRepository
     }
 
     /// <summary>
-    /// 素材スキャン（Phase 2 Path 不一致）で、既存 MangaSeries を更新します。
-    /// Title / ShortTitle / SeriesCompleted / IsOwnedCompleted / StartVolume / EndVolume / OwnedMaxVolume / MaterialFolderCreatedAt / IsSourceMissing=0 を反映します。
-    /// Author は既存値を維持し、上書きしません。
+    /// 製本済みスキャンで既存 MangaSeries を更新します。
+    /// BoundEndVolume / UpdatedAt / UpdateSource のみを更新し、その他のメタ情報は上書きしません。
+    /// UPDATE と MangaSources 同期を完了後、確定した SeriesId で DB から最新状態を再取得して返します。
     /// </summary>
     /// <param name="seriesId">更新対象の既存作品ID。</param>
     /// <param name="series">更新内容を持つ作品オブジェクト。Sources 含む。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    /// <returns>DB上でマージ済みの最新 <see cref="MangaSeries"/>。</returns>
+    /// <returns>DB上でマージ済みの最新 <see cref="MangaBinder.MangaSeries"/>。</returns>
+    public async ValueTask<MangaSeries> UpdateBindingSeriesAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
+    {
+        using var conn = new SQLiteConnection(this.connectionString);
+        await conn.OpenAsync(ct);
+        using var tx = conn.BeginTransaction();
+
+        try
+        {
+            await this.UpdateBindingSeriesInternalAsync(conn, tx, seriesId, series, updateSource);
+            await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Binding, (int)FolderRole.DefaultBinding });
+            tx.Commit();
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+
+        return await this.GetSeriesWithSourcesAsync(conn, seriesId);
+    }
+
+    /// <summary>
+    /// 素材スキャン（Phase 2 Path 不一致）で、既存 MangaSeries を更新します。
+    /// Title / ShortTitle / SeriesCompleted / IsOwnedCompleted / StartVolume / EndVolume / OwnedMaxVolume / MaterialFolderCreatedAt / IsSourceMissing=0 を反映します。
+    /// Author は既存値を維持し、上書きしません。
+    /// UPDATE と MangaSources 同期を完了後、確定した SeriesId で DB から最新状態を再取得して返します。
+    /// </summary>
+    /// <param name="seriesId">更新対象の既存作品ID。</param>
+    /// <param name="series">更新内容を持つ作品オブジェクト。Sources 含む。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    /// <returns>DB上で確定・更新済みの最新 <see cref="MangaSeries"/>（Sources を含む）。</returns>
     public async ValueTask<MangaSeries> UpdateMaterialSeriesAsync(long seriesId, MangaSeries series, string updateSource, CancellationToken ct)
     {
         using var conn = new SQLiteConnection(this.connectionString);
@@ -144,13 +177,14 @@ public class FolderScannerRepository : IFolderScannerRepository
     }
 
     /// <summary>
-    /// 製本済みスキャン結果を 1 件単位で UPSERT 保存します。
-    /// Author を上書きし、BoundEndVolume / SeriesCompleted 等を反映します。
+    /// 製本済みスキャンで新規 MangaSeries を新規作成します。
+    /// INSERT と MangaSources 同期を完了後、確定した SeriesId で DB から最新状態を再取得して返します。
     /// </summary>
-    /// <param name="series">保存対象の作品。</param>
+    /// <param name="series">新規作成対象の作品。Sources 含む。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <param name="ct">キャンセルトークン。</param>
-    public async ValueTask<MangaSeries> SaveBindingSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
+    /// <returns>DB上に生成された最新 <see cref="MangaBinder.MangaSeries"/>（SeriesId を含む）。</returns>
+    public async ValueTask<MangaSeries> InsertBindingSeriesAsync(MangaSeries series, string updateSource, CancellationToken ct)
     {
         using var conn = new SQLiteConnection(this.connectionString);
         await conn.OpenAsync(ct);
@@ -159,7 +193,7 @@ public class FolderScannerRepository : IFolderScannerRepository
         long seriesId;
         try
         {
-            seriesId = await this.UpsertBindingSeriesAsync(conn, tx, series, updateSource);
+            seriesId = await this.InsertBindingSeriesInternalAsync(conn, tx, series, updateSource);
             await this.SyncSourcesAsync(conn, tx, seriesId, series.Sources, new[] { (int)FolderRole.Binding, (int)FolderRole.DefaultBinding });
             tx.Commit();
         }
@@ -173,18 +207,11 @@ public class FolderScannerRepository : IFolderScannerRepository
     }
 
     /// <summary>
-    /// 素材スキャン向けの MangaSeries UPSERT を実行し、SeriesId を返します。
-    /// Author は INSERT 時のみ設定され、UPDATE 時は除外して既存値を維持します。
-    /// フォルダ名由来の情報（Title, ShortTitle, SeriesCompleted, IsOwnedCompleted, StartVolume, EndVolume）はスキャン結果で上書きします。
-    /// OwnedMaxVolume は IsOwnedMaxVolumeManuallyEdited フラグで保護します。
-    /// </summary>
-    /// <summary>
-    /// 素材スキャン（Phase 2 Path 不一致）用の MangaSeries を新規 INSERT し、SeriesId を返します。
-    /// Author は素材フォルダ名の [作者] プレフィックスから取得した値を保存します。
+    /// 素材スキャン向けの新規 MangaSeries を INSERT し、SeriesId を返します。
     /// </summary>
     /// <param name="conn">DB接続。</param>
     /// <param name="tx">トランザクション。</param>
-    /// <param name="series">保存対象の作品。Author も含める場合は設定済みの状態で渡す。</param>
+    /// <param name="series">新規作成対象の作品。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
     /// <returns>挿入後の SeriesId。</returns>
     private async ValueTask<long> InsertMaterialSeriesInternalAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series, string updateSource)
@@ -296,11 +323,45 @@ public class FolderScannerRepository : IFolderScannerRepository
     }
 
     /// <summary>
-    /// 製本済みスキャン向けの MangaSeries UPSERT を実行し、SeriesId を返します。
-    /// 既存作品に一致した場合、メタ情報（Title、ShortTitle、Author、SeriesCompleted、StartVolume、EndVolume）は上書きしません。
-    /// 更新対象は BoundEndVolume と UpdatedAt のみです。
+    /// 製本済みスキャン向けの既存 MangaSeries を UPDATE します。
+    /// BoundEndVolume と UpdatedAt / UpdateSource のみを更新し、その他のメタ情報は上書きしません。
     /// </summary>
-    private async ValueTask<long> UpsertBindingSeriesAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series, string updateSource)
+    /// <param name="conn">DB接続。</param>
+    /// <param name="tx">トランザクション。</param>
+    /// <param name="seriesId">更新対象の作品ID。</param>
+    /// <param name="series">更新内容を持つ作品オブジェクト。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    private async ValueTask UpdateBindingSeriesInternalAsync(SQLiteConnection conn, SQLiteTransaction tx, long seriesId, MangaSeries series, string updateSource)
+    {
+        var sql = new StringBuilder();
+        sql.AppendLine(" UPDATE MangaSeries SET ");
+        sql.AppendLine(" 	  BoundEndVolume    = CASE ");
+        sql.AppendLine(" 	                        WHEN BoundEndVolume IS NULL THEN :BoundEndVolume ");
+        sql.AppendLine(" 	                        WHEN :BoundEndVolume IS NULL THEN BoundEndVolume ");
+        sql.AppendLine(" 	                        ELSE MAX(BoundEndVolume, :BoundEndVolume) ");
+        sql.AppendLine(" 	                      END ");
+        sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
+        sql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
+        sql.AppendLine(" WHERE ");
+        sql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+        await conn.ExecuteAsync(sql.ToString(), new
+        {
+            SeriesId = seriesId,
+            series.BoundEndVolume,
+            UpdateSource = updateSource,
+        }, tx);
+    }
+
+    /// <summary>
+    /// 製本済みスキャンの新規 MangaSeries を INSERT し、SeriesId を返します。
+    /// </summary>
+    /// <param name="conn">DB接続。</param>
+    /// <param name="tx">トランザクション。</param>
+    /// <param name="series">新規作成対象の作品。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <returns>挿入後の SeriesId。</returns>
+    private async ValueTask<long> InsertBindingSeriesInternalAsync(SQLiteConnection conn, SQLiteTransaction tx, MangaSeries series, string updateSource)
     {
         var sql = new StringBuilder();
         sql.AppendLine(" INSERT INTO MangaSeries ( ");
@@ -332,16 +393,6 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, 0 ");
         sql.AppendLine(" 	, :UpdateSource ");
         sql.AppendLine(" ) ");
-        sql.AppendLine(" ON CONFLICT (NormalizedTitleInternal) DO UPDATE SET ");
-        // 既存作品の場合、メタ情報は上書きしない
-        // 更新対象は BoundEndVolume と UpdatedAt のみ
-        sql.AppendLine(" 	  BoundEndVolume    = CASE ");
-        sql.AppendLine(" 	                        WHEN BoundEndVolume IS NULL THEN excluded.BoundEndVolume ");
-        sql.AppendLine(" 	                        WHEN excluded.BoundEndVolume IS NULL THEN BoundEndVolume ");
-        sql.AppendLine(" 	                        ELSE MAX(BoundEndVolume, excluded.BoundEndVolume) ");
-        sql.AppendLine(" 	                      END ");
-        sql.AppendLine(" 	, UpdatedAt         = DATETIME('now', 'localtime') ");
-        sql.AppendLine(" 	, UpdateSource      = :UpdateSource ");
         sql.AppendLine(" RETURNING SeriesId; ");
 
         return await conn.QuerySingleAsync<long>(sql.ToString(), new
@@ -681,54 +732,9 @@ public class FolderScannerRepository : IFolderScannerRepository
     /// <param name="tx">トランザクション。</param>
     /// <param name="series">保存対象の作品。</param>
     /// <param name="updateSource">更新元を表す文字列。</param>
-    /// <returns>挿入後の SeriesId。</returns>
-    /// <inheritdoc/>
-    public async ValueTask<IReadOnlyList<MangaSeries>> GetCandidateSeriesByNormalizedTitleAsync(string normalizedTitleInternal, CancellationToken ct)
-    {
-        var sql = new StringBuilder();
-        sql.AppendLine(" SELECT ");
-        sql.AppendLine(" 	  SeriesId ");
-        sql.AppendLine(" 	, NormalizedTitleInternal ");
-        sql.AppendLine(" 	, Title ");
-        sql.AppendLine(" 	, ShortTitle ");
-        sql.AppendLine(" 	, Author ");
-        sql.AppendLine(" 	, SeriesCompleted ");
-        sql.AppendLine(" 	, IsOwnedCompleted ");
-        sql.AppendLine(" 	, IsSourceMissing ");
-        sql.AppendLine(" 	, StartVolume ");
-        sql.AppendLine(" 	, EndVolume ");
-        sql.AppendLine(" 	, BoundEndVolume ");
-        sql.AppendLine(" 	, OwnedMaxVolume ");
-        sql.AppendLine(" 	, ThumbnailFileName ");
-        sql.AppendLine(" 	, ThumbnailStatus ");
-        sql.AppendLine(" 	, Publisher ");
-        sql.AppendLine(" 	, GoogleBooksImportStatus ");
-        sql.AppendLine(" 	, GoogleBooksImportedAt ");
-        sql.AppendLine(" 	, GoogleBooksImportMessage ");
-        sql.AppendLine(" 	, DescriptionSource ");
-        sql.AppendLine(" 	, DescriptionSourceTitle ");
-        sql.AppendLine(" 	, Description ");
-        sql.AppendLine(" 	, HasNestedArchive ");
-        sql.AppendLine(" 	, Memo ");
-        sql.AppendLine(" 	, ManuallyEditedAt ");
-        sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
-        sql.AppendLine(" 	, MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	, CreatedAt ");
-        sql.AppendLine(" 	, UpdatedAt ");
-        sql.AppendLine(" 	, UpdateSource ");
-        sql.AppendLine(" FROM MangaSeries ");
-        sql.AppendLine(" WHERE NormalizedTitleInternal = :NormalizedTitleInternal ");
-        sql.AppendLine(" ORDER BY SeriesId; ");
-
-        using var conn = new SQLiteConnection(this.connectionString);
-        await conn.OpenAsync(ct);
-        var result = await conn.QueryAsync<MangaSeries>(sql.ToString(), new { NormalizedTitleInternal = normalizedTitleInternal });
-        return result.ToList().AsReadOnly();
-    }
-
     /// <summary>
     /// 複数の NormalizedTitleInternal に対応する MangaSeries 候補を一括取得します。
-    /// Phase 2 のスナップショット取得に使用（Parallel 前に一度だけ呼び出し）。
+    /// Material / Binding の両スキャナで使用されるスナップショット取得用（Parallel 前に一度だけ呼び出し）。
     /// </summary>
     /// <param name="normalizedTitles">検索対象の正規化タイトル一覧。</param>
     /// <param name="ct">キャンセルトークン。</param>
@@ -767,7 +773,6 @@ public class FolderScannerRepository : IFolderScannerRepository
         sql.AppendLine(" 	, ManuallyEditedAt ");
         sql.AppendLine(" 	, IsOwnedMaxVolumeManuallyEdited ");
         sql.AppendLine(" 	, MaterialFolderCreatedAt ");
-        sql.AppendLine(" 	, CreatedAt ");
         sql.AppendLine(" 	, UpdatedAt ");
         sql.AppendLine(" 	, UpdateSource ");
         sql.AppendLine(" FROM MangaSeries ");

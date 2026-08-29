@@ -4,7 +4,6 @@ using MangaBinder.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using R3;
-using System.Collections.Specialized;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
@@ -12,6 +11,9 @@ namespace MangaBinder.Series;
 
 /// <summary>
 /// 作品管理ページの ViewModel です。
+/// 検索・登録待ちフィルタ・表示制御を担当します。
+/// 表示対象の MangaSeries コレクションを SelectableSeriesListViewModel へ渡し、
+/// MaintenanceSeriesCardViewModel の生成・管理責務は SelectableSeriesListViewModel に委譲します。
 /// </summary>
 public class MaintenancePageViewModel : IDisposable, IDataInitializable
 {
@@ -29,9 +31,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
-	/// <summary>MangaSeriesStore.Merged から CreateView で生成した SynchronizedView。</summary>
-	private readonly ISynchronizedView<MangaSeries, MaintenanceSeriesCardViewModel> displayView;
-
 	/// <summary>検索文字列を取得します。</summary>
 	public BindableReactiveProperty<string> SearchQuery { get; }
 
@@ -41,9 +40,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>登録待ち作品一覧を取得します。</summary>
 	public IReadOnlyList<MangaSeries> WorkSeries
 		=> this.mangaSeriesStore.GetWorkSeries();
-
-	/// <summary>表示する作品一覧を取得します。MangaSeriesStore.Merged を正本とした CreateView + Filter 構造。</summary>
-	public NotifyCollectionChangedSynchronizedViewList<MaintenanceSeriesCardViewModel> DisplaySeries { get; }
 
 	/// <summary>検索結果が空であるかを取得します。</summary>
 	public BindableReactiveProperty<bool> IsSearchResultsEmpty { get; }
@@ -66,6 +62,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>既存作品を編集モードで EditorPage を表示するコマンドです。</summary>
 	public ReactiveCommand<MangaSeries> EditSeriesCommand { get; private set; }
 
+	/// <summary>作品一覧表示用の共通 UserControl の ViewModel。</summary>
+	public SelectableSeriesListViewModel SelectableSeriesListViewModel { get; }
+
 	/// <summary>
 	/// <see cref="MaintenancePageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
@@ -85,23 +84,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		this.WorkSeriesCount = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
-
-		// MangaSeriesStore.Merged から CreateView で MaintenanceSeriesCardViewModel へ変換
-		// 初期 Filter は登録待ち作品のみを表示
-		this.displayView = this.mangaSeriesStore.Merged
-			.CreateView(series => new MaintenanceSeriesCardViewModel(series))
-			.AddTo(ref this.disposableBag);
-
-		// 通常時の Filter を設定：登録待ち作品のみ
-		this.applyWorkSeriesOnlyFilter();
-
-		// Filter 適用後、WPF バインド用に ToNotifyCollectionChanged で公開
-		this.DisplaySeries = this.displayView
-			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
-			.AddTo(ref this.disposableBag);
-
-		// CollectionChanged イベントで削除・置換時のカード Dispose を管理
-		((INotifyCollectionChanged)this.DisplaySeries).CollectionChanged += this.onDisplaySeriesCollectionChanged;
 
 		this.IsSearchResultsEmpty = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
@@ -140,7 +122,22 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.mangaSeriesStore.WorkSeries.ObserveCountChanged()
 			.Subscribe(count => this.WorkSeriesCount.Value = count)
 			.AddTo(ref this.disposableBag);
+
+		// SelectableSeriesListViewModel を初期化
+		this.SelectableSeriesListViewModel = new SelectableSeriesListViewModel()
+			.AddTo(ref this.disposableBag);
+
+		// ShowNavigateButton を有効化（MaintenancePage では右端の「▶」ボタンを表示）
+		this.SelectableSeriesListViewModel.ShowNavigateButton.Value = true;
+
+		// NavigateCommand を EditSeriesCommand に接続
+		this.SelectableSeriesListViewModel.NavigateCommand = this.EditSeriesCommand;
+
+		// 初回の登録待ち作品フィルタ適用
+		// 依存先（IsSearchResultsEmpty、HasSearchResults、SelectableSeriesListViewModel）の初期化完了後に実行
+		this.applyWorkSeriesOnlyFilter();
 	}
+
 
 	/// <summary>
 	/// 画面表示後の初期データ読み込みを非同期で実行します。
@@ -157,14 +154,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		// 検索結果表示フラグを false に設定
 		this.IsSearchResultsShown.Value = false;
 
-		// 現在表示されているカードへ Series.ForceNotify() を呼び出す
-		// これにより、他画面で同じ MangaSeries 正本インスタンスの内容が更新された場合でも、
-		// 現在表示されている登録待ちカードが最新内容を再評価できる
-		foreach (var card in this.DisplaySeries)
-		{
-			card.Series.ForceNotify();
-		}
-
 		// 登録待ち件数を更新（常に Store が保持している登録待ち作品数を表示）
 		var workSeriesList = this.mangaSeriesStore.GetWorkSeries();
 		this.WorkSeriesCount.Value = workSeriesList.Count;
@@ -177,11 +166,11 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 	/// <summary>
 	/// エンプティステートを更新します。
-	/// DisplaySeries の行数で判定します。
+	/// SelectableSeriesListViewModel.Items の行数で判定します。
 	/// </summary>
 	private void UpdateEmptyState()
 	{
-		var isEmpty = this.DisplaySeries.Count == 0;
+		var isEmpty = this.SelectableSeriesListViewModel.Items.Count == 0;
 		this.IsSearchResultsEmpty.Value = isEmpty;
 		this.HasSearchResults.Value = !isEmpty;
 	}
@@ -262,8 +251,12 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// </summary>
 	private void applyWorkSeriesOnlyFilter()
 	{
-		var filter = new SynchronizedViewFilter(this.filterWorkSeriesOnly);
-		this.displayView.AttachFilter(filter);
+		var series = this.mangaSeriesStore.Merged
+			.Where(series => series.IsWork)
+			.ToList();
+
+		this.SelectableSeriesListViewModel.SetSource(series);
+		this.UpdateEmptyState();
 	}
 
 	/// <summary>
@@ -272,105 +265,19 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <param name="searchQuery">検索文字列。</param>
 	private void applySearchFilter(string searchQuery)
 	{
-		// 検索条件を一度だけ生成
 		var matcher = new MangaSeriesSearchMatcher(searchQuery);
 
-		// matcher を閉じた変数でキャプチャし、SynchronizedViewFilter 内で使用
-		Func<MaintenanceSeriesCardViewModel, bool> predicate = card => matcher.IsMatch(card.Series.Value);
-		var filter = new SynchronizedViewFilter(predicate);
-		this.displayView.AttachFilter(filter);
-	}
+		var series = this.mangaSeriesStore.Merged
+			.Where(series => matcher.IsMatch(series))
+			.ToList();
 
-	/// <summary>
-	/// ISynchronizedViewFilter<> を実装するヘルパークラス。
-	/// </summary>
-	private class SynchronizedViewFilter : ISynchronizedViewFilter<MangaSeries, MaintenanceSeriesCardViewModel>
-	{
-		private readonly Func<MaintenanceSeriesCardViewModel, bool> predicate;
-
-		/// <summary>
-		/// <see cref="SynchronizedViewFilter"/> の新しいインスタンスを初期化します。
-		/// </summary>
-		/// <param name="predicate">フィルター判定関数。</param>
-		public SynchronizedViewFilter(Func<MaintenanceSeriesCardViewModel, bool> predicate)
-		{
-			this.predicate = predicate;
-		}
-
-		/// <summary>
-		/// アイテムがフィルター条件に一致するかを判定します。
-		/// </summary>
-		/// <param name="key">ソース MangaSeries。</param>
-		/// <param name="value">フィルター対象の MaintenanceSeriesCardViewModel。</param>
-		/// <returns>true の場合は表示、false の場合は非表示。</returns>
-		public bool IsMatch(MangaSeries key, MaintenanceSeriesCardViewModel value)
-		{
-			return this.predicate(value);
-		}
-	}
-
-	/// <summary>
-	/// 登録待ち作品のみを表示する Filter 関数。
-	/// MangaSeries.IsWork プロパティで判定します。
-	/// </summary>
-	/// <param name="card">フィルター対象の MaintenanceSeriesCardViewModel。</param>
-	/// <returns>true の場合は表示、false の場合は非表示。</returns>
-	private bool filterWorkSeriesOnly(MaintenanceSeriesCardViewModel card)
-	{
-		return card.Series.Value.IsWork;
-	}
-
-	/// <summary>
-	/// DisplaySeries コレクションの変化を処理します。
-	/// 削除・置換されたカードの Dispose を行い、EmptyState を更新します。
-	/// </summary>
-	private void onDisplaySeriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-	{
-		switch (e.Action)
-		{
-			case NotifyCollectionChangedAction.Remove:
-				// 削除されたカードを処理
-				if (e.OldItems != null)
-				{
-					foreach (var oldCard in e.OldItems.Cast<MaintenanceSeriesCardViewModel>())
-					{
-						oldCard.Dispose();
-					}
-				}
-				break;
-
-			case NotifyCollectionChangedAction.Replace:
-				// 置換された古いカードを処理
-				if (e.OldItems != null)
-				{
-					foreach (var oldCard in e.OldItems.Cast<MaintenanceSeriesCardViewModel>())
-					{
-						oldCard.Dispose();
-					}
-				}
-				break;
-
-			case NotifyCollectionChangedAction.Reset:
-				// リセット時は、既存の全カードを Dispose（ただし、新しい要素は Filter で残される）
-				break;
-		}
-
-		// EmptyState を更新
+		this.SelectableSeriesListViewModel.SetSource(series);
 		this.UpdateEmptyState();
 	}
 
 	/// <summary>リソースを解放します。</summary>
 	public void Dispose()
 	{
-		// CollectionChanged 購読を明示的に解除
-		((INotifyCollectionChanged)this.DisplaySeries).CollectionChanged -= this.onDisplaySeriesCollectionChanged;
-
-		// 残っているすべての MaintenanceSeriesCardViewModel をクリーンアップ
-		foreach (var card in this.DisplaySeries)
-		{
-			card.Dispose();
-		}
-
 		this.disposableBag.Dispose();
 	}
 }
