@@ -127,6 +127,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.SelectableSeriesListViewModel = new SelectableSeriesListViewModel()
 			.AddTo(ref this.disposableBag);
 
+		// CardSize を Compact に設定（作品管理画面用）
+		this.SelectableSeriesListViewModel.CardSize.Value = SeriesCardSize.Compact;
+
 		// ShowNavigateButton を有効化（MaintenancePage では右端の「▶」ボタンを表示）
 		this.SelectableSeriesListViewModel.ShowNavigateButton.Value = true;
 

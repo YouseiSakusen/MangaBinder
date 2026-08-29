@@ -4,91 +4,10 @@
 			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
 			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 			 xmlns:local="clr-namespace:MangaBinder.Controls"
-			 xmlns:extensions="clr-namespace:MangaBinder.Extensions"
 			 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
 			 mc:Ignorable="d" 
 			 d:DesignHeight="500" d:DesignWidth="600">
-	<!-- 既存作品情報を表示するダイアログコンテンツ。DataContext は MaintenanceSeriesCardViewModel を想定。 -->
-	<UserControl.Resources>
-		<!-- 作品カード用の DataTemplate -->
-		<DataTemplate x:Key="SeriesCardTemplate">
-			<ui:Card
-				Padding="12,8"
-				Margin="0,0,0,0">
-				<Grid>
-					<Grid.ColumnDefinitions>
-						<!-- Col0: サムネイル -->
-						<ColumnDefinition Width="Auto" />
-						<!-- Col1: 作品情報 -->
-						<ColumnDefinition Width="*" />
-					</Grid.ColumnDefinitions>
-
-					<!-- Col0: サムネイル -->
-					<Border
-						Grid.Column="0"
-						Margin="0,0,12,0"
-						Width="100"
-						Height="140"
-						CornerRadius="4"
-						ClipToBounds="True">
-						<Image
-							Source="{Binding Series.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
-							Stretch="UniformToFill"
-							RenderOptions.BitmapScalingMode="LowQuality" />
-					</Border>
-
-					<!-- Col1: 作品情報 -->
-					<StackPanel
-						Grid.Column="1"
-						Orientation="Vertical"
-						VerticalAlignment="Top">
-
-						<!-- タイトル -->
-						<ui:TextBlock
-							Text="{Binding Series.Value.Title}"
-							FontSize="14"
-							FontWeight="SemiBold"
-							TextWrapping="Wrap"
-							Margin="0,0,0,4"
-							Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
-						<!-- 巻情報 -->
-						<local:SeriesVolumeStatus
-							Margin="0,0,0,4"
-							DataContext="{Binding VolumeStatus.Value}" />
-
-						<!-- 作者 -->
-						<ui:TextBlock
-							Text="{Binding Series.Value.Author, StringFormat='作者：{0}'}"
-							TextWrapping="Wrap"
-							Margin="0,0,0,4"
-							FontSize="12"
-							Opacity="0.8"
-							Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
-						<!-- メモ -->
-						<ui:TextBlock
-							Text="{Binding MemoStatus.Value.Memo.Value, StringFormat='メモ：{0}'}"
-							TextTrimming="CharacterEllipsis"
-							TextWrapping="Wrap"
-							Margin="0,0,0,0"
-							Foreground="{DynamicResource TextFillColorTertiaryBrush}">
-							<ui:TextBlock.Style>
-								<Style TargetType="ui:TextBlock">
-									<Setter Property="Visibility" Value="Visible" />
-									<Style.Triggers>
-										<DataTrigger Binding="{Binding MemoStatus.Value.HasMemo.Value}" Value="False">
-											<Setter Property="Visibility" Value="Collapsed" />
-										</DataTrigger>
-									</Style.Triggers>
-								</Style>
-							</ui:TextBlock.Style>
-						</ui:TextBlock>
-					</StackPanel>
-				</Grid>
-			</ui:Card>
-		</DataTemplate>
-	</UserControl.Resources>
+	<!-- 既存作品情報を表示するダイアログコンテンツ。DataContext は ExistingSeriesDialogContentViewModel を想定。 -->
 
 	<Grid>
 		<Grid.RowDefinitions>
@@ -96,11 +15,13 @@
 			<RowDefinition Height="Auto" />
 			<!-- 既存作品を開く RadioButton -->
 			<RowDefinition Height="Auto" />
-			<!-- 作品 ListView -->
+			<!-- 作品一覧 -->
 			<RowDefinition Height="Auto" />
 			<!-- 別作者の作品として追加 RadioButton -->
 			<RowDefinition Height="Auto" />
 			<!-- 作者入力欄 -->
+			<RowDefinition Height="Auto" />
+			<!-- 作者重複エラー InfoBar -->
 			<RowDefinition Height="Auto" />
 		</Grid.RowDefinitions>
 
@@ -116,29 +37,25 @@
 		<RadioButton
 			Grid.Row="1"
 			GroupName="ExistingSeriesAction"
-			IsChecked="True"
+			IsChecked="{Binding IsOpenExistingSeriesSelected.Value, Mode=TwoWay}"
 			Margin="0,0,0,12"
 			Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 			<TextBlock Text="既存作品を開く" />
 		</RadioButton>
 
-		<!-- 既存作品表示用ListView -->
-		<ui:ListView
+		<!-- 作品一覧 -->
+		<local:SelectableSeriesList
 			Grid.Row="2"
-			SelectionMode="Single"
-			Background="Transparent"
-			BorderThickness="0"
-			Margin="0,0,0,12"
-			MaxHeight="300">
-			<ui:ListViewItem
-				Content="{Binding}"
-				ContentTemplate="{StaticResource SeriesCardTemplate}" />
-		</ui:ListView>
+			Height="160"
+			IsEnabled="{Binding IsOpenExistingSeriesSelected.Value}"
+			DataContext="{Binding SelectableSeriesListViewModel}"
+			Margin="0,0,0,12" />
 
 		<!-- 別作者の作品として追加 RadioButton -->
 		<RadioButton
 			Grid.Row="3"
 			GroupName="ExistingSeriesAction"
+			IsChecked="{Binding IsAddAsOtherAuthorSelected.Value, Mode=TwoWay}"
 			Margin="0,0,0,12"
 			Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 			<TextBlock Text="別作者の作品として追加" />
@@ -147,6 +64,7 @@
 		<!-- 作者入力欄 -->
 		<Grid
 			Grid.Row="4"
+			IsEnabled="{Binding IsAddAsOtherAuthorSelected.Value}"
 			Margin="24,0,0,0">
 			<Grid.ColumnDefinitions>
 				<!-- 作者ラベル -->
@@ -164,7 +82,18 @@
 
 			<ui:TextBox
 				Grid.Column="1"
+				Text="{Binding NewAuthorInput.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+				InputMethod.PreferredImeState="On"
 				Padding="8,6" />
 		</Grid>
+
+		<!-- 作者重複エラー InfoBar -->
+		<ui:InfoBar
+			Grid.Row="5"
+			IsOpen="{Binding IsAuthorDuplicateErrorVisible.Value, Mode=OneWay}"
+			Title="作者重複エラー"
+			Message="同じ作者の作品が既に登録されています。"
+			Severity="Warning"
+			Margin="0,12,0,0" />
 	</Grid>
 </UserControl>

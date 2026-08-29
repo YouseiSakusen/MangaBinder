@@ -6,11 +6,21 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:extensions="clr-namespace:MangaBinder.Extensions"
              xmlns:controls="clr-namespace:MangaBinder.Controls"
+             xmlns:series="clr-namespace:MangaBinder.Series;assembly=MangaBinder.Shared"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="800">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <!-- 素材フォルダ作成日時が null の場合に非表示にするスタイル -->
+        <Style x:Key="MaterialFolderCreatedAtTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Series.Value.MaterialFolderCreatedAt}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid Background="Transparent" HorizontalAlignment="Stretch">
@@ -49,123 +59,187 @@
 
             <ListView.ItemTemplate>
                 <DataTemplate>
-                    <!-- コンパクトな作品カード -->
-                    <Grid Height="120" Margin="8,4" HorizontalAlignment="Stretch">
-                        <Grid.ColumnDefinitions>
-                            <!-- サムネイル -->
-                            <ColumnDefinition Width="80" />
-                            <!-- 作品情報 -->
-                            <ColumnDefinition Width="*" />
-                            <!-- 操作ボタン列 -->
-                            <ColumnDefinition Width="40" />
-                        </Grid.ColumnDefinitions>
+                    <!-- 作品カード -->
+                    <ui:Card
+                        Padding="12,8"
+                        Margin="8,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <!-- Col0: サムネイル -->
+                                <ColumnDefinition Width="Auto" />
+                                <!-- Col1: 作品情報 -->
+                                <ColumnDefinition Width="*" />
+                                <!-- Col2: 操作ボタン列 -->
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <!-- サムネイル -->
-                        <Border
-                            Grid.Column="0"
-                            Width="80"
-                            Height="112"
-                            VerticalAlignment="Top"
-                            Background="{DynamicResource ControlFillColorDefaultBrush}"
-                            CornerRadius="4"
-                            ClipToBounds="True"
-                            Margin="0,0,8,0">
-                            <Image
-                                Source="{Binding Series.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
-                                Width="80"
-                                Height="112"
-                                Stretch="UniformToFill"
-                                RenderOptions.BitmapScalingMode="LowQuality" />
-                        </Border>
+                            <!-- Col0: サムネイル -->
+                            <Border
+                                Grid.Column="0"
+                                Width="100"
+                                Height="140"
+                                CornerRadius="4"
+                                ClipToBounds="True"
+                                Margin="0,0,12,0">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Width" Value="100" />
+                                        <Setter Property="Height" Value="140" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DataContext.CardSize.Value, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}" Value="{x:Static series:SeriesCardSize.Compact}">
+                                                <Setter Property="Width" Value="80" />
+                                                <Setter Property="Height" Value="112" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Image
+                                    Source="{Binding Series.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
+                                    Stretch="UniformToFill"
+                                    RenderOptions.BitmapScalingMode="LowQuality" />
+                            </Border>
 
-                        <!-- 作品情報 -->
-                        <Grid
-                            Grid.Column="1"
-                            Margin="0,0,8,0"
-                            VerticalAlignment="Top">
+                            <!-- Col1: 作品情報 -->
+                            <StackPanel
+                                Grid.Column="1"
+                                Orientation="Vertical"
+                                VerticalAlignment="Top">
 
-                            <Grid.RowDefinitions>
-                                <!-- Row0: タイトル -->
-                                <RowDefinition Height="Auto" />
-                                <!-- Row1: 巻情報 + メモ -->
-                                <RowDefinition Height="Auto" />
-                                <!-- Row2: あらすじ -->
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
+                                <!-- タイトル -->
+                                <ui:TextBlock
+                                    Text="{Binding Series.Value.Title}"
+                                    FontSize="16"
+                                    FontWeight="SemiBold"
+                                    TextWrapping="Wrap"
+                                    Margin="0,0,0,4"
+                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                    <ui:TextBlock.Style>
+                                        <Style TargetType="ui:TextBlock">
+                                            <Setter Property="FontSize" Value="16" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.CardSize.Value, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}" Value="{x:Static series:SeriesCardSize.Compact}">
+                                                    <Setter Property="FontSize" Value="12" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ui:TextBlock.Style>
+                                </ui:TextBlock>
 
-                            <!-- Row0: タイトル -->
-                            <TextBlock
-                                Grid.Row="0"
-                                Text="{Binding Series.Value.Title}"
-                                FontSize="13"
-                                FontWeight="SemiBold"
-                                MaxHeight="36"
-                                TextWrapping="Wrap"
-                                Margin="0,0,0,4" />
+                                <!-- 巻情報 + 素材フォルダ作成日時 -->
+                                <Grid
+                                    Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <!-- Col0: 巻情報 -->
+                                        <ColumnDefinition Width="Auto" />
+                                        <!-- Col1: 素材フォルダ作成日時 -->
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
 
-                            <!-- Row1: 巻情報 + メモ -->
-                            <Grid
-                                Grid.Row="1"
-                                Margin="0,0,0,4">
+                                    <!-- 巻数情報 -->
+                                    <controls:SeriesVolumeStatus
+                                        Grid.Column="0"
+                                        DataContext="{Binding VolumeStatus.Value}" />
 
-                                <Grid.ColumnDefinitions>
-                                    <!-- 巻情報 -->
-                                    <ColumnDefinition Width="*" />
-                                    <!-- メモアイコン -->
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
+                                    <!-- 素材フォルダ作成日時 -->
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{Binding Series.Value.MaterialFolderCreatedAt, StringFormat='[ {0:yyyy/MM/dd HH:mm} ]'}"
+                                        FontSize="12"
+                                        Opacity="0.8"
+                                        VerticalAlignment="Center"
+                                        ToolTip="素材フォルダ作成日時"
+                                        Margin="8,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Setter Property="FontSize" Value="12" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Series.Value.MaterialFolderCreatedAt}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding DataContext.CardSize.Value, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}" Value="{x:Static series:SeriesCardSize.Compact}">
+                                                        <Setter Property="FontSize" Value="10" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
 
-                                <!-- 巻数情報 -->
-                                <controls:SeriesVolumeStatus
-                                    Grid.Column="0"
-                                    DataContext="{Binding VolumeStatus.Value}" />
+                                <!-- 作者 -->
+                                <ui:TextBlock
+                                    Text="{Binding Series.Value.Author, StringFormat='作者：{0}'}"
+                                    TextWrapping="Wrap"
+                                    Margin="0,0,0,4"
+                                    FontSize="12"
+                                    Opacity="0.9"
+                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                    <ui:TextBlock.Style>
+                                        <Style TargetType="ui:TextBlock">
+                                            <Setter Property="Margin" Value="0,0,0,4" />
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.CardSize.Value, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}" Value="{x:Static series:SeriesCardSize.Compact}">
+                                                    <Setter Property="Margin" Value="0,0,0,2" />
+                                                    <Setter Property="FontSize" Value="10" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ui:TextBlock.Style>
+                                </ui:TextBlock>
 
-                                <!-- メモアイコン -->
-                                <controls:SeriesMemo
-                                    Grid.Column="1"
-                                    DataContext="{Binding MemoStatus.Value}"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center" />
-                            </Grid>
+                                <!-- メモ -->
+                                <ui:TextBlock
+                                    Text="{Binding MemoStatus.Value.Memo.Value, StringFormat='メモ：{0}'}"
+                                    TextWrapping="Wrap"
+                                    Margin="0,0,0,0"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                                    <ui:TextBlock.Style>
+                                        <Style TargetType="ui:TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Setter Property="Margin" Value="0,0,0,0" />
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding MemoStatus.Value.HasMemo.Value}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding DataContext.CardSize.Value, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}" Value="{x:Static series:SeriesCardSize.Compact}">
+                                                    <Setter Property="FontSize" Value="10" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ui:TextBlock.Style>
+                                </ui:TextBlock>
+                            </StackPanel>
 
-                            <!-- Row2: あらすじ -->
-                            <TextBlock
-                                Grid.Row="2"
-                                Text="{Binding Series.Value.Description}"
-                                FontSize="11"
-                                Opacity="0.6"
-                                MaxHeight="48"
-                                TextWrapping="Wrap"
-                                TextTrimming="CharacterEllipsis"
-                                Margin="0,0,0,4" />
-                        </Grid>
-
-                        <!-- 操作列：「▶」ボタン（ShowNavigateButton 時に表示） -->
-                        <ui:Button
-                            Grid.Column="2"
-                            Appearance="Transparent"
-                            Width="28"
-                            Height="28"
-                            Padding="0"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Center"
-                            Background="Transparent"
-                            BorderBrush="Transparent"
-                            MouseOverBackground="{DynamicResource ControlFillColorSecondaryBrush}"
-                            MouseOverBorderBrush="Transparent"
-                            ToolTip="編集"
-                            Visibility="{Binding DataContext.ShowNavigateButton.Value, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}"
-                            CommandParameter="{Binding Series.Value}">
-                            <TextBlock
-                                Text="▶"
-                                FontSize="12"
-                                Opacity="0.6"
+                            <!-- Col2: 操作列：「▶」ボタン（ShowNavigateButton 時に表示） -->
+                            <ui:Button
+                                Grid.Column="2"
+                                Appearance="Transparent"
+                                Width="28"
+                                Height="28"
+                                Padding="0"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
-                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                        </ui:Button>
-                    </Grid>
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                MouseOverBackground="{DynamicResource ControlFillColorSecondaryBrush}"
+                                MouseOverBorderBrush="Transparent"
+                                ToolTip="編集"
+                                Margin="8,0,0,0"
+                                Visibility="{Binding DataContext.ShowNavigateButton.Value, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}"
+                                CommandParameter="{Binding Series.Value}">
+                                <TextBlock
+                                    Text="▶"
+                                    FontSize="12"
+                                    Opacity="0.6"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </ui:Button>
+                        </Grid>
+                    </ui:Card>
                 </DataTemplate>
             </ListView.ItemTemplate>
 

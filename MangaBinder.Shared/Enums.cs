@@ -315,4 +315,16 @@ namespace MangaBinder.Series
 		/// </summary>
 		InfoAndFolder = 1,
 	}
+
+	/// <summary>
+	/// 作品カードの表示サイズを表す列挙型です。
+	/// </summary>
+	public enum SeriesCardSize
+	{
+		/// <summary>コンパクト表示（作品管理画面用）。</summary>
+		Compact = 0,
+
+		/// <summary>大きめ表示（既存作品Dialog用）。</summary>
+		Large = 1,
+	}
 }

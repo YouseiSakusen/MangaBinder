@@ -1,3 +1,4 @@
+using MangaBinder.Series;
 using R3;
 
 namespace MangaBinder.Controls;
@@ -24,6 +25,9 @@ public class MultipleExistingSeriesDialogContentViewModel : IDisposable
 		// SelectableSeriesListViewModel を生成
 		this.SelectableSeriesListViewModel = new SelectableSeriesListViewModel()
 			.AddTo(ref this.disposableBag);
+
+		// CardSize を Large に設定（既存作品Dialog用）
+		this.SelectableSeriesListViewModel.CardSize.Value = SeriesCardSize.Large;
 
 		// ナビゲーションボタンを非表示
 		this.SelectableSeriesListViewModel.ShowNavigateButton.Value = false;

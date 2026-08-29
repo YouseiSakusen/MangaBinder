@@ -39,6 +39,11 @@ public class SelectableSeriesListViewModel : IDisposable
 	public BindableReactiveProperty<bool> ShowNavigateButton { get; }
 
 	/// <summary>
+	/// 作品カードの表示サイズ。
+	/// </summary>
+	public BindableReactiveProperty<SeriesCardSize> CardSize { get; }
+
+	/// <summary>
 	/// 「▶」ボタン押下時に実行される Command。
 	/// CommandParameter として対象の MangaSeries が渡されます。
 	/// </summary>
@@ -76,6 +81,10 @@ public class SelectableSeriesListViewModel : IDisposable
 		// ShowNavigateButton: デフォルトは false
 		this.ShowNavigateButton = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
+
+		// CardSize: デフォルトは Compact
+		this.CardSize = new BindableReactiveProperty<SeriesCardSize>(SeriesCardSize.Compact)
+			.AddTo(ref this.disposableBag);
 	}
 
 	/// <summary>
@@ -87,7 +96,12 @@ public class SelectableSeriesListViewModel : IDisposable
 	public void SetSource(IReadOnlyList<MangaSeries> series)
 	{
 		// 現在の Items に存在するカードVMを退避
-		var oldCards = this.Items.ToList();
+		var oldCards = new List<MaintenanceSeriesCardViewModel>();
+
+		foreach (var card in this.Items)
+		{
+			oldCards.Add(card);
+		}
 
 		// 内部 ObservableList をクリア
 		this.series.Clear();
