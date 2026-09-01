@@ -8,8 +8,6 @@ using ObservableCollections;
 using R3;
 using Reactive.Bindings.R3;
 using Reactive.Bindings.R3.Notifiers;
-using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.IO;
 using System.Windows.Media.Imaging;
 using Wpf.Ui;
@@ -101,7 +99,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public BooleanNotifier EditorPageInitializeRequest { get; }
 
 	/// <summary>素材ファイル一覧を取得します。</summary>
-	public ObservableCollection<MaterialFileItemViewModel> MaterialFiles { get; }
+	public ObservableList<MaterialFileItemViewModel> MaterialFiles { get; }
+
+	/// <summary>
+	/// WPFのXAMLバインディングに対応した素材ファイル一覧のViewを取得します。
+	/// </summary>
+	public NotifyCollectionChangedSynchronizedViewList<MaterialFileItemViewModel> MaterialFilesView { get; }
 
 	/// <summary>素材ファイル一覧のヘッダー表示用文字列を取得します。</summary>
 	public BindableReactiveProperty<string> MaterialFilesDisplay { get; }
@@ -346,8 +349,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		this.EditorPageInitializeRequest = new BooleanNotifier(false);
 
-		var materialFilesSource = new ObservableCollection<MaterialFileItemViewModel>();
-		this.MaterialFiles = materialFilesSource;
+		this.MaterialFiles = new ObservableList<MaterialFileItemViewModel>();
+
+		// MaterialFilesView: WPFバインディング対応の同期View
+		this.MaterialFilesView = this.MaterialFiles
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
 
 		// MaterialFilesDisplay: MaterialFiles.Count に基づいて表示文字列を生成
 		this.MaterialFilesDisplay = new BindableReactiveProperty<string>(this.getMaterialFilesDisplayText())
@@ -370,7 +377,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			.AddTo(ref this.disposableBag);
 
 		// MaterialFiles の変更を監視して更新
-		void OnMaterialFilesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+		void onMaterialFilesCollectionChanged(
+			in NotifyCollectionChangedEventArgs<MaterialFileItemViewModel> e)
 		{
 			var isEmpty = this.MaterialFiles.Count == 0;
 			this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
@@ -386,7 +394,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			}
 		}
 
-		this.MaterialFiles.CollectionChanged += OnMaterialFilesCollectionChanged;
+		this.MaterialFiles.CollectionChanged += onMaterialFilesCollectionChanged;
 
 		// EndVolumeTextInputCommand: 完結巻入力中テキストを処理するコマンド
 		this.EndVolumeTextInputCommand = new ReactiveCommand<string?>()
@@ -2207,7 +2215,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 				.ThenBy(item => item.FileName, StringComparer.Ordinal)  // 同じ分類内はFileNameで昇順
 				.ToList();
 
-			// ObservableCollection の内容を更新
+			// ObservableList の内容を更新
 			this.MaterialFiles.Clear();
 			foreach (var item in sorted)
 			{

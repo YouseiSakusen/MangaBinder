@@ -19,28 +19,10 @@
 	ExtendsContentIntoTitleBar="True">
 
 	<Grid>
-		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto" />
-			<RowDefinition Height="*" />
-		</Grid.RowDefinitions>
-
-		<ui:TitleBar
-            x:Name="TitleBar"
-            Grid.Row="0"
-            Title="{Binding ApplicationTitle.Value}"
-            CloseWindowByDoubleClickOnIcon="True"
-            ShowMaximize="True"
-            ShowMinimize="True"
-            ShowClose="True">
-			<ui:TitleBar.Icon>
-				<ui:ImageIcon Source="/Assets/MangaBinder-Simple-256.png" />
-			</ui:TitleBar.Icon>
-		</ui:TitleBar>
-
 		<ui:NavigationView
 			x:Name="RootNavigation"
-			Grid.Row="1"
 			Padding="0"
+			FrameMargin="0"
 			MenuItemsSource="{Binding MenuItems}"
 			FooterMenuItemsSource="{Binding FooterMenuItems}"
 			PaneDisplayMode="LeftMinimal"
@@ -99,11 +81,23 @@
 			</ui:NavigationView.ContentOverlay>
 		</ui:NavigationView>
 
-		<ui:ContentDialogHost x:Name="RootContentDialog" Grid.Row="0" Grid.RowSpan="2" />
+		<ui:TitleBar
+			x:Name="TitleBar"
+			Title="{Binding ApplicationTitle.Value}"
+			CloseWindowByDoubleClickOnIcon="True"
+			ShowMaximize="True"
+			ShowMinimize="True"
+			ShowClose="True"
+			Panel.ZIndex="100">
+			<ui:TitleBar.Icon>
+				<ui:ImageIcon Source="/Assets/MangaBinder-Simple-256.png" />
+			</ui:TitleBar.Icon>
+		</ui:TitleBar>
+
+		<ui:ContentDialogHost x:Name="RootContentDialog" Panel.ZIndex="1000" />
 
 		<!-- ウィンドウ右下 ResizeGrip -->
 		<ResizeGrip
-			Grid.Row="1"
 			HorizontalAlignment="Right"
 			VerticalAlignment="Bottom"
 			Width="16"

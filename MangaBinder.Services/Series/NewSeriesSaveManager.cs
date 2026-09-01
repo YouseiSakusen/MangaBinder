@@ -218,7 +218,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 					{
 						this.logger.LogInformation(
 							"[NewSeriesHomeSync] 正式作品再取得完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加前件数={Count}",
-							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count);
+							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.AllOld.Count);
 					}
 
 					// 3. 再取得した正式作品を Store へ追加
@@ -230,7 +230,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 						var storeContainsResult = this.mangaSeriesStore.FindById(registeredSeries.SeriesId) is not null;
 						this.logger.LogInformation(
 							"[NewSeriesHomeSync] Store.Add呼び出し完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加後件数={Count} Store内存在確認結果={Result}",
-							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count, storeContainsResult);
+							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.AllOld.Count, storeContainsResult);
 					}
 
 					// 4. 再取得した正式作品を返す

@@ -85,7 +85,8 @@
 						  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
 						  BorderThickness="0"
 						  Background="Transparent"
-						  behaviors:ScrollViewerOffsetBehavior.BoundVerticalOffset="{Binding SavedBindingListVerticalOffset.Value, Mode=TwoWay}">
+						  behaviors:ScrollViewerOffsetBehavior.BoundVerticalOffset="{Binding SavedBindingListVerticalOffset.Value, Mode=TwoWay}"
+						  behaviors:ViewportPageScrollBehavior.IsEnabled="True">
 
 					<ListView.ItemsPanel>
 						<ItemsPanelTemplate>

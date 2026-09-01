@@ -20,6 +20,30 @@ public static class ScrollViewerOffsetBehavior
             typeof(ScrollViewerOffsetBehavior),
             new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnBoundVerticalOffsetChanged));
 
+    /// <summary>スクロール復元完了まで要素を非表示にするかを制御する添付プロパティです。</summary>
+    public static readonly DependencyProperty HideUntilRestoredProperty =
+        DependencyProperty.RegisterAttached(
+            "HideUntilRestored",
+            typeof(bool),
+            typeof(ScrollViewerOffsetBehavior),
+            new FrameworkPropertyMetadata(false));
+
+    /// <summary>プログラムによるスクロール目標VerticalOffsetの添付プロパティです。</summary>
+    public static readonly DependencyProperty RequestedVerticalOffsetProperty =
+        DependencyProperty.RegisterAttached(
+            "RequestedVerticalOffset",
+            typeof(double),
+            typeof(ScrollViewerOffsetBehavior),
+            new FrameworkPropertyMetadata(double.NaN));
+
+    /// <summary>プログラムによるスクロール要求をトリガーする添付プロパティです。</summary>
+    public static readonly DependencyProperty ScrollRequestProperty =
+        DependencyProperty.RegisterAttached(
+            "ScrollRequest",
+            typeof(int),
+            typeof(ScrollViewerOffsetBehavior),
+            new FrameworkPropertyMetadata(0, OnScrollRequestChanged));
+
     /// <summary>内部 ScrollViewer を保持するキーです。</summary>
     private static readonly DependencyProperty ScrollViewerKey =
         DependencyProperty.RegisterAttached(
@@ -46,6 +70,42 @@ public static class ScrollViewerOffsetBehavior
     public static void SetBoundVerticalOffset(DependencyObject obj, double value)
         => obj.SetValue(BoundVerticalOffsetProperty, value);
 
+    /// <summary>HideUntilRestored 添付プロパティの値を取得します。</summary>
+    /// <param name="obj">値を取得する対象の <see cref="DependencyObject"/>。</param>
+    /// <returns>スクロール復元完了まで要素を非表示にするかを示すブール値。</returns>
+    public static bool GetHideUntilRestored(DependencyObject obj)
+        => (bool)obj.GetValue(HideUntilRestoredProperty);
+
+    /// <summary>HideUntilRestored 添付プロパティの値を設定します。</summary>
+    /// <param name="obj">値を設定する対象の <see cref="DependencyObject"/>。</param>
+    /// <param name="value">スクロール復元完了まで要素を非表示にするかを示すブール値。</param>
+    public static void SetHideUntilRestored(DependencyObject obj, bool value)
+        => obj.SetValue(HideUntilRestoredProperty, value);
+
+    /// <summary>RequestedVerticalOffset 添付プロパティの値を取得します。</summary>
+    /// <param name="obj">値を取得する対象の <see cref="DependencyObject"/>。</param>
+    /// <returns>スクロール目標の VerticalOffset の値。</returns>
+    public static double GetRequestedVerticalOffset(DependencyObject obj)
+        => (double)obj.GetValue(RequestedVerticalOffsetProperty);
+
+    /// <summary>RequestedVerticalOffset 添付プロパティの値を設定します。</summary>
+    /// <param name="obj">値を設定する対象の <see cref="DependencyObject"/>。</param>
+    /// <param name="value">スクロール目標の VerticalOffset の値。</param>
+    public static void SetRequestedVerticalOffset(DependencyObject obj, double value)
+        => obj.SetValue(RequestedVerticalOffsetProperty, value);
+
+    /// <summary>ScrollRequest 添付プロパティの値を取得します。</summary>
+    /// <param name="obj">値を取得する対象の <see cref="DependencyObject"/>。</param>
+    /// <returns>スクロール要求カウント。</returns>
+    public static int GetScrollRequest(DependencyObject obj)
+        => (int)obj.GetValue(ScrollRequestProperty);
+
+    /// <summary>ScrollRequest 添付プロパティの値を設定します。</summary>
+    /// <param name="obj">値を設定する対象の <see cref="DependencyObject"/>。</param>
+    /// <param name="value">スクロール要求カウント。</param>
+    public static void SetScrollRequest(DependencyObject obj, int value)
+        => obj.SetValue(ScrollRequestProperty, value);
+
     /// <summary>
     /// BoundVerticalOffset 添付プロパティが変更されたときに呼び出されます。
     /// Loaded / Unloaded イベントを購読します。
@@ -68,6 +128,33 @@ public static class ScrollViewerOffsetBehavior
         element.Loaded += OnLoaded;
         element.Unloaded -= OnUnloaded;
         element.Unloaded += OnUnloaded;
+    }
+
+    /// <summary>
+    /// ScrollRequest 添付プロパティが変更されたときに呼び出されます。
+    /// 要求されたVerticalOffsetへプログラムスクロールを実行します。
+    /// </summary>
+    /// <param name="d">プロパティが変更された <see cref="DependencyObject"/>。</param>
+    /// <param name="e">変更イベントの引数。</param>
+    private static void OnScrollRequestChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not FrameworkElement element)
+            return;
+
+        // 先に Loaded イベントで ScrollViewer を取得する必要があるため、ここでは直接実行するのではなく、
+        // ContextIdle で実行する
+        element.Dispatcher.InvokeAsync(() =>
+        {
+            var scrollViewer = (ScrollViewer?)element.GetValue(ScrollViewerKey);
+            if (scrollViewer is null)
+                return;
+
+            var requestedOffset = GetRequestedVerticalOffset(element);
+            if (double.IsNaN(requestedOffset))
+                return;
+
+            scrollViewer.ScrollToVerticalOffset(requestedOffset);
+        }, DispatcherPriority.ContextIdle);
     }
 
     /// <summary>
@@ -98,7 +185,15 @@ public static class ScrollViewerOffsetBehavior
         // }
 
         if (scrollViewers.Count == 0)
+        {
+            // HideUntilRestored が true の場合は、復元不可のため通常表示に戻す
+            if (GetHideUntilRestored(element))
+            {
+                element.Opacity = 1;
+                element.IsHitTestVisible = true;
+            }
             return;
+        }
 
         // スクロール可能（ExtentHeight > ViewportHeight かつ VerticalScrollBarVisibility=Visible）な ScrollViewer を候補とする
         var scrollableViewers = scrollViewers
@@ -108,6 +203,12 @@ public static class ScrollViewerOffsetBehavior
         if (scrollableViewers.Count == 0)
         {
             // スクロール可能な ScrollViewer が見つからない場合は処理を終了
+            // HideUntilRestored が true の場合は、復元不可のため通常表示に戻す
+            if (GetHideUntilRestored(element))
+            {
+                element.Opacity = 1;
+                element.IsHitTestVisible = true;
+            }
             // Debug.WriteLine($"[ScrollBehavior] OnLoaded: スクロール可能な ScrollViewer が見つかりません");
             return;
         }
@@ -131,6 +232,15 @@ public static class ScrollViewerOffsetBehavior
 
         // 復元オフセットを退避しておく（初期レイアウトの ScrollChanged=0 で上書きされる前に保存）
         var restoreOffset = GetBoundVerticalOffset(element);
+        var hideUntilRestored = GetHideUntilRestored(element);
+
+        // HideUntilRestored=true で復元が必要な場合（restoreOffset > 0 かつ !NaN）、
+        // 復元完了まで要素を一時的に非表示化する
+        if (hideUntilRestored && !double.IsNaN(restoreOffset) && restoreOffset > 0)
+        {
+            element.Opacity = 0;
+            element.IsHitTestVisible = false;
+        }
 
         // 復元処理完了後に ScrollChanged を購読することで、
         // 初期レイアウト時の VerticalOffset=0 による上書きを防ぐ
@@ -145,11 +255,26 @@ public static class ScrollViewerOffsetBehavior
                 // Debug.WriteLine($"[ScrollBehavior] ContextIdle: ScrollToVerticalOffset({restoreOffset}) を実行します");
                 primaryScrollViewer.ScrollToVerticalOffset(restoreOffset);
                 // Debug.WriteLine($"[ScrollBehavior] ContextIdle: 実行直後 scrollViewer.VerticalOffset={primaryScrollViewer.VerticalOffset}");
+
+                // HideUntilRestored=true の場合、復元処理を実行した後で要素を表示状態に戻す
+                if (hideUntilRestored)
+                {
+                    element.Opacity = 1;
+                    element.IsHitTestVisible = true;
+                }
             }
             else
             {
                 // DEBUG: スクロール復元調査用
                 // Debug.WriteLine($"[ScrollBehavior] ContextIdle: restoreOffset={restoreOffset} のため ScrollToVerticalOffset をスキップします");
+
+                // 復元が不要な場合（restoreOffset≤0 または NaN）、
+                // HideUntilRestored=true の場合でも通常表示に戻す
+                if (hideUntilRestored)
+                {
+                    element.Opacity = 1;
+                    element.IsHitTestVisible = true;
+                }
             }
 
             // DEBUG: スクロール復元調査用

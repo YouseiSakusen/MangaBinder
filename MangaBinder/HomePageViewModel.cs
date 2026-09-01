@@ -7,6 +7,7 @@ using ObservableCollections;
 using R3;
 using System.Collections.Specialized;
 using Wpf.Ui;
+using Wpf.Ui.Controls;
 
 namespace MangaBinder;
 
@@ -38,6 +39,12 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
     /// <summary>製本開始キュー ストア。</summary>
     private readonly BindingQueueStore bindingQueueStore;
+
+    /// <summary>Snackbar 通知サービス。</summary>
+    private readonly ISnackbarService snackbarService;
+
+    /// <summary>タイトルジャンプの戻る履歴スタック。</summary>
+    private readonly Stack<double> titleJumpHistory = new();
 
     private DisposableBag disposableBag;
 
@@ -83,6 +90,38 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     public ReactiveCommand<MangaSeries> EditSeriesCommand { get; }
 
     /// <summary>
+    /// タイトルジャンプ入力テキストを取得または設定します。
+    /// </summary>
+    public BindableReactiveProperty<string?> TitleJumpInput { get; }
+
+    /// <summary>
+    /// タイトルジャンプ実行時のスクロール目標となるVerticalOffsetを取得します。
+    /// </summary>
+    public BindableReactiveProperty<double> JumpRequestedVerticalOffset { get; }
+
+    /// <summary>
+    /// タイトルジャンプスクロール要求をカウントします。
+    /// スクロール要求が発生するたびにインクリメントされます。
+    /// </summary>
+    public BindableReactiveProperty<int> JumpScrollRequest { get; }
+
+    /// <summary>
+    /// タイトルジャンプコマンドです。
+    /// </summary>
+    public ReactiveCommand<Unit> TitleJumpCommand { get; }
+
+    /// <summary>
+    /// タイトルジャンプから戻ることが可能な状態を取得します。
+    /// 履歴が1件以上ある場合に true を返します。
+    /// </summary>
+    public BindableReactiveProperty<bool> CanTitleJumpBack { get; }
+
+    /// <summary>
+    /// タイトルジャンプから戻るコマンドです。
+    /// </summary>
+    public ReactiveCommand<Unit> TitleJumpBackCommand { get; }
+
+    /// <summary>
     /// <see cref="HomePageViewModel"/> の新しいインスタンスを初期化します。
     /// </summary>
     /// <param name="serviceScopeFactory">スコープファクトリー。</param>
@@ -91,7 +130,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="appSettings">アプリケーション設定。</param>
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
-    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
+    /// <param name="bindingQueueStore">製本開始キュー ストア。</param>
+    /// <param name="snackbarService">Snackbar 通知サービス。</param>
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
     {
         this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;
@@ -101,10 +142,11 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         this.appSettings = appSettings;
         this.mangaSeriesStore = mangaSeriesStore;
         this.bindingQueueStore = bindingQueueStore;
+        this.snackbarService = snackbarService;
 
         // MangaSeriesStore.All から CreateView で SeriesCardViewModel へ変換し、
         // WPF バインド用に ToNotifyCollectionChanged で公開
-        this.Series = this.mangaSeriesStore.All
+        this.Series = this.mangaSeriesStore.AllOld
             .CreateView(series => new SeriesCardViewModel(series, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore))
             .ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
             .AddTo(ref this.disposableBag);
@@ -133,6 +175,28 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
         this.SavedSeriesListVerticalOffset = new BindableReactiveProperty<double>(this.appSettings.SeriesListVerticalOffset.Value)
             .AddTo(ref this.disposableBag);
+
+        this.TitleJumpInput = new BindableReactiveProperty<string?>(null)
+            .AddTo(ref this.disposableBag);
+
+        this.JumpRequestedVerticalOffset = new BindableReactiveProperty<double>(0.0)
+            .AddTo(ref this.disposableBag);
+
+        this.JumpScrollRequest = new BindableReactiveProperty<int>(0)
+            .AddTo(ref this.disposableBag);
+
+        this.TitleJumpCommand = new ReactiveCommand<Unit>()
+            .AddTo(ref this.disposableBag);
+        this.TitleJumpCommand.Subscribe(_ => this.executeTitleJump());
+
+        // タイトルジャンプ戻る機能の初期化
+        var canTitleJumpBack = new BindableReactiveProperty<bool>(false)
+            .AddTo(ref this.disposableBag);
+        this.CanTitleJumpBack = canTitleJumpBack;
+
+        this.TitleJumpBackCommand = new ReactiveCommand<Unit>(this.CanTitleJumpBack, initialCanExecute: false)
+            .AddTo(ref this.disposableBag);
+        this.TitleJumpBackCommand.Subscribe(_ => this.executeTitleJumpBack());
 
         this.NavigateToSettingsCommand = new ReactiveCommand<Unit>()
             .AddTo(ref this.disposableBag);
@@ -263,7 +327,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     public async ValueTask InitializeDataAsync()
     {
         // 初回のみ DB から取得して Store へ反映する
-        if (this.mangaSeriesStore.All.Count == 0)
+        if (this.mangaSeriesStore.AllOld.Count == 0)
         {
             using var managerScope = this.serviceScopeFactory.CreateScope();
             var manager = managerScope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
@@ -383,6 +447,133 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
         // NavigationHierarchy を使用して遷移
         this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
+    }
+
+    /// <summary>
+    /// タイトル先頭一致によるジャンプを実行します。
+    /// TextBox入力から共通の検索ワード解析を用いてジャンプキーを抽出し、
+    /// 対象作品を検索してスクロール要求を発行します。
+    /// </summary>
+    private void executeTitleJump()
+    {
+        var input = this.TitleJumpInput.Value;
+
+        // 入力が空または空白のみの場合はスキップ
+        if (string.IsNullOrWhiteSpace(input))
+            return;
+
+        // MangaSeriesSearchMatcher を用いて共通の検索ワード解析を実行
+        var matcher = new MangaSeriesSearchMatcher(input);
+
+        if (!matcher.IsValid)
+            return;
+
+        var normalizedWords = matcher.GetSearchWords();
+        var displayWords = matcher.GetDisplayWords();
+
+        // 0ワードの場合はスキップ
+        if (normalizedWords.Count == 0)
+            return;
+
+        // 先頭1ワードを抽出（検索判定用は正規化済み、表示用は入力由来）
+        var jumpKeyNormalized = normalizedWords[0];
+        var jumpKeyDisplay = displayWords[0];
+
+        // 一致する作品をタイトル先頭一致で検索（正規化済みワードで比較）
+        var targetIndex = -1;
+        var index = 0;
+
+        foreach (var cardViewModel in this.Series)
+        {
+            var normalizedTitle = cardViewModel.Series.Value.NormalizedTitleInternal ?? string.Empty;
+
+            // 大文字・小文字を区別しないで先頭一致を判定
+            if (normalizedTitle.StartsWith(jumpKeyNormalized, StringComparison.OrdinalIgnoreCase))
+            {
+                targetIndex = index;
+                break;
+            }
+
+            index++;
+        }
+
+        // 複数ワード場合と該当なし場合で通知を表示
+        if (normalizedWords.Count > 1)
+        {
+            if (targetIndex >= 0)
+            {
+                // 複数ワード＆一致あり：先頭1ワード対応の通知を表示
+                var message = $"タイトルジャンプは1ワードのみ対応しています。先頭の「{jumpKeyDisplay}」でジャンプしました。";
+                this.snackbarService.Show(
+                    "タイトルジャンプ",
+                    message,
+                    ControlAppearance.Secondary,
+                    new SymbolIcon { Symbol = SymbolRegular.Info24 },
+                    TimeSpan.FromSeconds(5));
+            }
+            else
+            {
+                // 複数ワード＆一致なし：1ワード対応＋該当なしの複合通知
+                var message = $"タイトルジャンプは1ワードのみ対応しています。先頭の「{jumpKeyDisplay}」で探しましたが、該当する作品が見つかりませんでした。";
+                this.snackbarService.Show(
+                    "タイトルジャンプ",
+                    message,
+                    ControlAppearance.Secondary,
+                    new SymbolIcon { Symbol = SymbolRegular.Info24 },
+                    TimeSpan.FromSeconds(5));
+            }
+        }
+        else if (targetIndex < 0)
+        {
+            // 1ワード＆一致なし：該当なし通知
+            var message = $"「{jumpKeyDisplay}」で始まる作品が見つかりませんでした。";
+            this.snackbarService.Show(
+                "タイトルジャンプ",
+                message,
+                ControlAppearance.Secondary,
+                new SymbolIcon { Symbol = SymbolRegular.Info24 },
+                TimeSpan.FromSeconds(5));
+        }
+
+        // 該当なしの場合はスキップ
+        if (targetIndex < 0)
+            return;
+
+        // ジャンプ実行直前の現在位置を履歴へPush（ジャンプ先と異なる場合のみ）
+        var currentOffset = this.SavedSeriesListVerticalOffset.Value;
+        if (Math.Abs(currentOffset - targetIndex) > double.Epsilon)
+        {
+            this.titleJumpHistory.Push(currentOffset);
+            this.CanTitleJumpBack.Value = true;
+        }
+
+        // スクロール要求を設定
+        this.JumpRequestedVerticalOffset.Value = targetIndex;
+        this.JumpScrollRequest.Value++;
+    }
+
+    /// <summary>
+    /// タイトルジャンプから戻るコマンドを実行します。
+    /// 保存されている前の位置へスクロール要求を発行します。
+    /// </summary>
+    private void executeTitleJumpBack()
+    {
+        // 履歴が空の場合はスキップ
+        if (this.titleJumpHistory.Count == 0)
+            return;
+
+        // 履歴から最後のOffsetをPop
+        var previousOffset = this.titleJumpHistory.Pop();
+
+        // スクロール要求を設定
+        this.JumpRequestedVerticalOffset.Value = previousOffset;
+        this.JumpScrollRequest.Value++;
+
+        // 履歴の残件数に応じて戻るButtonの有効状態を更新
+        this.CanTitleJumpBack.Value = this.titleJumpHistory.Count > 0;
+
+        // 戻る成功時にタイトルジャンプ入力をクリア
+        this.TitleJumpInput.Value = string.Empty;
     }
 }
 

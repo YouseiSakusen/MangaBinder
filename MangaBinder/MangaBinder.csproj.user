@@ -23,7 +23,7 @@
     <Compile Update="Controls\SeriesMemo.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Controls\SeriesTagSelector.xaml.cs">
+    <Compile Update="Controls\SeriesTagItem.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Controls\SeriesVolumeStatus.xaml.cs">

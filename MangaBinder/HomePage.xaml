@@ -81,7 +81,7 @@
         </Grid.RowDefinitions>
 
         <!-- ══════════════════════════════════════════════════ -->
-        <!-- ヘッダー（サマリカード群）                         -->
+        <!-- ヘッダー（サマリカード + タイトルジャンプ）       -->
         <!-- ══════════════════════════════════════════════════ -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
@@ -90,11 +90,17 @@
                 <ColumnDefinition Width="1*" />
             </Grid.ColumnDefinitions>
 
-            <!-- カード群（横並び） -->
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,8">
+            <!-- 中央エリア: サマリカード + 可変領域 + ジャンプカード + 右Spacer -->
+            <Grid Grid.Column="1" Margin="0,8,0,8" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                <!-- 登録作品数サマリカード（情報表示のみ） -->
-                <ui:Card Margin="0,0,16,0" Padding="14,10">
+                <!-- 登録作品数サマリカード -->
+                <ui:Card Grid.Column="0" Padding="14,10">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <ui:SymbolIcon Symbol="Home24" FontSize="48"
                                        Foreground="{DynamicResource BindingAccentBrush}"
@@ -109,47 +115,76 @@
                     </StackPanel>
                 </ui:Card>
 
-                <!-- 製本開始カード（操作可能） -->
-                <ui:Card Margin="340,0,0,0" Padding="0">
-                    <Button Command="{Binding StartBindingCommand}"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="14,10"
-                            Cursor="Hand">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <ui:SymbolIcon Symbol="BookArrowClockwise24" FontSize="48"
-                                           Margin="0,0,12,0" VerticalAlignment="Center">
-                                <ui:SymbolIcon.Style>
-                                    <Style TargetType="ui:SymbolIcon">
-                                        <Setter Property="Foreground" Value="{DynamicResource BindingAccentBrush}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CanStartBinding.Value}" Value="False">
-                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ui:SymbolIcon.Style>
-                            </ui:SymbolIcon>
-                            <StackPanel>
-                                <StackPanel.Style>
-                                    <Style TargetType="StackPanel">
-                                        <Setter Property="Opacity" Value="1.0" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CanStartBinding.Value}" Value="False">
-                                                <Setter Property="Opacity" Value="0.4" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </StackPanel.Style>
-                                <TextBlock FontSize="11" Margin="0,0,0,2"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}">製本開始</TextBlock>
-                                <TextBlock FontSize="16" FontWeight="SemiBold">製本を開始する</TextBlock>
+                <!-- 可変領域（2つのCard間スペーサ） -->
+                <Grid Grid.Column="1" />
+
+                <!-- タイトルジャンプCard -->
+                <ui:Card Grid.Column="2" Padding="14,10">
+                    <Grid VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- タイトル -->
+                        <TextBlock Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="3"
+                                   FontSize="11" Margin="0,0,0,6"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">タイトルジャンプ</TextBlock>
+
+                        <!-- テキストボックス -->
+                        <ui:TextBox Grid.Column="0" Grid.Row="1"
+                                    PlaceholderText="タイトルを入力してジャンプ"
+                                    InputMethod.PreferredImeState="On"
+                                    ClearButtonEnabled="True"
+                                    Text="{Binding TitleJumpInput.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    Margin="0,0,8,0"
+                                    Width="350"
+                                    VerticalAlignment="Center">
+                            <ui:TextBox.InputBindings>
+                                <KeyBinding Key="Return" Command="{Binding TitleJumpCommand}" />
+                            </ui:TextBox.InputBindings>
+                        </ui:TextBox>
+
+                        <!-- ジャンプ用SplitButton -->
+                        <ui:SplitButton Grid.Column="1" Grid.Row="1"
+                                        Appearance="Primary"
+                                        Background="{DynamicResource AccentButtonBackground}"
+                                        Foreground="{DynamicResource AccentButtonForeground}"
+                                        MouseOverBackground="{DynamicResource AccentButtonBackgroundPointerOver}"
+                                        PressedBackground="{DynamicResource AccentButtonBackgroundPressed}"
+                                        Command="{Binding TitleJumpCommand}"
+                                        VerticalAlignment="Center"
+                                        Height="36"
+                                        Margin="0,0,8,0"
+                                        Padding="12,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="ArrowBetweenDown24" FontSize="20" Margin="0,0,6,0" />
+                                <TextBlock Text="ジャンプ" VerticalAlignment="Center" />
                             </StackPanel>
-                        </StackPanel>
-                    </Button>
+                        </ui:SplitButton>
+
+                        <!-- 戻る用Button -->
+                        <ui:Button Grid.Column="2" Grid.Row="1"
+                                   Command="{Binding TitleJumpBackCommand}"
+                                   VerticalAlignment="Center"
+                                   Height="36"
+                                   Padding="12,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="ArrowLeft20" FontSize="20" Margin="0,0,6,0" />
+                                <TextBlock Text="戻る" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ui:Button>
+                    </Grid>
                 </ui:Card>
 
-            </StackPanel>
+                <!-- 右余白（位置調整用Spacer） -->
+                <Grid Grid.Column="3" />
+            </Grid>
         </Grid>
 
         <!-- ══════════════════════════════════════════════════ -->
@@ -162,47 +197,7 @@
                 <ColumnDefinition Width="1*" />
             </Grid.ColumnDefinitions>
 
-            <!-- 検索カード（モック）：作品一覧右余白に配置 -->
-            <ui:Card Grid.Column="2"
-                     VerticalAlignment="Top"
-                     Margin="8,0,8,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <!-- ヘッダー行 -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                        <ui:SymbolIcon Symbol="Search24" FontSize="20"
-                                       Margin="0,0,8,0" VerticalAlignment="Center" />
-                        <TextBlock FontSize="13" FontWeight="SemiBold"
-                                   VerticalAlignment="Center">タイトルジャンプ</TextBlock>
-                    </StackPanel>
-
-                    <!-- 説明文 -->
-                    <TextBlock Grid.Row="1"
-                               FontSize="11" TextWrapping="Wrap" Opacity="0.6"
-                               Margin="0,0,0,10">タイトルの一部を入力して、最初に一致した作品へ移動します</TextBlock>
-
-                    <!-- テキストボックス -->
-                    <ui:TextBox Grid.Row="2"
-                                PlaceholderText="タイトルを入力"
-                                InputMethod.PreferredImeState="On"
-                                Margin="0,0,0,8" />
-
-                    <!-- ジャンプボタン（右寄せ・Primary風） -->
-                    <ui:Button Grid.Row="3"
-                               Content="ジャンプ"
-                               Appearance="Primary"
-                               HorizontalAlignment="Right"
-                               MinWidth="80" />
-                </Grid>
-            </ui:Card>
-
-        <ListView
+            <ListView
             Grid.Column="1"
             Visibility="{Binding HomeStateInformation.EmptyStateKind.Value, Mode=OneWay,
                          Converter={StaticResource EmptyStateKindToVis},
@@ -220,7 +215,11 @@
             BorderThickness="0"
             Background="Transparent"
             behaviors:ScrollViewerOffsetBehavior.BoundVerticalOffset="{Binding SavedSeriesListVerticalOffset.Value, Mode=TwoWay}"
-            behaviors:CloseToggleOnScrollBehavior.IsEnabled="True">
+            behaviors:ScrollViewerOffsetBehavior.HideUntilRestored="True"
+            behaviors:ScrollViewerOffsetBehavior.RequestedVerticalOffset="{Binding JumpRequestedVerticalOffset.Value}"
+            behaviors:ScrollViewerOffsetBehavior.ScrollRequest="{Binding JumpScrollRequest.Value}"
+            behaviors:CloseToggleOnScrollBehavior.IsEnabled="True"
+            behaviors:ViewportPageScrollBehavior.IsEnabled="True">
 
             <ListView.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -471,45 +470,11 @@
                                             TextTrimming="CharacterEllipsis"
                                             VerticalAlignment="Center" />
 
-                                        <!-- タグ表示領域（ToggleButton + Popup） -->
-                                        <Grid Grid.Column="1">
-                                            <!-- ToggleButton: タグ表示 & ポップアップ開閉 -->
-                                            <ToggleButton
-                                                x:Name="TagToggleButton"
-                                                Padding="6,2"
-                                                FontSize="11"
-                                                Content="{Binding TagSelector.CompactDisplayText.Value}"
-                                                Cursor="Hand"
-                                                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                                BorderThickness="0"
-                                                Command="{Binding TagSelector.PreparePopupCommand}" />
-
-                                            <!-- Popup: タグ選択チェックボックス一覧 -->
-                                            <Popup
-                                                x:Name="TagPopup"
-                                                PlacementTarget="{Binding ElementName=TagToggleButton}"
-                                                Placement="Top"
-                                                IsOpen="{Binding IsChecked, ElementName=TagToggleButton, Mode=TwoWay}"
-                                                StaysOpen="False"
-                                                AllowsTransparency="True"
-                                                PopupAnimation="Fade">
-                                                <Border
-                                                    Background="{DynamicResource ApplicationBackgroundBrush}"
-                                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="6"
-                                                    Padding="8,6"
-                                                    MinWidth="280"
-                                                    MaxWidth="420">
-                                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                                        <controls:SeriesTagSelector
-                                                            ItemsSource="{Binding TagSelector.SelectableTagItems}"
-                                                            Columns="{Binding TagSelector.Columns.Value}"
-                                                            Rows="{Binding TagSelector.Rows.Value}"/>
-                                                    </ScrollViewer>
-                                                </Border>
-                                            </Popup>
-                                        </Grid>
+                                        <!-- タグ選択UI（新SeriesTagPicker） -->
+                                        <controls:SeriesTagPicker
+                                            Grid.Column="1"
+                                            DataContext="{Binding TagSelector}"
+                                            ButtonContent="{Binding CompactDisplayText.Value}" />
                                     </Grid>
                                 </Grid>
 

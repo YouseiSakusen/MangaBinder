@@ -42,6 +42,11 @@ public class ExistingSeriesDialogContentViewModel : IDisposable
 	public BindableReactiveProperty<bool> IsAuthorDuplicateErrorVisible { get; }
 
 	/// <summary>
+	/// 作者入力欄へのフォーカス要求カウンタ。
+	/// </summary>
+	public BindableReactiveProperty<int> AuthorFocusRequest { get; }
+
+	/// <summary>
 	/// <see cref="ExistingSeriesDialogContentViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="existingSeries">表示対象の MangaSeries。</param>
@@ -75,6 +80,19 @@ public class ExistingSeriesDialogContentViewModel : IDisposable
 
 		// 作者重複エラー表示状態を初期化（初期値は false）
 		this.IsAuthorDuplicateErrorVisible = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		// 作者入力欄へのフォーカス要求カウンタを初期化（初期値は 0）
+		this.AuthorFocusRequest = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
+
+		// 「別作者の作品として追加」選択時にフォーカスカウンタをインクリメント
+		this.IsAddAsOtherAuthorSelected
+			.Where(x => x)
+			.Subscribe(_ =>
+			{
+				this.AuthorFocusRequest.Value++;
+			})
 			.AddTo(ref this.disposableBag);
 	}
 

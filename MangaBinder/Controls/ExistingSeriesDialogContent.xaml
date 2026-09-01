@@ -5,6 +5,7 @@
 			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 			 xmlns:local="clr-namespace:MangaBinder.Controls"
 			 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+			 xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
 			 mc:Ignorable="d" 
 			 d:DesignHeight="500" d:DesignWidth="600">
 	<!-- 既存作品情報を表示するダイアログコンテンツ。DataContext は ExistingSeriesDialogContentViewModel を想定。 -->
@@ -47,7 +48,7 @@
 		<local:SelectableSeriesList
 			Grid.Row="2"
 			Height="160"
-			IsEnabled="{Binding IsOpenExistingSeriesSelected.Value}"
+			IsHitTestVisible="False"
 			DataContext="{Binding SelectableSeriesListViewModel}"
 			Margin="0,0,0,12" />
 
@@ -84,6 +85,7 @@
 				Grid.Column="1"
 				Text="{Binding NewAuthorInput.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 				InputMethod.PreferredImeState="On"
+				behaviors:FocusOnChangedBehavior.Request="{Binding AuthorFocusRequest.Value}"
 				Padding="8,6" />
 		</Grid>
 

@@ -293,7 +293,7 @@
 						</Grid.ColumnDefinitions>
 						<Grid.RowDefinitions>
 							<RowDefinition Height="Auto" />
-							<RowDefinition Height="160" />
+							<RowDefinition Height="170" />
 							<RowDefinition Height="Auto" />
 						</Grid.RowDefinitions>
 
@@ -364,7 +364,7 @@
                             ClearButtonEnabled="False"
                             VerticalScrollBarVisibility="Auto"
                             HorizontalScrollBarVisibility="Disabled"
-                            Height="160"
+                            Height="170"
                             Margin="0,0,6,0"
                             Text="{Binding Description.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             behaviors:DescriptionPasteFormattingBehavior.IsEnabled="{Binding ElementName=DescriptionFormattingToggleSwitch, Path=IsChecked, Mode=OneWay}"
@@ -635,7 +635,7 @@
 								x:Name="MaterialFilesListView"
 								Grid.Row="1"
 								Margin="0,0,0,12"
-								ItemsSource="{Binding MaterialFiles}"
+								ItemsSource="{Binding MaterialFilesView}"
 								Visibility="{Binding HasMaterialFiles.Value, Converter={StaticResource BoolToVisibilityConverter}}"
 								ScrollViewer.VerticalScrollBarVisibility="Auto"
 								ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -877,44 +877,13 @@
 								<ColumnDefinition Width="*" />
 							</Grid.ColumnDefinitions>
 
-							<!-- + タグ ボタン -->
-							<StackPanel Grid.Column="0" VerticalAlignment="Bottom" Margin="0,0,12,0">
-								<ToggleButton
-									x:Name="TagToggleButton"
-									Padding="6,2"
-									FontSize="11"
-									Content="⊕ タグを設定"
-									Cursor="Hand"
-									Background="{DynamicResource ControlFillColorDefaultBrush}"
-									BorderThickness="0"
-									Command="{Binding TagSelector.PreparePopupCommand}" />
-
-								<!-- Popup: タグ選択チェックボックス一覧 -->
-								<Popup
-									x:Name="TagPopup"
-									PlacementTarget="{Binding ElementName=TagToggleButton}"
-									Placement="Top"
-									IsOpen="{Binding IsChecked, ElementName=TagToggleButton, Mode=TwoWay}"
-									StaysOpen="False"
-									AllowsTransparency="True"
-									PopupAnimation="Fade">
-									<Border
-										Background="{DynamicResource ApplicationBackgroundBrush}"
-										BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-										BorderThickness="1"
-										CornerRadius="6"
-										Padding="8,6"
-										MinWidth="280"
-										MaxWidth="420">
-										<ScrollViewer VerticalScrollBarVisibility="Auto">
-											<controls:SeriesTagSelector
-												ItemsSource="{Binding TagSelector.SelectableTagItems}"
-												Columns="{Binding TagSelector.Columns.Value}"
-												Rows="{Binding TagSelector.Rows.Value}"/>
-										</ScrollViewer>
-									</Border>
-								</Popup>
-							</StackPanel>
+							<!-- タグ選択UI（新SeriesTagPicker） -->
+							<controls:SeriesTagPicker
+								Grid.Column="0"
+								Margin="0,0,12,0"
+								VerticalAlignment="Bottom"
+								DataContext="{Binding TagSelector}"
+								ButtonContent="⊕ タグを設定" />
 
 							<!-- 選択済みタグ表示エリア（1行固定横スクロール） -->
 							<ScrollViewer

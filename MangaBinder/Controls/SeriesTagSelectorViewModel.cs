@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using MangaBinder.Core.Formatters;
 using MangaBinder.Series;
@@ -18,6 +17,8 @@ public class SeriesTagSelectorViewModel : IDisposable
 {
 	private readonly MangaSeriesStore mangaSeriesStore;
 	private readonly DisposableBag disposableBag = new();
+	private readonly ObservableList<SeriesTagSelectionItem> selectableTagItems;
+	private readonly ObservableList<MangaTag> selectedTags;
 	private MangaSeries? targetSeries;
 	private Action<MangaSeries>? onTagsChangedCallback;
 	private NotifyCollectionChangedEventHandler<MangaTag>? tagsCollectionChangedHandler;
@@ -25,27 +26,17 @@ public class SeriesTagSelectorViewModel : IDisposable
 	/// <summary>
 	/// Popup用のタグ選択項目一覧を取得します。
 	/// </summary>
-	public ObservableCollection<SeriesTagSelectionItem> SelectableTagItems { get; }
+	public NotifyCollectionChangedSynchronizedViewList<SeriesTagSelectionItem> SelectableTagItems { get; }
 
 	/// <summary>
 	/// 選択済みタグ一覧を取得します。
 	/// </summary>
-	public ObservableCollection<MangaTag> SelectedTags { get; }
+	public NotifyCollectionChangedSynchronizedViewList<MangaTag> SelectedTags { get; }
 
 	/// <summary>
 	/// Home等で利用する省略表示文字列を取得します。
 	/// </summary>
 	public BindableReactiveProperty<string> CompactDisplayText { get; }
-
-	/// <summary>
-	/// Popup の列数を取得します。
-	/// </summary>
-	public BindableReactiveProperty<int> Columns { get; }
-
-	/// <summary>
-	/// Popup の行数を取得します。
-	/// </summary>
-	public BindableReactiveProperty<int> Rows { get; }
 
 	/// <summary>
 	/// Popup 準備コマンドを取得します。
@@ -60,16 +51,17 @@ public class SeriesTagSelectorViewModel : IDisposable
 	{
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
 
-		this.SelectableTagItems = new ObservableCollection<SeriesTagSelectionItem>();
-		this.SelectedTags = new ObservableCollection<MangaTag>();
+		this.selectableTagItems = new ObservableList<SeriesTagSelectionItem>();
+		this.SelectableTagItems = this.selectableTagItems
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
+
+		this.selectedTags = new ObservableList<MangaTag>();
+		this.SelectedTags = this.selectedTags
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
 
 		this.CompactDisplayText = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
-
-		this.Columns = new BindableReactiveProperty<int>(2)
-			.AddTo(ref this.disposableBag);
-
-		this.Rows = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
 		this.PreparePopupCommand = new ReactiveCommand<Unit>()
@@ -119,7 +111,7 @@ public class SeriesTagSelectorViewModel : IDisposable
 		this.targetSeries = null;
 		this.onTagsChangedCallback = null;
 		this.tagsCollectionChangedHandler = null;
-		this.SelectedTags.Clear();
+		this.selectedTags.Clear();
 		this.CompactDisplayText.Value = string.Empty;
 	}
 
@@ -167,27 +159,12 @@ public class SeriesTagSelectorViewModel : IDisposable
 		}
 
 		// 既存のイベント購読を削除するためクリア
-		this.SelectableTagItems.Clear();
+		this.selectableTagItems.Clear();
 
 		var tags = this.mangaSeriesStore.GetTags()
 			.OrderByDescending(t => t.DisplayOrder)
 			.ThenByDescending(t => t.TagId)
 			.ToList();
-
-		// プレースホルダーセルを計算
-		var tagCount = tags.Count;
-		var columns = this.Columns.Value;
-		var placeholderCount = (columns - (tagCount % columns)) % columns;
-
-		// プレースホルダーを先頭に追加
-		for (var i = 0; i < placeholderCount; i++)
-		{
-			var placeholderItem = new SeriesTagSelectionItem(null!, false)
-			{
-				IsPlaceholder = true
-			};
-			this.SelectableTagItems.Add(placeholderItem);
-		}
 
 		// 実際のタグを追加
 		foreach (var tag in tags)
@@ -205,11 +182,8 @@ public class SeriesTagSelectorViewModel : IDisposable
 				this.onTagSelectionChanged(tag, item.IsChecked);
 			};
 
-			this.SelectableTagItems.Add(item);
+			this.selectableTagItems.Add(item);
 		}
-
-		// 行数を計算して通知
-		this.Rows.Value = (tagCount + placeholderCount + columns - 1) / columns;
 	}
 
 	/// <summary>
@@ -254,16 +228,16 @@ public class SeriesTagSelectorViewModel : IDisposable
 	{
 		if (this.targetSeries == null)
 		{
-			this.SelectedTags.Clear();
+			this.selectedTags.Clear();
 			this.CompactDisplayText.Value = string.Empty;
 			return;
 		}
 
 		// SelectedTags を更新
-		this.SelectedTags.Clear();
+		this.selectedTags.Clear();
 		foreach (var tag in this.targetSeries.Tags)
 		{
-			this.SelectedTags.Add(tag);
+			this.selectedTags.Add(tag);
 		}
 
 		// CompactDisplayText を更新（既存フォーマッタを利用）

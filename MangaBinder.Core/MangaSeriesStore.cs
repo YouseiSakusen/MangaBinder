@@ -34,7 +34,7 @@ public sealed class MangaSeriesStore
 	/// <summary>
 	/// 正式作品一覧を取得します。
 	/// </summary>
-	public ObservableList<MangaSeries> All => this.series;
+	public ObservableList<MangaSeries> AllOld => this.series;
 
 	/// <summary>
 	/// 全ての MangaSeries を取得します。
@@ -46,12 +46,12 @@ public sealed class MangaSeriesStore
 	/// <summary>
 	/// 登録待ち作品一覧を取得します。
 	/// </summary>
-	public ObservableList<MangaSeries> WorkSeries => this.workSeries;
+	public ObservableList<MangaSeries> WorkSeriesOld => this.workSeries;
 
 	/// <summary>
 	/// 統合作品一覧（正式作品＋登録待ち作品）を取得します。
 	/// </summary>
-	public ObservableList<MangaSeries> Merged => this.mergedSeries;
+	public ObservableList<MangaSeries> MergedOld => this.mergedSeries;
 
 	/// <summary>
 	/// 検索用に統合した MangaSeries 一覧を取得します。

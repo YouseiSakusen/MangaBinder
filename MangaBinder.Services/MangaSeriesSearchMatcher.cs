@@ -12,6 +12,9 @@ public class MangaSeriesSearchMatcher
 	/// <summary>正規化済みの検索ワード一覧。</summary>
 	private readonly IReadOnlyList<string> normalizedWords;
 
+	/// <summary>表示用の検索ワード一覧（正規化前）。</summary>
+	private readonly IReadOnlyList<string> displayWords;
+
 	/// <summary>検索条件が有効であるかを示します。</summary>
 	private readonly bool isValid;
 
@@ -27,12 +30,16 @@ public class MangaSeriesSearchMatcher
 		{
 			this.isValid = false;
 			this.normalizedWords = new List<string>();
+			this.displayWords = new List<string>();
 			return;
 		}
 
 		// ワード分割（半角スペース・全角スペース）
-		var words = searchText
+		var rawWords = searchText
 			.Split(new[] { ' ', '\u3000' }, StringSplitOptions.RemoveEmptyEntries)
+			.ToList();
+
+		var words = rawWords
 			.Select(word => MangaTitleHelper.NormalizeTitleInternal(word))
 			.Where(word => !string.IsNullOrEmpty(word))
 			.ToList();
@@ -42,11 +49,13 @@ public class MangaSeriesSearchMatcher
 		{
 			this.isValid = false;
 			this.normalizedWords = new List<string>();
+			this.displayWords = new List<string>();
 		}
 		else
 		{
 			this.isValid = true;
 			this.normalizedWords = words.AsReadOnly();
+			this.displayWords = rawWords.AsReadOnly();
 		}
 	}
 
@@ -54,6 +63,19 @@ public class MangaSeriesSearchMatcher
 	/// 検索条件が有効であるかを取得します。
 	/// </summary>
 	public bool IsValid => this.isValid;
+
+	/// <summary>
+	/// 正規化済みの検索ワード一覧を取得します。
+	/// 検索条件が無効の場合は空のリストを返します。
+	/// </summary>
+	public IReadOnlyList<string> GetSearchWords() => this.normalizedWords;
+
+	/// <summary>
+	/// 表示用の検索ワード一覧（正規化前）を取得します。
+	/// ユーザーが入力した表記のまま返します。
+	/// 検索条件が無効の場合は空のリストを返します。
+	/// </summary>
+	public IReadOnlyList<string> GetDisplayWords() => this.displayWords;
 
 	/// <summary>
 	/// 指定された MangaSeries が検索条件に一致するかを判定します。

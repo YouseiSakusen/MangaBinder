@@ -119,7 +119,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
 
 		// Store.WorkSeries の Count 変更を監視して WorkSeriesCount を自動更新
-		this.mangaSeriesStore.WorkSeries.ObserveCountChanged()
+		this.mangaSeriesStore.WorkSeriesOld.ObserveCountChanged()
 			.Subscribe(count => this.WorkSeriesCount.Value = count)
 			.AddTo(ref this.disposableBag);
 
@@ -254,7 +254,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// </summary>
 	private void applyWorkSeriesOnlyFilter()
 	{
-		var series = this.mangaSeriesStore.Merged
+		var series = this.mangaSeriesStore.MergedOld
 			.Where(series => series.IsWork)
 			.ToList();
 
@@ -270,7 +270,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	{
 		var matcher = new MangaSeriesSearchMatcher(searchQuery);
 
-		var series = this.mangaSeriesStore.Merged
+		var series = this.mangaSeriesStore.MergedOld
 			.Where(series => matcher.IsMatch(series))
 			.ToList();
 
