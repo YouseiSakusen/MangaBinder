@@ -253,7 +253,9 @@
                         <!-- 製本対象選択 CheckBox -->
                         <CheckBox
                             Grid.Column="0"
-                            IsChecked="{Binding IsSelected.Value}"
+                            IsChecked="{Binding IsSelected.Value, Mode=OneWay}"
+                            Command="{Binding DataContext.ToggleBindingQueueCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                            CommandParameter="{Binding}"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center" />
 

@@ -1,6 +1,7 @@
 using MangaBinder.Series;
 using ObservableCollections;
 using R3;
+using System.Collections.Specialized;
 
 namespace MangaBinder.Controls;
 
@@ -13,6 +14,7 @@ namespace MangaBinder.Controls;
 public class SelectableSeriesListViewModel : IDisposable
 {
 	private DisposableBag disposableBag = new();
+	private DisposableBag collectionChangedSubscriptions = new();
 
 	/// <summary>
 	/// 内部用の MangaSeries コレクション。
@@ -31,6 +33,24 @@ public class SelectableSeriesListViewModel : IDisposable
 	/// 内部か外部かを Reactive に切り替える。
 	/// </summary>
 	public BindableReactiveProperty<NotifyCollectionChangedSynchronizedViewList<MaintenanceSeriesCardViewModel>> Items { get; }
+
+	/// <summary>
+	/// 現在 Items.Value に設定されている一覧の件数。
+	/// Items の CollectionChanged を監視して自動更新されます。
+	/// </summary>
+	public BindableReactiveProperty<int> ItemCount { get; }
+
+	/// <summary>
+	/// 現在 Items.Value が空であるかどうかを示す値。
+	/// ItemCount == 0 に自動追従します。
+	/// </summary>
+	public BindableReactiveProperty<bool> IsEmpty { get; }
+
+	/// <summary>
+	/// 現在 Items.Value に項目があるかどうかを示す値。
+	/// ItemCount > 0 に自動追従します。
+	/// </summary>
+	public BindableReactiveProperty<bool> HasItems { get; }
 
 	/// <summary>
 	/// 現在選択されている MaintenanceSeriesCardViewModel。
@@ -75,6 +95,25 @@ public class SelectableSeriesListViewModel : IDisposable
 		this.Items = new BindableReactiveProperty<NotifyCollectionChangedSynchronizedViewList<MaintenanceSeriesCardViewModel>>(this.internalItems)
 			.AddTo(ref this.disposableBag);
 
+		// ItemCount / IsEmpty / HasItems: 初期値は internalItems の現在件数から設定
+		var initialCount = this.internalItems.Count;
+		this.ItemCount = new BindableReactiveProperty<int>(initialCount)
+			.AddTo(ref this.disposableBag);
+
+		this.IsEmpty = new BindableReactiveProperty<bool>(initialCount == 0)
+			.AddTo(ref this.disposableBag);
+
+		this.HasItems = new BindableReactiveProperty<bool>(initialCount > 0)
+			.AddTo(ref this.disposableBag);
+
+		// Items.Value が変わったら、新しい一覧の CollectionChanged を監視開始
+		this.Items
+			.Subscribe(items =>
+			{
+				this.AttachCollectionChangedHandler(items);
+			})
+			.AddTo(ref this.disposableBag);
+
 		// SelectedItem: 現在選択されているカード ViewModel
 		this.SelectedItem = new BindableReactiveProperty<MaintenanceSeriesCardViewModel?>(null)
 			.AddTo(ref this.disposableBag);
@@ -98,6 +137,42 @@ public class SelectableSeriesListViewModel : IDisposable
 		// CardSize: デフォルトは Compact
 		this.CardSize = new BindableReactiveProperty<SeriesCardSize>(SeriesCardSize.Compact)
 			.AddTo(ref this.disposableBag);
+
+		// 初期状態で internalItems の CollectionChanged を監視
+		this.AttachCollectionChangedHandler(this.internalItems);
+	}
+
+	/// <summary>
+	/// 指定されたコレクションの CollectionChanged イベントを監視し、
+	/// ItemCount / IsEmpty / HasItems を更新するハンドラーをアタッチします。
+	/// 既存の購読があれば解除してからアタッチします。
+	/// </summary>
+	/// <param name="items">監視対象のコレクション。</param>
+	private void AttachCollectionChangedHandler(NotifyCollectionChangedSynchronizedViewList<MaintenanceSeriesCardViewModel> items)
+	{
+		// 前の一覧への購読を全解除
+		this.collectionChangedSubscriptions.Dispose();
+		this.collectionChangedSubscriptions = new();
+
+		// 新しい一覧の CollectionChanged イベントを R3 の Subscribe で監視
+		((INotifyCollectionChanged)items).CollectionChanged += (sender, e) =>
+		{
+			this.UpdateItemCount();
+		};
+
+		// 現在の件数を反映
+		this.UpdateItemCount();
+	}
+
+	/// <summary>
+	/// Items.Value の現在件数から ItemCount / IsEmpty / HasItems を更新します。
+	/// </summary>
+	private void UpdateItemCount()
+	{
+		var count = this.Items.Value.Count;
+		this.ItemCount.Value = count;
+		this.IsEmpty.Value = count == 0;
+		this.HasItems.Value = count > 0;
 	}
 
 	/// <summary>
@@ -158,23 +233,12 @@ public class SelectableSeriesListViewModel : IDisposable
 		this.SelectedItem.Value = null;
 	}
 
-
-	/// <summary>
-	/// 現在表示している MaintenanceSeriesCardViewModel を再評価します。
-	/// 既存の MangaSeries に対して ForceNotify() を実行し、UI の再表示を促します。
-	/// </summary>
-	public void RefreshAllItems()
-	{
-		foreach (var item in this.Items.Value)
-		{
-			// Series の値が同一インスタンスの場合、ForceNotify() で再通知を促す
-			item.Series.ForceNotify();
-		}
-	}
-
 	/// <inheritdoc/>
 	public void Dispose()
 	{
+		// CollectionChanged ハンドラーの購読をクリア
+		this.collectionChangedSubscriptions.Dispose();
+
 		// 外部参照がある場合も内部 Items も、両方の Dispose を呼び出す
 		// 外部参照は呼び出し側が所有しているため、Dispose は呼び出さない
 		// 内部の古い MaintenanceSeriesCardViewModel を Dispose

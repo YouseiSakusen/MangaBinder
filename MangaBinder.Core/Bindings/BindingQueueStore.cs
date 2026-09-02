@@ -1,18 +1,49 @@
 using ObservableCollections;
+using R3;
 
 namespace MangaBinder.Bindings;
 
 /// <summary>
 /// 製本開始状態のメモリ上の正となる Singleton ストアです。
 /// </summary>
-public sealed class BindingQueueStore
+public sealed class BindingQueueStore : IDisposable
 {
+	private DisposableBag disposableBag = new();
 	private readonly ObservableList<BindingSeries> queue = new();
 
 	/// <summary>製本対象一覧を取得します。</summary>
 	public ObservableList<BindingSeries> Queue => this.queue;
 
+	/// <summary>現在の製本対象件数を取得します。</summary>
+	public BindableReactiveProperty<int> Count { get; }
+
+	/// <summary>現在の製本対象が空であるかどうかを取得します。</summary>
+	public BindableReactiveProperty<bool> IsEmpty { get; }
+
 	/// <summary>
+	/// <see cref="BindingQueueStore"/> の新しいインスタンスを初期化します。
+	/// </summary>
+	public BindingQueueStore()
+	{
+		var initialCount = this.queue.Count;
+
+		// Count と IsEmpty を初期化
+		this.Count = new BindableReactiveProperty<int>(initialCount)
+			.AddTo(ref this.disposableBag);
+
+		this.IsEmpty = new BindableReactiveProperty<bool>(initialCount == 0)
+			.AddTo(ref this.disposableBag);
+
+		// Queue の件数変更を監視して Count / IsEmpty を更新
+		this.queue.ObserveCountChanged()
+			.Subscribe(count =>
+			{
+				this.Count.Value = count;
+				this.IsEmpty.Value = count == 0;
+			})
+			.AddTo(ref this.disposableBag);
+	}
+
 	/// 製本対象を追加します。
 	/// 同一 SeriesId は重複登録しません。
 	/// </summary>
@@ -57,4 +88,10 @@ public sealed class BindingQueueStore
 	/// <summary>製本対象一覧を全件クリアします。</summary>
 	public void Clear()
 		=> this.queue.Clear();
+
+	/// <inheritdoc/>
+	public void Dispose()
+	{
+		this.disposableBag.Dispose();
+	}
 }

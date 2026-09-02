@@ -91,23 +91,11 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		// StartPageStore が公開する WPF バインド用一覧を使用
 		this.Series = this.startPageStore.QueueCards;
 
-		// 初期値を現在のStore.Countから取得
-		this.SelectedSeriesCount = new BindableReactiveProperty<int>(this.bindingQueueStore.Queue.Count)
-			.AddTo(ref this.disposableBag);
+		// BindingQueue 件数をストアから参照
+		this.SelectedSeriesCount = this.bindingQueueStore.Count;
 
-		// Store.Queue.Count の変更を監視して SelectedSeriesCount を自動更新
-		this.bindingQueueStore.Queue.ObserveCountChanged()
-			.Subscribe(count => this.SelectedSeriesCount.Value = count)
-			.AddTo(ref this.disposableBag);
-
-		// 初期値を現在のStore.Countから取得
-		this.IsEmpty = new BindableReactiveProperty<bool>(this.bindingQueueStore.Queue.Count == 0)
-			.AddTo(ref this.disposableBag);
-
-		// Store.Queue.Count の変更を監視して IsEmpty を自動更新
-		this.bindingQueueStore.Queue.ObserveCountChanged()
-			.Subscribe(count => this.IsEmpty.Value = count == 0)
-			.AddTo(ref this.disposableBag);
+		// BindingQueue が空かどうかをストアから参照
+		this.IsEmpty = this.bindingQueueStore.IsEmpty;
 
 		this.NavigateToHomeCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);

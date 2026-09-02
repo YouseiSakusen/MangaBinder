@@ -62,14 +62,6 @@ public sealed class MangaSeriesStore
 	public ObservableList<MangaSeries> WorkSeriesOld => this.workSeries;
 
 	/// <summary>
-	/// 登録待ち作品の MangaSeries 一覧を取得します。
-	/// 作品管理画面の通常表示用。登録待ち一覧の正本を返します.
-	/// </summary>
-	/// <returns>登録待ち作品 MangaSeries の読み取り専用リスト。</returns>
-	public IReadOnlyList<MangaSeries> GetWorkSeries()
-		=> this.workSeries.AsReadOnly();
-
-	/// <summary>
 	/// MangaSeries の一覧を指定したリストで一括置換します。
 	/// 自動的に Title → Author → SeriesId の昇順でソートされます。
 	/// </summary>
@@ -273,6 +265,23 @@ public sealed class MangaSeriesStore
 		=> this.allViewModels.FirstOrDefault(vm => vm.Series.Value.SeriesId == seriesId);
 
 	/// <summary>
+	/// 指定した SeriesId の共有 MangaSeriesViewModel.Series に変更通知を流します。
+	/// Store 正本 MangaSeries の更新が完全に完了したあと、1回だけ呼び出してください。
+	/// </summary>
+	/// <param name="seriesId">通知対象の SeriesId。</param>
+	/// <exception cref="InvalidOperationException">対象の MangaSeriesViewModel が見つからない場合。</exception>
+	public void NotifySeriesChanged(long seriesId)
+	{
+		var viewModel = this.FindViewModelById(seriesId);
+		if (viewModel is null)
+		{
+			throw new InvalidOperationException($"SeriesId {seriesId} に対応する MangaSeriesViewModel が見つかりません。");
+		}
+
+		viewModel.Series.ForceNotify();
+	}
+
+	/// <summary>
 	/// 指定した SeriesId の MangaSeries を削除します。
 	/// </summary>
 	/// <param name="seriesId">削除対象の SeriesId。</param>
@@ -355,12 +364,6 @@ public sealed class MangaSeriesStore
 	/// <returns>見つかった場合は該当のタグ、見つからない場合は null。</returns>
 	public MangaTag? FindTagById(long tagId)
 		=> this.tags.FirstOrDefault(x => x.TagId == tagId);
-
-	/// <summary>
-	/// ストア内の全てのタグをクリアします。
-	/// </summary>
-	public void ClearTags()
-		=> this.tags.Clear();
 
 	/// <summary>
 	/// 指定したタグをストアに追加します。

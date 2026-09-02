@@ -162,17 +162,17 @@
                 VerticalAlignment="Center"
                 Visibility="{Binding IsSearchResultsShown.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock
-                    Text="{Binding SelectableSeriesListViewModel.Items.Count, StringFormat='検索結果 {0}件'}"
+                    Text="{Binding SelectableSeriesListViewModel.ItemCount.Value, StringFormat='検索結果 {0}件'}"
                     FontSize="13"
                     HorizontalAlignment="Right"
                     Opacity="0.7" />
             </Grid>
             <!-- 作品一覧 SelectableSeriesList -->
             <Grid Grid.Row="1" Grid.Column="1" Background="Transparent">
-                <!-- SelectableSeriesList: HasSearchResults が true のときに表示 -->
+                <!-- SelectableSeriesList: HasItems が true のときに表示 -->
                 <controls:SelectableSeriesList
                     DataContext="{Binding SelectableSeriesListViewModel}"
-                    Visibility="{Binding HasSearchResults.Value, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    Visibility="{Binding SelectableSeriesListViewModel.HasItems.Value, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                 <!-- エンプティステート: 検索結果が0件の場合の表示 -->
                 <Grid
@@ -180,7 +180,7 @@
                     Panel.ZIndex="1"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
-                    Visibility="{Binding IsSearchResultsEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Visibility="{Binding SelectableSeriesListViewModel.IsEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel
                         HorizontalAlignment="Left"
                         VerticalAlignment="Top"

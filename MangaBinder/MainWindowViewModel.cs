@@ -165,14 +165,8 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 		// LoadingService のイベント購読
 		this.loadingService.StateChanged += this.onLoadingServiceStateChanged;
 
-		// BindingQueue 件数の初期化と監視
-		this.BindingQueueCount = new BindableReactiveProperty<int>(this.bindingQueueStore.Queue.Count)
-			.AddTo(ref this.disposableBag);
-
-		// Store.Queue.Count の変更を監視して BindingQueueCount を自動更新
-		this.bindingQueueStore.Queue.ObserveCountChanged()
-			.Subscribe(count => this.BindingQueueCount.Value = count)
-			.AddTo(ref this.disposableBag);
+		// BindingQueue 件数をストアから参照
+		this.BindingQueueCount = this.bindingQueueStore.Count;
 
 		// 製本待ちメニューアイテムを作成（InfoBadge表示用）
 		var bindingQueueMenuItem = new NavigationViewItem

@@ -40,16 +40,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>登録待ち作品件数を取得します。</summary>
 	public BindableReactiveProperty<int> WorkSeriesCount { get; }
 
-	/// <summary>登録待ち作品一覧を取得します。</summary>
-	public IReadOnlyList<MangaSeries> WorkSeries
-		=> this.mangaSeriesStore.GetWorkSeries();
-
-	/// <summary>検索結果が空であるかを取得します。</summary>
-	public BindableReactiveProperty<bool> IsSearchResultsEmpty { get; }
-
-	/// <summary>検索結果が存在するかを取得します（IsSearchResultsEmpty の反対）。</summary>
-	public BindableReactiveProperty<bool> HasSearchResults { get; }
-
 	/// <summary>検索結果を表示中であるかを取得します。</summary>
 	public BindableReactiveProperty<bool> IsSearchResultsShown { get; }
 
@@ -88,12 +78,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 			.AddTo(ref this.disposableBag);
 
 		this.WorkSeriesCount = new BindableReactiveProperty<int>(this.mangaSeriesStore.WorkSeries.Count)
-			.AddTo(ref this.disposableBag);
-
-		this.IsSearchResultsEmpty = new BindableReactiveProperty<bool>(true)
-			.AddTo(ref this.disposableBag);
-
-		this.HasSearchResults = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
 		this.IsSearchResultsShown = new BindableReactiveProperty<bool>(false)
@@ -162,24 +146,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		// 検索結果表示フラグを false に設定
 		this.IsSearchResultsShown.Value = false;
 
-		// 登録待ち件数を更新（常に Store が保持している登録待ち作品数を表示）
-		this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
-
-		// エンプティステート状態を更新
-		this.UpdateEmptyState();
-
 		await ValueTask.CompletedTask;
-	}
-
-	/// <summary>
-	/// エンプティステートを更新します。
-	/// SelectableSeriesListViewModel.Items.Value の行数で判定します。
-	/// </summary>
-	private void UpdateEmptyState()
-	{
-		var isEmpty = this.SelectableSeriesListViewModel.Items.Value.Count == 0;
-		this.IsSearchResultsEmpty.Value = isEmpty;
-		this.HasSearchResults.Value = !isEmpty;
 	}
 
 	/// <summary>
@@ -261,7 +228,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	{
 		// 新 Reactive 系：MaintenanceSeriesStore の WorkSeriesCards を外部参照として設定
 		this.SelectableSeriesListViewModel.SetExternalSource(this.maintenanceSeriesStore.WorkSeriesCards);
-		this.UpdateEmptyState();
 	}
 
 	/// <summary>
@@ -283,9 +249,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 		// 検索結果用カード Collection を外部参照として設定して表示
 		this.SelectableSeriesListViewModel.SetExternalSource(this.maintenanceSeriesStore.SearchResultCards);
-
-		// Empty State を更新
-		this.UpdateEmptyState();
 	}
 
 	/// <summary>リソースを解放します。</summary>

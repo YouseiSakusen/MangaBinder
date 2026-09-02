@@ -64,7 +64,6 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPage<TagPage, TagPageViewModel>(ServiceLifetime.Singleton);
 		services.AddScoped<TagRepository>();
 		services.AddScoped<TagEditor>();
-		services.AddScoped<SeriesTagDispatcher>();
 		services.AddScoped<ThumbnailManager>();
 		services.AddScoped<MangaSeriesManager>();
 		services.AddScoped<NewSeriesCoordinator>();
@@ -99,6 +98,10 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton(sp => new StartPageStore(
 			sp.GetRequiredService<BindingQueueStore>(),
 			sp.GetRequiredService<MangaSeriesStore>()));
+		services.AddSingleton(sp => new HomeSeriesStore(
+			sp.GetRequiredService<MangaSeriesStore>(),
+			sp.GetRequiredService<BindingQueueStore>(),
+			sp.GetRequiredService<SeriesTagStore>()));
 		services.AddScoped<BindingStoreRepository>();
 		services.AddScoped<BindingQueueDispatcher>();
 		services.AddSingleton<MaterialSourceDisplayNameConverter>();

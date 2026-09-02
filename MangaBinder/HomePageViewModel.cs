@@ -28,17 +28,20 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>作品選択状態ストア。</summary>
     private readonly SeriesWorkspaceStore workspaceStore;
 
-    /// <summary>アプリケーション設定。</summary>
-    private readonly AppSettings appSettings;
-
     /// <summary>タグ変更追跡ストア。</summary>
     private readonly SeriesTagStore seriesTagStore;
+
+    /// <summary>Home 画面用派生 Store。SeriesCardViewModel の生成・所有・Dispose を担当。</summary>
+    private readonly HomeSeriesStore homeSeriesStore;
 
     /// <summary>MangaSeries の正本リストを管理するストア。</summary>
     private readonly MangaSeriesStore mangaSeriesStore;
 
-    /// <summary>製本開始キュー ストア。</summary>
+    /// <summary>製本待ち状態ストア。</summary>
     private readonly BindingQueueStore bindingQueueStore;
+
+    /// <summary>アプリケーション設定。</summary>
+    private readonly AppSettings appSettings;
 
     /// <summary>Snackbar 通知サービス。</summary>
     private readonly ISnackbarService snackbarService;
@@ -48,25 +51,13 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
     private DisposableBag disposableBag;
 
-    /// <summary>SeriesCardViewModel ごとの IsSelected 購読の管理用 Dictionary。</summary>
-    private readonly Dictionary<SeriesCardViewModel, IDisposable> seriesIsSelectedSubscriptions = new();
-
     /// <summary>
     /// ListView にバインドする SeriesCardViewModel の一覧を取得します。
     /// </summary>
     public NotifyCollectionChangedSynchronizedViewList<SeriesCardViewModel> Series { get; }
 
-    /// <summary>
-    /// 製本開始ボタンの有効状態を取得します。
-    /// Series 内で IsSelected == true の作品が1件以上ある時 true を返します。
-    /// </summary>
-    public BindableReactiveProperty<bool> CanStartBinding { get; }
-
     /// <summary>製本開始コマンドです。</summary>
     public ReactiveCommand<Unit> StartBindingCommand { get; }
-
-    /// <summary>選択作品数を取得します。</summary>
-    public BindableReactiveProperty<int> SelectedCount { get; }
 
     /// <summary>Home 画面の表示状態を取得します。</summary>
     public HomeStateInformation HomeStateInformation { get; } = new();
@@ -88,6 +79,11 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// 既存作品を編集画面で編集するコマンドです。<see cref="MangaSeries"/> をパラメータとして受け取ります。
     /// </summary>
     public ReactiveCommand<MangaSeries> EditSeriesCommand { get; }
+
+    /// <summary>
+    /// Home の CheckBox で製本待ち状態を切り替えるコマンドです。<see cref="SeriesCardViewModel"/> をパラメータとして受け取ります。
+    /// </summary>
+    public ReactiveCommand<SeriesCardViewModel> ToggleBindingQueueCommand { get; }
 
     /// <summary>
     /// タイトルジャンプ入力テキストを取得または設定します。
@@ -124,47 +120,37 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>
     /// <see cref="HomePageViewModel"/> の新しいインスタンスを初期化します。
     /// </summary>
+    /// <param name="logger">ロガー。</param>
     /// <param name="serviceScopeFactory">スコープファクトリー。</param>
     /// <param name="navigationService">ナビゲーションサービス。</param>
     /// <param name="workspaceStore">作品選択状態ストア。</param>
     /// <param name="appSettings">アプリケーション設定。</param>
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
+    /// <param name="homeSeriesStore">Home 画面用派生 Store。</param>
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
-    /// <param name="bindingQueueStore">製本開始キュー ストア。</param>
+    /// <param name="bindingQueueStore">製本待ち状態ストア。</param>
     /// <param name="snackbarService">Snackbar 通知サービス。</param>
-    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, HomeSeriesStore homeSeriesStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
     {
         this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;
         this.navigationService = navigationService;
         this.workspaceStore = workspaceStore;
-        this.seriesTagStore = seriesTagStore;
         this.appSettings = appSettings;
+        this.seriesTagStore = seriesTagStore;
+        this.homeSeriesStore = homeSeriesStore;
         this.mangaSeriesStore = mangaSeriesStore;
         this.bindingQueueStore = bindingQueueStore;
         this.snackbarService = snackbarService;
 
-        // MangaSeriesStore.All から CreateView で SeriesCardViewModel へ変換し、
-        // WPF バインド用に ToNotifyCollectionChanged で公開
-        this.Series = this.mangaSeriesStore.AllOld
-            .CreateView(series => new SeriesCardViewModel(series, this.bindingQueueStore, this.mangaSeriesStore, this.seriesTagStore))
-            .ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
-            .AddTo(ref this.disposableBag);
+        // Home 用一覧を HomeSeriesStore から取得
+        this.Series = this.homeSeriesStore.HomeCards;
 
-        // 削除・追加・置換を処理するため、Series のコレクション変化を監視
-        ((INotifyCollectionChanged)this.Series).CollectionChanged += this.onSeriesCollectionChanged;
-
-        // CanStartBinding: 選択状態の変化を手動で更新する BindableReactiveProperty
-        var canStartBinding = new BindableReactiveProperty<bool>(false)
-            .AddTo(ref this.disposableBag);
-
-        var selectedCount = new BindableReactiveProperty<int>(0)
-            .AddTo(ref this.disposableBag);
-        this.SelectedCount = selectedCount;
-
-        this.CanStartBinding = canStartBinding;
-
-        this.StartBindingCommand = new ReactiveCommand<Unit>(this.CanStartBinding, initialCanExecute: false)
+        // StartBindingCommand の CanExecute を BindingQueueStore.IsEmpty から導出
+        // Queue が空でない時に実行可能 (!IsEmpty = Count > 0)
+        this.StartBindingCommand = new ReactiveCommand<Unit>(
+            this.bindingQueueStore.IsEmpty.Select(isEmpty => !isEmpty),
+            initialCanExecute: this.bindingQueueStore.Count.Value > 0)
             .AddTo(ref this.disposableBag);
         this.StartBindingCommand.Subscribe(_ =>
         {
@@ -213,121 +199,21 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
             .AddTo(ref this.disposableBag);
         this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
 
+        this.ToggleBindingQueueCommand = new ReactiveCommand<SeriesCardViewModel>()
+            .AddTo(ref this.disposableBag);
+        this.ToggleBindingQueueCommand.Subscribe(cardViewModel => this.toggleBindingQueue(cardViewModel));
+
         // DEBUG: スクロール復元調査用
         // this.SavedSeriesListVerticalOffset
         // 	.Subscribe(v => Debug.WriteLine($"[HomePageViewModel] SavedSeriesListVerticalOffset 変化: {v}"))
             // 	.AddTo(ref this.disposableBag);
         }
 
-        /// <summary>
-        /// 指定した SeriesCardViewModel の IsSelected プロパティ変化を監視し、BindingQueue と表示状態を更新します。
-        /// </summary>
-        /// <param name="cardViewModel">監視対象の SeriesCardViewModel。</param>
-    private void subscribeIsSelectedForSeries(SeriesCardViewModel cardViewModel)
-    {
-        var subscription = cardViewModel.IsSelected
-            .Subscribe(isSelected =>
-            {
-                using var scope = this.serviceScopeFactory.CreateScope();
-                var dispatcher = scope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
-
-                if (isSelected)
-                    dispatcher.Add(new BindingSeries { Series = cardViewModel.Series.Value, Status = BindingStartStatus.Configuring, AddedAt = DateTime.Now, UpdatedAt = DateTime.Now });
-                else
-                    dispatcher.Remove(cardViewModel.Series.Value.SeriesId);
-
-                var count = this.Series.Count(x => x.IsSelected.Value);
-                this.CanStartBinding.Value = count > 0;
-                this.SelectedCount.Value = count;
-            });
-
-        // 購読をカード単位で管理
-        this.seriesIsSelectedSubscriptions[cardViewModel] = subscription;
-    }
-
-    /// <summary>
-    /// Series コレクションの変化を処理します。
-    /// 削除・置換されたカードのDispose、追加されたカードのIsSelected監視登録を行います。
-    /// </summary>
-    private void onSeriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        switch (e.Action)
-        {
-            case NotifyCollectionChangedAction.Add:
-                // 追加されたカードの IsSelected を監視
-                if (e.NewItems != null)
-                {
-                    foreach (var newCard in e.NewItems.Cast<SeriesCardViewModel>())
-                    {
-                        this.subscribeIsSelectedForSeries(newCard);
-                    }
-                }
-                break;
-
-            case NotifyCollectionChangedAction.Remove:
-                // 削除されたカードを処理
-                if (e.OldItems != null)
-                {
-                    foreach (var oldCard in e.OldItems.Cast<SeriesCardViewModel>())
-                    {
-                        // IsSelected 購読をDispose
-                        if (this.seriesIsSelectedSubscriptions.TryGetValue(oldCard, out var subscription))
-                        {
-                            subscription.Dispose();
-                            this.seriesIsSelectedSubscriptions.Remove(oldCard);
-                        }
-
-                        // カード自体をDispose
-                        oldCard.Dispose();
-                    }
-                }
-                break;
-
-            case NotifyCollectionChangedAction.Replace:
-                // 置換された古いカードを処理
-                if (e.OldItems != null)
-                {
-                    foreach (var oldCard in e.OldItems.Cast<SeriesCardViewModel>())
-                    {
-                        // IsSelected 購読をDispose
-                        if (this.seriesIsSelectedSubscriptions.TryGetValue(oldCard, out var subscription))
-                        {
-                            subscription.Dispose();
-                            this.seriesIsSelectedSubscriptions.Remove(oldCard);
-                        }
-
-                        // カード自体をDispose
-                        oldCard.Dispose();
-                    }
-                }
-
-                // 新しいカードのIsSelected監視を登録
-                if (e.NewItems != null)
-                {
-                    foreach (var newCard in e.NewItems.Cast<SeriesCardViewModel>())
-                    {
-                        this.subscribeIsSelectedForSeries(newCard);
-                    }
-                }
-                break;
-
-            case NotifyCollectionChangedAction.Reset:
-                // リセット時は、既存のカードをすべてクリーンアップ
-                foreach (var oldCard in this.seriesIsSelectedSubscriptions.Keys.ToList())
-                {
-                    var subscription = this.seriesIsSelectedSubscriptions[oldCard];
-                    subscription.Dispose();
-                    this.seriesIsSelectedSubscriptions.Remove(oldCard);
-                }
-                break;
-        }
-    }
-
     /// <inheritdoc/>
     public async ValueTask InitializeDataAsync()
     {
         // 初回のみ DB から取得して Store へ反映する
-        if (this.mangaSeriesStore.AllOld.Count == 0)
+        if (this.mangaSeriesStore.All.Count == 0)
         {
             using var managerScope = this.serviceScopeFactory.CreateScope();
             var manager = managerScope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
@@ -335,19 +221,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
             // MangaSeriesManager内部でMangaSeriesStore.ReplaceAll()が実行済み
             // CreateViewが自動追従するため、Home側での二重ReplaceAllは不要
         }
-
-        // 毎回: Store の状態を元に SeriesCardViewModel.IsSelected を復元する
-        using var dispatcherScope = this.serviceScopeFactory.CreateScope();
-        var dispatcher = dispatcherScope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
-        foreach (var cardViewModel in this.Series)
-        {
-            cardViewModel.IsSelected.Value = dispatcher.Contains(cardViewModel.Series.Value.SeriesId);
-        }
-
-        // 毎回: ボタン状態更新
-        var count = this.Series.Count(c => c.IsSelected.Value);
-        this.CanStartBinding.Value = count > 0;
-        this.SelectedCount.Value = count;
 
         // 毎回: HomeState 更新
         using var stateScope = this.serviceScopeFactory.CreateScope();
@@ -358,17 +231,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         this.HomeStateInformation.HasCompletedMaterialFolderScanJob.Value = homeState.HasCompletedMaterialFolderScanJob.Value;
         this.HomeStateInformation.EmptyStateKind.Value                    = homeState.EmptyStateKind.Value;
 
-        // EditTarget を消費：編集済みカードだけ表示更新
-        var editTarget = this.workspaceStore.EditTarget;
-        if (editTarget is not null)
-        {
-            var card = this.Series.FirstOrDefault(
-                x => x.Series.Value.SeriesId == editTarget.SeriesId);
-
-            card?.RefreshDisplay();
-
-            this.workspaceStore.EditTarget = null;
-        }
+        // EditTarget をクリア
+        // 保存通知は ExistingSeriesSaveManager から MangaSeriesStore.NotifySeriesChanged() を通じて流れる
+        this.workspaceStore.EditTarget = null;
     }
 
     /// <inheritdoc/>
@@ -394,22 +259,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <inheritdoc/>
     public void Dispose()
     {
-        // CollectionChanged 購読を明示的に解除
-        ((INotifyCollectionChanged)this.Series).CollectionChanged -= this.onSeriesCollectionChanged;
-
-        // 残存する IsSelected 購読をすべて破棄
-        foreach (var subscription in this.seriesIsSelectedSubscriptions.Values)
-        {
-            subscription.Dispose();
-        }
-        this.seriesIsSelectedSubscriptions.Clear();
-
-        // 残っているすべての SeriesCardViewModel をクリーンアップ
-        foreach (var card in this.Series)
-        {
-            card.Dispose();
-        }
-
         this.disposableBag.Dispose();
     }
 
@@ -447,6 +296,37 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
         // NavigationHierarchy を使用して遷移
         this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
+    }
+
+    /// <summary>
+    /// Home 画面の CheckBox で選択状態を切り替えます。
+    /// BindingQueueDispatcher を通じて Queue を更新し、
+    /// 表示更新は HomeSeriesStore → IsSelected で自動的に戻ります。
+    /// </summary>
+    private void toggleBindingQueue(SeriesCardViewModel cardViewModel)
+    {
+        using var scope = this.serviceScopeFactory.CreateScope();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
+
+        // 現在の IsSelected.Value から判定
+        // false → true : Add (まだQueue内にないので追加)
+        // true → false : Remove (Queue内にあるので削除)
+        if (cardViewModel.IsSelected.Value)
+        {
+            // 既に Queue に入っているので削除
+            dispatcher.Remove(cardViewModel.Series.Value.SeriesId);
+        }
+        else
+        {
+            // Queue にまだ入っていないので追加
+            dispatcher.Add(new BindingSeries
+            {
+                Series = cardViewModel.Series.Value,
+                Status = BindingStartStatus.Configuring,
+                AddedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            });
+        }
     }
 
     /// <summary>
