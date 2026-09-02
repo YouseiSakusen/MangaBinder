@@ -21,13 +21,13 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 	public NotifyCollectionChangedSynchronizedViewList<MangaTag> Tags { get; }
 
 	/// <summary>登録タグ数を取得します。</summary>
-	public int TagCount => this.Tags.Count;
+	public BindableReactiveProperty<int> TagCount { get; }
 
 	/// <summary>タグが0件かどうかを取得します。</summary>
-	public bool IsEmpty => this.Tags.Count == 0;
+	public BindableReactiveProperty<bool> IsEmpty { get; }
 
 	/// <summary>タグが1件以上あるかどうかを取得します。</summary>
-	public bool HasTags => this.Tags.Count > 0;
+	public BindableReactiveProperty<bool> HasTags { get; }
 
 	/// <summary>新規追加タグ名の入力値を取得します。</summary>
 	public BindableReactiveProperty<string> NewTagName { get; }
@@ -74,6 +74,26 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 		// Store のタグ一覧を View として公開（コピーしない）
 		this.Tags = this.mangaSeriesStore.Tags
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
+
+		var initialCount = this.mangaSeriesStore.Tags.Count;
+		this.TagCount = new BindableReactiveProperty<int>(initialCount)
+			.AddTo(ref this.disposableBag);
+
+		this.IsEmpty = new BindableReactiveProperty<bool>(initialCount == 0)
+			.AddTo(ref this.disposableBag);
+
+		this.HasTags = new BindableReactiveProperty<bool>(initialCount > 0)
+			.AddTo(ref this.disposableBag);
+
+		// Tags の件数変更を監視し、TagCount / IsEmpty / HasTags を自動更新
+		this.mangaSeriesStore.Tags.ObserveCountChanged()
+			.Subscribe(count =>
+			{
+				this.TagCount.Value = count;
+				this.IsEmpty.Value = count == 0;
+				this.HasTags.Value = count > 0;
+			})
 			.AddTo(ref this.disposableBag);
 
 		this.NewTagName = new BindableReactiveProperty<string>(string.Empty)

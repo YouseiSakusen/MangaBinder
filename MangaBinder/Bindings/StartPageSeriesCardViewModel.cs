@@ -1,5 +1,6 @@
 using MangaBinder.Controls;
 using MangaBinder.Core.Formatters;
+using MangaBinder.Series;
 using MangaBinder.Tags;
 using ObservableCollections;
 using R3;
@@ -24,30 +25,30 @@ public class StartPageSeriesCardViewModel : IDisposable
 	/// BindingSeries に含まれる MangaSeries です。
 	/// ReactiveProperty として、値の変更を監視できます。
 	/// </summary>
-	public BindableReactiveProperty<MangaSeries> Series { get; }
+	public BindableReactiveProperty<MangaSeries> Series { get; set; } = null!;
 
 	/// <summary>
 	/// 巻情報表示用の ViewModel です。
 	/// ReactiveProperty として、値の変更を監視できます。
 	/// </summary>
-	public BindableReactiveProperty<SeriesVolumeStatusViewModel> VolumeStatus { get; }
+	public BindableReactiveProperty<SeriesVolumeStatusViewModel> VolumeStatus { get; set; } = null!;
 
 	/// <summary>
 	/// メモ表示用の ViewModel です。
 	/// ReactiveProperty として、値の変更を監視できます。
 	/// </summary>
-	public BindableReactiveProperty<SeriesMemoViewModel> MemoStatus { get; }
+	public BindableReactiveProperty<SeriesMemoViewModel> MemoStatus { get; set; } = null!;
 
 	/// <summary>
 	/// あらすじが存在するかどうかを示します。
 	/// Series の変更に応じて自動更新されます。
 	/// </summary>
-	public IReadOnlyBindableReactiveProperty<bool> HasSynopsis { get; }
+	public IReadOnlyBindableReactiveProperty<bool> HasSynopsis { get; set; } = null!;
 
 	/// <summary>
 	/// 製本開始キュー内での表示用タグテキスト。
 	/// </summary>
-	public BindableReactiveProperty<string> TagDisplayText { get; }
+	public BindableReactiveProperty<string> TagDisplayText { get; set; } = null!;
 
 	/// <summary>
 	/// 製本開始キューの進行状態を取得します。
@@ -71,17 +72,26 @@ public class StartPageSeriesCardViewModel : IDisposable
 
 	/// <summary>
 	/// <see cref="StartPageSeriesCardViewModel"/> の新しいインスタンスを初期化します。
+	/// 共有 MangaSeriesViewModel の Series BindableReactiveProperty を使用します。
 	/// </summary>
 	/// <param name="bindingSeries">ラップする BindingSeries。</param>
-	public StartPageSeriesCardViewModel(BindingSeries bindingSeries)
+	/// <param name="sharedSeriesViewModel">Series を共有する MangaSeriesViewModel。</param>
+	public StartPageSeriesCardViewModel(BindingSeries bindingSeries, MangaSeriesViewModel sharedSeriesViewModel)
 	{
 		this.BindingSeries = bindingSeries;
 		this.bindingSeries = bindingSeries;
 
-		// Series の初期化
-		this.Series = new BindableReactiveProperty<MangaSeries>(bindingSeries.Series)
-			.AddTo(ref this.disposableBag);
+		// Series の初期化（共有ViewModel から直接参照）
+		this.Series = sharedSeriesViewModel.Series;
 
+		this.initializeCommon(bindingSeries);
+	}
+
+	/// <summary>
+	/// VolumeStatus、MemoStatus、HasSynopsis、TagDisplayText、Tags購読を初期化する共通処理です。
+	/// </summary>
+	private void initializeCommon(BindingSeries bindingSeries)
+	{
 		// 巻情報表示用の SeriesVolumeStatusViewModel を生成（1インスタンスのみ保持）
 		var volumeStatus = SeriesVolumeStatusViewModel.FromSeries(bindingSeries.Series);
 		this.VolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel>(volumeStatus)
@@ -161,6 +171,7 @@ public class StartPageSeriesCardViewModel : IDisposable
 		{
 			this.BindingSeries.Series.Tags.CollectionChanged -= this.collectionChangedHandler;
 		}
+
 		this.disposableBag.Dispose();
 	}
 }

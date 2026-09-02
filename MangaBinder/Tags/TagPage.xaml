@@ -54,7 +54,7 @@
                             <TextBlock FontSize="11" Margin="0,0,0,2"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}">登録タグ数</TextBlock>
                             <TextBlock FontSize="16" FontWeight="SemiBold">
-                                <Run Text="{Binding TagCount, Mode=OneWay}" /><Run>&#x20;件</Run>
+                                <Run Text="{Binding TagCount.Value, Mode=OneWay}" /><Run>&#x20;件</Run>
                             </TextBlock>
                         </StackPanel>
                     </StackPanel>
@@ -98,7 +98,7 @@
                        Text="タグ一覧"
                        Style="{StaticResource SubtitleTextBlockStyle}"
                        Margin="0,0,0,6"
-                       Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}" />
+                       Visibility="{Binding HasTags.Value, Converter={StaticResource BoolToVis}}" />
 
             <!-- Row3: タグ一覧（スクロール対応） -->
             <ScrollViewer Grid.Row="3"
@@ -106,7 +106,7 @@
                           HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl x:Name="TagList"
                               ItemsSource="{Binding Tags}"
-                              Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}">
+                              Visibility="{Binding HasTags.Value, Converter={StaticResource BoolToVis}}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel />
@@ -243,7 +243,7 @@
                         Margin="72,32,0,0"
                         HorizontalAlignment="Left"
                         Width="300"
-                        Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
+                        Visibility="{Binding IsEmpty.Value, Converter={StaticResource BoolToVis}}">
                 <TextBlock FontSize="17" FontWeight="SemiBold"
                            Margin="0,0,0,10">タグが登録されていません</TextBlock>
 

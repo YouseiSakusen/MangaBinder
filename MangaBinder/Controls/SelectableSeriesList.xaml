@@ -27,7 +27,7 @@
         <!-- 作品一覧 ListView -->
         <ListView
             Name="SeriesListView"
-            ItemsSource="{Binding Items}"
+            ItemsSource="{Binding Items.Value}"
             SelectedItem="{Binding SelectedItem.Value}"
             SelectionMode="Single"
             HorizontalAlignment="Stretch"

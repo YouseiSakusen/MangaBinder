@@ -327,4 +327,28 @@ namespace MangaBinder.Series
 		/// <summary>大きめ表示（既存作品Dialog用）。</summary>
 		Large = 1,
 	}
+
+	/// <summary>
+	/// 一般検索の検索対象を表す列挙型です。
+	/// </summary>
+	public enum MangaSeriesSearchTarget
+	{
+		/// <summary>
+		/// 正式作品のみを検索対象とします。
+		/// MangaSeriesStore.All を対象とします。
+		/// </summary>
+		All = 0,
+
+		/// <summary>
+		/// 正式作品と登録待ち作品を検索対象とします。
+		/// MangaSeriesStore.All + MangaSeriesStore.WorkSeries を対象とします。
+		/// </summary>
+		AllAndWorkSeries = 1,
+
+		/// <summary>
+		/// 製本待ち作品を検索対象とします。
+		/// BindingQueueStore.Queue に現在含まれている作品を対象とします。
+		/// </summary>
+		BindingQueue = 2,
+	}
 }

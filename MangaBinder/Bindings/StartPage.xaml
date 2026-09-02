@@ -295,10 +295,10 @@
 										<!-- 素材フォルダを開く -->
 										<MenuItem
 											Header="素材フォルダを開く"
-											IsEnabled="{Binding PlacementTarget.DataContext.BindingSeries.Series.HasMaterialSources,
+											IsEnabled="{Binding PlacementTarget.DataContext.Series.Value.HasMaterialSources,
 														RelativeSource={RelativeSource AncestorType=ContextMenu}}"
 											Command="{Binding Data.OpenMaterialFolderCommand, Source={StaticResource VmProxy}}"
-											CommandParameter="{Binding PlacementTarget.DataContext.BindingSeries.Series.PrimaryMaterialSource,
+											CommandParameter="{Binding PlacementTarget.DataContext.Series.Value.PrimaryMaterialSource,
 																	   RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
 										<!-- 製本待ちから削除 -->
 										<MenuItem

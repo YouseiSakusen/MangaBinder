@@ -31,6 +31,9 @@ public class MangaSeriesManager
 	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
 	private readonly MangaSeriesStore mangaSeriesStore;
 
+	/// <summary>製本待ち作品を管理するストア。</summary>
+	private readonly BindingQueueStore bindingQueueStore;
+
 	/// <summary>タグを取得する Repository。</summary>
 	private readonly TagRepository tagRepository;
 
@@ -51,6 +54,7 @@ public class MangaSeriesManager
 	/// <param name="bindingQueueRepository">BindingQueue の SeriesId 復元を担う Repository。</param>
 	/// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
+	/// <param name="bindingQueueStore">製本待ち作品を管理するストア。</param>
 	/// <param name="tagRepository">タグを取得する Repository。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
@@ -61,6 +65,7 @@ public class MangaSeriesManager
 		BindingQueueRepository bindingQueueRepository,
 		BindingQueueDispatcher bindingQueueDispatcher,
 		MangaSeriesStore mangaSeriesStore,
+		BindingQueueStore bindingQueueStore,
 		TagRepository tagRepository,
 		AppSettings appSettings,
 		IServiceScopeFactory serviceScopeFactory,
@@ -71,6 +76,7 @@ public class MangaSeriesManager
 		this.bindingQueueRepository = bindingQueueRepository;
 		this.bindingQueueDispatcher = bindingQueueDispatcher;
 		this.mangaSeriesStore = mangaSeriesStore;
+		this.bindingQueueStore = bindingQueueStore;
 		this.tagRepository = tagRepository;
 		this.appSettings = appSettings;
 		this.serviceScopeFactory = serviceScopeFactory;
@@ -138,20 +144,6 @@ public class MangaSeriesManager
 	}
 
 	/// <summary>
-	/// 検索文字列を利用して MangaSeries を検索します。
-	/// 対象は MergedSeriesList（正式作品＋登録待ち作品）です。
-	/// 検索は Google 風の複数ワード AND 検索です。
-	/// </summary>
-	/// <param name="searchText">検索文字列。</param>
-	/// <returns>検索結果の MangaSeries リスト。</returns>
-	public IReadOnlyList<MangaSeries> Search(string searchText)
-	{
-		// Store から MergedSeries を取得して検索
-		var mergedSeries = this.mangaSeriesStore.GetMergedSeries();
-		return this.Search(searchText, mergedSeries);
-	}
-
-	/// <summary>
 	/// 指定されたリストに対して、検索文字列を利用して MangaSeries を検索します。
 	/// 検索は Google 風の複数ワード AND 検索です。
 	/// </summary>
@@ -182,7 +174,7 @@ public class MangaSeriesManager
 
 	/// <summary>
 	/// 指定されたタイトルと同じタイトルを持つ作品を検索します。
-	/// 対象は MergedSeriesList（正式作品＋登録待ち作品）です。
+	/// 対象は Store.All と Store.WorkSeries（正式作品＋登録待ち作品の新 Reactive Collection）です。
 	/// 検索は正規化タイトルの完全一致で行います。
 	/// </summary>
 	/// <param name="title">検索するタイトル。</param>
@@ -212,7 +204,7 @@ public class MangaSeriesManager
 
 	/// <summary>
 	/// 編集対象の作品と重複する別作品を検索します。
-	/// 対象は MergedSeriesList（正式作品＋登録待ち作品）です。
+	/// 対象は Store.All と Store.WorkSeries（正式作品＋登録待ち作品の新 Reactive Collection）です。
 	/// 同じ NormalizedTitleInternal かつ同じ Author を持つ作品を検索し、編集対象自身は除外します。
 	/// </summary>
 	/// <remarks>
@@ -280,10 +272,11 @@ public class MangaSeriesManager
 		if (string.IsNullOrEmpty(normalizedTitle))
 			return new List<MangaSeries>();
 
-		// MergedSeriesList から検索（正規化タイトルの完全一致）
-		var mergedSeries = this.mangaSeriesStore.GetMergedSeries();
-
-		var results = mergedSeries
+		// All + WorkSeries から検索（正規化タイトルの完全一致）
+		// 新 Reactive All/WorkSeries の共有 MangaSeriesViewModel から MangaSeries を抽出
+		var results = this.mangaSeriesStore.All
+			.Concat(this.mangaSeriesStore.WorkSeries)
+			.Select(vm => vm.Series.Value)
 			.Where(series => series.NormalizedTitleInternal == normalizedTitle)
 			.ToList();
 
@@ -816,5 +809,61 @@ public class MangaSeriesManager
 	public bool IsBindingQueued(long seriesId)
 	{
 		return this.bindingQueueDispatcher.Contains(seriesId);
+	}
+
+	/// <summary>
+	/// 指定した検索文字列と検索対象に基づき、一般検索を実行します。
+	/// 検索結果として MangaSeriesStore が所有している共有 MangaSeriesViewModel を返します。
+	/// </summary>
+	/// <param name="searchText">検索文字列。</param>
+	/// <param name="target">検索対象。</param>
+	/// <returns>検索条件に一致した MangaSeriesViewModel のリスト。</returns>
+	public IReadOnlyList<MangaSeriesViewModel> SearchMangaSeries(string searchText, MangaSeriesSearchTarget target)
+	{
+		// 検索Matcher を生成
+		var matcher = new MangaSeriesSearchMatcher(searchText);
+
+		// 検索条件が無効な場合は空のリストを返す
+		if (!matcher.IsValid)
+			return new List<MangaSeriesViewModel>();
+
+		switch (target)
+		{
+			case MangaSeriesSearchTarget.All:
+				// MangaSeriesStore.All の中から一致した MangaSeriesViewModel を返す
+				return this.mangaSeriesStore.All
+					.Where(vm => matcher.IsMatch(vm.Series.Value))
+					.ToList();
+
+			case MangaSeriesSearchTarget.AllAndWorkSeries:
+				// MangaSeriesStore.All + WorkSeries の中から一致した MangaSeriesViewModel を返す
+				// 列挙順は All → WorkSeries の順を維持する
+				return this.mangaSeriesStore.All
+					.Concat(this.mangaSeriesStore.WorkSeries)
+					.Where(vm => matcher.IsMatch(vm.Series.Value))
+					.ToList();
+
+			case MangaSeriesSearchTarget.BindingQueue:
+				// BindingQueueStore.Queue に現在含まれている作品から一致した MangaSeriesViewModel を返す
+				// BindingQueue の並び順を維持する
+				var result = new List<MangaSeriesViewModel>();
+				foreach (var bindingSeries in this.bindingQueueStore.Queue)
+				{
+					// BindingQueue の各作品の SeriesId に対応する MangaSeriesViewModel を All から取得
+					var viewModel = this.mangaSeriesStore.All
+						.FirstOrDefault(vm => vm.Series.Value.SeriesId == bindingSeries.Series.SeriesId);
+
+					// All に対応する作品が見つかり、かつ検索条件に一致した場合のみ追加
+					if (viewModel is not null && matcher.IsMatch(viewModel.Series.Value))
+					{
+						result.Add(viewModel);
+					}
+				}
+				return result;
+
+			default:
+				// 予期しない値の場合は空のリストを返す
+				return new List<MangaSeriesViewModel>();
+		}
 	}
 }

@@ -26,6 +26,9 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>製本開始キュー ストア。</summary>
 	private readonly BindingQueueStore bindingQueueStore;
 
+	/// <summary>製本開始ページ ストア。</summary>
+	private readonly StartPageStore startPageStore;
+
 	private DisposableBag disposableBag;
 
 	/// <summary>
@@ -75,20 +78,18 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
 	/// <param name="workspaceStore">製本ワークスペース ストア。</param>
 	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
-	public StartPageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, IContentDialogService contentDialogService, SeriesWorkspaceStore workspaceStore, BindingQueueStore bindingQueueStore)
+	/// <param name="startPageStore">製本開始ページ ストア。</param>
+	public StartPageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, IContentDialogService contentDialogService, SeriesWorkspaceStore workspaceStore, BindingQueueStore bindingQueueStore, StartPageStore startPageStore)
 	{
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
 		this.workspaceStore = workspaceStore;
 		this.bindingQueueStore = bindingQueueStore;
+		this.startPageStore = startPageStore;
 
-		// BindingQueueStore.Queue から CreateView でStartPageSeriesCardViewModelへ変換し、
-		// WPFバインド用に ToNotifyCollectionChanged で公開
-		this.Series = this.bindingQueueStore.Queue
-			.CreateView(bindingSeries => new StartPageSeriesCardViewModel(bindingSeries))
-			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
-			.AddTo(ref this.disposableBag);
+		// StartPageStore が公開する WPF バインド用一覧を使用
+		this.Series = this.startPageStore.QueueCards;
 
 		// 初期値を現在のStore.Countから取得
 		this.SelectedSeriesCount = new BindableReactiveProperty<int>(this.bindingQueueStore.Queue.Count)
@@ -138,14 +139,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <inheritdoc/>
 	public ValueTask InitializeDataAsync()
 	{
-		// 現在表示されているカードへ Series.ForceNotify() を呼び出す
-		// これにより、他画面で同じ MangaSeries 正本インスタンスの内容が更新された場合でも、
-		// 現在表示されているカードが最新内容を再評価できる
-		foreach (var card in this.Series)
-		{
-			card.Series.ForceNotify();
-		}
-
 		return ValueTask.CompletedTask;
 	}
 

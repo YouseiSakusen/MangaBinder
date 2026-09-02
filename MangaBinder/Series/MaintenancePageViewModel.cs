@@ -28,6 +28,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
 	private readonly MangaSeriesStore mangaSeriesStore;
 
+	/// <summary>作品管理画面の派生 View を管理するストア。</summary>
+	private readonly MaintenanceSeriesStore maintenanceSeriesStore;
+
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
@@ -71,18 +74,20 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="workspaceStore">作品選択状態ストア。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
+	/// <param name="maintenanceSeriesStore">作品管理画面の派生 View を管理するストア。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
-	public MaintenancePageViewModel(INavigationService navigationService, SeriesWorkspaceStore workspaceStore, MangaSeriesStore mangaSeriesStore, IServiceScopeFactory serviceScopeFactory)
+	public MaintenancePageViewModel(INavigationService navigationService, SeriesWorkspaceStore workspaceStore, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesStore maintenanceSeriesStore, IServiceScopeFactory serviceScopeFactory)
 	{
 		this.navigationService = navigationService;
 		this.workspaceStore = workspaceStore;
 		this.mangaSeriesStore = mangaSeriesStore;
+		this.maintenanceSeriesStore = maintenanceSeriesStore;
 		this.serviceScopeFactory = serviceScopeFactory;
 
 		this.SearchQuery = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
-		this.WorkSeriesCount = new BindableReactiveProperty<int>(0)
+		this.WorkSeriesCount = new BindableReactiveProperty<int>(this.mangaSeriesStore.WorkSeries.Count)
 			.AddTo(ref this.disposableBag);
 
 		this.IsSearchResultsEmpty = new BindableReactiveProperty<bool>(true)
@@ -119,7 +124,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
 
 		// Store.WorkSeries の Count 変更を監視して WorkSeriesCount を自動更新
-		this.mangaSeriesStore.WorkSeriesOld.ObserveCountChanged()
+		this.mangaSeriesStore.WorkSeries.ObserveCountChanged()
 			.Subscribe(count => this.WorkSeriesCount.Value = count)
 			.AddTo(ref this.disposableBag);
 
@@ -158,8 +163,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.IsSearchResultsShown.Value = false;
 
 		// 登録待ち件数を更新（常に Store が保持している登録待ち作品数を表示）
-		var workSeriesList = this.mangaSeriesStore.GetWorkSeries();
-		this.WorkSeriesCount.Value = workSeriesList.Count;
+		this.WorkSeriesCount.Value = this.mangaSeriesStore.WorkSeries.Count;
 
 		// エンプティステート状態を更新
 		this.UpdateEmptyState();
@@ -169,11 +173,11 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 	/// <summary>
 	/// エンプティステートを更新します。
-	/// SelectableSeriesListViewModel.Items の行数で判定します。
+	/// SelectableSeriesListViewModel.Items.Value の行数で判定します。
 	/// </summary>
 	private void UpdateEmptyState()
 	{
-		var isEmpty = this.SelectableSeriesListViewModel.Items.Count == 0;
+		var isEmpty = this.SelectableSeriesListViewModel.Items.Value.Count == 0;
 		this.IsSearchResultsEmpty.Value = isEmpty;
 		this.HasSearchResults.Value = !isEmpty;
 	}
@@ -251,14 +255,12 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 	/// <summary>
 	/// 登録待ち作品のみを表示する Filter を適用します。
+	/// 新 Reactive 系では、MaintenanceSeriesStore の WorkSeriesCards を直接表示します。
 	/// </summary>
 	private void applyWorkSeriesOnlyFilter()
 	{
-		var series = this.mangaSeriesStore.MergedOld
-			.Where(series => series.IsWork)
-			.ToList();
-
-		this.SelectableSeriesListViewModel.SetSource(series);
+		// 新 Reactive 系：MaintenanceSeriesStore の WorkSeriesCards を外部参照として設定
+		this.SelectableSeriesListViewModel.SetExternalSource(this.maintenanceSeriesStore.WorkSeriesCards);
 		this.UpdateEmptyState();
 	}
 
@@ -268,13 +270,21 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <param name="searchQuery">検索文字列。</param>
 	private void applySearchFilter(string searchQuery)
 	{
-		var matcher = new MangaSeriesSearchMatcher(searchQuery);
+		// Scope を作成して MangaSeriesManager を Resolve
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
 
-		var series = this.mangaSeriesStore.MergedOld
-			.Where(series => matcher.IsMatch(series))
-			.ToList();
+		// Manager の検索メソッドを呼び出し
+		// All + WorkSeries から一致した MangaSeriesViewModel のみを取得
+		var searchResults = manager.SearchMangaSeries(searchQuery, MangaSeriesSearchTarget.AllAndWorkSeries);
 
-		this.SelectableSeriesListViewModel.SetSource(series);
+		// 検索結果を MaintenanceSeriesStore へ渡す
+		this.maintenanceSeriesStore.ReplaceSearchResults(searchResults);
+
+		// 検索結果用カード Collection を外部参照として設定して表示
+		this.SelectableSeriesListViewModel.SetExternalSource(this.maintenanceSeriesStore.SearchResultCards);
+
+		// Empty State を更新
 		this.UpdateEmptyState();
 	}
 

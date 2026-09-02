@@ -64,16 +64,8 @@ public sealed class TagEditor
 		// DB から削除
 		this.repository.Delete(tagId);
 
-		// Store から削除
+		// Store から削除（各 MangaSeries から該当タグを削除する責務は RemoveTag が担当）
 		this.store.RemoveTag(tagId);
-
-		// 各 MangaSeries から該当タグを削除
-		foreach (var series in this.store.GetAll())
-		{
-			var targetTag = series.Tags.FirstOrDefault(t => t.TagId == tagId);
-			if (targetTag is not null)
-				series.Tags.Remove(targetTag);
-		}
 	}
 
 	/// <summary>
