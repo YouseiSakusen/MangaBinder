@@ -56,7 +56,14 @@ public class HomeSeriesStore : IDisposable
 		// Home 用作品 ViewModel コレクションを生成
 		// MangaSeriesViewModel から SeriesCardViewModel へ変換
 		this.homeCardsView = this.mangaSeriesStore.All
-			.CreateView(seriesViewModel => new SeriesCardViewModel(seriesViewModel, this.mangaSeriesStore, this.seriesTagStore));
+			.CreateView(seriesViewModel =>
+			{
+				var card = new SeriesCardViewModel(seriesViewModel, this.mangaSeriesStore, this.seriesTagStore);
+				// 生成時点で現在の BindingQueueStore.Queue を確認して IsSelected を初期化
+				var isInQueue = this.bindingQueueStore.Contains(seriesViewModel.Series.Value.SeriesId);
+				card.SetIsSelected(isInQueue);
+				return card;
+			});
 
 		this.HomeCards = this.homeCardsView
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
@@ -67,8 +74,9 @@ public class HomeSeriesStore : IDisposable
 		this.homeCardsView.ViewChanged += this.onHomeCardsViewChanged;
 
 		// BindingQueueStore.Queue の変更を監視して IsSelected を更新する
-		// CollectionChanged を購読して Add / Remove / Replace / Clear に対応
-		((INotifyCollectionChanged)this.bindingQueueStore.Queue).CollectionChanged += this.onBindingQueueCollectionChanged;
+		// ObservableList<T>.IObservableCollection<T>.CollectionChanged を直接購読
+		// Add / Remove / Replace / Reset に対応
+		this.bindingQueueStore.Queue.CollectionChanged += this.onBindingQueueCollectionChanged;
 
 		// 初期状態でQueue内の全カードを正しく初期化
 		this.initializeIsSelectedFromQueue();
@@ -136,15 +144,25 @@ public class HomeSeriesStore : IDisposable
 	/// BindingQueueStore.Queue の CollectionChanged イベント ハンドラ。
 	/// Queue への Add / Remove / Replace / Clear により、対応する SeriesCardViewModel.IsSelected を更新する。
 	/// </summary>
-	private void onBindingQueueCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+	private void onBindingQueueCollectionChanged(in NotifyCollectionChangedEventArgs<BindingSeries> e)
 	{
 		switch (e.Action)
 		{
 			case NotifyCollectionChangedAction.Add:
 				// 追加されたカードを IsSelected = true にする
-				if (e.NewItems != null)
+				if (e.IsSingleItem)
 				{
-					foreach (var bindingSeries in e.NewItems.Cast<BindingSeries>())
+					// 単一要素追加
+					var card = this.findCardBySeriesId(e.NewItem.Series.SeriesId);
+					if (card != null)
+					{
+						card.SetIsSelected(true);
+					}
+				}
+				else
+				{
+					// 複数要素追加
+					foreach (var bindingSeries in e.NewItems)
 					{
 						var card = this.findCardBySeriesId(bindingSeries.Series.SeriesId);
 						if (card != null)
@@ -157,9 +175,19 @@ public class HomeSeriesStore : IDisposable
 
 			case NotifyCollectionChangedAction.Remove:
 				// 削除されたカードを IsSelected = false にする
-				if (e.OldItems != null)
+				if (e.IsSingleItem)
 				{
-					foreach (var bindingSeries in e.OldItems.Cast<BindingSeries>())
+					// 単一要素削除
+					var card = this.findCardBySeriesId(e.OldItem.Series.SeriesId);
+					if (card != null)
+					{
+						card.SetIsSelected(false);
+					}
+				}
+				else
+				{
+					// 複数要素削除
+					foreach (var bindingSeries in e.OldItems)
 					{
 						var card = this.findCardBySeriesId(bindingSeries.Series.SeriesId);
 						if (card != null)
@@ -172,9 +200,24 @@ public class HomeSeriesStore : IDisposable
 
 			case NotifyCollectionChangedAction.Replace:
 				// 置換時も対応するカードの状態を更新
-				if (e.OldItems != null)
+				if (e.IsSingleItem)
 				{
-					foreach (var bindingSeries in e.OldItems.Cast<BindingSeries>())
+					// 単一要素置換
+					var oldCard = this.findCardBySeriesId(e.OldItem.Series.SeriesId);
+					if (oldCard != null)
+					{
+						oldCard.SetIsSelected(false);
+					}
+					var newCard = this.findCardBySeriesId(e.NewItem.Series.SeriesId);
+					if (newCard != null)
+					{
+						newCard.SetIsSelected(true);
+					}
+				}
+				else
+				{
+					// 複数要素置換
+					foreach (var bindingSeries in e.OldItems)
 					{
 						var card = this.findCardBySeriesId(bindingSeries.Series.SeriesId);
 						if (card != null)
@@ -182,10 +225,7 @@ public class HomeSeriesStore : IDisposable
 							card.SetIsSelected(false);
 						}
 					}
-				}
-				if (e.NewItems != null)
-				{
-					foreach (var bindingSeries in e.NewItems.Cast<BindingSeries>())
+					foreach (var bindingSeries in e.NewItems)
 					{
 						var card = this.findCardBySeriesId(bindingSeries.Series.SeriesId);
 						if (card != null)
@@ -233,7 +273,7 @@ public class HomeSeriesStore : IDisposable
 		this.homeCardsView.ViewChanged -= this.onHomeCardsViewChanged;
 
 		// Queue の CollectionChanged イベント購読を解除
-		((INotifyCollectionChanged)this.bindingQueueStore.Queue).CollectionChanged -= this.onBindingQueueCollectionChanged;
+		this.bindingQueueStore.Queue.CollectionChanged -= this.onBindingQueueCollectionChanged;
 
 		// 現在 View に残っている SeriesCardViewModel をすべて Dispose
 		foreach (var card in this.homeCardsView)

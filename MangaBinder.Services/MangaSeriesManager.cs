@@ -121,12 +121,12 @@ public class MangaSeriesManager
 		var bindingSeriesList = new List<BindingSeries>();
 		foreach (var seriesId in queuedSeriesIds)
 		{
-			var matchedSeries = this.mangaSeriesStore.FindById(seriesId);
-			if (matchedSeries != null)
+			var matchedViewModel = this.mangaSeriesStore.FindViewModelById(seriesId);
+			if (matchedViewModel != null)
 			{
 				var bindingSeries = new BindingSeries
 				{
-					Series = matchedSeries,
+					Series = matchedViewModel.Series.Value,
 					Status = BindingStartStatus.Configuring,
 					CurrentStep = 0,
 					AddedAt = DateTime.Now,
@@ -140,7 +140,7 @@ public class MangaSeriesManager
 		this.bindingQueueDispatcher.ReplaceAll(bindingSeriesList);
 
 		// 10. MangaSeriesStore から取得した MangaSeries 一覧を返す
-		return this.mangaSeriesStore.GetAll().ToList();
+		return this.mangaSeriesStore.All.Select(vm => vm.Series.Value).ToList();
 	}
 
 	/// <summary>

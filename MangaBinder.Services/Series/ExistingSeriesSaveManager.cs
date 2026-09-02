@@ -175,10 +175,10 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 				{
 					// === MaterialSource が存在しない場合 ===
 					// 自分以外に同一 NormalizedTitleInternal の正式作品がいるかで著者プレフィックスを決定
-					var hasSameTitleInFormal = this.mangaSeriesStore.GetAll()
-						.Where(s => s.SeriesId != originalSeries.SeriesId) // 自分自身を除外
-						.Any(s => string.Equals(
-							s.NormalizedTitleInternal,
+					var hasSameTitleInFormal = this.mangaSeriesStore.All
+						.Where(vm => vm.Series.Value.SeriesId != originalSeries.SeriesId) // 自分自身を除外
+						.Any(vm => string.Equals(
+							vm.Series.Value.NormalizedTitleInternal,
 							originalSeries.NormalizedTitleInternal,
 							StringComparison.Ordinal));
 
@@ -274,38 +274,10 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 			// === Commit ===
 			tx.Commit();
-
-			// === Commit 成功後、Store 内の正式作品インスタンスを更新 ===
-			var storeInstance = this.mangaSeriesStore.FindById(originalSeries.SeriesId);
-			if (storeInstance is null)
-				throw new InvalidOperationException($"Store から SeriesId {originalSeries.SeriesId} の正式作品が見つかりません。");
-
-			// DeepCopy から Store インスタンスへ編集可能項目をコピー
-			this.CopyEditableFieldsFromToEditableToStore(originalSeries, storeInstance);
-
-			// Rename 後の Material MangaSource を Store 内の正本インスタンスへ反映
-			this.UpdateMaterialMangaSourceInStore(originalSeries, storeInstance);
-
-			// サムネイル差し替え時の情報反映
-			if (thumbnailBytes != null && thumbnailBytes.Length > 0)
-			{
-				storeInstance.ThumbnailFileName = originalSeries.ThumbnailFileName;
-				storeInstance.ThumbnailStatus = originalSeries.ThumbnailStatus;
-			}
-
-			// Store 正本への全ての反映が完了したので、共有 MangaSeriesViewModel.Series に通知
-			this.mangaSeriesStore.NotifySeriesChanged(originalSeries.SeriesId);
-
-			this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 更新処理完了。SeriesId: {originalSeries.SeriesId}, Title: {originalSeries.Title}");
-			return new SeriesSaveResult
-			{
-				Series = storeInstance,
-				FailedItems = [],
-			};
 		}
 		catch (Exception ex)
 		{
-			this.logger?.LogError($"[ExistingSeriesSaveManager.SaveAsync] エラー発生。例外: {ex.GetType().Name}, メッセージ: {ex.Message}, スタックトレース: {ex.StackTrace}");
+			this.logger?.LogError($"[ExistingSeriesSaveManager.SaveAsync] DB更新エラー発生。例外: {ex.GetType().Name}, メッセージ: {ex.Message}, スタックトレース: {ex.StackTrace}");
 
 			// TODO: ファイルシステム巻き戻し処理をここに追加予定
 			// this.CleanupFileSystemChangesOnDatabaseFailure(originalSeries);
@@ -313,6 +285,36 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 			tx.Rollback();
 			throw;
 		}
+
+		// === Commit 成功後、Store 内の正式作品インスタンスを更新 ===
+		var storeViewModel = this.mangaSeriesStore.FindViewModelById(originalSeries.SeriesId);
+		if (storeViewModel is null)
+			throw new InvalidOperationException($"Store から SeriesId {originalSeries.SeriesId} の正式作品が見つかりません。");
+
+		var storeInstance = storeViewModel.Series.Value;
+
+		// DeepCopy から Store インスタンスへ編集可能項目をコピー
+		this.CopyEditableFieldsFromToEditableToStore(originalSeries, storeInstance);
+
+		// Rename 後の Material MangaSource を Store 内の正本インスタンスへ反映
+		this.UpdateMaterialMangaSourceInStore(originalSeries, storeInstance);
+
+		// サムネイル差し替え時の情報反映
+		if (thumbnailBytes != null && thumbnailBytes.Length > 0)
+		{
+			storeInstance.ThumbnailFileName = originalSeries.ThumbnailFileName;
+			storeInstance.ThumbnailStatus = originalSeries.ThumbnailStatus;
+		}
+
+		// Store 正本への全ての反映が完了したので、共有 MangaSeriesViewModel.Series に通知
+		this.mangaSeriesStore.NotifySeriesChanged(originalSeries.SeriesId);
+
+		this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 更新処理完了。SeriesId: {originalSeries.SeriesId}, Title: {originalSeries.Title}");
+		return new SeriesSaveResult
+		{
+			Series = storeInstance,
+			FailedItems = [],
+		};
 	}
 
 	/// <summary>

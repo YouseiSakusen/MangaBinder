@@ -101,9 +101,8 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 		var workId = editingSeries.WorkId;
 
 		// 同じ NormalizedTitleInternal を持つ正式作品が存在するかを判定
-		var existingSeriesStore = this.mangaSeriesStore.GetAll();
-		var hasSameTitleInFormal = existingSeriesStore
-			.Any(series => series.NormalizedTitleInternal == editingSeries.NormalizedTitleInternal);
+		var hasSameTitleInFormal = this.mangaSeriesStore.All
+			.Any(vm => vm.Series.Value.NormalizedTitleInternal == editingSeries.NormalizedTitleInternal);
 
 		// サニタイズ済みフォルダ名を取得（素材移動時に使用）
 		// 同じタイトルの正式作品が既に存在する場合は Author プレフィックスを付加
@@ -218,7 +217,7 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 					{
 						this.logger.LogInformation(
 							"[NewSeriesHomeSync] 正式作品再取得完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加前件数={Count}",
-							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.AllOld.Count);
+							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count);
 					}
 
 					// 3. 再取得した正式作品を Store へ追加
@@ -227,10 +226,10 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 					// [NewSeriesHomeSync] Store.Add呼び出し完了ログ
 					if (NewSeriesHomeSyncTrace.IsTracking(registeredSeries.SeriesId))
 					{
-						var storeContainsResult = this.mangaSeriesStore.FindById(registeredSeries.SeriesId) is not null;
+						var storeContainsResult = this.mangaSeriesStore.FindViewModelById(registeredSeries.SeriesId) is not null;
 						this.logger.LogInformation(
 							"[NewSeriesHomeSync] Store.Add呼び出し完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加後件数={Count} Store内存在確認結果={Result}",
-							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.AllOld.Count, storeContainsResult);
+							registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count, storeContainsResult);
 					}
 
 					// 4. 再取得した正式作品を返す

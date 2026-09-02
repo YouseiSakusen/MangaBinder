@@ -81,6 +81,7 @@
 
   <ItemGroup>
     <Folder Include="Formatters\" />
+    <Folder Include="Services\" />
   </ItemGroup>
 
 </Project>

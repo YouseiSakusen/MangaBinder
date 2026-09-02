@@ -610,7 +610,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		// 編集対象を SeriesWorkspaceStore へ同期
 		// これにより、EditorStore側の編集対象とSeriesWorkspaceStore.EditTargetが常に一致し、
-		// ContentDialogから既存作品を読み込む場合に、Home側のRefreshDisplay()が正しい作品に対して動作する
+		// 保存完了後に MangaSeriesStore.NotifySeriesChanged() を通じて正しい作品の共有 Series 状態が更新される
 		this.workspaceStore.EditTarget = series;
 
 		// Scope を生成

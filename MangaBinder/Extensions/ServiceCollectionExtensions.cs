@@ -95,13 +95,8 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<MangaSeriesStore>();
 		services.AddSingleton<MaintenanceSeriesStore>();
 		services.AddSingleton<BindingQueueStore>();
-		services.AddSingleton(sp => new StartPageStore(
-			sp.GetRequiredService<BindingQueueStore>(),
-			sp.GetRequiredService<MangaSeriesStore>()));
-		services.AddSingleton(sp => new HomeSeriesStore(
-			sp.GetRequiredService<MangaSeriesStore>(),
-			sp.GetRequiredService<BindingQueueStore>(),
-			sp.GetRequiredService<SeriesTagStore>()));
+		services.AddSingleton<StartPageStore>();
+		services.AddSingleton<HomeSeriesStore>();
 		services.AddScoped<BindingStoreRepository>();
 		services.AddScoped<BindingQueueDispatcher>();
 		services.AddSingleton<MaterialSourceDisplayNameConverter>();
