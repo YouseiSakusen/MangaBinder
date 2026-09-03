@@ -47,8 +47,8 @@
 		<!-- 作品一覧 -->
 		<local:SelectableSeriesList
 			Grid.Row="2"
-			Height="160"
-			IsHitTestVisible="False"
+			Height="320"
+			IsEnabled="{Binding IsOpenExistingSeriesSelected.Value}"
 			DataContext="{Binding SelectableSeriesListViewModel}"
 			Margin="0,0,0,12" />
 

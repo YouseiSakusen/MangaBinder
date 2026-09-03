@@ -22,11 +22,8 @@ public class NewSeriesCoordinator
 		/// <summary>タイトル入力状態。</summary>
 		TitleInput,
 
-		/// <summary>既存作品1件表示状態。</summary>
-		SingleExistingSeries,
-
-		/// <summary>既存作品複数件表示状態。</summary>
-		MultipleExistingSeries,
+		/// <summary>既存作品候補表示状態（1件以上）。</summary>
+		ExistingSeriesCandidates,
 	}
 
 	/// <summary>ナビゲーションサービス。</summary>
@@ -100,14 +97,11 @@ public class NewSeriesCoordinator
 		// 確定された MangaSeries を格納する変数
 		MangaSeries? confirmedSeries = null;
 
-		// 既存作品1件表示用ViewModel（往復時に破棄の管理用）
+		// 既存作品確認用ViewModel（往復時に破棄の管理用）
 		ExistingSeriesDialogContentViewModel? existingSeriesViewModel = null;
 
-		// 複数候補表示用ViewModel（往復時に破棄の管理用）
-		MultipleExistingSeriesDialogContentViewModel? multipleExistingViewModel = null;
-
-		// 1件候補画面での購読管理（Dialog内で一時的に保持）
-		DisposableBag singleExistingSubscriptions = new();
+		// 既存作品確認画面での購読管理（Dialog内で一時的に保持）
+		DisposableBag existingSeriesSubscriptions = new();
 
 		// 現在のDialog表示状態
 		NewSeriesDialogState dialogState = NewSeriesDialogState.TitleInput;
@@ -124,23 +118,16 @@ public class NewSeriesCoordinator
 					dialog,
 					e,
 					contentWidth,
-					(existingSeries) =>
+					(candidateSeries) =>
 					{
-						// 検索結果1件時のコールバック
-						dialogState = NewSeriesDialogState.SingleExistingSeries;
-						existingSeriesViewModel = new ExistingSeriesDialogContentViewModel(existingSeries);
+						// 検索結果1件以上時のコールバック
+						dialogState = NewSeriesDialogState.ExistingSeriesCandidates;
+						existingSeriesViewModel = new ExistingSeriesDialogContentViewModel(candidateSeries);
 						this.switchToExistingSeriesContent(
 							dialog,
 							existingSeriesViewModel,
 							contentWidth,
-							ref singleExistingSubscriptions);
-					},
-					(multipleSeriesList) =>
-					{
-						// 検索結果2件以上時のコールバック
-						dialogState = NewSeriesDialogState.MultipleExistingSeries;
-						multipleExistingViewModel = new MultipleExistingSeriesDialogContentViewModel(multipleSeriesList);
-						this.switchToMultipleExistingSeriesContent(dialog, multipleExistingViewModel, contentWidth);
+							ref existingSeriesSubscriptions);
 					},
 					(titleValue) =>
 					{
@@ -157,15 +144,15 @@ public class NewSeriesCoordinator
 			{
 				// 何もしない（Dialog正常終了 = 新規作品登録フロー終了）
 			}
-			// 既存作品1件表示状態での Primary
-			else if (dialogState == NewSeriesDialogState.SingleExistingSeries && e.Result == ContentDialogResult.Primary)
+			// 既存作品候補表示状態での Primary
+			else if (dialogState == NewSeriesDialogState.ExistingSeriesCandidates && e.Result == ContentDialogResult.Primary)
 			{
 				// RadioButton 状態に応じた処理を実行
 				if (existingSeriesViewModel?.IsOpenExistingSeriesSelected.Value == true)
 				{
 					// 「既存作品を開く」が選択されている場合
-					// 既存作品を最終確定とする
-					if (existingSeriesViewModel?.Series is MangaSeries selectedSeries)
+					// SelectableSeriesListViewModel.SelectedSeries で現在選択されている作品を確定
+					if (existingSeriesViewModel?.SelectableSeriesListViewModel.SelectedSeries.Value is MangaSeries selectedSeries)
 					{
 						confirmedSeries = selectedSeries;
 					}
@@ -176,8 +163,8 @@ public class NewSeriesCoordinator
 				{
 					// 「別作者の作品として追加」が選択されている場合
 					// 作者重複を再度判定
-					var isDuplicate = IsAuthorsDuplicate(
-						existingSeriesViewModel.Series.Author ?? string.Empty,
+					var isDuplicate = isAnyAuthorDuplicate(
+						existingSeriesViewModel.Candidates,
 						existingSeriesViewModel.NewAuthorInput.Value ?? string.Empty);
 
 					if (isDuplicate)
@@ -200,43 +187,28 @@ public class NewSeriesCoordinator
 					}
 				}
 			}
-			// 既存作品1件表示状態での Secondary（キャンセル）
-			else if (dialogState == NewSeriesDialogState.SingleExistingSeries && e.Result == ContentDialogResult.Secondary)
+			// 既存作品候補表示状態での Secondary（キャンセル）
+			else if (dialogState == NewSeriesDialogState.ExistingSeriesCandidates && e.Result == ContentDialogResult.Secondary)
 			{
 				// 新規作品登録フロー全体を終了
 				// confirmedSeries は null のままなので、後の処理で EditorPage へ進まない
 			}
-			// 既存作品1件表示状態での Close（タイトルを修正する）
-			else if (dialogState == NewSeriesDialogState.SingleExistingSeries && e.Result == ContentDialogResult.None)
+			// 既存作品候補表示状態での Close（タイトルを修正する）
+			else if (dialogState == NewSeriesDialogState.ExistingSeriesCandidates && e.Result == ContentDialogResult.None)
 			{
 				// Closing をキャンセル
 				e.Cancel = true;
 
-				// 1件候補画面の購読をクリア
-				singleExistingSubscriptions.Dispose();
-				singleExistingSubscriptions = new();
+				// 既存作品確認画面の購読をクリア
+				existingSeriesSubscriptions.Dispose();
+				existingSeriesSubscriptions = new();
 
 				this.returnToTitleInputState(
 					dialog,
 					titleViewModel,
 					titleContent,
 					contentWidth,
-					ref existingSeriesViewModel,
-					ref multipleExistingViewModel);
-				dialogState = NewSeriesDialogState.TitleInput;
-			}
-			// 既存作品複数件表示状態での Close（タイトルを修正する）
-			else if (dialogState == NewSeriesDialogState.MultipleExistingSeries && e.Result == ContentDialogResult.None)
-			{
-				// Closing をキャンセル
-				e.Cancel = true;
-				this.returnToTitleInputState(
-					dialog,
-					titleViewModel,
-					titleContent,
-					contentWidth,
-					ref existingSeriesViewModel,
-					ref multipleExistingViewModel);
+					ref existingSeriesViewModel);
 				dialogState = NewSeriesDialogState.TitleInput;
 			}
 		}
@@ -264,12 +236,11 @@ public class NewSeriesCoordinator
 			// Closing イベントの購読解除
 			dialog.Closing -= handleDialogClosing;
 
-			// 1件候補画面の購読をクリア
-			singleExistingSubscriptions.Dispose();
+			// 既存作品確認画面の購読をクリア
+			existingSeriesSubscriptions.Dispose();
 
 			// 既存作品ViewModel を破棄
 			existingSeriesViewModel?.Dispose();
-			multipleExistingViewModel?.Dispose();
 
 			// タイトル入力ViewModel を破棄
 			titleViewModel.Dispose();
@@ -287,8 +258,7 @@ public class NewSeriesCoordinator
 		ContentDialog dialog,
 		ContentDialogClosingEventArgs closingArgs,
 		double contentWidth,
-		Action<MangaSeries> onSingleSeriesFound,
-		Action<IReadOnlyList<MangaSeries>> onMultipleSeriesFound,
+		Action<IReadOnlyList<MangaSeries>> onCandidatesFound,
 		Action<string> onZeroMatches)
 	{
 		// 判定前に前回の InfoBar をクリア
@@ -313,25 +283,17 @@ public class NewSeriesCoordinator
 		var sameSeriesList = manager.FindSameTitle(titleValue);
 
 		// 検索結果によって分岐
-		switch (sameSeriesList.Count)
+		if (sameSeriesList.Count == 0)
 		{
-			case 0:
-				// 検索結果0件：新規作品として進める
-				onZeroMatches(titleValue);
-				// Closing をキャンセルしない = Dialog が正常に閉じる
-				break;
-
-			case 1:
-				// 検索結果1件：既存作品確認へ切り替え
-				closingArgs.Cancel = true;
-				onSingleSeriesFound(sameSeriesList[0]);
-				break;
-
-			default:
-				// 検索結果2件以上：複数候補確認へ切り替え
-				closingArgs.Cancel = true;
-				onMultipleSeriesFound(sameSeriesList);
-				break;
+			// 検索結果0件：新規作品として進める
+			onZeroMatches(titleValue);
+			// Closing をキャンセルしない = Dialog が正常に閉じる
+		}
+		else
+		{
+			// 検索結果1件以上：既存作品確認へ切り替え
+			closingArgs.Cancel = true;
+			onCandidatesFound(sameSeriesList);
 		}
 	}
 
@@ -352,7 +314,26 @@ public class NewSeriesCoordinator
 	}
 
 	/// <summary>
-	/// 既存作品1件確認ContentへContentDialogのコンテンツを切り替える。
+	/// 候補作品リスト内のいずれかの作者が新規入力作者と重複しているかを判定します。
+	/// </summary>
+	/// <param name="candidates">候補となる MangaSeries の一覧。</param>
+	/// <param name="newAuthor">新規入力の作者。</param>
+	/// <returns>重複がある場合 true、異なる場合 false。</returns>
+	private static bool isAnyAuthorDuplicate(IReadOnlyList<MangaSeries> candidates, string newAuthor)
+	{
+		foreach (var candidate in candidates)
+		{
+			if (IsAuthorsDuplicate(candidate.Author ?? string.Empty, newAuthor))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// 既存作品候補確認ContentへContentDialogのコンテンツを切り替える。
 	/// RadioButton状態を監視し、PrimaryButtonTextを動的に更新します。
 	/// </summary>
 	private void switchToExistingSeriesContent(
@@ -375,14 +356,26 @@ public class NewSeriesCoordinator
 		dialog.CloseButtonText = "タイトルを修正する";
 		dialog.DefaultButton = ContentDialogButton.Primary;
 
-		// 初期状態では「既存作品を開く」選択なので PrimaryButtonText を設定
+		// 初期状態では「既存作品を開く」選択なので PrimaryButtonText と有効状態を設定
 		this.updatePrimaryButtonText(dialog, viewModel);
 
-		// RadioButton 状態を監視して PrimaryButtonText を動的に更新
+		// RadioButton 状態を監視して PrimaryButtonText と有効状態を動的に更新
 		viewModel.IsOpenExistingSeriesSelected
 			.Subscribe(_ =>
 			{
 				this.updatePrimaryButtonText(dialog, viewModel);
+			})
+			.AddTo(ref subscriptions);
+
+		// 「既存作品を開く」が選択されている場合、SelectedSeries の変更も監視
+		viewModel.SelectableSeriesListViewModel.SelectedSeries
+			.Subscribe(_ =>
+			{
+				// RadioButton 状態が「既存作品を開く」の場合のみ有効状態を更新
+				if (viewModel.IsOpenExistingSeriesSelected.Value)
+				{
+					dialog.IsPrimaryButtonEnabled = viewModel.SelectableSeriesListViewModel.SelectedSeries.Value != null;
+				}
 			})
 			.AddTo(ref subscriptions);
 
@@ -404,7 +397,7 @@ public class NewSeriesCoordinator
 	}
 
 	/// <summary>
-	/// Primary ボタンのテキストを現在の RadioButton 選択状態に基づいて更新します。
+	/// Primary ボタンのテキストと有効状態を現在の RadioButton 選択状態に基づいて更新します。
 	/// </summary>
 	private void updatePrimaryButtonText(
 		ContentDialog dialog,
@@ -413,19 +406,31 @@ public class NewSeriesCoordinator
 		dialog.PrimaryButtonText = viewModel.IsOpenExistingSeriesSelected.Value
 			? "既存作品を開く"
 			: "新規作品追加";
+
+		// 「既存作品を開く」が選択されている場合は、作品が選択されている場合のみ Enable
+		if (viewModel.IsOpenExistingSeriesSelected.Value)
+		{
+			dialog.IsPrimaryButtonEnabled = viewModel.SelectableSeriesListViewModel.SelectedSeries.Value != null;
+		}
+		else
+		{
+			// 「別作者の作品として追加」の場合は常に Enable
+			dialog.IsPrimaryButtonEnabled = true;
+		}
 	}
 
 	/// <summary>
 	/// 作者重複エラーの表示状態を再評価します。
 	/// 「別作者として追加」が選択されている場合のみ判定を行います。
+	/// 候補作品のいずれかの作者が新規入力作者と重複していないかを判定します。
 	/// </summary>
 	private void reevaluateAuthorDuplicateError(
 		ExistingSeriesDialogContentViewModel viewModel)
 	{
 		if (viewModel.IsAddAsOtherAuthorSelected.Value)
 		{
-			var isDuplicate = IsAuthorsDuplicate(
-				viewModel.Series.Author ?? string.Empty,
+			var isDuplicate = isAnyAuthorDuplicate(
+				viewModel.Candidates,
 				viewModel.NewAuthorInput.Value ?? string.Empty);
 			viewModel.IsAuthorDuplicateErrorVisible.Value = isDuplicate;
 		}
@@ -437,30 +442,6 @@ public class NewSeriesCoordinator
 	}
 
 	/// <summary>
-	/// 既存作品複数件確認ContentへContentDialogのコンテンツを切り替える。
-	/// </summary>
-	private void switchToMultipleExistingSeriesContent(
-		ContentDialog dialog,
-		MultipleExistingSeriesDialogContentViewModel viewModel,
-		double contentWidth)
-	{
-		// 複数候補確認コンテンツを生成
-		var multipleContent = new MultipleExistingSeriesDialogContent
-		{
-			DataContext = viewModel,
-			Width = contentWidth,
-		};
-
-		// Dialog の設定を複数候補確認用に変更
-		dialog.Content = multipleContent;
-		dialog.Title = "同一タイトルの作品が登録済みです。";
-		dialog.PrimaryButtonText = string.Empty;
-		dialog.SecondaryButtonText = string.Empty;
-		dialog.CloseButtonText = "タイトルを修正する";
-		dialog.DefaultButton = ContentDialogButton.Close;
-	}
-
-	/// <summary>
 	/// Dialogをタイトル入力状態へ戻す共通処理。
 	/// </summary>
 	private void returnToTitleInputState(
@@ -468,16 +449,11 @@ public class NewSeriesCoordinator
 		NewSeriesTitleDialogContentViewModel titleViewModel,
 		NewSeriesTitleDialogContent titleContent,
 		double contentWidth,
-		ref ExistingSeriesDialogContentViewModel? existingSeriesViewModel,
-		ref MultipleExistingSeriesDialogContentViewModel? multipleExistingViewModel)
+		ref ExistingSeriesDialogContentViewModel? existingSeriesViewModel)
 	{
-		// 古い既存作品1件ViewModel を破棄
+		// 古い既存作品ViewModel を破棄
 		existingSeriesViewModel?.Dispose();
 		existingSeriesViewModel = null;
-
-		// 古い複数候補ViewModel を破棄
-		multipleExistingViewModel?.Dispose();
-		multipleExistingViewModel = null;
 
 		// Content をタイトル入力に戻す
 		dialog.Content = titleContent;

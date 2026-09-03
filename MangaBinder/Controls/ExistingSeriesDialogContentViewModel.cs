@@ -4,17 +4,17 @@ using R3;
 namespace MangaBinder.Controls;
 
 /// <summary>
-/// 既存作品1件を表示するダイアログ用 ViewModel です。
-/// SelectableSeriesList を利用して、作品情報を表示します。
+/// 既存作品候補（1件以上）を表示するダイアログ用 ViewModel です。
+/// SelectableSeriesList を利用して、候補作品一覧を表示します。
 /// </summary>
 public class ExistingSeriesDialogContentViewModel : IDisposable
 {
 	private DisposableBag disposableBag = new();
 
 	/// <summary>
-	/// 表示対象の MangaSeries。
+	/// 表示対象の MangaSeries 候補一覧。
 	/// </summary>
-	public MangaSeries Series { get; }
+	public IReadOnlyList<MangaSeries> Candidates { get; }
 
 	/// <summary>
 	/// 作品一覧表示用の共通 UserControl の ViewModel。
@@ -49,10 +49,10 @@ public class ExistingSeriesDialogContentViewModel : IDisposable
 	/// <summary>
 	/// <see cref="ExistingSeriesDialogContentViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="existingSeries">表示対象の MangaSeries。</param>
-	public ExistingSeriesDialogContentViewModel(MangaSeries existingSeries)
+	/// <param name="candidates">表示対象の MangaSeries 候補一覧（1件以上）。</param>
+	public ExistingSeriesDialogContentViewModel(IReadOnlyList<MangaSeries> candidates)
 	{
-		this.Series = existingSeries;
+		this.Candidates = candidates;
 
 		// SelectableSeriesListViewModel を生成
 		this.SelectableSeriesListViewModel = new SelectableSeriesListViewModel()
@@ -64,8 +64,22 @@ public class ExistingSeriesDialogContentViewModel : IDisposable
 		// ナビゲーションボタンを非表示
 		this.SelectableSeriesListViewModel.ShowNavigateButton.Value = false;
 
-		// 1件の作品を配列に格納して設定
-		this.SelectableSeriesListViewModel.SetSource(new[] { existingSeries });
+		// 候補作品一覧を設定
+		this.SelectableSeriesListViewModel.SetSource(candidates);
+
+		// Items に初期要素が現れたタイミングで先頭作品を選択状態に設定（初回のみ）
+		this.SelectableSeriesListViewModel.Items
+			.Where(items => items.Count > 0)
+			.Take(1)
+			.Subscribe(items =>
+			{
+				var firstCardViewModel = items.FirstOrDefault();
+				if (firstCardViewModel != null)
+				{
+					this.SelectableSeriesListViewModel.SelectedItem.Value = firstCardViewModel;
+				}
+			})
+			.AddTo(ref this.disposableBag);
 
 		// UI 選択状態を初期化
 		this.IsOpenExistingSeriesSelected = new BindableReactiveProperty<bool>(true)

@@ -142,6 +142,8 @@
                                     InputMethod.PreferredImeState="On"
                                     ClearButtonEnabled="True"
                                     Text="{Binding TitleJumpInput.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    behaviors:TrimOnPasteBehavior.IsEnabled="True"
+                                    behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                     Margin="0,0,8,0"
                                     Width="350"
                                     VerticalAlignment="Center">
