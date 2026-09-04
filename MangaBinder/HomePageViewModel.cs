@@ -54,7 +54,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>
     /// ListView にバインドする SeriesCardViewModel の一覧を取得します。
     /// </summary>
-    public NotifyCollectionChangedSynchronizedViewList<SeriesCardViewModel> Series { get; }
+    public NotifyCollectionChangedSynchronizedViewList<HomeSeriesCardViewModel> Series { get; }
 
     /// <summary>製本開始コマンドです。</summary>
     public ReactiveCommand<Unit> StartBindingCommand { get; }
@@ -81,9 +81,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     public ReactiveCommand<MangaSeries> EditSeriesCommand { get; }
 
     /// <summary>
-    /// Home の CheckBox で製本待ち状態を切り替えるコマンドです。<see cref="SeriesCardViewModel"/> をパラメータとして受け取ります。
+    /// Home の CheckBox で製本待ち状態を切り替えるコマンドです。<see cref="HomeSeriesCardViewModel"/> をパラメータとして受け取ります。
     /// </summary>
-    public ReactiveCommand<SeriesCardViewModel> ToggleBindingQueueCommand { get; }
+    public ReactiveCommand<HomeSeriesCardViewModel> ToggleBindingQueueCommand { get; }
 
     /// <summary>
     /// タイトルジャンプ入力テキストを取得または設定します。
@@ -199,7 +199,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
             .AddTo(ref this.disposableBag);
         this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
 
-        this.ToggleBindingQueueCommand = new ReactiveCommand<SeriesCardViewModel>()
+        this.ToggleBindingQueueCommand = new ReactiveCommand<HomeSeriesCardViewModel>()
             .AddTo(ref this.disposableBag);
         this.ToggleBindingQueueCommand.Subscribe(cardViewModel => this.toggleBindingQueue(cardViewModel));
 
@@ -303,7 +303,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// BindingQueueDispatcher を通じて Queue を更新し、
     /// 表示更新は HomeSeriesStore → IsSelected で自動的に戻ります。
     /// </summary>
-    private void toggleBindingQueue(SeriesCardViewModel cardViewModel)
+    private void toggleBindingQueue(HomeSeriesCardViewModel cardViewModel)
     {
         using var scope = this.serviceScopeFactory.CreateScope();
         var dispatcher = scope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();

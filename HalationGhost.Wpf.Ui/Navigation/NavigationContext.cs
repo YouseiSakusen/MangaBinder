@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics.CodeAnalysis;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
@@ -116,7 +117,7 @@ internal static class NavigationContext
 	/// <param name="pageType">ページの型。</param>
 	/// <param name="info">取得した登録情報。見つからない場合は null。</param>
 	/// <returns>登録情報が見つかった場合は true。見つからない場合は false。</returns>
-	internal static bool TryGetPageInfo(Type pageType, out NavigationPageInfo? info)
+	internal static bool TryGetPageInfo(Type pageType, [NotNullWhen(true)] out NavigationPageInfo? info)
 	{
 		return pageInfoDictionary.TryGetValue(pageType, out info);
 	}

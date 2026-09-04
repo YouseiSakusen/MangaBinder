@@ -33,13 +33,13 @@ public class HomeSeriesStore : IDisposable
 	/// CreateView で生成された ISynchronizedView。
 	/// ViewChanged イベントを購読して、削除・置換時に SeriesCardViewModel を Dispose する。
 	/// </summary>
-	private readonly ISynchronizedView<MangaSeriesViewModel, SeriesCardViewModel> homeCardsView;
+	private readonly ISynchronizedView<MangaSeriesViewModel, HomeSeriesCardViewModel> homeCardsView;
 
 	/// <summary>
 	/// WPF バインド用の Home 用作品 ViewModel コレクション（同期ビュー）。
 	/// MangaSeriesStore.All の変更を自動的に反映します。
 	/// </summary>
-	public NotifyCollectionChangedSynchronizedViewList<SeriesCardViewModel> HomeCards { get; }
+	public NotifyCollectionChangedSynchronizedViewList<HomeSeriesCardViewModel> HomeCards { get; }
 
 	/// <summary>
 	/// <see cref="HomeSeriesStore"/> の新しいインスタンスを初期化します。
@@ -58,7 +58,7 @@ public class HomeSeriesStore : IDisposable
 		this.homeCardsView = this.mangaSeriesStore.All
 			.CreateView(seriesViewModel =>
 			{
-				var card = new SeriesCardViewModel(seriesViewModel, this.mangaSeriesStore, this.seriesTagStore);
+				var card = new HomeSeriesCardViewModel(seriesViewModel, this.mangaSeriesStore, this.seriesTagStore);
 				// 生成時点で現在の BindingQueueStore.Queue を確認して IsSelected を初期化
 				var isInQueue = this.bindingQueueStore.Contains(seriesViewModel.Series.Value.SeriesId);
 				card.SetIsSelected(isInQueue);
@@ -86,7 +86,7 @@ public class HomeSeriesStore : IDisposable
 	/// ViewChanged イベント ハンドラ。
 	/// ISynchronizedView での削除・置換・ソート時に SeriesCardViewModel を適切に Dispose する。
 	/// </summary>
-	private void onHomeCardsViewChanged(in SynchronizedViewChangedEventArgs<MangaSeriesViewModel, SeriesCardViewModel> e)
+	private void onHomeCardsViewChanged(in SynchronizedViewChangedEventArgs<MangaSeriesViewModel, HomeSeriesCardViewModel> e)
 	{
 		switch (e.Action)
 		{
@@ -259,7 +259,7 @@ public class HomeSeriesStore : IDisposable
 	/// <summary>
 	/// SeriesId から対応する SeriesCardViewModel を検索する。
 	/// </summary>
-	private SeriesCardViewModel? findCardBySeriesId(long seriesId)
+	private HomeSeriesCardViewModel? findCardBySeriesId(long seriesId)
 	{
 		return this.HomeCards.FirstOrDefault(card => card.Series.Value.SeriesId == seriesId);
 	}

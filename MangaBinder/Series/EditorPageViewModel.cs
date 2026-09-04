@@ -9,6 +9,7 @@ using R3;
 using Reactive.Bindings.R3;
 using Reactive.Bindings.R3.Notifiers;
 using System.IO;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -34,6 +35,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private readonly AppSettings appSettings;
 	private readonly EditorStore editorStore;
 	private readonly LoadingService loadingService;
+	private readonly ThumbnailImageLoader thumbnailImageLoader;
 	private SeriesTagSelectorViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
 	private CancellationTokenSource? materialSizeCancellationTokenSource;
@@ -128,6 +130,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public EditorSeriesVolumeStatusViewModel VolumeStatus { get; }
 
 	/// <summary>
+	/// 作品サムネイルカード用の ViewModel を取得します。
+	/// Header、ThumbnailSource、VolumeStatus を管理し、左側パネルのサムネイルカードに使用されます。
+	/// </summary>
+	public MangaSeriesCardViewModel MangaSeriesCard { get; }
+
+	/// <summary>
 	/// サムネイルプレビュー画像を取得または設定します。
 	/// クリップボードから貼り付けた画像が優先表示されます。
 	/// null の場合は、既存のサムネイル（EditingSeries.Value のサムネイル）が表示されます。
@@ -192,6 +200,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public BindableReactiveProperty<bool> IsBindingQueued { get; }
 
 	/// <summary>
+	/// あらすじ貼付整形の有効状態を取得または設定します。
+	/// 整形貼付ToggleSwitchのON/OFF状態を管理するEditor画面ローカル状態です。
+	/// </summary>
+	public BindableReactiveProperty<bool> IsDescriptionPasteFormattingEnabled { get; }
+
+	/// <summary>
 	/// 作品を正式に MangaSeries へ登録するコマンドを取得します。
 	/// </summary>
 	public ReactiveCommand<Unit> RegisterSeriesCommand { get; }
@@ -250,17 +264,18 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public ReactiveCommand<Unit> ShowDeleteSeriesDialogCommand { get; }
 
 	/// <summary>
-	/// EditorPageViewModel の新しいインスタンスを初期化します。
+	/// <see cref="EditorPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="serviceScopeFactory">サービススコープファクトリ。Scoped サービス取得用。</param>
-	/// <param name="workspaceStore">作業領域ストア。</param>
-	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
+	/// <param name="serviceScopeFactory">サービススコープファクトリ。</param>
+	/// <param name="workspaceStore">作業域ストア。</param>
+	/// <param name="contentDialogService">コンテンツダイアログサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
-	/// <param name="mangaSeriesStore">作品タグストア。</param>
-	/// <param name="snackbarService">Snackbar サービス。</param>
+	/// <param name="mangaSeriesStore">漫画シリーズストア。</param>
+	/// <param name="snackbarService">スナックバーサービス。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
-	/// <param name="editorStore">編集状態ストア。</param>
+	/// <param name="editorStore">エディタストア。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
+	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	public EditorPageViewModel(
 		IServiceScopeFactory serviceScopeFactory,
 		SeriesWorkspaceStore workspaceStore,
@@ -270,7 +285,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		ISnackbarService snackbarService,
 		AppSettings appSettings,
 		EditorStore editorStore,
-		LoadingService loadingService)
+		LoadingService loadingService,
+		ThumbnailImageLoader thumbnailImageLoader)
 	{
 		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
@@ -281,6 +297,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
 		this.editorStore = editorStore ?? throw new ArgumentNullException(nameof(editorStore));
 		this.loadingService = loadingService ?? throw new ArgumentNullException(nameof(loadingService));
+		this.thumbnailImageLoader = thumbnailImageLoader ?? throw new ArgumentNullException(nameof(thumbnailImageLoader));
 
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
@@ -470,6 +487,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.IsBindingQueued = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
+		// IsDescriptionPasteFormattingEnabled: あらすじ貼付整形の有効状態
+		this.IsDescriptionPasteFormattingEnabled = new BindableReactiveProperty<bool>(true)
+			.AddTo(ref this.disposableBag);
+
 		// RegisterSeriesCommand: 正式登録コマンド
 		this.RegisterSeriesCommand = new ReactiveCommand<Unit>(this.RegisterSeriesCommandCanExecute, initialCanExecute: false)
 			.AddTo(ref this.disposableBag);
@@ -527,19 +548,60 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			});
 
 			// VolumeStatus: 巻情報編集用ViewModel
-		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
-			.AddTo(ref this.disposableBag);
+			this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
+				.AddTo(ref this.disposableBag);
 
-		// IsIncomplete の変更を VolumeStatus の表示用 DisplayStatus へ同期（表示色反映のため）
-		this.IsIncomplete
-			.Subscribe(isIncomplete =>
-			{
-				if (this.VolumeStatus.DisplayStatus.Value != null)
+			// MangaSeriesCard: 作品サムネイルカード用ViewModel
+			this.MangaSeriesCard = new MangaSeriesCardViewModel()
+				.AddTo(ref this.disposableBag);
+
+			// MangaSeriesCard の Header を "作品サムネイル" に初期設定
+			this.MangaSeriesCard.Header.Value = "作品サムネイル";
+
+			// VolumeStatus.DisplayStatus の変更を購読し、MangaSeriesCard.VolumeStatus へ Reactive に反映
+			this.VolumeStatus.DisplayStatus
+				.Subscribe(displayStatus =>
 				{
-					this.VolumeStatus.DisplayStatus.Value.IsIncomplete.Value = isIncomplete;
-				}
-			})
-			.AddTo(ref this.disposableBag);
+					this.MangaSeriesCard.VolumeStatus.Value = displayStatus;
+				})
+				.AddTo(ref this.disposableBag);
+
+			// MangaSeriesCard の ThumbnailSource: ThumbnailPreviewImageSource と EditingSeries から最終表示画像を導出
+			// ・ThumbnailPreviewImageSource が null でなければそれを使用
+			// ・null かつ EditingSeries が null でなければ ThumbnailImageLoader.Load() の結果を使用
+			// ・両方 null なら null
+			// （MangaSeriesCard 生成後に配置し、Subscribe 即時発火時に MangaSeriesCard が存在することを保証）
+			this.ThumbnailPreviewImageSource
+				.CombineLatest(this.EditingSeries, (preview, series) =>
+				{
+					if (preview != null)
+					{
+						return (ImageSource?)preview;
+					}
+
+					if (series != null)
+					{
+						return this.thumbnailImageLoader.Load(series);
+					}
+
+					return null;
+				})
+				.Subscribe(imageSource =>
+				{
+					this.MangaSeriesCard.ThumbnailSource.Value = imageSource;
+				})
+				.AddTo(ref this.disposableBag);
+
+			// IsIncomplete の変更を VolumeStatus の表示用 DisplayStatus へ同期（表示色反映のため）
+			this.IsIncomplete
+				.Subscribe(isIncomplete =>
+				{
+					if (this.VolumeStatus.DisplayStatus.Value != null)
+					{
+						this.VolumeStatus.DisplayStatus.Value.IsIncomplete.Value = isIncomplete;
+					}
+				})
+				.AddTo(ref this.disposableBag);
 
 		// CanDeleteSeries: 作品削除ボタンの表示制御
 		this.CanDeleteSeries = new BindableReactiveProperty<bool>(false)
@@ -716,6 +778,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 					// EditorPage 全体を初期表示状態へ戻す
 					this.EditorPageInitializeRequest.SwitchValue();
+
+					// タイトル入力欄へフォーカスして全選択する
+					this.TitleFocusRequest.Value++;
 				}
 	}
 

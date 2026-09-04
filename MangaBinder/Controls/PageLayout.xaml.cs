@@ -5,10 +5,10 @@ using Wpf.Ui.Controls;
 namespace MangaBinder.Controls;
 
 /// <summary>
-/// MangaBinder の標準ページレイアウト UserControl。
+/// MangaBinder の標準ページレイアウト Templated Custom Control。
 /// 3カラム（左・中央・右）× 3エリア（上部・本文・フッタ）の構成で、各エリアに任意のコンテンツを配置可能。
 /// </summary>
-public partial class PageLayout : UserControl
+public class PageLayout : Control
 {
 	/// <summary>
 	/// 左カラムの幅を取得または設定します。既定値は 250。
@@ -17,7 +17,7 @@ public partial class PageLayout : UserControl
 		nameof(LeftColumnWidth),
 		typeof(GridLength),
 		typeof(PageLayout),
-		new PropertyMetadata(new GridLength(250)));
+		new PropertyMetadata(new GridLength(270)));
 
 	/// <summary>
 	/// 左カラムの最小幅を取得または設定します。既定値は 250。
@@ -26,7 +26,7 @@ public partial class PageLayout : UserControl
 		nameof(LeftColumnMinWidth),
 		typeof(double),
 		typeof(PageLayout),
-		new PropertyMetadata(250d));
+		new PropertyMetadata(270d));
 
 	/// <summary>
 	/// 右カラムの幅を取得または設定します。既定値は 250。
@@ -136,6 +136,31 @@ public partial class PageLayout : UserControl
 		typeof(UIElement),
 		typeof(PageLayout),
 		new PropertyMetadata(null));
+
+	/// <summary>
+	/// 中央カラムの幅を取得または設定します。既定値は 1*。
+	/// </summary>
+	public static readonly DependencyProperty MainColumnWidthProperty = DependencyProperty.Register(
+		nameof(MainColumnWidth),
+		typeof(GridLength),
+		typeof(PageLayout),
+		new PropertyMetadata(new GridLength(1, GridUnitType.Star)));
+
+	/// <summary>
+	/// MainContent と RightContent の間に GridSplitter を表示するかどうかを取得または設定します。既定値は false。
+	/// </summary>
+	public static readonly DependencyProperty IsMainRightSplitterEnabledProperty = DependencyProperty.Register(
+		nameof(IsMainRightSplitterEnabled),
+		typeof(bool),
+		typeof(PageLayout),
+		new PropertyMetadata(false));
+
+	static PageLayout()
+	{
+		DefaultStyleKeyProperty.OverrideMetadata(
+			typeof(PageLayout),
+			new FrameworkPropertyMetadata(typeof(PageLayout)));
+	}
 
 	/// <summary>
 	/// 左カラムの幅を取得または設定します。
@@ -263,8 +288,21 @@ public partial class PageLayout : UserControl
 		set => this.SetValue(FooterRightContentProperty, value);
 	}
 
-	public PageLayout()
+	/// <summary>
+	/// 中央カラムの幅を取得または設定します。
+	/// </summary>
+	public GridLength MainColumnWidth
 	{
-		InitializeComponent();
+		get => (GridLength)this.GetValue(MainColumnWidthProperty);
+		set => this.SetValue(MainColumnWidthProperty, value);
+	}
+
+	/// <summary>
+	/// MainContent と RightContent の間に GridSplitter を表示するかどうかを取得または設定します。
+	/// </summary>
+	public bool IsMainRightSplitterEnabled
+	{
+		get => (bool)this.GetValue(IsMainRightSplitterEnabledProperty);
+		set => this.SetValue(IsMainRightSplitterEnabledProperty, value);
 	}
 }

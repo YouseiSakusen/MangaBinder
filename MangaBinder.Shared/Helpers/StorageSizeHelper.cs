@@ -115,7 +115,6 @@ public static class StorageSizeHelper
 		}
 
 		const long oneGB = 1024L * 1024 * 1024;
-		const long oneMB = 1024L * 1024;
 
 		if (bytes >= oneGB)
 		{

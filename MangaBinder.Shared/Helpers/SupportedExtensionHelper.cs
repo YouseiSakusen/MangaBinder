@@ -46,36 +46,39 @@ public static class SupportedExtensionHelper
 
     /// <summary>
     /// 指定された拡張子に対応する <see cref="FileType"/> を返します。
-    /// 未登録の場合は <c>null</c> を返します。
+    /// 未登録または null/空白の場合は <c>null</c> を返します。
     /// </summary>
-    /// <param name="extension">拡張子（例: ".zip" または "zip"）。</param>
+    /// <param name="extension">拡張子（例: ".zip" または "zip"）。null または空白の場合は null を返します。</param>
     /// <returns>対応する <see cref="FileType"/>。見つからない場合は <c>null</c>。</returns>
-    public static FileType? GetFileType(string extension)
-        => extensionMap.TryGetValue(Normalize(extension), out var type) ? type : null;
+    public static FileType? GetFileType(string? extension)
+        => string.IsNullOrWhiteSpace(extension) ? null : extensionMap.TryGetValue(Normalize(extension), out var type) ? type : null;
 
     /// <summary>
     /// 指定された拡張子が画像ファイル（<see cref="FileType.Image"/>）かどうかを返します。
+    /// null または空白の場合は <c>false</c> を返します。
     /// </summary>
-    /// <param name="extension">拡張子（例: ".jpg" または "jpg"）。</param>
+    /// <param name="extension">拡張子（例: ".jpg" または "jpg"）。null または空白の場合は false を返します。</param>
     /// <returns>画像ファイルの場合は <c>true</c>。</returns>
-    public static bool IsImage(string extension)
+    public static bool IsImage(string? extension)
         => GetFileType(extension) == FileType.Image;
 
     /// <summary>
     /// 指定された拡張子がアーカイブファイル（<see cref="FileType.Archive"/>）かどうかを返します。
+    /// null または空白の場合は <c>false</c> を返します。
     /// </summary>
-    /// <param name="extension">拡張子（例: ".zip" または "zip"）。</param>
+    /// <param name="extension">拡張子（例: ".zip" または "zip"）。null または空白の場合は false を返します。</param>
     /// <returns>アーカイブファイルの場合は <c>true</c>。</returns>
-    public static bool IsArchive(string extension)
+    public static bool IsArchive(string? extension)
         => GetFileType(extension) == FileType.Archive;
 
     /// <summary>
     /// 指定された拡張子が製本前に既定フォーマットへの変換が必要かどうかを返します。
+    /// null または空白の場合は <c>false</c> を返します。
     /// </summary>
-    /// <param name="extension">拡張子（例: ".avif" または "avif"）。</param>
-    /// <returns>変換が必要な場合は <c>true</c>。未登録の場合は <c>false</c>。</returns>
-    public static bool RequiresConversion(string extension)
-        => conversionMap.TryGetValue(Normalize(extension), out var requires) && requires;
+    /// <param name="extension">拡張子（例: ".avif" または "avif"）。null または空白の場合は false を返します。</param>
+    /// <returns>変換が必要な場合は <c>true</c>。未登録または null/空白の場合は <c>false</c>。</returns>
+    public static bool RequiresConversion(string? extension)
+        => string.IsNullOrWhiteSpace(extension) ? false : conversionMap.TryGetValue(Normalize(extension), out var requires) && requires;
 
     /// <summary>
     /// OpenFileDialog 用の画像ファイルフィルタ文字列を取得します。

@@ -2,10 +2,16 @@
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup />
   <ItemGroup>
+    <Compile Update="Bindings\StartPage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Update="Controls\DeveloperMaintenanceDialogContent.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Controls\ExistingSeriesDialogContent.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="Controls\MangaSeriesCard.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Controls\MaterialsConfirmDialogContent.xaml.cs">
@@ -32,9 +38,6 @@
     <Compile Update="Controls\SeriesVolumeStatus.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="HomePage.xaml.cs">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Update="Bindings\Prepress\SpreadSplitterPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -44,10 +47,10 @@
     <Compile Update="Bindings\SeriesInspectionPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Bindings\StartPage.xaml.cs">
+    <Compile Update="Bindings\VolumeSelectionPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Bindings\VolumeSelectionPage.xaml.cs">
+    <Compile Update="HomePage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Series\EditorPage.xaml.cs">

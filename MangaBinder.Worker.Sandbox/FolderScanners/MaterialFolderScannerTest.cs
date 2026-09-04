@@ -133,9 +133,9 @@ file class StubMaterialRepository : IFolderScannerRepository
             existing.IsOwnedCompleted = series.IsOwnedCompleted;
             existing.StartVolume = series.StartVolume;
             existing.EndVolume = series.EndVolume;
-            if (!existing.IsOwnedMaxVolumeManuallyEdited || existing.OwnedMaxVolume == null)
+            if (!existing.IsOwnedMaxVolumeManuallyEdited)
             {
-                existing.OwnedMaxVolume = series.OwnedMaxVolume;
+                existing.OwnedMaxVolume = Math.Max(existing.OwnedMaxVolume, series.OwnedMaxVolume);
             }
             if (existing.MaterialFolderCreatedAt == null || series.MaterialFolderCreatedAt < existing.MaterialFolderCreatedAt)
             {
@@ -163,9 +163,9 @@ file class StubMaterialRepository : IFolderScannerRepository
             existing.IsOwnedCompleted = series.IsOwnedCompleted;
             existing.StartVolume = series.StartVolume;
             existing.EndVolume = series.EndVolume;
-            if (!existing.IsOwnedMaxVolumeManuallyEdited || existing.OwnedMaxVolume == null)
+            if (!existing.IsOwnedMaxVolumeManuallyEdited)
             {
-                existing.OwnedMaxVolume = series.OwnedMaxVolume;
+                existing.OwnedMaxVolume = Math.Max(existing.OwnedMaxVolume, series.OwnedMaxVolume);
             }
             if (existing.MaterialFolderCreatedAt == null || series.MaterialFolderCreatedAt < existing.MaterialFolderCreatedAt)
             {

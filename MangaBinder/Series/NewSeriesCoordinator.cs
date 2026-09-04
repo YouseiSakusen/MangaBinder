@@ -180,7 +180,7 @@ public class NewSeriesCoordinator
 						confirmedSeries = new MangaSeries
 						{
 							Title = titleValue,
-							Author = existingSeriesViewModel.NewAuthorInput.Value
+							Author = existingSeriesViewModel.NewAuthorInput.Value ?? string.Empty
 						};
 
 						// Dialog を正常に閉じる

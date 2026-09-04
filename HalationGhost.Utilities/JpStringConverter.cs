@@ -1,4 +1,5 @@
 using Microsoft.VisualBasic;
+using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 
 namespace HalationGhost.Utilities;
@@ -6,6 +7,7 @@ namespace HalationGhost.Utilities;
 /// <summary>
 /// 日本語文字列変換ユーティリティです。
 /// </summary>
+[SupportedOSPlatform("windows")]
 public static class JpStringConverter
 {
 	private static readonly Regex fullWidthAlphanumericRegex =
@@ -17,7 +19,7 @@ public static class JpStringConverter
 	/// <param name="input">変換対象の文字列。</param>
 	/// <returns>半角変換後の文字列。</returns>
 	public static string ToHalfWidth(string input)
-		=> string.IsNullOrEmpty(input) ? string.Empty : Strings.StrConv(input, VbStrConv.Narrow);
+		=> string.IsNullOrEmpty(input) ? string.Empty : Strings.StrConv(input, VbStrConv.Narrow) ?? string.Empty;
 
 	/// <summary>
 	/// 文字列内の全角英数字のみを半角に変換して返します。カタカナは維持されます。
@@ -28,7 +30,7 @@ public static class JpStringConverter
 
 		// 正規表現でマッチした全角英数字1文字ずつを半角化
 		return fullWidthAlphanumericRegex.Replace(input, m =>
-			Strings.StrConv(m.Value, VbStrConv.Narrow));
+			Strings.StrConv(m.Value, VbStrConv.Narrow) ?? string.Empty);
 	}
 
 	/// <summary>
@@ -37,5 +39,5 @@ public static class JpStringConverter
 	/// <param name="input">変換対象の文字列。</param>
 	/// <returns>全角カタカナ変換後の文字列。</returns>
 	public static string ToFullWidthKatakana(string input)
-		=> string.IsNullOrEmpty(input) ? string.Empty : Strings.StrConv(input, VbStrConv.Wide | VbStrConv.Katakana);
+		=> string.IsNullOrEmpty(input) ? string.Empty : Strings.StrConv(input, VbStrConv.Wide | VbStrConv.Katakana) ?? string.Empty;
 }

@@ -220,42 +220,15 @@ public class NewSeriesSaveManager : ISeriesSaveManager
 				throw new InvalidOperationException($"正式登録後の作品再取得に失敗しました。SeriesId: {seriesId}");
 			}
 
-			// 追跡開始
-			NewSeriesHomeSyncTrace.Begin(registeredSeries.SeriesId);
+			// 3. 再取得した正式作品を Store へ追加
+			this.mangaSeriesStore.Add(registeredSeries);
 
-			try
+			// 4. 再取得した正式作品を返す
+			return new SeriesSaveResult
 			{
-				// [NewSeriesHomeSync] 正式作品再取得完了ログ
-				if (NewSeriesHomeSyncTrace.IsTracking(registeredSeries.SeriesId))
-				{
-					this.logger.LogInformation(
-						"[NewSeriesHomeSync] 正式作品再取得完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加前件数={Count}",
-						registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count);
-				}
-
-				// 3. 再取得した正式作品を Store へ追加
-				this.mangaSeriesStore.Add(registeredSeries);
-
-				// [NewSeriesHomeSync] Store.Add呼び出し完了ログ
-				if (NewSeriesHomeSyncTrace.IsTracking(registeredSeries.SeriesId))
-				{
-					var storeContainsResult = this.mangaSeriesStore.FindViewModelById(registeredSeries.SeriesId) is not null;
-					this.logger.LogInformation(
-						"[NewSeriesHomeSync] Store.Add呼び出し完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} Store追加後件数={Count} Store内存在確認結果={Result}",
-						registeredSeries.SeriesId, registeredSeries.Title, registeredSeries.NormalizedTitleInternal, this.mangaSeriesStore.All.Count, storeContainsResult);
-				}
-
-				// 4. 再取得した正式作品を返す
-				return new SeriesSaveResult
-				{
-					Series = registeredSeries,
-					FailedItems = moveResult.FailedItems,
-				};
-			}
-			finally
-			{
-				NewSeriesHomeSyncTrace.End(registeredSeries.SeriesId);
-			}
+				Series = registeredSeries,
+				FailedItems = moveResult.FailedItems,
+			};
 	}
 
 	/// <summary>

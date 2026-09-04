@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using ObservableCollections;
 
 namespace MangaBinder;
@@ -16,7 +15,6 @@ public sealed class MangaSeriesStore
 	/// <summary>タイトル比較用Comparer。NormalizedTitleInternal のソート・検索に使用します。</summary>
 	private static readonly Comparer<string> titleComparer = Comparer<string>.Default;
 
-	private readonly ILogger<MangaSeriesStore> logger;
 	private readonly ObservableList<MangaTag> tags = new();
 	private readonly ObservableList<MangaSeriesViewModel> workSeriesViewModels = new();
 	private readonly ObservableList<MangaSeriesViewModel> allViewModels = new();
@@ -24,10 +22,8 @@ public sealed class MangaSeriesStore
 	/// <summary>
 	/// <see cref="MangaSeriesStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="logger">ログを出力するロガー。</param>
-	public MangaSeriesStore(ILogger<MangaSeriesStore> logger)
+	public MangaSeriesStore()
 	{
-		this.logger = logger;
 	}
 
 	/// <summary>
@@ -176,23 +172,8 @@ public sealed class MangaSeriesStore
 	/// <param name="item">追加する MangaSeries。</param>
 	public void Add(MangaSeries item)
 	{
-		// [NewSeriesHomeSync] Store.Add開始ログ
-		if (NewSeriesHomeSyncTrace.IsTracking(item.SeriesId))
-		{
-			this.logger.LogInformation(
-				"[NewSeriesHomeSync] Store.Add開始 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} 追加前Store件数={Count}",
-				item.SeriesId, item.Title, item.NormalizedTitleInternal, this.allViewModels.Count);
-		}
-
 		if (this.allViewModels.Any(vm => vm.Series.Value.SeriesId == item.SeriesId))
 		{
-			// [NewSeriesHomeSync] Store.Addスキップログ
-			if (NewSeriesHomeSyncTrace.IsTracking(item.SeriesId))
-			{
-				this.logger.LogWarning(
-					"[NewSeriesHomeSync] Store.Addスキップ Reason=SameSeriesId SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} 現在Store件数={Count}",
-					item.SeriesId, item.Title, item.NormalizedTitleInternal, this.allViewModels.Count);
-			}
 			return;
 		}
 
@@ -229,30 +210,9 @@ public sealed class MangaSeriesStore
 			insertIndex = i + 1;
 		}
 
-		// [NewSeriesHomeSync] Store挿入位置決定ログ
-		if (NewSeriesHomeSyncTrace.IsTracking(item.SeriesId))
-		{
-			var previousSeries = insertIndex > 0 ? this.allViewModels[insertIndex - 1].Series.Value : null;
-			var nextSeries = insertIndex < this.allViewModels.Count ? this.allViewModels[insertIndex].Series.Value : null;
-
-			this.logger.LogInformation(
-				"[NewSeriesHomeSync] Store挿入位置決定 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} InsertIndex={InsertIndex} 追加前Store件数={Count} PreviousSeriesId={PreviousSeriesId} PreviousTitle={PreviousTitle} PreviousNormalizedTitleInternal={PreviousNormalizedTitleInternal} NextSeriesId={NextSeriesId} NextTitle={NextTitle} NextNormalizedTitleInternal={NextNormalizedTitleInternal}",
-				item.SeriesId, item.Title, item.NormalizedTitleInternal, insertIndex, this.allViewModels.Count,
-				previousSeries?.SeriesId ?? 0, previousSeries?.Title ?? "<none>", previousSeries?.NormalizedTitleInternal ?? "<none>",
-				nextSeries?.SeriesId ?? 0, nextSeries?.Title ?? "<none>", nextSeries?.NormalizedTitleInternal ?? "<none>");
-		}
-
 		// 新正本 All にのみ MangaSeriesViewModel を同じ位置へ追加
 		var viewModel = new MangaSeriesViewModel(item);
 		this.allViewModels.Insert(insertIndex, viewModel);
-
-		// [NewSeriesHomeSync] Store.Insert完了ログ
-		if (NewSeriesHomeSyncTrace.IsTracking(item.SeriesId))
-		{
-			this.logger.LogInformation(
-				"[NewSeriesHomeSync] Store.Insert完了 SeriesId={SeriesId} Title={Title} NormalizedTitleInternal={NormalizedTitleInternal} InsertIndex={InsertIndex} 追加後Store件数={Count}",
-				item.SeriesId, item.Title, item.NormalizedTitleInternal, insertIndex, this.allViewModels.Count);
-		}
 	}
 
 	/// <summary>

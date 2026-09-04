@@ -8,7 +8,7 @@ namespace MangaBinder;
 /// <summary>
 /// Home 画面の ListView アイテム表示用 ViewModel です。MangaSeries をラップしています。
 /// </summary>
-public class SeriesCardViewModel : IDisposable
+public class HomeSeriesCardViewModel : IDisposable
 {
 	private DisposableBag disposableBag = new();
 	private SeriesTagSelectorViewModel tagSelector = null!;
@@ -41,12 +41,12 @@ public class SeriesCardViewModel : IDisposable
 	public SeriesTagSelectorViewModel TagSelector => this.tagSelector;
 
 	/// <summary>
-	/// <see cref="SeriesCardViewModel"/> の新しいインスタンスを初期化します。
+	/// <see cref="HomeSeriesCardViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="seriesViewModel">ラップする MangaSeriesViewModel。</param>
 	/// <param name="mangaSeriesStore">MangaSeries ストア。タグマスタ取得用。</param>
 	/// <param name="seriesTagStore">タグ変更追跡ストア。Dirty 管理用。</param>
-	public SeriesCardViewModel(MangaSeriesViewModel seriesViewModel, MangaSeriesStore? mangaSeriesStore = null, SeriesTagStore? seriesTagStore = null)
+	public HomeSeriesCardViewModel(MangaSeriesViewModel seriesViewModel, MangaSeriesStore? mangaSeriesStore = null, SeriesTagStore? seriesTagStore = null)
 	{
 		// 共有 MangaSeriesViewModel.Series をそのまま参照（新規生成しない）
 		this.Series = seriesViewModel.Series;
