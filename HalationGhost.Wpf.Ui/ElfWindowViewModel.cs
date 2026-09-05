@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using R3;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
@@ -12,8 +13,11 @@ namespace HalationGhost.Wpf.Ui;
 /// ウィンドウ用 ViewModel の基底クラスです。
 /// ナビゲーション制御の関連付けを行い、ウィンドウの初期化をサポートします。
 /// </summary>
-public abstract class ElfWindowViewModel
+public abstract class ElfWindowViewModel : IDisposable
 {
+	/// <summary>R3 リアクティブリソースを管理するバッグ。</summary>
+	protected DisposableBag disposableBag;
+
 	/// <summary>ナビゲーションサービス。</summary>
 	protected INavigationService NavigationService { get; }
 
@@ -22,6 +26,14 @@ public abstract class ElfWindowViewModel
 
 	/// <summary>コンテントダイアログサービス。</summary>
 	protected IContentDialogService ContentDialogService { get; }
+
+	/// <summary>
+	/// ElfWindow が提供するユーザー操作（マウスサイドボタンの戻る操作、ショートカット、その他Window固有操作）
+	/// の有効/無効を制御する共通状態を表すリアクティブプロパティです。
+	/// true の場合、ElfWindow は通常のユーザー操作を許可します。
+	/// false の場合、ElfWindow は通常のユーザー操作を禁止します。
+	/// </summary>
+	public BindableReactiveProperty<bool> IsWindowInteractionEnabled { get; }
 
 	/// <summary>現在表示中のページの ViewModel を保持するフィールドです。ナビゲーションライフサイクル管理に使用します。</summary>
 	private object? currentViewModel;
@@ -49,6 +61,10 @@ public abstract class ElfWindowViewModel
 		this.NavigationService = navigationService;
 		this.SnackbarService = snackbarService;
 		this.ContentDialogService = contentDialogService;
+
+		// IsWindowInteractionEnabled を初期化（初期値: true）
+		this.IsWindowInteractionEnabled = new BindableReactiveProperty<bool>(true);
+		this.IsWindowInteractionEnabled.AddTo(ref this.disposableBag);
 
 		// WindowPlacement ファイルの保存先パスを生成し、NavigationContext に登録
 		var directory = System.IO.Path.Combine(
@@ -194,5 +210,14 @@ public abstract class ElfWindowViewModel
 	/// <param name="viewModelType">解決する ViewModel の型。</param>
 	/// <returns>解決した ViewModel のインスタンス。</returns>
 	protected abstract object ResolveViewModel(Type viewModelType);
+
+	/// <summary>
+	/// リソースを解放します。
+	/// 派生クラスで独自の Dispose 処理を行う場合は、base.Dispose() を呼び出してください。
+	/// </summary>
+	public virtual void Dispose()
+	{
+		this.disposableBag.Dispose();
+	}
 }
 

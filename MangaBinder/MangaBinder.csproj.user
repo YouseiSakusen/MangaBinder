@@ -5,6 +5,9 @@
     <Compile Update="Bindings\StartPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="Bindings\VolumeSelectionPage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Update="Controls\DeveloperMaintenanceDialogContent.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -45,9 +48,6 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Bindings\SeriesInspectionPage.xaml.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Update="Bindings\VolumeSelectionPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="HomePage.xaml.cs">

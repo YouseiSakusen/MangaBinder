@@ -24,6 +24,32 @@ public class ElfWindow : FluentWindow, INavigationWindow
 	private IServiceProvider? serviceProvider;
 
 	/// <summary>
+	/// IsWindowInteractionEnabled 依存プロパティを識別します。
+	/// </summary>
+	public static readonly DependencyProperty IsWindowInteractionEnabledProperty =
+		DependencyProperty.Register(
+			nameof(IsWindowInteractionEnabled),
+			typeof(bool),
+			typeof(ElfWindow),
+			new PropertyMetadata(true));
+
+	/// <summary>
+	/// ElfWindow が提供するユーザー操作（マウスサイドボタンの戻る操作、ショートカット、その他Window固有操作）
+	/// の有効/無効を示す値を取得または設定します。
+	/// true の場合、ElfWindow は通常のユーザー操作を許可します。
+	/// false の場合、ElfWindow は通常のユーザー操作を禁止します。
+	/// この値は通常 ElfWindowViewModel の IsWindowInteractionEnabled.Value から OneWay Binding で更新されます。
+	/// </summary>
+	[Category("Elf Window")]
+	[Description("ウィンドウが提供するユーザー操作（マウスサイドボタンなど）の有効/無効を示します。")]
+	[DefaultValue(true)]
+	public bool IsWindowInteractionEnabled
+	{
+		get => (bool)this.GetValue(IsWindowInteractionEnabledProperty);
+		set => this.SetValue(IsWindowInteractionEnabledProperty, value);
+	}
+
+	/// <summary>
 	/// <see cref="ElfWindow"/> の新しいインスタンスを初期化します。
 	/// Windows のシステムテーマへの追従を開始します。
 	/// </summary>
@@ -51,6 +77,19 @@ public class ElfWindow : FluentWindow, INavigationWindow
 	private void ElfWindow_Loaded(object? sender, RoutedEventArgs e)
 	{
 		this.FindAndSetNavigationView();
+
+		// DataContext が ElfWindowViewModel であれば、IsWindowInteractionEnabled を OneWay Binding で接続
+		if (this.DataContext is ElfWindowViewModel viewModel)
+		{
+			var binding = new System.Windows.Data.Binding
+			{
+				Source = viewModel.IsWindowInteractionEnabled,
+				Path = new PropertyPath(nameof(viewModel.IsWindowInteractionEnabled.Value)),
+				Mode = System.Windows.Data.BindingMode.OneWay,
+				UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged,
+			};
+			System.Windows.Data.BindingOperations.SetBinding(this, IsWindowInteractionEnabledProperty, binding);
+		}
 	}
 
 	/// <summary>
@@ -147,6 +186,13 @@ public class ElfWindow : FluentWindow, INavigationWindow
 		// マウスサイドボタン(XButton1)を検知
 		if (e.XButton1 == MouseButtonState.Pressed)
 		{
+			// ウィンドウ操作が無効な場合は何もしない
+			if (!this.IsWindowInteractionEnabled)
+			{
+				e.Handled = true;
+				return;
+			}
+
 			// 戻る要求が無効な場合は何もしない
 			if (!NavigationContext.IsBackRequestEnabled())
 			{

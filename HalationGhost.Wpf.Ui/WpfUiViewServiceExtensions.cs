@@ -1,4 +1,5 @@
 using System.Windows;
+using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using HalationGhost.Wpf.Ui.Navigation;
 using Wpf.Ui;
@@ -42,7 +43,7 @@ public static class WpfUiViewServiceExtensions
 			view.DataContext = viewModel;
 
 			if (viewModel is IWindowClosingAware closingAware)
-				view.Closing += async (_, _) => await closingAware.OnClosingAsync();
+				view.Closing += async (_, e) => await closingAware.OnClosingAsync(e);
 
 			return view;
 		});

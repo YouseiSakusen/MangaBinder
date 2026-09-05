@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
 using System.Windows;
@@ -22,7 +23,7 @@ namespace MangaBinder;
 /// <summary>
 /// メインウィンドウの ViewModel です。
 /// </summary>
-public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosingAware
+public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 {
 	/// <summary>ロガー。</summary>
 	private readonly ILogger<MainWindowViewModel> logger;
@@ -53,8 +54,6 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 
 	/// <summary>製本待ちキューストア。InfoBadge 表示用に読み取り専用で使用します。</summary>
 	private readonly BindingQueueStore bindingQueueStore;
-
-	private DisposableBag disposableBag;
 
 	/// <summary>
 	/// アプリケーションタイトルを表す読み取り専用リアクティブプロパティです。
@@ -256,11 +255,20 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	}
 
 	/// <summary>
-	/// ウィンドウが閉じられる直前に呼び出されます。現在ページが <see cref="ISavable"/> を実装していれば保存を実行します。
+	/// ウィンドウが閉じられる直前に呼び出されます。
+	/// Loading 中の場合、クローズをキャンセルします。
+	/// Loading 中でない場合、現在ページが <see cref="ISavable"/> を実装していれば保存を実行します。
 	/// </summary>
+	/// <param name="e">クローズイベントの引数。Cancel を設定してクローズをキャンセル可能。</param>
 	/// <returns>完了を表す <see cref="ValueTask"/>。</returns>
-	public async ValueTask OnClosingAsync()
+	public async ValueTask OnClosingAsync(CancelEventArgs e)
 	{
+		if (this.isLoadingProperty.Value)
+		{
+			e.Cancel = true;
+			return;
+		}
+
 		await this.saveViewModelAsync(this.CurrentViewModel);
 
 		using var scope = this.serviceScopeFactory.CreateScope();
@@ -351,6 +359,9 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	{
 		this.isLoadingProperty.Value = e.IsLoading;
 		this.loadingMessageProperty.Value = e.Message;
+
+		// Loading中はウィンドウ固有操作を禁止
+		this.IsWindowInteractionEnabled.Value = !e.IsLoading;
 	}
 
 	/// <summary>
@@ -366,11 +377,12 @@ public class MainWindowViewModel : ElfWindowViewModel, IDisposable, IWindowClosi
 	/// <summary>
 	/// リソースを解放します。
 	/// </summary>
-	public void Dispose()
+	public override void Dispose()
 	{
 		// LoadingService のイベント購読を解除
 		this.loadingService.StateChanged -= this.onLoadingServiceStateChanged;
 
-		this.disposableBag.Dispose();
+		// 基底クラスの Dispose を呼び出し（IsWindowInteractionEnabled を含む R3 リソースを解放）
+		base.Dispose();
 	}
 }

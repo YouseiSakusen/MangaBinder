@@ -19,68 +19,89 @@
 	ExtendsContentIntoTitleBar="True">
 
 	<Grid>
-		<ui:NavigationView
-			x:Name="RootNavigation"
-			Padding="0"
-			FrameMargin="0"
-			MenuItemsSource="{Binding MenuItems}"
-			FooterMenuItemsSource="{Binding FooterMenuItems}"
-			PaneDisplayMode="LeftMinimal"
-			IsPaneToggleVisible="True"
-			IsPaneOpen="False"
-			IsBackButtonVisible="Collapsed"
-			OpenPaneLength="280"
-			TitleBar="{Binding ElementName=TitleBar}"
-			BreadcrumbBar="{Binding ElementName=MainBreadcrumb}">
+		<!-- アプリケーション UI コンテナ（Loading中に操作不能になる範囲） -->
+		<Grid x:Name="ContentContainer" IsEnabled="True">
+			<!-- DataTrigger: IsLoading=true の場合 IsEnabled=false -->
+			<Grid.Style>
+				<Style TargetType="Grid">
+					<Setter Property="IsEnabled" Value="True" />
+					<Style.Triggers>
+						<DataTrigger Binding="{Binding IsLoading.Value}" Value="True">
+							<Setter Property="IsEnabled" Value="False" />
+						</DataTrigger>
+					</Style.Triggers>
+				</Style>
+			</Grid.Style>
 
-			<ui:NavigationView.Header>
-				<ui:BreadcrumbBar x:Name="MainBreadcrumb" Margin="24,15,0,0" />
-			</ui:NavigationView.Header>
+			<!-- ナビゲーション -->
+			<ui:NavigationView
+				x:Name="RootNavigation"
+				Padding="0"
+				FrameMargin="0"
+				MenuItemsSource="{Binding MenuItems}"
+				FooterMenuItemsSource="{Binding FooterMenuItems}"
+				PaneDisplayMode="LeftMinimal"
+				IsPaneToggleVisible="True"
+				IsPaneOpen="False"
+				IsBackButtonVisible="Collapsed"
+				OpenPaneLength="280"
+				TitleBar="{Binding ElementName=TitleBar}"
+				BreadcrumbBar="{Binding ElementName=MainBreadcrumb}">
 
-			<ui:NavigationView.ContentOverlay>
-				<Grid>
-					<!-- スナックバー -->
-					<ui:SnackbarPresenter x:Name="SnackbarPresenter" 
-										Width="1280"
-										HorizontalAlignment="Right"
-										VerticalAlignment="Bottom"
-										Margin="24" />
+				<ui:NavigationView.Header>
+					<ui:BreadcrumbBar x:Name="MainBreadcrumb" Margin="24,15,0,0" />
+				</ui:NavigationView.Header>
 
-					<!-- ローディングオーバーレイ -->
-					<Grid
-						Background="#80000000"
-						Visibility="{Binding IsLoading.Value, Converter={StaticResource BoolToVisibilityConverter}}"
-						Panel.ZIndex="1000">
-
-						<!-- 中央に ProgressRing とメッセージを配置 -->
-						<StackPanel
-							VerticalAlignment="Center"
-							HorizontalAlignment="Center">
-
-							<!-- Indeterminate ProgressRing -->
-							<ui:ProgressRing
-								IsIndeterminate="True"
-								Width="64"
-								Height="64"
-								HorizontalAlignment="Center" />
-
-							<!-- ローディングメッセージ（16px の上マージン） -->
-							<TextBlock
-								Text="{Binding LoadingMessage.Value}"
-								HorizontalAlignment="Center"
-								Foreground="White"
-								FontSize="14"
-								TextAlignment="Center"
-								Margin="0,16,0,0" />
-
-						</StackPanel>
-
+				<!-- ContentOverlay は SnackbarPresenter 専用に戻す -->
+				<ui:NavigationView.ContentOverlay>
+					<Grid>
+						<!-- スナックバー -->
+						<ui:SnackbarPresenter x:Name="SnackbarPresenter" 
+											Width="1280"
+											HorizontalAlignment="Right"
+											VerticalAlignment="Bottom"
+											Margin="24" />
 					</Grid>
+				</ui:NavigationView.ContentOverlay>
+			</ui:NavigationView>
 
-				</Grid>
-			</ui:NavigationView.ContentOverlay>
-		</ui:NavigationView>
+			<!-- ContentDialogHost（NavigationView の上に配置） -->
+			<ui:ContentDialogHost x:Name="RootContentDialog" Panel.ZIndex="1000" />
+		</Grid>
 
+		<!-- ローディングオーバーレイ（Root Grid 直下、ContentContainer より上） -->
+		<Grid
+			Background="#80000000"
+			Visibility="{Binding IsLoading.Value, Converter={StaticResource BoolToVisibilityConverter}}"
+			Panel.ZIndex="500"
+			IsHitTestVisible="True">
+
+			<!-- 中央に ProgressRing とメッセージを配置 -->
+			<StackPanel
+				VerticalAlignment="Center"
+				HorizontalAlignment="Center">
+
+				<!-- Indeterminate ProgressRing -->
+				<ui:ProgressRing
+					IsIndeterminate="True"
+					Width="64"
+					Height="64"
+					HorizontalAlignment="Center" />
+
+				<!-- ローディングメッセージ（16px の上マージン） -->
+				<TextBlock
+					Text="{Binding LoadingMessage.Value}"
+					HorizontalAlignment="Center"
+					Foreground="White"
+					FontSize="14"
+					TextAlignment="Center"
+					Margin="0,16,0,0" />
+
+			</StackPanel>
+
+		</Grid>
+
+		<!-- TitleBar（Loading中も操作可能） -->
 		<ui:TitleBar
 			x:Name="TitleBar"
 			Title="{Binding ApplicationTitle.Value}"
@@ -88,21 +109,19 @@
 			ShowMaximize="True"
 			ShowMinimize="True"
 			ShowClose="True"
-			Panel.ZIndex="100">
+			Panel.ZIndex="1000">
 			<ui:TitleBar.Icon>
 				<ui:ImageIcon Source="/Assets/MangaBinder-Simple-256.png" />
 			</ui:TitleBar.Icon>
 		</ui:TitleBar>
 
-		<ui:ContentDialogHost x:Name="RootContentDialog" Panel.ZIndex="1000" />
-
-		<!-- ウィンドウ右下 ResizeGrip -->
+		<!-- ResizeGrip（Loading中も操作可能） -->
 		<ResizeGrip
 			HorizontalAlignment="Right"
 			VerticalAlignment="Bottom"
 			Width="16"
 			Height="16"
 			Margin="0,0,2,2"
-			Panel.ZIndex="10" />
+			Panel.ZIndex="1000" />
 	</Grid>
 </hg:ElfWindow>

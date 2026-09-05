@@ -42,6 +42,15 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     /// <summary>アプリケーション設定。</summary>
     private readonly AppSettings appSettings;
 
+    /// <summary>サムネイル画像ローダー。</summary>
+    private readonly ThumbnailImageLoader thumbnailImageLoader;
+
+    /// <summary>ローディングサービス。</summary>
+    private readonly LoadingService loadingService;
+
+    /// <summary>巻選択画面が所有する巻情報表示用ViewModel。</summary>
+    private readonly SeriesVolumeStatusViewModel volumeStatusViewModel;
+
     private DisposableBag disposableBag;
 
     /// <summary>選択中の作品名を取得します。</summary>
@@ -53,11 +62,11 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     /// <summary>選択中の作品の巻情報表示用ViewModel を取得します。</summary>
     public BindableReactiveProperty<SeriesVolumeStatusViewModel?> SelectedSeriesVolumeStatus { get; }
 
-    /// <summary>素材を解析中かどうかを取得します。</summary>
-    public BindableReactiveProperty<bool> IsLoading { get; }
-
-    /// <summary>読み込み中メッセージを取得します。</summary>
-    public BindableReactiveProperty<string> LoadingMessage { get; }
+    /// <summary>
+    /// 作品サムネイルカード用の ViewModel を取得します。
+    /// ThumbnailSource と VolumeStatus を管理し、左側パネルのサムネイルカードに使用されます。
+    /// </summary>
+    public MangaSeriesCardViewModel MangaSeriesCard { get; private set; }
 
     /// <summary>素材サマリ文字列を取得します。</summary>
     public BindableReactiveProperty<string> MaterialSummaryText { get; }
@@ -150,6 +159,8 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     /// <param name="snackbarService">スナックバーサービス。</param>
     /// <param name="seriesMaterialFolderLoader">素材フォルダローダー。</param>
     /// <param name="appSettings">アプリケーション設定。</param>
+    /// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
+    /// <param name="loadingService">ローディングサービス。</param>
     public VolumeSelectionPageViewModel(
         SeriesWorkspaceStore workspaceStore,
         IServiceScopeFactory serviceScopeFactory,
@@ -157,7 +168,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         IContentDialogService contentDialogService,
         ISnackbarService snackbarService,
         SeriesMaterialFolderLoader seriesMaterialFolderLoader,
-        AppSettings appSettings)
+        AppSettings appSettings,
+        ThumbnailImageLoader thumbnailImageLoader,
+        LoadingService loadingService)
     {
         this.workspaceStore = workspaceStore;
         this.serviceScopeFactory = serviceScopeFactory;
@@ -166,6 +179,12 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         this.snackbarService = snackbarService;
         this.seriesMaterialFolderLoader = seriesMaterialFolderLoader;
         this.appSettings = appSettings;
+        this.thumbnailImageLoader = thumbnailImageLoader;
+        this.loadingService = loadingService;
+
+        // 巻選択画面が所有する巻情報表示用ViewModel を生成
+        this.volumeStatusViewModel = new SeriesVolumeStatusViewModel()
+            .AddTo(ref this.disposableBag);
 
         this.SeriesTitle = new BindableReactiveProperty<string>(string.Empty)
             .AddTo(ref this.disposableBag);
@@ -174,10 +193,6 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         this.SelectedSeriesVolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel?>(null)
             .AddTo(ref this.disposableBag);
 
-        this.IsLoading = new BindableReactiveProperty<bool>(false)
-            .AddTo(ref this.disposableBag);
-        this.LoadingMessage = new BindableReactiveProperty<string>(string.Empty)
-            .AddTo(ref this.disposableBag);
         this.MaterialSummaryText = new BindableReactiveProperty<string>(string.Empty)
             .AddTo(ref this.disposableBag);
         this.MaterialCountText = new BindableReactiveProperty<string>("0 件")
@@ -250,6 +265,10 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             .ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
             .AddTo(ref this.disposableBag);
 
+        // MangaSeriesCard: 作品サムネイルカード用ViewModel
+        this.MangaSeriesCard = new MangaSeriesCardViewModel()
+            .AddTo(ref this.disposableBag);
+
         // 素材展開方法の選択変更を監視し、RecreateWorkFolder を更新
         this.ImageExpansionMethod.Subscribe(selectedIndex =>
         {
@@ -258,15 +277,32 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             this.workspaceStore.RecreateWorkFolder.Value = selectedIndex == 0;
         }).AddTo(ref this.disposableBag);
 
-        // SelectedSeries 変更時に巻情報表示ViewModel を生成
+        // SelectedSeries 変更時に同期
         this.SelectedSeries.Subscribe(series =>
         {
             if (series is not null)
             {
-                this.SelectedSeriesVolumeStatus.Value = SeriesVolumeStatusViewModel.FromSeries(series);
+                // 巻選択画面が所有する SeriesVolumeStatusViewModel に series を設定
+                this.volumeStatusViewModel.Series.Value = series;
+
+                // ThumbnailImageLoader で最終表示用 ImageSource を取得
+                var imageSource = this.thumbnailImageLoader.Load(series);
+
+                // MangaSeriesCard へ設定
+                this.MangaSeriesCard.ThumbnailSource.Value = imageSource;
+                this.MangaSeriesCard.VolumeStatus.Value = this.volumeStatusViewModel;
+
+                // 既存 Binding との互換性: SelectedSeriesVolumeStatus に同一インスタンスを参照させる
+                this.SelectedSeriesVolumeStatus.Value = this.volumeStatusViewModel;
             }
             else
             {
+                // series が null の場合はクリア
+                this.volumeStatusViewModel.Series.Value = null;
+                this.MangaSeriesCard.ThumbnailSource.Value = null;
+                this.MangaSeriesCard.VolumeStatus.Value = null;
+
+                // 既存 Binding との互換性: SelectedSeriesVolumeStatus もクリア
                 this.SelectedSeriesVolumeStatus.Value = null;
             }
         }).AddTo(ref this.disposableBag);
@@ -275,7 +311,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     }
 
     /// <inheritdoc/>
-    public async ValueTask InitializeDataAsync()
+    public ValueTask InitializeDataAsync()
     {
         // 既存ノードを破棄
         foreach (var node in this.rootNodes)
@@ -294,7 +330,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         // BindingTarget から製本対象作品を取得
         var series = this.workspaceStore.BindingTarget;
         if (series is null)
-            return;
+            return default;
 
         this.SeriesTitle.Value = series.Title;
         this.SelectedSeries.Value = series;
@@ -302,15 +338,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         this.updateWorkFolderState();
         this.updateVolumeFolderDigits();
 
-        // ローディング開始
-        this.IsLoading.Value = true;
-        this.LoadingMessage.Value = "素材を解析しています...";
-
-        // ProgressRing が描画される機会を作る
-        await Task.Yield();
-
-        // 画面表示後にバックグラウンド実行する
+        // バックグラウンド実行で素材読み込み開始
         _ = this.loadMaterialsAsync(series);
+        return default;
     }
 
     /// <summary>
@@ -318,8 +348,11 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     /// </summary>
     private async Task loadMaterialsAsync(MangaSeries series)
     {
-        try
+        using (this.loadingService.Begin("素材を解析しています..."))
         {
+            // UI 描画機会を確保
+            await Task.Yield();
+
             var result = await this.seriesMaterialFolderLoader.GetMaterialsAsync(series, CancellationToken.None);
 
             switch (result.Status)
@@ -383,10 +416,6 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
 
             // 全ノードの IsChecked 変更を購読してサマリを更新する
             this.subscribeCheckedNodes(this.rootNodes);
-        }
-        finally
-        {
-            this.IsLoading.Value = false;
         }
     }
 

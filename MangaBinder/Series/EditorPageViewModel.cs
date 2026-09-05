@@ -1600,10 +1600,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
 
 			// ローディング開始
-			using (this.loadingService.Begin("作品を一時保存しています…"))
-			{
-				// WorkMangaSeries へ一時保存
-				var workId = await seriesManager.SaveWorkSeriesAsync(editingSeries, thumbnailBytes);
+				using (this.loadingService.Begin("作品を一時保存しています…"))
+				{
+					await Task.Yield();
+
+					// WorkMangaSeries へ一時保存
+					var workId = await seriesManager.SaveWorkSeriesAsync(editingSeries, thumbnailBytes);
 
 				// 成功ログ
 				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SaveWorkSeriesAsync] 一時保存成功。WorkId={workId}");
@@ -1665,6 +1667,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			// ローディング開始
 			using (this.loadingService.Begin("素材を追加しています..."))
 			{
+				await Task.Yield();
+
 				// 候補を解析
 				var candidates = materialManager.AnalyzePaths(droppedPaths, existingFullPaths.ToList());
 
@@ -2130,10 +2134,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 									: "作品を更新しています…";
 
 								SeriesSaveResult saveResult;
-								using (this.loadingService.Begin(loadingMessage))
-								{
-									// 保存実行
-									saveResult = await seriesManager.SaveSeriesAsync(
+									using (this.loadingService.Begin(loadingMessage))
+									{
+										await Task.Yield();
+
+										// 保存実行
+										saveResult = await seriesManager.SaveSeriesAsync(
 										this.editorStore,
 										materialFileDtos,
 										this.PastedThumbnailBytes,
