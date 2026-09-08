@@ -4,7 +4,7 @@ namespace MangaBinder.Bindings;
 /// 素材フォルダ配下の表示対象ノードを表すDTO。
 /// UI と Worker 両方で共通利用される型で、MaterialVolumeNode に依存しません。
 /// </summary>
-public class MaterialItem
+public class MaterialItemDto
 {
 	/// <summary>
 	/// 素材アイテムの種別を取得または設定します。
@@ -64,5 +64,5 @@ public class MaterialItem
 	/// <summary>
 	/// 子ノード一覧を取得します。
 	/// </summary>
-	public List<MaterialItem> Children { get; } = [];
+	public List<MaterialItemDto> Children { get; } = [];
 }

@@ -1,6 +1,5 @@
 using HalationGhost.Utilities;
 using MangaBinder.Bindings;
-using MangaBinder.Core.Series;
 using MangaBinder.Helpers;
 using MangaBinder.Series;
 using MangaBinder.Settings;
@@ -303,7 +302,7 @@ public class MangaSeriesManager
 	/// <param name="editorStore">編集状態を保持するストア。EditingSeries と Title を参照します。</param>
 	/// <returns>重複作品判定結果。重複なし時は NoMatchFound、重複あり時は DifferentSeriesMatched。</returns>
 	/// <exception cref="ArgumentNullException">editorStore が null または EditingSeries が null の場合にスローされます。</exception>
-	public ExistingSeriesTitleMatchResult CheckExistingSeriesTitleMatch(EditorStore editorStore)
+	public ExistingSeriesTitleMatchResult CheckExistingSeriesTitleMatch(EditingSession editorStore)
 	{
 		ArgumentNullException.ThrowIfNull(editorStore);
 		ArgumentNullException.ThrowIfNull(editorStore.EditingSeries);
@@ -332,7 +331,7 @@ public class MangaSeriesManager
 	/// <returns>確認が必要な場合は SaveSeriesConfirmationType と詳細情報、不要な場合は None を含む確認結果。</returns>
 	/// <exception cref="ArgumentNullException">editorStore または materialFiles が null の場合にスローされます。</exception>
 	public ValueTask<SaveSeriesConfirmationResult> GetSaveSeriesConfirmationAsync(
-		EditorStore editorStore,
+		EditingSession editorStore,
 		IReadOnlyList<MaterialFile> materialFiles)
 	{
 		ArgumentNullException.ThrowIfNull(editorStore);
@@ -468,7 +467,7 @@ public class MangaSeriesManager
 	/// <param name="series">編集対象の作品。</param>
 	/// <param name="editorStore">編集状態を保持するストア。</param>
 	/// <exception cref="ArgumentNullException">series または editorStore が null の場合にスローされます。</exception>
-	public void BeginEdit(MangaSeries series, EditorStore editorStore)
+	public void BeginEdit(MangaSeries series, EditingSession editorStore)
 	{
 		ArgumentNullException.ThrowIfNull(series);
 		ArgumentNullException.ThrowIfNull(editorStore);
@@ -666,7 +665,7 @@ public class MangaSeriesManager
 	/// <exception cref="ArgumentNullException">editorStore が null の場合、または EditingSeries が null の場合にスローされます。</exception>
 	/// <exception cref="InvalidOperationException">タイトル判定エラーまたはその他のバリデーションエラー。</exception>
 	public async ValueTask<SeriesSaveResult> SaveSeriesAsync(
-		EditorStore editorStore,
+		EditingSession editorStore,
 		IReadOnlyList<MaterialFile> materialFiles,
 		byte[]? thumbnailBytes,
 		bool isBindingQueued)

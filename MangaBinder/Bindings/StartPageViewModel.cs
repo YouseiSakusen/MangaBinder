@@ -1,6 +1,8 @@
 using ObservableCollections;
 using R3;
+using System.IO;
 using Wpf.Ui;
+using Wpf.Ui.Controls;
 using MangaBinder.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -29,6 +31,15 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>製本開始ページ ストア。</summary>
 	private readonly StartPageStore startPageStore;
 
+	/// <summary>製本工程正本状態 ストア。</summary>
+	private readonly BindingStore bindingStore;
+
+	/// <summary>製本工程操作 マネージャー。</summary>
+	private readonly BindingManager bindingManager;
+
+	/// <summary>スナックバーサービス。</summary>
+	private readonly ISnackbarService snackbarService;
+
 	private DisposableBag disposableBag;
 
 	/// <summary>
@@ -45,6 +56,11 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// BindingQueue が空かどうかを取得します。
 	/// </summary>
 	public BindableReactiveProperty<bool> IsEmpty { get; }
+
+	/// <summary>
+	/// 現在の製本工程で扱っている BindingSeries を取得します。
+	/// </summary>
+	public BindableReactiveProperty<BindingSeries?> BindingTarget { get; }
 
 	/// <summary>HomePage へ遷移するコマンドです。</summary>
 	public ReactiveCommand<Unit> NavigateToHomeCommand { get; }
@@ -79,7 +95,19 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <param name="workspaceStore">製本ワークスペース ストア。</param>
 	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
 	/// <param name="startPageStore">製本開始ページ ストア。</param>
-	public StartPageViewModel(IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, IContentDialogService contentDialogService, SeriesWorkspaceStore workspaceStore, BindingQueueStore bindingQueueStore, StartPageStore startPageStore)
+	/// <param name="bindingStore">製本工程正本状態 ストア。</param>
+	/// <param name="bindingManager">製本工程操作 マネージャー。</param>
+	/// <param name="snackbarService">スナックバーサービス。</param>
+	public StartPageViewModel(
+		IServiceScopeFactory serviceScopeFactory,
+		INavigationService navigationService,
+		IContentDialogService contentDialogService,
+		SeriesWorkspaceStore workspaceStore,
+		BindingQueueStore bindingQueueStore,
+		StartPageStore startPageStore,
+		BindingStore bindingStore,
+		BindingManager bindingManager,
+		ISnackbarService snackbarService)
 	{
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.navigationService = navigationService;
@@ -87,6 +115,9 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.workspaceStore = workspaceStore;
 		this.bindingQueueStore = bindingQueueStore;
 		this.startPageStore = startPageStore;
+		this.bindingStore = bindingStore;
+		this.bindingManager = bindingManager;
+		this.snackbarService = snackbarService;
 
 		// StartPageStore が公開する WPF バインド用一覧を使用
 		this.Series = this.startPageStore.QueueCards;
@@ -97,13 +128,19 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		// BindingQueue が空かどうかをストアから参照
 		this.IsEmpty = this.bindingQueueStore.IsEmpty;
 
+		// BindingStore.BindingTarget をそのまま参照（新しいインスタンスを作らない）
+		this.BindingTarget = this.bindingStore.BindingTarget;
+
 		this.NavigateToHomeCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
 		this.NavigateToHomeCommand.Subscribe(_ => this.navigationService.Navigate(typeof(HomePage)));
 
 		this.NavigateToVolumeSelectionCommand = new ReactiveCommand<BindingSeries>()
 			.AddTo(ref this.disposableBag);
-		this.NavigateToVolumeSelectionCommand.Subscribe(bindingSeries => this.NavigateToVolumeSelection(bindingSeries));
+		this.NavigateToVolumeSelectionCommand.Subscribe(async bindingSeries =>
+		{
+			await this.navigateToVolumeSelectionAsync(bindingSeries);
+		});
 
 		this.ClearBindingQueueCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
@@ -134,11 +171,23 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// VolumeSelectionPage へ遷移します。指定された作品を製本対象として設定します。
 	/// </summary>
 	/// <param name="bindingSeries">遷移対象の作品。</param>
-	private void NavigateToVolumeSelection(BindingSeries bindingSeries)
+	private async Task navigateToVolumeSelectionAsync(BindingSeries bindingSeries)
 	{
+		// BindingManager で素材フォルダの事前確認を実行
+		var availabilityResult = await this.bindingManager.SetBindingTargetAsync(bindingSeries);
+
+		// 素材フォルダが利用できない場合はエラー表示して終了
+		if (!availabilityResult.IsSuccess)
+		{
+			this.showMaterialFolderErrorSnackbar(availabilityResult);
+			return;
+		}
+
 		var series = bindingSeries.Series;
 
-		// BindingTarget を設定
+		// TODO: Reactive製本フローへの移行完了後に削除。
+		// 製本前確認以降の旧製本工程との互換性維持のため、
+		// SeriesWorkspaceStoreにも現在の製本対象を設定する。
 		this.workspaceStore.SetBindingTarget(series);
 
 		// 互換維持のため SelectedSeries にも同じ1作品をセット
@@ -147,6 +196,41 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 
 		// VolumeSelectionPage へナビゲート
 		this.navigationService.NavigateWithHierarchy(typeof(VolumeSelectionPage));
+	}
+
+	/// <summary>
+	/// 素材フォルダの利用可否確認失敗時にエラーを表示します。
+	/// </summary>
+	/// <param name="availabilityResult">利用可否確認結果。</param>
+	private void showMaterialFolderErrorSnackbar(MaterialSourceAvailabilityResult availabilityResult)
+	{
+		switch (availabilityResult.Status)
+		{
+			case MaterialFolderStatus.DriveNotReady:
+				var driveLetter = string.IsNullOrEmpty(availabilityResult.TargetPath)
+					? string.Empty
+					: Path.GetPathRoot(availabilityResult.TargetPath) ?? string.Empty;
+				var driveMessage = string.IsNullOrEmpty(driveLetter)
+					? "ドライブの接続を確認してください。"
+					: $"ドライブ({driveLetter})の接続を確認してください。";
+				this.snackbarService.Show(
+					"ドライブが接続されていません",
+					driveMessage,
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.MaxValue);
+				break;
+
+			case MaterialFolderStatus.NoMaterialSource:
+			case MaterialFolderStatus.MaterialSourceNotFound:
+				this.snackbarService.Show(
+					"素材フォルダが見つかりません",
+					"素材フォルダが存在しません。",
+					ControlAppearance.Danger,
+					new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
+					TimeSpan.MaxValue);
+				break;
+		}
 	}
 
 	/// <summary>

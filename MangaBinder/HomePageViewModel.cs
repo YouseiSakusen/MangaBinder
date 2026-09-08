@@ -25,8 +25,8 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>ナビゲーションサービス。</summary>
     private readonly INavigationService navigationService;
 
-    /// <summary>作品選択状態ストア。</summary>
-    private readonly SeriesWorkspaceStore workspaceStore;
+    /// <summary>編集対象を保持するストア。</summary>
+    private readonly EditStore editStore;
 
     /// <summary>タグ変更追跡ストア。</summary>
     private readonly SeriesTagStore seriesTagStore;
@@ -55,9 +55,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// ListView にバインドする SeriesCardViewModel の一覧を取得します。
     /// </summary>
     public NotifyCollectionChangedSynchronizedViewList<HomeSeriesCardViewModel> Series { get; }
-
-    /// <summary>製本開始コマンドです。</summary>
-    public ReactiveCommand<Unit> StartBindingCommand { get; }
 
     /// <summary>Home 画面の表示状態を取得します。</summary>
     public HomeStateInformation HomeStateInformation { get; } = new();
@@ -123,19 +120,19 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="logger">ロガー。</param>
     /// <param name="serviceScopeFactory">スコープファクトリー。</param>
     /// <param name="navigationService">ナビゲーションサービス。</param>
-    /// <param name="workspaceStore">作品選択状態ストア。</param>
+    /// <param name="editStore">編集対象を保持するストア。</param>
     /// <param name="appSettings">アプリケーション設定。</param>
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
     /// <param name="homeSeriesStore">Home 画面用派生 Store。</param>
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
     /// <param name="bindingQueueStore">製本待ち状態ストア。</param>
     /// <param name="snackbarService">Snackbar 通知サービス。</param>
-    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, SeriesWorkspaceStore workspaceStore, AppSettings appSettings, SeriesTagStore seriesTagStore, HomeSeriesStore homeSeriesStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, EditStore editStore, AppSettings appSettings, SeriesTagStore seriesTagStore, HomeSeriesStore homeSeriesStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
     {
         this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;
         this.navigationService = navigationService;
-        this.workspaceStore = workspaceStore;
+        this.editStore = editStore;
         this.appSettings = appSettings;
         this.seriesTagStore = seriesTagStore;
         this.homeSeriesStore = homeSeriesStore;
@@ -145,19 +142,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
         // Home 用一覧を HomeSeriesStore から取得
         this.Series = this.homeSeriesStore.HomeCards;
-
-        // StartBindingCommand の CanExecute を BindingQueueStore.IsEmpty から導出
-        // Queue が空でない時に実行可能 (!IsEmpty = Count > 0)
-        this.StartBindingCommand = new ReactiveCommand<Unit>(
-            this.bindingQueueStore.IsEmpty.Select(isEmpty => !isEmpty),
-            initialCanExecute: this.bindingQueueStore.Count.Value > 0)
-            .AddTo(ref this.disposableBag);
-        this.StartBindingCommand.Subscribe(_ =>
-        {
-            this.workspaceStore.SelectedSeries.Clear();
-            this.workspaceStore.SelectedSeries.AddRange(this.Series.Where(c => c.IsSelected.Value).Select(c => c.Series.Value));
-            this.navigationService.NavigateWithHierarchy(typeof(VolumeSelectionPage));
-        });
 
         this.SavedSeriesListVerticalOffset = new BindableReactiveProperty<double>(this.appSettings.SeriesListVerticalOffset.Value)
             .AddTo(ref this.disposableBag);
@@ -233,7 +217,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
         // EditTarget をクリア
         // 保存通知は ExistingSeriesSaveManager から MangaSeriesStore.NotifySeriesChanged() を通じて流れる
-        this.workspaceStore.EditTarget = null;
+        this.editStore.EditTarget = null;
     }
 
     /// <inheritdoc/>
@@ -292,7 +276,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     private void editSeries(MangaSeries series)
     {
         // 編集対象を指定作品に設定
-        this.workspaceStore.EditTarget = series;
+        this.editStore.EditTarget = series;
 
         // NavigationHierarchy を使用して遷移
         this.navigationService.NavigateWithHierarchy(typeof(EditorPage));

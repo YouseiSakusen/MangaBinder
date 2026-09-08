@@ -1,12 +1,8 @@
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
-using MangaBinder.Core.Series;
-using MangaBinder.Series;
 using MangaBinder.Settings;
-using MangaBinder.Tags;
 using ObservableCollections;
 using R3;
-using Reactive.Bindings.R3;
 using Reactive.Bindings.R3.Notifiers;
 using System.IO;
 using System.Windows.Media;
@@ -28,12 +24,13 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 {
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly SeriesWorkspaceStore workspaceStore;
+	private readonly EditStore editStore;
 	private readonly IContentDialogService contentDialogService;
 	private readonly INavigationService navigationService;
 	private readonly MangaSeriesStore mangaSeriesStore;
 	private readonly ISnackbarService snackbarService;
 	private readonly AppSettings appSettings;
-	private readonly EditorStore editorStore;
+	private readonly EditingSession editorStore;
 	private readonly LoadingService loadingService;
 	private readonly ThumbnailImageLoader thumbnailImageLoader;
 	private SeriesTagSelectorViewModel tagSelector = null!;
@@ -279,17 +276,19 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public EditorPageViewModel(
 		IServiceScopeFactory serviceScopeFactory,
 		SeriesWorkspaceStore workspaceStore,
+		EditStore editStore,
 		IContentDialogService contentDialogService,
 		INavigationService navigationService,
 		MangaSeriesStore mangaSeriesStore,
 		ISnackbarService snackbarService,
 		AppSettings appSettings,
-		EditorStore editorStore,
+		EditingSession editorStore,
 		LoadingService loadingService,
 		ThumbnailImageLoader thumbnailImageLoader)
 	{
 		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
 		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
+		this.editStore = editStore ?? throw new ArgumentNullException(nameof(editStore));
 		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
 		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
@@ -670,10 +669,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		ArgumentNullException.ThrowIfNull(series);
 
-		// 編集対象を SeriesWorkspaceStore へ同期
-		// これにより、EditorStore側の編集対象とSeriesWorkspaceStore.EditTargetが常に一致し、
+		// 編集対象を EditStore へ同期
+		// これにより、EditStore側の編集対象が常に一致し、
 		// 保存完了後に MangaSeriesStore.NotifySeriesChanged() を通じて正しい作品の共有 Series 状態が更新される
-		this.workspaceStore.EditTarget = series;
+		this.editStore.EditTarget = series;
 
 		// Scope を生成
 		using var scope = this.serviceScopeFactory.CreateScope();
@@ -910,7 +909,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>
 	/// ナビゲーション完了後に呼ばれる初期データ読み込み処理。
-	/// workspaceStore.EditTarget から編集対象を取得し、StartEditAsync を実行します。
+	/// editStore.EditTarget から編集対象を取得し、StartEditAsync を実行します。
 	/// また、AppSettings から素材フォルダ一覧を取得します。
 	/// </summary>
 	public async ValueTask InitializeDataAsync()
@@ -930,7 +929,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 				this.MaterialSourceFolders.Add(folder);
 			}
 
-			var editTarget = this.workspaceStore.EditTarget;
+			var editTarget = this.editStore.EditTarget;
 
 			// 新規作品・登録待ち作品の場合は先頭を初期選択
 			if (editTarget == null || editTarget.SeriesId == 0)
@@ -1012,7 +1011,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		if (!request.PreserveState)
 		{
-			this.workspaceStore.EditTarget = null;
+			this.editStore.EditTarget = null;
 		}
 
 		return ValueTask.CompletedTask;
@@ -1762,13 +1761,16 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var ownedVolumeEstimator = scope.ServiceProvider.GetRequiredService<OwnedVolumeEstimator>();
 
-			var entryNames = this.MaterialFiles.Select(m => m.FileName).ToList();
-			if (entryNames.Count == 0)
+			var materials = this.MaterialFiles
+				.Select(m => (m.FileName, GetVolumeNumberSourceType(m.ItemType)))
+				.ToList();
+
+			if (materials.Count == 0)
 			{
 				return;
 			}
 
-			var result = ownedVolumeEstimator.Estimate(entryNames);
+			var result = ownedVolumeEstimator.Estimate(materials);
 			if (result.OwnedMaxVolume > 0)
 			{
 				this.VolumeStatus.OwnedMaxVolume.Value = result.OwnedMaxVolume;
@@ -2469,8 +2471,10 @@ public partial class EditorPageViewModel
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var ownedVolumeEstimator = scope.ServiceProvider.GetRequiredService<OwnedVolumeEstimator>();
 
-			var entryNames = this.MaterialFiles.Select(m => m.FileName).ToList();
-			var result = ownedVolumeEstimator.Estimate(entryNames);
+			var materials = this.MaterialFiles
+				.Select(m => (m.FileName, GetVolumeNumberSourceType(m.ItemType)))
+				.ToList();
+			var result = ownedVolumeEstimator.Estimate(materials);
 
 			if (result.OwnedMaxVolume > 0)
 			{
@@ -2505,4 +2509,19 @@ public partial class EditorPageViewModel
 		var opener = scope.ServiceProvider.GetRequiredService<MaterialFolderOpener>();
 		await opener.OpenAsync(primarySource);
 	}
+
+	/// <summary>
+	/// MaterialItemType から VolumeNumberSourceType に変換します。
+	/// </summary>
+	private static VolumeNumberSourceType GetVolumeNumberSourceType(MaterialItemType itemType)
+	{
+		return itemType switch
+		{
+			MaterialItemType.Archive => VolumeNumberSourceType.Archive,
+			MaterialItemType.Folder => VolumeNumberSourceType.Folder,
+			MaterialItemType.Epub => VolumeNumberSourceType.Epub,
+			_ => VolumeNumberSourceType.Archive, // Root などの場合はデフォルト
+		};
+	}
 }
+

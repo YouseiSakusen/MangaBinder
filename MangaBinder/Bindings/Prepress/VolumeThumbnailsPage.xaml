@@ -123,11 +123,17 @@
 					HorizontalAlignment="Center"
 					Orientation="Horizontal">
 					<Border
-						Background="{Binding SelectedSeries.Value, Converter={extensions:SeriesStatusBadgeBrushConverterExtension}}"
 						CornerRadius="3"
 						Padding="5,2"
 						Margin="0,0,6,4"
 						VerticalAlignment="Center">
+						<Border.Background>
+							<MultiBinding Converter="{extensions:SeriesStatusBadgeBrushConverterExtension}">
+								<Binding Path="SelectedSeries.Value.SeriesCompleted" />
+								<Binding Path="SelectedSeries.Value.IsOwnedCompleted" />
+								<Binding Path="SelectedSeries.Value.IsIncomplete" />
+							</MultiBinding>
+						</Border.Background>
 						<TextBlock
 							Text="{Binding SelectedSeries.Value.TotalVolumeText}"
 							FontSize="11"

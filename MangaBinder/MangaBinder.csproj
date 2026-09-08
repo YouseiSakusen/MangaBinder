@@ -81,6 +81,8 @@
 
   <ItemGroup>
     <Folder Include="Formatters\" />
+    <Folder Include="Handlers\" />
+    <Folder Include="Pages\" />
     <Folder Include="Services\" />
   </ItemGroup>
 

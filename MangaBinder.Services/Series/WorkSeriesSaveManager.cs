@@ -1,6 +1,4 @@
-using HalationGhost.Utilities;
 using MangaBinder.Bindings;
-using MangaBinder.Core.Series;
 using MangaBinder.Settings;
 using Microsoft.Extensions.Logging;
 

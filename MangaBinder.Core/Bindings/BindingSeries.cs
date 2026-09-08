@@ -3,7 +3,7 @@ using MangaBinder.Core.Formatters;
 namespace MangaBinder.Bindings;
 
 /// <summary>
-/// StartPage で使用する製本開始キュー付き作品エンティティです。
+/// 製本工程で扱う作品と、その製本状態を保持するエンティティです。
 /// </summary>
 public sealed class BindingSeries
 {

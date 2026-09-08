@@ -1,44 +1,42 @@
 using GongSolutions.Wpf.DragDrop;
-using MangaBinder.Bindings;
 using System.Windows;
 
-namespace MangaBinder.Handlers;
+namespace MangaBinder.Bindings;
 
 /// <summary>
 /// 素材 TreeView からのドラッグ操作を処理する DragHandler です。
+/// Reactive側の MaterialItemViewModel をドラッグ可能にします。
 /// </summary>
-public sealed class MaterialVolumeNodeDragHandler : DefaultDragHandler
+public sealed class MaterialItemDragHandler : DefaultDragHandler
 {
 	/// <inheritdoc/>
 	public override void StartDrag(IDragInfo dragInfo)
 	{
-		if (dragInfo.SourceItem is not MaterialVolumeNode node)
+		if (dragInfo.SourceItem is not MaterialItemViewModel item)
 		{
 			dragInfo.Effects = DragDropEffects.None;
 			return;
 		}
 
-		if (!isValidDragTarget(node))
+		if (!isValidDragTarget(item))
 		{
 			dragInfo.Effects = DragDropEffects.None;
 			return;
 		}
 
-		dragInfo.Data = node;
+		dragInfo.Data = item;
 		dragInfo.Effects = DragDropEffects.Copy;
 	}
 
 	/// <inheritdoc/>
 	public override bool CanStartDrag(IDragInfo dragInfo)
 	{
-		if (dragInfo.SourceItem is not MaterialVolumeNode node)
+		if (dragInfo.SourceItem is not MaterialItemViewModel item)
 			return false;
 
-		return isValidDragTarget(node);
+		return isValidDragTarget(item);
 	}
 
-	private static bool isValidDragTarget(MaterialVolumeNode node)
-		=> node.NodeType != MaterialItemType.Root
-		&& node.NodeType != MaterialItemType.Archive
-		&& node.CanCheck.Value;
+	private static bool isValidDragTarget(MaterialItemViewModel item)
+		=> item.CanCheck.CurrentValue;
 }

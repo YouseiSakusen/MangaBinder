@@ -4,7 +4,6 @@ using MangaBinder.Bindings;
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Converters;
-using MangaBinder.Core.Series;
 using MangaBinder.Helpers;
 using MangaBinder.Jobs;
 using MangaBinder.Series;
@@ -77,7 +76,7 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>(ServiceLifetime.Singleton);
 		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>(ServiceLifetime.Singleton);
 		services.AddNavigationPage<EditorPage, EditorPageViewModel>(ServiceLifetime.Transient);
-		services.AddTransient<EditorStore>();
+		services.AddTransient<EditingSession>();
 		services.AddScoped<ThumbnailPicker>();
 		services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();
 		services.AddScoped<OwnedVolumeEstimator>();
@@ -91,6 +90,8 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<SpreadSplitterImageLoader>();
 
 		services.AddSingleton<SeriesWorkspaceStore>();
+		services.AddSingleton<BindingStore>();
+		services.AddSingleton<EditStore>();
 		services.AddSingleton<SeriesTagStore>();
 		services.AddSingleton<MangaSeriesStore>();
 		services.AddSingleton<MaintenanceSeriesStore>();
@@ -99,7 +100,7 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<HomeSeriesStore>();
 		services.AddScoped<BindingStoreRepository>();
 		services.AddScoped<BindingQueueDispatcher>();
-		services.AddSingleton<MaterialSourceDisplayNameConverter>();
+		services.AddSingleton<BindingManager>();
 
 		services.AddScoped<IVolumeImageProcessor, VolumeImageProcessor>();
 		services.AddScoped<FolderVolumeExtractor>();
@@ -113,6 +114,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<MaterialArchiveExtractor>();
 		services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<AppSettings>().ConnectionString));
 		services.AddScoped<SeriesMaterialFolderLoader>();
+		services.AddScoped<VolumeSelectionManager>();
 		services.AddScoped<MaterialFolderOpener>();
 		services.AddScoped<MaterialManager>();
 		services.AddScoped<ThemeBackgroundColorInitializer>();

@@ -1,8 +1,6 @@
 using System.Data.SQLite;
-using HalationGhost.Utilities;
 using Microsoft.Extensions.Logging;
 using MangaBinder.Bindings;
-using MangaBinder.Core.Series;
 using MangaBinder.Settings;
 using MangaBinder.Tags;
 using MangaBinder.Helpers;

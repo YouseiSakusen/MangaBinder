@@ -22,8 +22,8 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>ナビゲーションサービス。</summary>
 	private readonly INavigationService navigationService;
 
-	/// <summary>作品選択状態ストア。</summary>
-	private readonly SeriesWorkspaceStore workspaceStore;
+	/// <summary>編集対象を保持するストア。</summary>
+	private readonly EditStore editStore;
 
 	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
 	private readonly MangaSeriesStore mangaSeriesStore;
@@ -62,14 +62,14 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <see cref="MaintenancePageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
-	/// <param name="workspaceStore">作品選択状態ストア。</param>
+	/// <param name="editStore">編集対象を保持するストア。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="maintenanceSeriesStore">作品管理画面の派生 View を管理するストア。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
-	public MaintenancePageViewModel(INavigationService navigationService, SeriesWorkspaceStore workspaceStore, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesStore maintenanceSeriesStore, IServiceScopeFactory serviceScopeFactory)
+	public MaintenancePageViewModel(INavigationService navigationService, EditStore editStore, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesStore maintenanceSeriesStore, IServiceScopeFactory serviceScopeFactory)
 	{
 		this.navigationService = navigationService;
-		this.workspaceStore = workspaceStore;
+		this.editStore = editStore;
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.maintenanceSeriesStore = maintenanceSeriesStore;
 		this.serviceScopeFactory = serviceScopeFactory;
@@ -214,7 +214,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	private void editSeries(MangaSeries series)
 	{
 		// 編集対象を指定作品に設定
-		this.workspaceStore.EditTarget = series;
+		this.editStore.EditTarget = series;
 
 		// NavigationHierarchy を設定
 		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));

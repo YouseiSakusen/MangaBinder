@@ -19,7 +19,7 @@ public class MaterialFolderResult
 	/// 素材ツリーの情報を取得します。
 	/// UI と Worker 両方で共通利用される共通形式です。
 	/// </summary>
-	public IReadOnlyList<MaterialItem> Materials { get; init; } = [];
+	public IReadOnlyList<MaterialItemDto> Materials { get; init; } = [];
 
 	/// <summary>
 	/// Nested Archive が含まれているかどうかを取得します。

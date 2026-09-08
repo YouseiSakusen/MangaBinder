@@ -40,7 +40,7 @@
 
 		<!-- ノード表示テンプレート -->
 		<HierarchicalDataTemplate x:Key="NodeTemplate"
-								  DataType="{x:Type core:MaterialVolumeNode}"
+								  DataType="{x:Type local:MaterialItemViewModel}"
 								  ItemsSource="{Binding Children}">
 			<StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
 				<!-- 右クリックメニュー：選択不可ノードを一時的に選択可能にする -->
@@ -50,8 +50,7 @@
 							<Style TargetType="ContextMenu">
 								<Setter Property="Visibility" Value="Collapsed" />
 								<Style.Triggers>
-									<DataTrigger Binding="{Binding PlacementTarget.DataContext.CanCheck.Value,
-																	RelativeSource={RelativeSource Self}}"
+									<DataTrigger Binding="{Binding CanCheck.Value}"
 												 Value="False">
 										<Setter Property="Visibility" Value="Visible" />
 									</DataTrigger>
@@ -60,25 +59,26 @@
 						</ContextMenu.Style>
 						<MenuItem
 							Header="選択可能にする"
-							Command="{Binding PlacementTarget.DataContext.EnableSelectionOverrideCommand,
-											  RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+							Command="{Binding EnableSelectionOverrideCommand}" />
 					</ContextMenu>
 				</StackPanel.ContextMenu>
 				<!-- アイコン -->
 				<ui:SymbolIcon
-					Symbol="{Binding NodeType, Converter={StaticResource NodeTypeToSymbolConverter}}"
-					Filled="{Binding ., Converter={StaticResource NodeTypeToFilledConverter}}"
+					Symbol="{Binding Material.ItemType, Converter={StaticResource NodeTypeToSymbolConverter}}"
+					Filled="{Binding Material, Converter={StaticResource NodeTypeToFilledConverter}}"
 					FontSize="16"
-					Foreground="{Binding NodeType, Converter={StaticResource NodeTypeToColorConverter}}"
+					Foreground="{Binding Material.ItemType, Converter={StaticResource NodeTypeToColorConverter}}"
 					VerticalAlignment="Center"
 					Margin="0,0,5,0" />
 				<!-- チェックボックス (Archive / 選択不可ノードは非表示) -->
 				<CheckBox
-					IsChecked="{Binding IsChecked.Value, Mode=TwoWay}"
+					IsChecked="{Binding Material.IsChecked.Value, Mode=OneWay}"
 					Focusable="False"
 					IsTabStop="False"
 					VerticalAlignment="Center"
-					Margin="0,0,6,0">
+					Margin="0,0,6,0"
+					Command="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=DataContext.ToggleMaterialSelectionCommand}"
+					CommandParameter="{Binding .}">
 					<CheckBox.Style>
 						<Style TargetType="CheckBox">
 							<Style.Triggers>
@@ -91,7 +91,7 @@
 				</CheckBox>
 				<!-- ノード名 -->
 				<TextBlock
-					Text="{Binding Name.Value}"
+					Text="{Binding Material.Name}"
 					VerticalAlignment="Center" />
 				<!-- Archive のみサイズ表示 -->
 				<TextBlock
@@ -103,13 +103,13 @@
 						<Style TargetType="TextBlock">
 							<Setter Property="Visibility" Value="Collapsed" />
 							<Style.Triggers>
-								<DataTrigger Binding="{Binding NodeType}" Value="{x:Static shared:MaterialItemType.Archive}">
+								<DataTrigger Binding="{Binding Material.ItemType}" Value="{x:Static shared:MaterialItemType.Archive}">
 									<Setter Property="Visibility" Value="Visible" />
 								</DataTrigger>
 							</Style.Triggers>
 						</Style>
 					</TextBlock.Style>
-					<Run Text="（" /><Run Text="{Binding FileSizeText}" /><Run Text="）" />
+					<Run Text="（" /><Run Text="{Binding Material.FileSizeText}" /><Run Text="）" />
 				</TextBlock>
 			</StackPanel>
 		</HierarchicalDataTemplate>
@@ -283,7 +283,7 @@
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.MainContent>
 				<TreeView
-					ItemsSource="{Binding RootNodes}"
+					ItemsSource="{Binding MaterialItems}"
 					ItemTemplate="{StaticResource NodeTemplate}"
 					Background="Transparent"
 					BorderThickness="0"
@@ -291,13 +291,15 @@
 					VirtualizingPanel.IsVirtualizing="False"
 					ScrollViewer.VerticalScrollBarVisibility="Auto"
 					ScrollViewer.HorizontalScrollBarVisibility="Auto"
-					behaviors:TreeViewSelectedItemBehavior.SelectedItem="{Binding SelectedNode.Value, Mode=TwoWay}"
+					behaviors:TreeViewSelectedItemBehavior.SelectedItem="{Binding SelectedMaterialItem.Value, Mode=TwoWay}"
 					behaviors:TreeViewSpaceKeyBehavior.IsEnabled="True"
+					behaviors:TreeViewSpaceKeyBehavior.Command="{Binding ToggleSelectedMaterialSelectionCommand}"
 					behaviors:TreeViewNodeClickToggleCheckBehavior.IsEnabled="True"
+					behaviors:TreeViewNodeClickToggleCheckBehavior.Command="{Binding ToggleMaterialSelectionCommand}"
 					dd:DragDrop.IsDragSource="True"
 					dd:DragDrop.UseDefaultDragAdorner="True"
 					dd:DragDrop.UseDefaultEffectDataTemplate="True"
-					dd:DragDrop.DragHandler="{Binding TreeViewDragHandler}" />
+					dd:DragDrop.DragHandler="{Binding MaterialItemDragHandler}" />
 			</controls:PageLayout.MainContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
@@ -348,19 +350,19 @@
 						<!-- ─ Row 2: ListViewデータ行 ─ -->
 						<ListView
 							Grid.Row="2"
-							ItemsSource="{Binding BindingQueueItems}"
-							SelectedItem="{Binding SelectedBindingQueueItem.Value, Mode=TwoWay}"
+							ItemsSource="{Binding BindingVolumes}"
+							SelectedItem="{Binding SelectedBindingVolume.Value, Mode=TwoWay}"
 							BorderThickness="0"
 							Background="Transparent"
 							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 							dd:DragDrop.IsDragSource="True"
 							dd:DragDrop.IsDropTarget="True"
-							dd:DragDrop.DropHandler="{Binding DropHandler}"
+							dd:DragDrop.DropHandler="{Binding BindingVolumeDropHandler}"
 							dd:DragDrop.UseDefaultDragAdorner="True"
 							dd:DragDrop.UseDefaultEffectDataTemplate="True"
 							behaviors:ListViewVolumeNumberTabNavigationBehavior.IsEnabled="True">
 							<ListView.InputBindings>
-								<KeyBinding Key="Delete" Command="{Binding RemoveSelectedQueueItemCommand}" />
+								<KeyBinding Key="Delete" Command="{Binding RemoveSelectedBindingVolumeCommand}" />
 							</ListView.InputBindings>
 							<ListView.ItemContainerStyle>
 								<Style TargetType="ListViewItem">
@@ -425,18 +427,17 @@
 										<!-- Column 1: 種別アイコン -->
 										<ui:SymbolIcon
 											Grid.Column="1"
-											Symbol="{Binding SourceNode.NodeType, Converter={StaticResource NodeTypeToSymbolConverter}}"
-											Filled="{Binding SourceNode, Converter={StaticResource NodeTypeToFilledConverter}}"
-											Foreground="{Binding SourceNode.NodeType, Converter={StaticResource NodeTypeToColorConverter}}"
+											Symbol="{Binding DisplayItemType, Converter={StaticResource NodeTypeToSymbolConverter}}"
+											Filled="{Binding Material, Converter={StaticResource NodeTypeToFilledConverter}}"
+											Foreground="{Binding DisplayItemType, Converter={StaticResource NodeTypeToColorConverter}}"
 											FontSize="16"
 											HorizontalAlignment="Center"
-											VerticalAlignment="Center"
-											ToolTip="{Binding SourceTypeText}" />
+											VerticalAlignment="Center" />
 
 										<!-- Column 2: ファイル数 -->
 										<TextBlock
 											Grid.Column="2"
-											Text="{Binding FileCountText}"
+											Text="{Binding FileCount, StringFormat={}{0} 件}"
 											FontSize="12"
 											HorizontalAlignment="Right"
 											Padding="0,0,4,0"
@@ -445,12 +446,12 @@
 										<!-- Column 3: 名前 -->
 										<TextBlock
 											Grid.Column="3"
-											Text="{Binding DisplayName}"
+											Text="{Binding Name}"
 											FontSize="12"
 											Padding="4,0,0,0"
 											TextTrimming="CharacterEllipsis"
 											VerticalAlignment="Center"
-											ToolTip="{Binding DisplayName}" />
+											ToolTip="{Binding Name}" />
 									</Grid>
 								</DataTemplate>
 							</ListView.ItemTemplate>
@@ -464,7 +465,7 @@
 							Background="Transparent"
 							Margin="0,8,0,0"
 							dd:DragDrop.IsDropTarget="True"
-							dd:DragDrop.DropHandler="{Binding RemoveDropHandler}">
+							dd:DragDrop.DropHandler="{Binding BindingVolumeRemoveDropHandler}">
 							<TextBlock
 								Text="🗑 ここへドラッグして除外"
 								FontSize="11"

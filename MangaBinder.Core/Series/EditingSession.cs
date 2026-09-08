@@ -1,12 +1,12 @@
 using MangaBinder.Settings;
 
-namespace MangaBinder.Core.Series;
+namespace MangaBinder.Series;
 
 /// <summary>
 /// EditorPage 専用の編集状態を保持する一時的なストアです。
 /// EditorPageViewModel と同じライフサイクルで使用されます。
 /// </summary>
-public class EditorStore
+public class EditingSession
 {
 	/// <summary>
 	/// 編集中の作品を取得または設定します。

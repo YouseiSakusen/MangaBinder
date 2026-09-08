@@ -32,8 +32,8 @@ public class NewSeriesCoordinator
 	/// <summary>コンテントダイアログサービス。</summary>
 	private readonly IContentDialogService contentDialogService;
 
-	/// <summary>作品選択状態ストア。</summary>
-	private readonly SeriesWorkspaceStore workspaceStore;
+	/// <summary>編集対象を保持するストア。</summary>
+	private readonly EditStore editStore;
 
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
@@ -43,17 +43,17 @@ public class NewSeriesCoordinator
 	/// </summary>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
-	/// <param name="workspaceStore">作品選択状態ストア。</param>
+	/// <param name="editStore">編集対象を保持するストア。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
 	public NewSeriesCoordinator(
 		INavigationService navigationService,
 		IContentDialogService contentDialogService,
-		SeriesWorkspaceStore workspaceStore,
+		EditStore editStore,
 		IServiceScopeFactory serviceScopeFactory)
 	{
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
-		this.workspaceStore = workspaceStore;
+		this.editStore = editStore;
 		this.serviceScopeFactory = serviceScopeFactory;
 	}
 
@@ -225,7 +225,7 @@ public class NewSeriesCoordinator
 			if ((result == ContentDialogResult.Primary) && confirmedSeries != null)
 			{
 				// 編集対象を設定
-				this.workspaceStore.EditTarget = confirmedSeries;
+				this.editStore.EditTarget = confirmedSeries;
 
 				// EditorPage へ遷移
 				this.navigationService.NavigateWithHierarchy(typeof(EditorPage));

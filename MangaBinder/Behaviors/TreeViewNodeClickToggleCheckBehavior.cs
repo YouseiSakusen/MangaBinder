@@ -1,5 +1,3 @@
-using MangaBinder.Bindings;
-using R3;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -9,7 +7,8 @@ using System.Windows.Controls.Primitives;
 namespace MangaBinder.Behaviors;
 
 /// <summary>
-/// TreeView のノードをマウスクリックしてチェック状態を切り替える添付ビヘイビアです。
+/// TreeView のノードをマウスクリックしてコマンドを実行する添付ビヘイビアです。
+/// クリック元の DataContext をコマンドパラメータとして渡します。
 /// CheckBox 自体のクリックや展開アイコンのクリックは処理対象外とします。
 /// </summary>
 public static class TreeViewNodeClickToggleCheckBehavior
@@ -22,6 +21,14 @@ public static class TreeViewNodeClickToggleCheckBehavior
 			typeof(TreeViewNodeClickToggleCheckBehavior),
 			new PropertyMetadata(false, OnIsEnabledChanged));
 
+	/// <summary>Command 添付プロパティです。</summary>
+	public static readonly DependencyProperty CommandProperty =
+		DependencyProperty.RegisterAttached(
+			"Command",
+			typeof(ICommand),
+			typeof(TreeViewNodeClickToggleCheckBehavior),
+			new PropertyMetadata(null));
+
 	/// <summary>IsEnabled 添付プロパティの値を取得します。</summary>
 	/// <param name="obj">値を取得する対象の <see cref="DependencyObject"/>。</param>
 	/// <returns>現在の IsEnabled の値。</returns>
@@ -33,6 +40,18 @@ public static class TreeViewNodeClickToggleCheckBehavior
 	/// <param name="value">設定する値。</param>
 	public static void SetIsEnabled(DependencyObject obj, bool value)
 		=> obj.SetValue(IsEnabledProperty, value);
+
+	/// <summary>Command 添付プロパティの値を取得します。</summary>
+	/// <param name="obj">値を取得する対象の <see cref="DependencyObject"/>。</param>
+	/// <returns>現在のコマンド。</returns>
+	public static ICommand? GetCommand(DependencyObject obj)
+		=> (ICommand?)obj.GetValue(CommandProperty);
+
+	/// <summary>Command 添付プロパティの値を設定します。</summary>
+	/// <param name="obj">値を設定する対象の <see cref="DependencyObject"/>。</param>
+	/// <param name="value">設定するコマンド。</param>
+	public static void SetCommand(DependencyObject obj, ICommand? value)
+		=> obj.SetValue(CommandProperty, value);
 
 	/// <summary>
 	/// IsEnabled 添付プロパティが変更されたときに呼び出されます。
@@ -50,7 +69,7 @@ public static class TreeViewNodeClickToggleCheckBehavior
 	}
 
 	/// <summary>
-	/// マウス左ボタン クリック時に選択中ノードのチェック状態を切り替えます。
+	/// マウス左ボタン クリック時にコマンドを実行します。
 	/// CheckBox 自体のクリックや展開アイコンのクリックは処理対象外とします。
 	/// </summary>
 	private static void OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -71,17 +90,17 @@ public static class TreeViewNodeClickToggleCheckBehavior
 		if (IsExpanderToggleButton(clickedElement))
 			return;
 
-		// 選択中ノードを取得
-		if (treeView.SelectedItem is not MaterialVolumeNode node)
+		// クリック元の TreeViewItem の DataContext を取得
+		var treeViewItem = FindAncestorOfType<TreeViewItem>(clickedElement);
+		if (treeViewItem?.DataContext == null)
 			return;
 
-		// チェック可能なノードのみ処理
-		if (!node.CanCheck.Value)
+		var command = GetCommand(treeView);
+		if (command == null || !command.CanExecute(treeViewItem.DataContext))
 			return;
 
-		// チェック状態を切り替え
-		node.ToggleCheckedCommand.Execute(Unit.Default);
 		e.Handled = true;
+		command.Execute(treeViewItem.DataContext);
 	}
 
 	/// <summary>
@@ -138,5 +157,22 @@ public static class TreeViewNodeClickToggleCheckBehavior
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	/// 指定された要素から指定された型の先祖を検索します。
+	/// </summary>
+	private static T? FindAncestorOfType<T>(DependencyObject element) where T : DependencyObject
+	{
+		var current = element;
+		while (current != null)
+		{
+			if (current is T result)
+				return result;
+
+			current = VisualTreeHelper.GetParent(current);
+		}
+
+		return null;
 	}
 }

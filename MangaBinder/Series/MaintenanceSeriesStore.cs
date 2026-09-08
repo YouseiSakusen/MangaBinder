@@ -1,4 +1,3 @@
-using MangaBinder.Core.Series;
 using ObservableCollections;
 using R3;
 using System.Collections.Specialized;

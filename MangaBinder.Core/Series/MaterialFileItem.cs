@@ -1,6 +1,6 @@
 using MangaBinder.Bindings;
 
-namespace MangaBinder.Core.Series;
+namespace MangaBinder.Series;
 
 /// <summary>
 /// 素材フォルダ直下のファイル・フォルダを表すDTO。

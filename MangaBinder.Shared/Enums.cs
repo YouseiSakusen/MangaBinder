@@ -1,4 +1,89 @@
-﻿namespace MangaBinder.Bindings
+﻿namespace MangaBinder
+{
+	/// <summary>
+	/// Google Books インポートの状態を表す列挙型です。
+	/// </summary>
+	public enum GoogleBooksImportStatus
+	{
+		/// <summary>未インポートです。</summary>
+		NotImported = 0,
+
+		/// <summary>インポートが成功しました。</summary>
+		Success = 1,
+
+		/// <summary>書籍が見つかりませんでした。</summary>
+		NotFound = 2,
+
+		/// <summary>エラーが発生しました。</summary>
+		Failed = 9,
+	}
+
+	/// <summary>
+	/// あらすじの取得元種別を表す列挙型です。
+	/// </summary>
+	public enum DescriptionSource
+	{
+		/// <summary>取得元なし（未設定）。</summary>
+		None = 0,
+
+		/// <summary>Google Books API から取得。</summary>
+		GoogleBooks = 1,
+
+		/// <summary>手入力（ユーザーが作品編集画面で入力）。</summary>
+		Manual = 2,
+	}
+
+	/// <summary>
+	/// 作品の保存種別を表す列挙型です。
+	/// DI（Keyed DependencyInjection）で ISeriesSaveManager の実装を選択する際に使用されます。
+	/// </summary>
+	public enum SeriesSaveType
+	{
+		/// <summary>新規作品の保存。</summary>
+		New,
+
+		/// <summary>既存作品の更新。</summary>
+		Existing,
+
+		/// <summary>一時保存（作業作品）。</summary>
+		Work,
+	}
+
+	/// <summary>
+	/// 既存作品の編集中タイトルと同一性判定結果を表す列挙型です。
+	/// </summary>
+	public enum ExistingSeriesTitleMatchResult
+	{
+		/// <summary>編集中作品自身と同一タイトルです。</summary>
+		SameAsEditingSeriesSelf,
+
+		/// <summary>同一タイトルの作品が見つかりません。</summary>
+		NoMatchFound,
+
+		/// <summary>別の SeriesId を持つ作品と同一タイトルです。</summary>
+		DifferentSeriesMatched,
+	}
+
+	/// <summary>
+	/// 既存作品保存時の素材フォルダ名変更判定結果を表す列挙型です。
+	/// </summary>
+	public enum MaterialFolderRenameCheckResult
+	{
+		/// <summary>現在フォルダ名と期待フォルダ名が一致しており、Rename は不要です。</summary>
+		Ok,
+
+		/// <summary>素材フォルダ名の変更が必要です。</summary>
+		RenameNeeded,
+
+		/// <summary>登録されている素材フォルダが物理的に存在しません。</summary>
+		CurrentFolderNotFound,
+
+		/// <summary>Rename先フォルダ名と同名のフォルダが既に存在します。</summary>
+		RenameTargetAlreadyExists,
+	}
+}
+
+namespace MangaBinder.Bindings
 {
 	/// <summary>
 	/// 素材アイテムの種別を表す列挙型です。
@@ -173,95 +258,6 @@ namespace MangaBinder.Jobs
 	}
 }
 
-namespace MangaBinder
-{
-	/// <summary>
-	/// Google Books インポートの状態を表す列挙型です。
-	/// </summary>
-	public enum GoogleBooksImportStatus
-	{
-		/// <summary>未インポートです。</summary>
-		NotImported = 0,
-
-		/// <summary>インポートが成功しました。</summary>
-		Success = 1,
-
-		/// <summary>書籍が見つかりませんでした。</summary>
-		NotFound = 2,
-
-		/// <summary>エラーが発生しました。</summary>
-		Failed = 9,
-	}
-
-	/// <summary>
-	/// あらすじの取得元種別を表す列挙型です。
-	/// </summary>
-	public enum DescriptionSource
-	{
-		/// <summary>取得元なし（未設定）。</summary>
-		None = 0,
-
-		/// <summary>Google Books API から取得。</summary>
-		GoogleBooks = 1,
-
-		/// <summary>手入力（ユーザーが作品編集画面で入力）。</summary>
-		Manual = 2,
-	}
-
-	/// <summary>
-	/// 作品の保存種別を表す列挙型です。
-	/// DI（Keyed DependencyInjection）で ISeriesSaveManager の実装を選択する際に使用されます。
-	/// </summary>
-	public enum SeriesSaveType
-	{
-		/// <summary>新規作品の保存。</summary>
-		New,
-
-		/// <summary>既存作品の更新。</summary>
-		Existing,
-
-		/// <summary>一時保存（作業作品）。</summary>
-		Work,
-	}
-}
-
-
-namespace MangaBinder
-{
-	/// <summary>
-	/// 既存作品の編集中タイトルと同一性判定結果を表す列挙型です。
-	/// </summary>
-	public enum ExistingSeriesTitleMatchResult
-	{
-		/// <summary>編集中作品自身と同一タイトルです。</summary>
-		SameAsEditingSeriesSelf,
-
-		/// <summary>同一タイトルの作品が見つかりません。</summary>
-		NoMatchFound,
-
-		/// <summary>別の SeriesId を持つ作品と同一タイトルです。</summary>
-		DifferentSeriesMatched,
-	}
-
-	/// <summary>
-	/// 既存作品保存時の素材フォルダ名変更判定結果を表す列挙型です。
-	/// </summary>
-	public enum MaterialFolderRenameCheckResult
-	{
-		/// <summary>現在フォルダ名と期待フォルダ名が一致しており、Rename は不要です。</summary>
-		Ok,
-
-		/// <summary>素材フォルダ名の変更が必要です。</summary>
-		RenameNeeded,
-
-		/// <summary>登録されている素材フォルダが物理的に存在しません。</summary>
-		CurrentFolderNotFound,
-
-		/// <summary>Rename先フォルダ名と同名のフォルダが既に存在します。</summary>
-		RenameTargetAlreadyExists,
-	}
-}
-
 namespace MangaBinder.Settings
 {
 	/// <summary>
@@ -350,5 +346,41 @@ namespace MangaBinder.Series
 		/// BindingQueueStore.Queue に現在含まれている作品を対象とします。
 		/// </summary>
 		BindingQueue = 2,
+	}
+}
+
+namespace MangaBinder.Helpers
+{
+	/// <summary>
+	/// 巻番号解析の解析元種別を表します。
+	/// </summary>
+	public enum VolumeNumberSourceType
+	{
+		/// <summary>圧縮ファイル（zip、rar、7z 等）からの解析。</summary>
+		Archive,
+
+		/// <summary>フォルダからの解析。</summary>
+		Folder,
+
+		/// <summary>EPUB ファイルからの解析。</summary>
+		Epub,
+	}
+
+	/// <summary>
+	/// 巻番号解析結果の種別を表します。
+	/// </summary>
+	public enum VolumeNumberParseKind
+	{
+		/// <summary>既知パターンに該当せず、巻情報を取得できなかった。</summary>
+		Unknown,
+
+		/// <summary>1冊分の単巻を表す巻番号を取得した。</summary>
+		Single,
+
+		/// <summary>複数巻を表す範囲を取得した。</summary>
+		Range,
+
+		/// <summary>Chapter・話など、明確に「巻ではない」と判断できた。</summary>
+		NotVolume,
 	}
 }

@@ -5,7 +5,7 @@ using MangaBinder.Bindings;
 namespace MangaBinder.Converters;
 
 /// <summary>
-/// <see cref="MaterialVolumeNode"/> または <see cref="MaterialItemType"/> に基づいて、ui:SymbolIcon の Filled 属性値を決定するコンバーターです。
+/// <see cref="MaterialItem"/> または <see cref="MaterialItemType"/> に基づいて、ui:SymbolIcon の Filled 属性値を決定するコンバーターです。
 /// 実フォルダと圧縮ファイル内フォルダを見分けやすくするために使用されます。
 /// </summary>
 [ValueConversion(typeof(object), typeof(bool))]
@@ -14,18 +14,18 @@ public class NodeTypeToFilledConverter : IValueConverter
 	/// <inheritdoc/>
 	public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
 	{
-		// MaterialVolumeNode の場合
-		if (value is MaterialVolumeNode node)
+		// MaterialItem の場合
+		if (value is MaterialItem material)
 		{
-			return node.NodeType switch
+			return material.ItemType switch
 			{
 				// Root は常に Filled = true（実フォルダルート）
 				MaterialItemType.Root => true,
 
 				// Folder の場合、ArchiveEntryPrefix で判別
-				// null = 実フォルダ → Filled = true
-				// not null = 圧縮ファイル内フォルダ → Filled = false
-				MaterialItemType.Folder => node.ArchiveEntryPrefix == null,
+				// string.Empty = 実フォルダ → Filled = true
+				// not empty = 圧縮ファイル内フォルダ → Filled = false
+				MaterialItemType.Folder => string.IsNullOrEmpty(material.ArchiveEntryPrefix),
 
 				// Archive / Epub は Filled = true（実体を持つもの）
 				MaterialItemType.Archive => true,
