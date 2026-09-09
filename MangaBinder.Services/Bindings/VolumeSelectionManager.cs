@@ -1,3 +1,4 @@
+using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Helpers;
 
@@ -373,6 +374,125 @@ public class VolumeSelectionManager
 	}
 
 	/// <summary>
+	/// Root 直下の実素材を物理削除し、成功後に BindingStore から除去します。
+	/// 削除対象は Folder / Archive / Epub のいずれかである必要があります。
+	/// </summary>
+	/// <param name="material">削除対象の MaterialItem。Root 直下の Folder / Archive / Epub である必要があります。</param>
+	/// <param name="sendToRecycleBin">
+	/// true の場合、Windows のごみ箱へ移動します。
+	/// false の場合、完全削除します。
+	/// </param>
+	/// <returns>物理削除と BindingStore からの除去が成功した場合は true。失敗した場合は false。</returns>
+	/// <exception cref="ArgumentNullException">material が null の場合。</exception>
+	/// <exception cref="InvalidOperationException">
+	/// material.CanDeleteMaterial が false、
+	/// または material が BindingStore.Materials の Root 直下に存在しない、
+	/// または material.ItemType が削除対象外の場合。
+	/// </exception>
+	public bool DeleteMaterial(MaterialItem material, bool sendToRecycleBin)
+	{
+		// null チェック
+		if (material is null)
+		{
+			throw new ArgumentNullException(nameof(material));
+		}
+
+		// CanDeleteMaterial チェック
+		if (!material.CanDeleteMaterial)
+		{
+			throw new InvalidOperationException(
+				"指定された MaterialItem は削除対象ではありません。CanDeleteMaterial が false です。");
+		}
+
+		// ItemType の安全側確認
+		if (material.ItemType != MaterialItemType.Folder
+			&& material.ItemType != MaterialItemType.Archive
+			&& material.ItemType != MaterialItemType.Epub)
+		{
+			throw new InvalidOperationException(
+				$"指定された MaterialItem の ItemType ({material.ItemType}) は削除対象ではありません。");
+		}
+
+		// BindingStore.Materials 内の各 Root を検索し、ReferenceEquals で対象 material の直接の子を確認
+		MaterialItem? parentRoot = null;
+		int materialIndexInRoot = -1;
+
+		foreach (var root in this.bindingStore.Materials)
+		{
+			for (int i = 0; i < root.Children.Count; i++)
+			{
+				if (ReferenceEquals(root.Children[i], material))
+				{
+					parentRoot = root;
+					materialIndexInRoot = i;
+					break;
+				}
+			}
+
+			if (parentRoot is not null)
+			{
+				break;
+			}
+		}
+
+		// 見つからない場合は例外を送出
+		if (parentRoot is null || materialIndexInRoot < 0)
+		{
+			throw new InvalidOperationException(
+				"指定された MaterialItem は BindingStore.Materials の Root 直下に存在しません。");
+		}
+
+		// 物理削除（完全削除またはごみ箱）
+		try
+		{
+			if (sendToRecycleBin)
+			{
+				// ごみ箱へ移動（Folder / Archive / Epub の判別は FileSystemHelper 側で行う）
+				FileSystemHelper.SendToRecycleBin(material.SourcePath);
+			}
+			else
+			{
+				// 完全削除
+				switch (material.ItemType)
+				{
+					case MaterialItemType.Folder:
+						Directory.Delete(material.SourcePath, recursive: true);
+						break;
+
+					case MaterialItemType.Archive:
+					case MaterialItemType.Epub:
+						File.Delete(material.SourcePath);
+						break;
+				}
+			}
+		}
+		catch (IOException)
+		{
+			// 物理削除失敗時は Store を一切変更しない
+			return false;
+		}
+		catch (UnauthorizedAccessException)
+		{
+			// 物理削除失敗時は Store を一切変更しない
+			return false;
+		}
+
+		// 物理削除成功後、BindingStore を更新
+
+		// 1. 既存の UnselectMaterial を呼び出し（BindingVolume 削除と IsChecked = false）
+		this.UnselectMaterial(material);
+
+		// 2. 親 Root.Children から対象 Material を削除
+		parentRoot.Children.RemoveAt(materialIndexInRoot);
+
+		// 3. Material を Dispose（子ノードを所有している場合も含め）
+		material.Dispose();
+
+		// 4. 成功を返す
+		return true;
+	}
+
+	/// <summary>
 	/// 指定した MaterialItem を参照する BindingVolume を BindingStore.BindingVolumes から検索します。
 	/// ReferenceEquals で同一インスタンスを判定します。
 	/// </summary>
@@ -449,8 +569,22 @@ public class VolumeSelectionManager
 	/// </summary>
 	/// <param name="dto">変換元の DTO。</param>
 	/// <returns>変換後の MaterialItem。</returns>
-	private MaterialItem ConvertMaterialItemDtoToMaterialItem(MaterialItemDto dto)
+	private MaterialItem ConvertMaterialItemDtoToMaterialItem(MaterialItemDto dto, bool isDirectChildOfRoot = false)
 	{
+		// CanEnableSelectionOverride の判定
+		var canEnableSelectionOverride =
+			dto.ItemType != MaterialItemType.Root
+			&& dto.ItemType != MaterialItemType.Archive
+			&& !dto.IsSelectableByDefault;
+
+		// CanDeleteMaterial の判定
+		var canDeleteMaterial =
+			isDirectChildOfRoot
+			&& (
+				dto.ItemType == MaterialItemType.Folder
+				|| dto.ItemType == MaterialItemType.Archive
+				|| dto.ItemType == MaterialItemType.Epub);
+
 		var materialItem = new MaterialItem(
 			itemType: dto.ItemType,
 			name: dto.Name,
@@ -461,12 +595,16 @@ public class VolumeSelectionManager
 			sourcePath: dto.SourcePath,
 			archiveEntryPrefix: dto.ArchiveEntryPrefix,
 			isSelectableByDefault: dto.IsSelectableByDefault,
-			selectionDisabledReason: dto.SelectionDisabledReason);
+			selectionDisabledReason: dto.SelectionDisabledReason,
+			canEnableSelectionOverride: canEnableSelectionOverride,
+			canDeleteMaterial: canDeleteMaterial);
 
 		// 子を再帰的に変換
+		// Root の場合だけ isDirectChildOfRoot = true を渡す
+		var childIsDirectChildOfRoot = dto.ItemType == MaterialItemType.Root;
 		foreach (var childDto in dto.Children)
 		{
-			var childMaterialItem = this.ConvertMaterialItemDtoToMaterialItem(childDto);
+			var childMaterialItem = this.ConvertMaterialItemDtoToMaterialItem(childDto, childIsDirectChildOfRoot);
 			materialItem.Children.Add(childMaterialItem);
 		}
 

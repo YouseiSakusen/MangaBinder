@@ -9,13 +9,14 @@ using System.IO;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 using MangaBinder.Helpers;
+using HalationGhost.Wpf.Ui;
 
 namespace MangaBinder.Bindings;
 
 /// <summary>
 /// 製本工程-巻選択画面の ViewModel です。
 /// </summary>
-public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
+public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBackRequestHandler
 {
     /// <summary>製本後ZIPサイズの推定係数（将来的に調整可能）。</summary>
     private const double EstimatedZipSizeRatio = 1.0;
@@ -112,23 +113,17 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     /// <summary>前画面へ戻るコマンドを取得します。</summary>
     public ReactiveCommand GoBackCommand { get; }
 
-    /// <summary>Reactive側の TreeView で現在選択中の項目を取得または設定します。</summary>
-    public BindableReactiveProperty<MaterialItemViewModel?> SelectedMaterialItem { get; }
-
     /// <summary>指定された MaterialItemViewModel の選択状態を反転するコマンドを取得します。</summary>
     public ReactiveCommand<MaterialItemViewModel> ToggleMaterialSelectionCommand { get; }
-
-    /// <summary>現在選択中の SelectedMaterialItem の選択状態を反転するコマンドを取得します。</summary>
-    public ReactiveCommand ToggleSelectedMaterialSelectionCommand { get; }
 
     /// <summary>Reactive側の右ListView で現在選択中の項目を取得または設定します。</summary>
     public BindableReactiveProperty<BindingVolumeViewModel?> SelectedBindingVolume { get; }
 
-    /// <summary>指定された BindingVolumeViewModel を選択巻一覧から除外するコマンドを取得します。</summary>
-    public ReactiveCommand<BindingVolumeViewModel> RemoveBindingVolumeCommand { get; }
-
     /// <summary>現在選択中の SelectedBindingVolume を選択巻一覧から除外するコマンドを取得します。</summary>
     public ReactiveCommand RemoveSelectedBindingVolumeCommand { get; }
+
+    /// <summary>指定された MaterialItemViewModel を削除するコマンドを取得します。</summary>
+    public ReactiveCommand<MaterialItemViewModel> DeleteMaterialCommand { get; }
 
     /// <summary>BindingStore.BindingVolumes の変更購読用 DisposableBag。InitializeDataAsync ごとにリセットされます。</summary>
     private DisposableBag bindingVolumesSubscriptionBag;
@@ -240,11 +235,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
 
         this.GoBackCommand = new ReactiveCommand()
             .AddTo(ref this.disposableBag);
-        this.GoBackCommand.Subscribe(_ => this.navigationService.GoBack())
-            .AddTo(ref this.disposableBag);
-
-        // Reactive側の新選択操作コマンドを初期化
-        this.SelectedMaterialItem = new BindableReactiveProperty<MaterialItemViewModel?>(null)
+        this.GoBackCommand.Subscribe(_ => this.executeGoBack())
             .AddTo(ref this.disposableBag);
 
         this.ToggleMaterialSelectionCommand = new ReactiveCommand<MaterialItemViewModel>()
@@ -252,25 +243,8 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         this.ToggleMaterialSelectionCommand.Subscribe(item => this.toggleMaterialSelection(item))
             .AddTo(ref this.disposableBag);
 
-        this.ToggleSelectedMaterialSelectionCommand = new ReactiveCommand()
-            .AddTo(ref this.disposableBag);
-        this.ToggleSelectedMaterialSelectionCommand.Subscribe(_ =>
-        {
-            var selectedItem = this.SelectedMaterialItem.Value;
-            if (selectedItem is not null)
-            {
-                this.toggleMaterialSelection(selectedItem);
-            }
-        })
-        .AddTo(ref this.disposableBag);
-
         // Reactive側の新除外操作コマンドを初期化
         this.SelectedBindingVolume = new BindableReactiveProperty<BindingVolumeViewModel?>(null)
-            .AddTo(ref this.disposableBag);
-
-        this.RemoveBindingVolumeCommand = new ReactiveCommand<BindingVolumeViewModel>()
-            .AddTo(ref this.disposableBag);
-        this.RemoveBindingVolumeCommand.Subscribe(item => this.removeBindingVolume(item))
             .AddTo(ref this.disposableBag);
 
         this.RemoveSelectedBindingVolumeCommand = new ReactiveCommand()
@@ -284,6 +258,11 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             }
         })
         .AddTo(ref this.disposableBag);
+
+        this.DeleteMaterialCommand = new ReactiveCommand<MaterialItemViewModel>()
+            .AddTo(ref this.disposableBag);
+        this.DeleteMaterialCommand.Subscribe(item => this.executeDeleteMaterialAsync(item))
+            .AddTo(ref this.disposableBag);
 
         // Reactive側の新素材ツリーを初期化
         // BindingStore.Materials から MaterialItemViewModel へ変換
@@ -369,7 +348,6 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
         // UI 状態をリセット
         this.SeriesTitle.Value = string.Empty;
         this.SelectedSeries.Value = null;
-        this.SelectedMaterialItem.Value = null;
         this.SelectedBindingVolume.Value = null;
 
         // 素材サマリをリセット
@@ -699,14 +677,6 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     }
 
     /// <summary>
-    /// 前画面に戻る処理を実行します。
-    /// </summary>
-    private void executeGoBack()
-    {
-        // TODO: 前画面への遷移処理を実装する
-    }
-
-    /// <summary>
     /// NestedArchive 警告メッセージを構築します。
     /// ファイル名がある場合は名前を含め、ない場合は汎用メッセージを返します。
     /// </summary>
@@ -885,6 +855,80 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
     }
 
     /// <summary>
+    /// 指定された MaterialItemViewModel を削除するための非同期処理を実行します。
+    /// ContentDialog で削除方法を確認し、VolumeSelectionManager.DeleteMaterial を呼び出します。
+    /// </summary>
+    /// <param name="item">削除対象の MaterialItemViewModel。</param>
+    private async void executeDeleteMaterialAsync(MaterialItemViewModel item)
+    {
+        // 対象確認
+        if (item is null || !item.CanDeleteMaterial)
+        {
+            return;
+        }
+
+        // ContentDialog を生成
+        var dialog = new ContentDialog
+        {
+            Title = "素材を削除",
+            Content = $"「{item.Material.Name}」を削除します。\n\n" +
+                      "製本対象の巻に含まれている場合は、製本対象からも削除されます。",
+            PrimaryButtonText = "完全に削除する",
+            SecondaryButtonText = "ごみ箱に入れる",
+            CloseButtonText = "キャンセル",
+            DefaultButton = ContentDialogButton.Primary
+        };
+
+        // ContentDialog を表示
+        var result = await this.contentDialogService.ShowAsync(
+            dialog,
+            CancellationToken.None);
+
+        // ユーザーが選択した削除方法を決定
+        bool sendToRecycleBin;
+        switch (result)
+        {
+            case ContentDialogResult.Primary:
+                // 完全削除
+                sendToRecycleBin = false;
+                break;
+
+            case ContentDialogResult.Secondary:
+                // ごみ箱へ移動
+                sendToRecycleBin = true;
+                break;
+
+            case ContentDialogResult.None:
+            default:
+                // キャンセル
+                return;
+        }
+
+        // Method-local scope で VolumeSelectionManager を取得
+        using var scope = this.serviceScopeFactory.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
+
+        // DeleteMaterial() を実行
+        var succeeded = manager.DeleteMaterial(item.Material, sendToRecycleBin);
+
+        // 結果に応じて処理
+        if (!succeeded)
+        {
+            // 削除失敗時は Snackbar を表示
+            this.snackbarService.Show(
+                "素材を削除できませんでした",
+                Constants.Messages.MaterialInUse,
+                ControlAppearance.Danger,
+                new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
+                TimeSpan.MaxValue);
+            return;
+        }
+
+        // 削除成功時は成功通知なし、素材内訳を更新
+        await this.updateMaterialSummaryAsync();
+    }
+
+    /// <summary>
     /// BindingStore.Materials から素材サマリを計算し、表示用プロパティを更新します。
     /// Root直下の子要素のみを集計対象とします。
     /// </summary>
@@ -922,6 +966,19 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable
             $"圧縮ファイル：{archiveCount}{archiveSizeText}\n" +
             $"EPUB：{epubCount}";
     }
+
+    /// <summary>
+    /// ナビゲーション戻る処理を実行します。
+    /// </summary>
+    private void executeGoBack()
+    {
+        this.navigationService.GoBack();
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask OnBackRequestedAsync()
+    {
+        await ValueTask.CompletedTask;
+        this.executeGoBack();
+    }
 }
-
-

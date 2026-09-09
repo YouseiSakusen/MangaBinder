@@ -68,6 +68,16 @@ public class MaterialItem : IDisposable
 	public string SelectionDisabledReason { get; init; } = string.Empty;
 
 	/// <summary>
+	/// この素材に対して「チェックを有効にする」操作を使用できるかを取得します。
+	/// </summary>
+	public bool CanEnableSelectionOverride { get; init; }
+
+	/// <summary>
+	/// この素材に対して「素材を削除」操作を使用できるかを取得します。
+	/// </summary>
+	public bool CanDeleteMaterial { get; init; }
+
+	/// <summary>
 	/// この素材が製本対象として選択されているかを取得または設定します。
 	/// </summary>
 	public BindableReactiveProperty<bool> IsChecked { get; }
@@ -90,6 +100,8 @@ public class MaterialItem : IDisposable
 	/// <param name="archiveEntryPrefix">Archive 内部フォルダの場合のエントリ接頭辞。実フォルダ・Epub では空文字。</param>
 	/// <param name="isSelectableByDefault">デフォルトで選択可能かどうか。</param>
 	/// <param name="selectionDisabledReason">選択不可の理由。選択可能な場合は空文字。</param>
+	/// <param name="canEnableSelectionOverride">「チェックを有効にする」操作を使用できるかどうか。</param>
+	/// <param name="canDeleteMaterial">「素材を削除」操作を使用できるかどうか。</param>
 	public MaterialItem(
 		MaterialItemType itemType,
 		string name,
@@ -100,7 +112,9 @@ public class MaterialItem : IDisposable
 		string sourcePath = "",
 		string archiveEntryPrefix = "",
 		bool isSelectableByDefault = true,
-		string selectionDisabledReason = "")
+		string selectionDisabledReason = "",
+		bool canEnableSelectionOverride = false,
+		bool canDeleteMaterial = false)
 	{
 		this.ItemType = itemType;
 		this.Name = name;
@@ -112,6 +126,8 @@ public class MaterialItem : IDisposable
 		this.ArchiveEntryPrefix = archiveEntryPrefix;
 		this.IsSelectableByDefault = isSelectableByDefault;
 		this.SelectionDisabledReason = selectionDisabledReason;
+		this.CanEnableSelectionOverride = canEnableSelectionOverride;
+		this.CanDeleteMaterial = canDeleteMaterial;
 
 		this.IsChecked = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);

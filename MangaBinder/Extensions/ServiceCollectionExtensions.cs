@@ -106,7 +106,6 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<FolderVolumeExtractor>();
 		services.AddScoped<ArchiveVolumeExtractor>();
 		services.AddScoped<EpubVolumeExtractor>();
-		services.AddScoped<ISeriesExtractor, MaterialFolderSeriesExtractor>();
 		services.AddScoped<VolumeNumberExtractor>();
 		services.AddScoped<WorkFolderBuilder>();
 		services.AddScoped<BindingVolumeTextFormatter>();

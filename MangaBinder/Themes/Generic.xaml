@@ -39,7 +39,7 @@
 						<!-- ═══════════════════════════════════════════════════════════════ -->
 						<!-- 中央カラム - 上部（アイキャッチカード + TopContent） -->
 						<!-- ═══════════════════════════════════════════════════════════════ -->
-						<Grid Grid.Column="1" Grid.Row="0" Margin="0,8,0,8">
+						<Grid Grid.Column="1" Grid.ColumnSpan="3" Grid.Row="0" Margin="0,8,0,8">
 							<Grid.ColumnDefinitions>
 								<!-- アイキャッチカード -->
 								<ColumnDefinition Width="Auto" />

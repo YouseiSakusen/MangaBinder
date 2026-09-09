@@ -45,6 +45,18 @@ public class MaterialItemViewModel : IDisposable
 	public ReadOnlyReactiveProperty<bool> CanCheck { get; }
 
 	/// <summary>
+	/// この素材に対して「チェックを有効にする」操作を使用できるかを取得します。
+	/// </summary>
+	public bool CanEnableSelectionOverride
+		=> this.Material.CanEnableSelectionOverride;
+
+	/// <summary>
+	/// この素材に対して「素材を削除」操作を使用できるかを取得します。
+	/// </summary>
+	public bool CanDeleteMaterial
+		=> this.Material.CanDeleteMaterial;
+
+	/// <summary>
 	/// 選択不可と判定された素材を、ユーザー判断で一時的に選択可能にするコマンドです。
 	/// 実行時に IsSelectionOverrideEnabled を true に設定します。
 	/// </summary>
@@ -75,9 +87,7 @@ public class MaterialItemViewModel : IDisposable
 			.AddTo(ref this.disposableBag);
 		this.EnableSelectionOverrideCommand.Subscribe(_ =>
 		{
-			// Root / Archive はOverride対象外
-			if (this.Material.ItemType == MaterialItemType.Root ||
-				this.Material.ItemType == MaterialItemType.Archive)
+			if (!this.Material.CanEnableSelectionOverride)
 			{
 				return;
 			}
@@ -162,29 +172,8 @@ public class MaterialItemViewModel : IDisposable
 	{
 		return this.IsSelectionOverrideEnabled
 			.Select(isOverride =>
-			{
-				// Root は常に選択不可
-				if (this.Material.ItemType == MaterialItemType.Root)
-				{
-					return false;
-				}
-
-				// Archive 本体は常に選択不可
-				if (this.Material.ItemType == MaterialItemType.Archive)
-				{
-					return false;
-				}
-
-				// それ以外の素材
-				// IsSelectableByDefault == true なら常に選択可能
-				if (this.Material.IsSelectableByDefault)
-				{
-					return true;
-				}
-
-				// IsSelectableByDefault == false の場合、Override で選択可能
-				return isOverride;
-			})
+				this.Material.IsSelectableByDefault
+				|| (this.Material.CanEnableSelectionOverride && isOverride))
 			.ToReadOnlyReactiveProperty();
 	}
 

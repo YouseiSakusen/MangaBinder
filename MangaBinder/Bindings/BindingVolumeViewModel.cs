@@ -39,6 +39,22 @@ public class BindingVolumeViewModel
 	public int FileCount => this.Material.FileCount;
 
 	/// <summary>
+	/// ファイル数の表示文字列を取得します。EPUB の場合は "-"、それ以外は "{ファイル数} 件"。
+	/// </summary>
+	public string FileCountText
+	{
+		get
+		{
+			if (this.Material.ItemType == MaterialItemType.Epub)
+			{
+				return "-";
+			}
+
+			return $"{this.Material.FileCount} 件";
+		}
+	}
+
+	/// <summary>
 	/// 選択巻の「素材由来」を表すアイコン表示用の MaterialItemType を取得します。
 	/// Archive 内部エントリ、EPUB、実フォルダの区別を正しく判定します。
 	/// </summary>

@@ -1,4 +1,6 @@
-namespace MangaBinder.Bindings;
+using MangaBinder.Bindings;
+
+namespace MangaBinder;
 
 /// <summary>
 /// 素材フォルダ配下の表示対象ノードを表すDTO。

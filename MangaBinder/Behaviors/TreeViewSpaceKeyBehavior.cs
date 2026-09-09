@@ -67,7 +67,7 @@ public static class TreeViewSpaceKeyBehavior
 	}
 
 	/// <summary>
-	/// Space キーが押下されたとき、指定されたコマンドを実行します。
+	/// Space キーが押下されたとき、TreeView の現在選択中のアイテムをコマンドに渡して実行します。
 	/// </summary>
 	private static void OnPreviewKeyDown(object sender, KeyEventArgs e)
 	{
@@ -77,11 +77,15 @@ public static class TreeViewSpaceKeyBehavior
 		if (sender is not TreeView treeView)
 			return;
 
+		var selectedItem = treeView.SelectedItem;
+		if (selectedItem == null)
+			return;
+
 		var command = GetCommand(treeView);
-		if (command == null || !command.CanExecute(null))
+		if (command == null || !command.CanExecute(selectedItem))
 			return;
 
 		e.Handled = true;
-		command.Execute(null);
+		command.Execute(selectedItem);
 	}
 }

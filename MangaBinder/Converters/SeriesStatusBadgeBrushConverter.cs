@@ -20,15 +20,15 @@ public class SeriesStatusBadgeBrushConverter : IMultiValueConverter
 			return this.GetBrushFromResource("NotOwnedCompletedBrush");
 
 		// IsIncomplete を優先判定
-		if (values.Length >= 3)
-		{
-			var isIncomplete = (bool)values[2];
-			if (isIncomplete)
-				return this.GetBrushFromResource("IncompleteBrush");
-		}
+		if (values.Length >= 3 
+			&& values[2] is bool isIncomplete 
+			&& isIncomplete)
+			return this.GetBrushFromResource("IncompleteBrush");
 
-		var seriesCompleted = (bool)values[0];
-		var isOwnedCompleted = (bool)values[1];
+		// パターンマッチングで型安全に bool を取得
+		if (values[0] is not bool seriesCompleted 
+			|| values[1] is not bool isOwnedCompleted)
+			return this.GetBrushFromResource("NotOwnedCompletedBrush");
 
 		if (!seriesCompleted)
 			return this.GetBrushFromResource("InProgressBrush");

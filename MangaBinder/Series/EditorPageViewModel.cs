@@ -2158,7 +2158,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 									// Danger + TimeSpan.MaxValue の Snackbar を表示
 									this.snackbarService.Show(
 										"素材を移動できませんでした",
-										"素材ファイルまたはフォルダが他のアプリで使用されている可能性があります。\n他のアプリで開いている場合は終了して、再度実行してください。",
+										Constants.Messages.MaterialInUse,
 										ControlAppearance.Danger,
 										new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
 										TimeSpan.MaxValue);
