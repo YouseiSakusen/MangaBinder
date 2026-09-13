@@ -1,5 +1,6 @@
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
+using MangaBinder.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using R3;
@@ -21,6 +22,12 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>スコープファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
+	/// <summary>サムネイル画像ローダー。</summary>
+	private readonly ThumbnailImageLoader thumbnailImageLoader;
+
+	/// <summary>ローディングサービス。</summary>
+	private readonly LoadingService loadingService;
+
 	private DisposableBag disposableBag;
 
 	/// <summary>内部保持する検査結果リスト。</summary>
@@ -38,11 +45,17 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>アイキャッチカード用の選択巻数テキスト（「9巻」形式）を取得します。</summary>
 	public BindableReactiveProperty<string> SelectedVolumeCountText { get; }
 
+	/// <summary>
+	/// 作品サムネイルカード用の ViewModel を取得します。
+	/// ThumbnailSource と VolumeStatus を管理し、左側パネルのサムネイルカードに使用されます。
+	/// </summary>
+	public MangaSeriesCardViewModel MangaSeriesCard { get; private set; }
+
+	/// <summary>製本前確認画面が所有する巻情報表示用ViewModel。</summary>
+	private readonly SeriesVolumeStatusViewModel volumeStatusViewModel;
+
 	/// <summary>ListView にバインドする検査結果一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<VolumeInspectionResult> InspectionResults { get; }
-
-	/// <summary>ローディング中かどうかを取得します。</summary>
-	public BindableReactiveProperty<bool> IsLoading { get; }
 
 	// zip 設定のプロパティ
 
@@ -97,13 +110,26 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <param name="workspaceStore">作品選択状態ストア。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
-	public SeriesInspectionPageViewModel(SeriesWorkspaceStore workspaceStore, INavigationService navigationService, IServiceScopeFactory serviceScopeFactory)
+	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
+	/// <param name="loadingService">ローディングサービス。</param>
+	public SeriesInspectionPageViewModel(
+		SeriesWorkspaceStore workspaceStore,
+		INavigationService navigationService,
+		IServiceScopeFactory serviceScopeFactory,
+		ThumbnailImageLoader thumbnailImageLoader,
+		LoadingService loadingService)
 	{
 		this.workspaceStore = workspaceStore;
 		this.navigationService = navigationService;
 		this.serviceScopeFactory = serviceScopeFactory;
+		this.thumbnailImageLoader = thumbnailImageLoader;
+		this.loadingService = loadingService;
 
 		this.inspectionResults = new ObservableList<VolumeInspectionResult>();
+
+		// 製本前確認画面が所有する巻情報表示用ViewModel を生成
+		this.volumeStatusViewModel = new SeriesVolumeStatusViewModel()
+			.AddTo(ref this.disposableBag);
 
 		this.SelectedSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
@@ -112,8 +138,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.VolumeSummaryText = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 		this.SelectedVolumeCountText = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
-		this.IsLoading = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
 		this.ZipAuthor = new BindableReactiveProperty<string>(string.Empty)
@@ -139,6 +163,46 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.InspectionResults = this.inspectionResults
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
+
+		// MangaSeriesCard: 作品サムネイルカード用ViewModel
+		this.MangaSeriesCard = new MangaSeriesCardViewModel()
+			.AddTo(ref this.disposableBag);
+
+		// SelectedSeries 変更時に同期
+		this.SelectedSeries.Subscribe(series =>
+		{
+			if (series is not null)
+			{
+				// 製本前確認画面が所有する SeriesVolumeStatusViewModel に series を設定
+				this.volumeStatusViewModel.Series.Value = series;
+
+				// ThumbnailImageLoader で最終表示用 ImageSource を取得
+				var imageSource = this.thumbnailImageLoader.Load(series);
+
+				// MangaSeriesCard へ設定
+				this.MangaSeriesCard.ThumbnailSource.Value = imageSource;
+				this.MangaSeriesCard.VolumeStatus.Value = this.volumeStatusViewModel;
+
+				// MangaSeriesCard の Series へ接続
+				if (this.MangaSeriesCard.Series.Value != series)
+				{
+					this.MangaSeriesCard.Series.Value = series;
+				}
+				else if (this.MangaSeriesCard.Series.Value == series)
+				{
+					// 同一インスタンスの場合は ForceNotify() で再通知させる
+					this.MangaSeriesCard.Series.ForceNotify();
+				}
+			}
+			else
+			{
+				// series が null の場合はクリア
+				this.volumeStatusViewModel.Series.Value = null;
+				this.MangaSeriesCard.ThumbnailSource.Value = null;
+				this.MangaSeriesCard.VolumeStatus.Value = null;
+				this.MangaSeriesCard.Series.Value = null;
+			}
+		}).AddTo(ref this.disposableBag);
 
 		this.GoBackCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
@@ -194,7 +258,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 		this.ZipOutputFileName.Value = this.buildZipOutputFileName(series);
 
-		this.IsLoading.Value = true;
 		_ = this.loadInspectionResultsAsync(series);
 
 		return ValueTask.CompletedTask;
@@ -230,23 +293,27 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <param name="series">対象の作品エンティティ。</param>
 	private async Task loadInspectionResultsAsync(MangaSeries series)
 	{
-		try
+		using (this.loadingService.Begin("展開・変換・検査中..."))
 		{
-			using var scope = this.serviceScopeFactory.CreateScope();
-			var builder = scope.ServiceProvider.GetRequiredService<WorkFolderBuilder>();
+			try
+			{
+				using var scope = this.serviceScopeFactory.CreateScope();
+				var builder = scope.ServiceProvider.GetRequiredService<WorkFolderBuilderOld>();
 
-			var results = await Task.Run(
-				() => builder.BuildAsync(
-					series,
-					this.workspaceStore.SelectedMaterialVolumes,
-					this.workspaceStore.RecreateWorkFolder.Value).AsTask());
+				var results = await Task.Run(
+					() => builder.BuildAsync(
+						series,
+						this.workspaceStore.SelectedMaterialVolumes,
+						this.workspaceStore.RecreateWorkFolder.Value).AsTask());
 
-			foreach (var result in results)
-				this.inspectionResults.Add(result);
-		}
-		finally
-		{
-			this.IsLoading.Value = false;
+				foreach (var result in results)
+					this.inspectionResults.Add(result);
+			}
+			catch
+			{
+				// 例外は Fail Fast で処理（DispatcherUnhandledException へ到達）
+				throw;
+			}
 		}
 	}
 

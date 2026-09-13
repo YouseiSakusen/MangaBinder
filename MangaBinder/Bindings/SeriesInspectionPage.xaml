@@ -1,491 +1,367 @@
-﻿<Page x:Class="MangaBinder.Bindings.SeriesInspectionPage"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      xmlns:local="clr-namespace:MangaBinder.Bindings"
-      xmlns:core="clr-namespace:MangaBinder.Bindings.Inspection;assembly=MangaBinder.Core"
-      xmlns:extensions="clr-namespace:MangaBinder.Extensions"
-      mc:Ignorable="d"
-      x:Name="ThisPage"
-      d:DesignHeight="800" d:DesignWidth="1200"
-      Title="製本前確認"
-      ui:NavigationView.HeaderContent="製本前確認"
-      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-      ScrollViewer.CanContentScroll="False">
+<Page x:Class="MangaBinder.Bindings.SeriesInspectionPage"
+	  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+	  xmlns:local="clr-namespace:MangaBinder.Bindings"
+	  xmlns:core="clr-namespace:MangaBinder.Bindings.Inspection;assembly=MangaBinder.Core"
+	  xmlns:controls="clr-namespace:MangaBinder.Controls"
+	  mc:Ignorable="d"
+	  x:Name="ThisPage"
+	  d:DesignHeight="800" d:DesignWidth="1200"
+	  Title="製本前確認"
+	  ui:NavigationView.HeaderContent="製本前確認"
+	  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+	  ScrollViewer.CanContentScroll="False">
 
-    <Page.Resources>
+	<Page.Resources>
 
-        <!-- 巻カード ItemTemplate -->
-        <DataTemplate x:Key="VolumeCardTemplate" DataType="{x:Type core:VolumeInspectionResult}">
-            <ui:Card Margin="0,0,0,6" Padding="12,8">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+		<!-- 巻カード ItemTemplate -->
+		<DataTemplate x:Key="VolumeCardTemplate" DataType="{x:Type core:VolumeInspectionResult}">
+			<ui:Card Margin="0,0,0,6" Padding="12,8">
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="Auto" />
+					</Grid.RowDefinitions>
 
-                    <!-- Row0：巻名 + 画像ファイル数 -->
-                    <Grid Grid.Row="0" Margin="0,0,0,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            Grid.Column="0"
-                            Text="{Binding VolumeName}"
-                            FontSize="13"
-                            FontWeight="SemiBold"
-                            VerticalAlignment="Center" />
-                        <TextBlock
-                            Grid.Column="1"
-                            FontSize="11"
-                            VerticalAlignment="Center"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}">
-                            <Run Text="画像ファイル数: " />
-                            <Run Text="{Binding ImageFileCount, Mode=OneWay}" />
-                        </TextBlock>
-                    </Grid>
+					<!-- Row0：巻名 + 画像ファイル数 -->
+					<Grid Grid.Row="0" Margin="0,0,0,4">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*" />
+							<ColumnDefinition Width="Auto" />
+						</Grid.ColumnDefinitions>
+						<TextBlock
+							Grid.Column="0"
+							Text="{Binding VolumeName}"
+							FontSize="13"
+							FontWeight="SemiBold"
+							VerticalAlignment="Center" />
+						<TextBlock
+							Grid.Column="1"
+							FontSize="11"
+							VerticalAlignment="Center"
+							Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+							<Run Text="画像ファイル数: " />
+							<Run Text="{Binding ImageFileCount, Mode=OneWay}" />
+						</TextBlock>
+					</Grid>
 
-                    <!-- Row1：横長画像行（問題ありの場合のみ） -->
-                    <Grid Grid.Row="1" Margin="0,0,0,2">
-                        <Grid.Style>
-                            <Style TargetType="Grid">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasLandscapeImages}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Grid.Style>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            Grid.Column="0"
-                            FontSize="11"
-                            VerticalAlignment="Center"
-                            Foreground="{DynamicResource SystemFillColorCautionBrush}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="横長画像あり" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding AllLandscape}" Value="True">
-                                            <Setter Property="Text" Value="全て横長画像" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <ui:Button
-                            x:Name="VolumeMenuButton"
-                            Grid.Column="1"
-                            Content="…"
-                            FontSize="11"
-                            Padding="6,1"
-                            Tag="{Binding}"
-                            Click="VolumeMenuButton_Click">
-                            <ui:Button.Resources>
-                                <ContextMenu x:Key="VolumeContextMenu">
-                                    <MenuItem
-                                        Header="見開き分割"
-                                        Command="{Binding DataContext.OpenVolumeThumbnailsCommand,
-                                            Source={x:Reference ThisPage}}"
-                                        CommandParameter="{Binding PlacementTarget.Tag,
-                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}">
-                                        <MenuItem.Icon>
-                                            <ui:SymbolIcon Symbol="BookOpen24" />
-                                        </MenuItem.Icon>
-                                    </MenuItem>
-                                </ContextMenu>
-                            </ui:Button.Resources>
-                        </ui:Button>
-                    </Grid>
+					<!-- Row1：横長画像行（問題ありの場合のみ） -->
+					<Grid Grid.Row="1" Margin="0,0,0,2">
+						<Grid.Style>
+							<Style TargetType="Grid">
+								<Setter Property="Visibility" Value="Collapsed" />
+								<Style.Triggers>
+									<DataTrigger Binding="{Binding HasLandscapeImages}" Value="True">
+										<Setter Property="Visibility" Value="Visible" />
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</Grid.Style>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*" />
+							<ColumnDefinition Width="Auto" />
+						</Grid.ColumnDefinitions>
+						<TextBlock
+							Grid.Column="0"
+							FontSize="11"
+							VerticalAlignment="Center"
+							Foreground="{DynamicResource SystemFillColorCautionBrush}">
+							<TextBlock.Style>
+								<Style TargetType="TextBlock">
+									<Setter Property="Text" Value="横長画像あり" />
+									<Style.Triggers>
+										<DataTrigger Binding="{Binding AllLandscape}" Value="True">
+											<Setter Property="Text" Value="全て横長画像" />
+										</DataTrigger>
+									</Style.Triggers>
+								</Style>
+							</TextBlock.Style>
+						</TextBlock>
+						<ui:Button
+							x:Name="VolumeMenuButton"
+							Grid.Column="1"
+							Content="…"
+							FontSize="11"
+							Padding="6,1"
+							Tag="{Binding}"
+							Click="VolumeMenuButton_Click">
+							<ui:Button.Resources>
+								<ContextMenu x:Key="VolumeContextMenu">
+									<MenuItem
+										Header="見開き分割"
+										Command="{Binding DataContext.OpenVolumeThumbnailsCommand,
+											Source={x:Reference ThisPage}}"
+										CommandParameter="{Binding PlacementTarget.Tag,
+											RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+										<MenuItem.Icon>
+											<ui:SymbolIcon Symbol="BookOpen24" />
+										</MenuItem.Icon>
+									</MenuItem>
+								</ContextMenu>
+							</ui:Button.Resources>
+						</ui:Button>
+					</Grid>
 
-                    <!-- Row2：ファイル形式混在（問題ありの場合のみ） -->
-                    <TextBlock
-                        Grid.Row="2"
-                        Text="ファイル形式混在あり"
-                        FontSize="11"
-                        Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                        Margin="0,0,0,2">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasMixedFormats}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+					<!-- Row2：ファイル形式混在（問題ありの場合のみ） -->
+					<TextBlock
+						Grid.Row="2"
+						Text="ファイル形式混在あり"
+						FontSize="11"
+						Foreground="{DynamicResource SystemFillColorCautionBrush}"
+						Margin="0,0,0,2">
+						<TextBlock.Style>
+							<Style TargetType="TextBlock">
+								<Setter Property="Visibility" Value="Collapsed" />
+								<Style.Triggers>
+									<DataTrigger Binding="{Binding HasMixedFormats}" Value="True">
+										<Setter Property="Visibility" Value="Visible" />
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</TextBlock.Style>
+					</TextBlock>
 
-                    <!-- Row3：ファイル名文字数不揃い（問題ありの場合のみ） -->
-                    <TextBlock
-                        Grid.Row="3"
-                        Text="ファイル名文字数: 不揃い"
-                        FontSize="11"
-                        Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                        Margin="0,0,0,2">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasIrregularFileNameLength}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+					<!-- Row3：ファイル名文字数不揃い（問題ありの場合のみ） -->
+					<TextBlock
+						Grid.Row="3"
+						Text="ファイル名文字数: 不揃い"
+						FontSize="11"
+						Foreground="{DynamicResource SystemFillColorCautionBrush}"
+						Margin="0,0,0,2">
+						<TextBlock.Style>
+							<Style TargetType="TextBlock">
+								<Setter Property="Visibility" Value="Collapsed" />
+								<Style.Triggers>
+									<DataTrigger Binding="{Binding HasIrregularFileNameLength}" Value="True">
+										<Setter Property="Visibility" Value="Visible" />
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</TextBlock.Style>
+					</TextBlock>
 
-                    <!-- Row4：サブフォルダ展開方式（サブフォルダが存在する場合のみ） -->
-                    <Grid Grid.Row="4" Margin="0,2,0,0">
-                        <Grid.Style>
-                            <Style TargetType="Grid">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSubFolders}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Grid.Style>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            Grid.Column="0"
-                            Text="サブフォルダ: "
-                            FontSize="11"
-                            VerticalAlignment="Center"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <ComboBox
-                            Grid.Column="1"
-                            FontSize="11"
-                            Padding="6,3"
-                            ItemsSource="{Binding DataContext.SubFolderModeItems,
-                                RelativeSource={RelativeSource AncestorType=ListView}}"
-                            SelectedIndex="{Binding SubFolderModeIndex}" />
-                    </Grid>
+					<!-- Row4：サブフォルダ展開方式（サブフォルダが存在する場合のみ） -->
+					<Grid Grid.Row="4" Margin="0,2,0,0">
+						<Grid.Style>
+							<Style TargetType="Grid">
+								<Setter Property="Visibility" Value="Collapsed" />
+								<Style.Triggers>
+									<DataTrigger Binding="{Binding HasSubFolders}" Value="True">
+										<Setter Property="Visibility" Value="Visible" />
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</Grid.Style>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto" />
+							<ColumnDefinition Width="*" />
+						</Grid.ColumnDefinitions>
+						<TextBlock
+							Grid.Column="0"
+							Text="サブフォルダ: "
+							FontSize="11"
+							VerticalAlignment="Center"
+							Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+						<ComboBox
+							Grid.Column="1"
+							FontSize="11"
+							Padding="6,3"
+							ItemsSource="{Binding DataContext.SubFolderModeItems,
+								RelativeSource={RelativeSource AncestorType=ListView}}"
+							SelectedIndex="{Binding SubFolderModeIndex}" />
+					</Grid>
 
-                </Grid>
-            </ui:Card>
-        </DataTemplate>
+				</Grid>
+			</ui:Card>
+		</DataTemplate>
 
-    </Page.Resources>
+	</Page.Resources>
 
-    <!-- 外枠 Grid：Row0=作品タイトル、Row1=メインコンテンツ、Row2=フッター -->
-    <Grid Margin="16,4,16,16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+	<!-- ════════════════════════════════════════════════════════════════ -->
+	<!-- BindingPageLayout：製本工程共通レイアウト -->
+	<!-- ════════════════════════════════════════════════════════════════ -->
+	<local:BindingPageLayout
+		Margin="16,4,16,16"
+		SeriesTitle="{Binding SeriesTitle.Value}">
 
-        <!-- Row0：作品タイトル -->
-        <TextBlock
-            Grid.Row="0"
-            Text="{Binding SeriesTitle.Value}"
-            FontSize="15"
-            Opacity="0.7"
-            Margin="0,0,0,12" />
+		<!-- PageLayout：3カラム + Eyecatch + Footer -->
+		<controls:PageLayout
+			LeftColumnWidth="250"
+			LeftColumnMinWidth="250"
+			MainColumnWidth="2*"
+			RightColumnWidth="*"
+			IsMainRightSplitterEnabled="True"
+			EyecatchSymbol="ClipboardCheckmark24"
+			EyecatchTitle="製本対象"
+			EyecatchValueText="{Binding SelectedVolumeCountText.Value}">
 
-        <!-- Row1：メインコンテンツ（3列2行） -->
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <!-- 左：作品情報 -->
-                <ColumnDefinition Width="250" />
-                <!-- 中央：調査レポート -->
-                <ColumnDefinition Width="2*" />
-                <!-- 右：製本設定 -->
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <!-- Row0：アイキャッチカード -->
-                <RowDefinition Height="Auto" />
-                <!-- Row1：本体 -->
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- LeftContent: 左パネル（作品情報） -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<controls:PageLayout.LeftContent>
+				<StackPanel
+					Width="240"
+					HorizontalAlignment="Center"
+					VerticalAlignment="Top">
 
-            <!-- ════════════════════════════════════ -->
-            <!-- Row0, Column1：アイキャッチカード    -->
-            <!-- ════════════════════════════════════ -->
-            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,16">
-                <ui:Card Padding="14,10">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <ui:SymbolIcon Symbol="ClipboardCheckmark24" FontSize="48"
-                                       Foreground="{DynamicResource BindingAccentBrush}"
-                                       Margin="0,0,12,0" VerticalAlignment="Center" />
-                        <StackPanel>
-                            <TextBlock FontSize="11" Margin="0,0,0,2"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">製本対象</TextBlock>
-                            <TextBlock FontSize="16" FontWeight="SemiBold">
-                                <Run Text="{Binding SelectedVolumeCountText.Value, Mode=OneWay}" />
-                            </TextBlock>
-                        </StackPanel>
-                    </StackPanel>
-                </ui:Card>
-            </StackPanel>
+					<!-- 共通作品情報カード（MangaSeriesCard） -->
+					<controls:MangaSeriesCard DataContext="{Binding MangaSeriesCard}" />
+				</StackPanel>
+			</controls:PageLayout.LeftContent>
 
-            <!-- ════════════════════════════════════ -->
-            <!-- Row1, Column0：作品情報カード        -->
-            <!-- ════════════════════════════════════ -->
-            <Grid Grid.Row="1" Grid.Column="0" VerticalAlignment="Top" Margin="0,0,12,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- MainContent: 中央パネル（検査結果一覧） -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<controls:PageLayout.MainContent>
+				<ListView
+					ItemsSource="{Binding InspectionResults}"
+					ItemTemplate="{StaticResource VolumeCardTemplate}"
+					Background="Transparent"
+					BorderThickness="0"
+					VirtualizingPanel.IsVirtualizing="True"
+					VirtualizingPanel.VirtualizationMode="Recycling"
+					ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+					ScrollViewer.VerticalScrollBarVisibility="Auto"
+					HorizontalContentAlignment="Stretch">
+					<ListView.ItemContainerStyle>
+						<Style TargetType="ListViewItem">
+							<Setter Property="Padding" Value="0" />
+							<Setter Property="HorizontalContentAlignment" Value="Stretch" />
+							<Setter Property="Background" Value="Transparent" />
+							<Setter Property="BorderThickness" Value="0" />
+							<Setter Property="Template">
+								<Setter.Value>
+									<ControlTemplate TargetType="ListViewItem">
+										<ContentPresenter />
+									</ControlTemplate>
+								</Setter.Value>
+							</Setter>
+						</Style>
+					</ListView.ItemContainerStyle>
+				</ListView>
+			</controls:PageLayout.MainContent>
 
-                <!-- サムネイル -->
-                <Border
-                    Grid.Row="0"
-                    Width="160"
-                    Height="224"
-                    HorizontalAlignment="Center"
-                    Margin="0,0,0,8"
-                    Background="{DynamicResource ControlFillColorDefaultBrush}"
-                    CornerRadius="4"
-                    ClipToBounds="True">
-                    <Image
-                        Source="{Binding SelectedSeries.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
-                        Width="160"
-                        Height="224"
-                        Stretch="UniformToFill"
-                        RenderOptions.BitmapScalingMode="HighQuality" />
-                </Border>
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- RightContent: 右パネル（製本後zipファイル設定） -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<controls:PageLayout.RightContent>
+				<ui:Card Margin="0,0,0,0" Padding="12,8" VerticalAlignment="Top">
+					<StackPanel MaxWidth="720">
 
-                <!-- 作品タイトル -->
-                <TextBlock
-                    Grid.Row="1"
-                    Text="{Binding SelectedSeries.Value.Title}"
-                    FontSize="12"
-                    FontWeight="SemiBold"
-                    TextWrapping="Wrap"
-                    HorizontalAlignment="Center"
-                    TextAlignment="Center"
-                    Margin="0,0,0,6" />
+						<!-- カードタイトル -->
+						<TextBlock
+							Text="製本後zipファイル設定"
+							FontSize="12"
+							FontWeight="SemiBold"
+							Margin="0,0,0,8" />
 
-                <!-- 巻数情報バッジ -->
-                <WrapPanel
-                    Grid.Row="2"
-                    HorizontalAlignment="Center"
-                    Orientation="Horizontal">
-                    <Border
-                        CornerRadius="3"
-                        Padding="5,2"
-                        Margin="0,0,6,4"
-                        VerticalAlignment="Center">
-                        <Border.Background>
-                            <MultiBinding Converter="{extensions:SeriesStatusBadgeBrushConverterExtension}">
-                                <Binding Path="SelectedSeries.Value.SeriesCompleted" />
-                                <Binding Path="SelectedSeries.Value.IsOwnedCompleted" />
-                                <Binding Path="SelectedSeries.Value.IsIncomplete" />
-                            </MultiBinding>
-                        </Border.Background>
-                        <TextBlock
-                            Text="{Binding SelectedSeries.Value.TotalVolumeText}"
-                            FontSize="11"
-                            FontWeight="SemiBold"
-                            Foreground="White"
-                            TextWrapping="NoWrap" />
-                    </Border>
-                    <TextBlock
-                        Text="{Binding SelectedSeries.Value.OwnedEstimatedVolumeText}"
-                        FontSize="11"
-                        Margin="0,0,6,4"
-                        VerticalAlignment="Center" />
-                    <TextBlock
-                        Text="{Binding SelectedSeries.Value.BoundEndVolumeText}"
-                        FontSize="11"
-                        Margin="0,0,0,4"
-                        VerticalAlignment="Center" />
-                </WrapPanel>
-            </Grid>
+						<!-- 作者 -->
+						<TextBlock
+							Text="作者"
+							FontSize="11"
+							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+							Margin="0,0,0,2" />
+						<TextBox
+							FontSize="12"
+							Margin="0,0,0,6"
+							Text="{Binding ZipAuthor.Value, UpdateSourceTrigger=PropertyChanged}" />
 
-            <!-- ════════════════════════════════════ -->
-            <!-- Row1, Column1：巻一覧（調査レポート） -->
-            <!-- ════════════════════════════════════ -->
-            <ListView
-                Grid.Row="1"
-                Grid.Column="1"
-                Margin="0,0,12,0"
-                ItemsSource="{Binding InspectionResults}"
-                ItemTemplate="{StaticResource VolumeCardTemplate}"
-                Background="Transparent"
-                BorderThickness="0"
-                VirtualizingPanel.IsVirtualizing="True"
-                VirtualizingPanel.VirtualizationMode="Recycling"
-                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                ScrollViewer.VerticalScrollBarVisibility="Auto"
-                HorizontalContentAlignment="Stretch">
-                <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="Padding" Value="0" />
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="Background" Value="Transparent" />
-                        <Setter Property="BorderThickness" Value="0" />
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="ListViewItem">
-                                    <ContentPresenter />
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </ListView.ItemContainerStyle>
-            </ListView>
+						<!-- タイトル -->
+						<TextBlock
+							Text="タイトル"
+							FontSize="11"
+							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+							Margin="0,0,0,2" />
+						<TextBox
+							FontSize="12"
+							Margin="0,0,0,6"
+							Text="{Binding ZipTitle.Value, UpdateSourceTrigger=PropertyChanged}" />
 
-            <!-- ════════════════════════════════════ -->
-            <!-- Row1, Column2：製本後zipファイル設定 -->
-            <!-- ════════════════════════════════════ -->
-            <ui:Card Grid.Row="1" Grid.Column="2" Margin="0,0,0,0" Padding="12,8" VerticalAlignment="Top">
-                <StackPanel MaxWidth="720">
+						<!-- 出力zip -->
+						<TextBlock
+							Text="出力zip"
+							FontSize="11"
+							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+							Margin="0,0,0,2" />
+						<TextBox
+							FontSize="12"
+							Margin="0,0,0,6"
+							Text="{Binding ZipOutputFileName.Value, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <!-- カードタイトル -->
-                    <TextBlock
-                        Text="製本後zipファイル設定"
-                        FontSize="12"
-                        FontWeight="SemiBold"
-                        Margin="0,0,0,8" />
+						<!-- 出力形式 -->
+						<TextBlock
+							Text="出力形式"
+							FontSize="11"
+							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+							Margin="0,0,0,2" />
+						<ComboBox
+							FontSize="12"
+							Margin="0,0,0,8"
+							HorizontalAlignment="Left"
+							MinWidth="200"
+							ItemsSource="{Binding ZipOutputFormatItems}"
+							SelectedIndex="{Binding ZipOutputFormatIndex.Value}" />
 
-                    <!-- 作者 -->
-                    <TextBlock
-                        Text="作者"
-                        FontSize="11"
-                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                        Margin="0,0,0,2" />
-                    <TextBox
-                        FontSize="12"
-                        Margin="0,0,0,6"
-                        Text="{Binding ZipAuthor.Value, UpdateSourceTrigger=PropertyChanged}" />
+						<!-- 既存zip削除 -->
+						<CheckBox
+							Content="既存の製本済zipを削除する"
+							FontSize="12"
+							IsChecked="{Binding DeleteExistingZip.Value}"
+							IsEnabled="{Binding ExistingZipExists.Value}"
+							Margin="0,0,0,4" />
 
-                    <!-- タイトル -->
-                    <TextBlock
-                        Text="タイトル"
-                        FontSize="11"
-                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                        Margin="0,0,0,2" />
-                    <TextBox
-                        FontSize="12"
-                        Margin="0,0,0,6"
-                        Text="{Binding ZipTitle.Value, UpdateSourceTrigger=PropertyChanged}" />
+						<!-- iCloud削除（インデント） -->
+						<CheckBox
+							Content="iCloudからも削除する"
+							FontSize="12"
+							IsChecked="{Binding DeleteFromICloud.Value}"
+							IsEnabled="{Binding DeleteExistingZip.Value}"
+							Margin="16,0,0,0" />
 
-                    <!-- 出力zip -->
-                    <TextBlock
-                        Text="出力zip"
-                        FontSize="11"
-                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                        Margin="0,0,0,2" />
-                    <TextBox
-                        FontSize="12"
-                        Margin="0,0,0,6"
-                        Text="{Binding ZipOutputFileName.Value, UpdateSourceTrigger=PropertyChanged}" />
+					</StackPanel>
+				</ui:Card>
+			</controls:PageLayout.RightContent>
 
-                    <!-- 出力形式 -->
-                    <TextBlock
-                        Text="出力形式"
-                        FontSize="11"
-                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                        Margin="0,0,0,2" />
-                    <ComboBox
-                        FontSize="12"
-                        Margin="0,0,0,8"
-                        HorizontalAlignment="Left"
-                        MinWidth="200"
-                        ItemsSource="{Binding ZipOutputFormatItems}"
-                        SelectedIndex="{Binding ZipOutputFormatIndex.Value}" />
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- FooterLeftContent: 戻るボタン -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<controls:PageLayout.FooterLeftContent>
+				<ui:Button
+					Height="48"
+					MinWidth="140"
+					VerticalAlignment="Center"
+					HorizontalAlignment="Left"
+					Command="{Binding GoBackCommand}">
+					<StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+						<ui:SymbolIcon Symbol="ChevronLeft16" FontSize="18" Margin="0,0,6,0" />
+						<TextBlock Text="戻る" VerticalAlignment="Center" />
+					</StackPanel>
+				</ui:Button>
+			</controls:PageLayout.FooterLeftContent>
 
-                    <!-- 既存zip削除 -->
-                    <CheckBox
-                        Content="既存の製本済zipを削除する"
-                        FontSize="12"
-                        IsChecked="{Binding DeleteExistingZip.Value}"
-                        IsEnabled="{Binding ExistingZipExists.Value}"
-                        Margin="0,0,0,4" />
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- FooterRightContent: 製本開始ボタン -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<controls:PageLayout.FooterRightContent>
+				<ui:Button
+					Height="48"
+					MinWidth="140"
+					VerticalAlignment="Center"
+					HorizontalAlignment="Right"
+					Appearance="Primary"
+					Command="{Binding StartBindingCommand}">
+					<TextBlock Text="製本開始" VerticalAlignment="Center" />
+				</ui:Button>
+			</controls:PageLayout.FooterRightContent>
 
-                    <!-- iCloud削除（インデント） -->
-                    <CheckBox
-                        Content="iCloudからも削除する"
-                        FontSize="12"
-                        IsChecked="{Binding DeleteFromICloud.Value}"
-                        IsEnabled="{Binding DeleteExistingZip.Value}"
-                        Margin="16,0,0,0" />
+		</controls:PageLayout>
 
-                </StackPanel>
-            </ui:Card>
-
-        </Grid>
-
-        <!-- Row2：フッター -->
-        <Border
-            Grid.Row="2"
-            Padding="0,10,0,0"
-            BorderThickness="0,1,0,0"
-            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <!-- 左：戻るボタン -->
-                <ui:Button
-                    Grid.Column="0"
-                    Content="戻る"
-                    VerticalAlignment="Center"
-                    Command="{Binding GoBackCommand}" />
-
-                <!-- 右：製本開始ボタン -->
-                <ui:Button
-                    Grid.Column="2"
-                    Content="製本開始"
-                    Appearance="Primary"
-                    VerticalAlignment="Center"
-                    Command="{Binding StartBindingCommand}" />
-            </Grid>
-        </Border>
-
-        <!-- ローディングオーバーレイ：展開・変換・検査処理中に表示 -->
-        <Grid Grid.RowSpan="3">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsLoading.Value}" Value="True">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
-            <Rectangle Fill="{DynamicResource ApplicationBackgroundBrush}" Opacity="0.7" />
-            <StackPanel
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center">
-                <ui:ProgressRing
-                    Width="48"
-                    Height="48"
-                    IsIndeterminate="True"
-                    HorizontalAlignment="Center"
-                    Margin="0,0,0,16" />
-                <TextBlock
-                    Text="展開・変換・検査中..."
-                    FontSize="14"
-                    HorizontalAlignment="Center"
-                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-            </StackPanel>
-        </Grid>
-
-    </Grid>
+	</local:BindingPageLayout>
 
 </Page>

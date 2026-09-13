@@ -317,6 +317,17 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
                 this.MangaSeriesCard.ThumbnailSource.Value = imageSource;
                 this.MangaSeriesCard.VolumeStatus.Value = this.volumeStatusViewModel;
 
+                // MangaSeriesCard の Series へ接続
+                if (this.MangaSeriesCard.Series.Value != series)
+                {
+                    this.MangaSeriesCard.Series.Value = series;
+                }
+                else if (this.MangaSeriesCard.Series.Value == series)
+                {
+                    // 同一インスタンスの場合は ForceNotify() で再通知させる
+                    this.MangaSeriesCard.Series.ForceNotify();
+                }
+
                 // 既存 Binding との互換性: SelectedSeriesVolumeStatus に同一インスタンスを参照させる
                 this.SelectedSeriesVolumeStatus.Value = this.volumeStatusViewModel;
             }
@@ -326,6 +337,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
                 this.volumeStatusViewModel.Series.Value = null;
                 this.MangaSeriesCard.ThumbnailSource.Value = null;
                 this.MangaSeriesCard.VolumeStatus.Value = null;
+                this.MangaSeriesCard.Series.Value = null;
 
                 // 既存 Binding との互換性: SelectedSeriesVolumeStatus もクリア
                 this.SelectedSeriesVolumeStatus.Value = null;

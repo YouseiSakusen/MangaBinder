@@ -22,15 +22,6 @@
 		<converters:HomeEmptyStateKindToVisibilityConverter x:Key="EmptyStateKindToVis" />
 		<!-- ViewModel をポップアップ内（切断ツリー）から参照するためのプロキシ -->
 		<tags:BindingProxy x:Key="VmProxy" Data="{Binding}" />
-		<!-- 素材フォルダ作成日時が null の場合に非表示にするスタイル -->
-		<Style x:Key="MaterialFolderCreatedAtTextBlockStyle" TargetType="TextBlock">
-			<Setter Property="Visibility" Value="Visible" />
-			<Style.Triggers>
-				<DataTrigger Binding="{Binding Series.Value.MaterialFolderCreatedAt}" Value="{x:Null}">
-					<Setter Property="Visibility" Value="Collapsed" />
-				</DataTrigger>
-			</Style.Triggers>
-		</Style>
 		<!-- タイトル表示専用 TextBox スタイル：TextBlock 寄りの見た目、選択可能 -->
 		<Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
 			<Setter Property="Background" Value="Transparent" />
@@ -280,7 +271,7 @@
 											<RowDefinition Height="*" />
 										</Grid.RowDefinitions>
 
-										<!-- Row0 / Col0: 巻数情報 + 素材フォルダ作成日時 -->
+										<!-- Row0 / Col0: 巻数情報 + 素材フォルダ作成日時 + 作品最終更新日時 -->
 										<Grid Grid.Row="0" Grid.Column="0" Margin="0,0,0,4" VerticalAlignment="Center">
 											<Grid.ColumnDefinitions>
 												<!-- 巻数情報 -->
@@ -288,6 +279,10 @@
 												<!-- 間隔調整 -->
 												<ColumnDefinition Width="14" />
 												<!-- 素材フォルダ作成日時 -->
+												<ColumnDefinition Width="Auto" />
+												<!-- 間隔調整 -->
+												<ColumnDefinition Width="6" />
+												<!-- 作品最終更新日時 -->
 												<ColumnDefinition Width="Auto" />
 												<!-- 残り -->
 												<ColumnDefinition Width="*" />
@@ -298,13 +293,12 @@
 												DataContext="{Binding VolumeStatus.Value}" />
 
 											<!-- 素材フォルダ作成日時 -->
-											<TextBlock Grid.Column="2"
-												Style="{StaticResource MaterialFolderCreatedAtTextBlockStyle}"
-												Text="{Binding Series.Value.MaterialFolderCreatedAt, StringFormat='[ {0:yyyy/MM/dd HH:mm} ]'}"
-												FontSize="12"
-												Opacity="0.8"
-												VerticalAlignment="Center"
-												ToolTip="素材フォルダ作成日時" />
+											<controls:MaterialFolderCreatedAt Grid.Column="2"
+												DataContext="{Binding MaterialFolderCreatedAtViewModel.Value}" />
+
+											<!-- 作品最終更新日時 -->
+											<controls:SeriesLastUpdate Grid.Column="4"
+												DataContext="{Binding SeriesLastUpdateViewModel.Value}" />
 										</Grid>
 
 										<!-- Row0 / Col1: メモ -->

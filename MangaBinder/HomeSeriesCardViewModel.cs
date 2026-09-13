@@ -30,6 +30,16 @@ public class HomeSeriesCardViewModel : IDisposable
 	public BindableReactiveProperty<SeriesMemoViewModel> MemoStatus { get; }
 
 	/// <summary>
+	/// 作品最終更新日時表示用の ViewModel です。
+	/// </summary>
+	public BindableReactiveProperty<SeriesLastUpdateViewModel> SeriesLastUpdateViewModel { get; }
+
+	/// <summary>
+	/// 素材フォルダ作成日時表示用の ViewModel です。
+	/// </summary>
+	public BindableReactiveProperty<MaterialFolderCreatedAtViewModel> MaterialFolderCreatedAtViewModel { get; }
+
+	/// <summary>
 	/// 製本対象として選択されているかどうかを示します。
 	/// UI 状態のため、SeriesCardViewModel が保持します。
 	/// </summary>
@@ -69,6 +79,20 @@ public class HomeSeriesCardViewModel : IDisposable
 		// IDisposable であるため、Dispose 時に破棄されるよう disposableBag に登録
 		memoStatus.AddTo(ref this.disposableBag);
 
+		// 作品最終更新日時表示用の SeriesLastUpdateViewModel を生成（1インスタンスのみ保持）
+		var seriesLastUpdateViewModel = new SeriesLastUpdateViewModel();
+		this.SeriesLastUpdateViewModel = new BindableReactiveProperty<SeriesLastUpdateViewModel>(seriesLastUpdateViewModel)
+			.AddTo(ref this.disposableBag);
+
+		seriesLastUpdateViewModel.AddTo(ref this.disposableBag);
+
+		// 素材フォルダ作成日時表示用の MaterialFolderCreatedAtViewModel を生成（1インスタンスのみ保持）
+		var materialFolderCreatedAtViewModel = new MaterialFolderCreatedAtViewModel();
+		this.MaterialFolderCreatedAtViewModel = new BindableReactiveProperty<MaterialFolderCreatedAtViewModel>(materialFolderCreatedAtViewModel)
+			.AddTo(ref this.disposableBag);
+
+		materialFolderCreatedAtViewModel.AddTo(ref this.disposableBag);
+
 		// Series 通知を SeriesVolumeStatusViewModel.Series へ流す
 		// 同一インスタンスの ForceNotify() にも対応するため、通知が来たら内容をチェック
 		this.Series.Subscribe(newSeries =>
@@ -94,6 +118,28 @@ public class HomeSeriesCardViewModel : IDisposable
 			{
 				// 同一インスタンスの場合は ForceNotify() で再通知させる
 				this.MemoStatus.Value.Series.ForceNotify();
+			}
+
+			// 作品最終更新日時表示用の通知も同じ形式で流す
+			if (this.SeriesLastUpdateViewModel.Value.Series.Value != newSeries)
+			{
+				this.SeriesLastUpdateViewModel.Value.Series.Value = newSeries;
+			}
+			else if (this.SeriesLastUpdateViewModel.Value.Series.Value == newSeries)
+			{
+				// 同一インスタンスの場合は ForceNotify() で再通知させる
+				this.SeriesLastUpdateViewModel.Value.Series.ForceNotify();
+			}
+
+			// 素材フォルダ作成日時表示用の通知も同じ形式で流す
+			if (this.MaterialFolderCreatedAtViewModel.Value.Series.Value != newSeries)
+			{
+				this.MaterialFolderCreatedAtViewModel.Value.Series.Value = newSeries;
+			}
+			else if (this.MaterialFolderCreatedAtViewModel.Value.Series.Value == newSeries)
+			{
+				// 同一インスタンスの場合は ForceNotify() で再通知させる
+				this.MaterialFolderCreatedAtViewModel.Value.Series.ForceNotify();
 			}
 		})
 		.AddTo(ref this.disposableBag);

@@ -14,7 +14,7 @@ namespace MangaBinder.Bindings.Inspection;
 /// BindingSourceVolume の一覧を受け取り、ワークフォルダへ実体化して
 /// VolumeInspectionResult を返します。
 /// </summary>
-public sealed class WorkFolderBuilder
+public sealed class WorkFolderBuilderOld
 {
 	/// <summary>アプリケーション設定。</summary>
 	private readonly AppSettings appSettings;
@@ -26,20 +26,20 @@ public sealed class WorkFolderBuilder
 	private readonly IVolumeImageProcessor imageProcessor;
 
 	/// <summary>ロガー。</summary>
-	private readonly ILogger<WorkFolderBuilder> logger;
+	private readonly ILogger<WorkFolderBuilderOld> logger;
 
 	/// <summary>
-	/// <see cref="WorkFolderBuilder"/> の新しいインスタンスを初期化します。
+	/// <see cref="WorkFolderBuilderOld"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="serviceScopeFactory">Extractor 解決用スコープファクトリー。</param>
 	/// <param name="imageProcessor">画像変換サービス。</param>
 	/// <param name="logger">ロガー。</param>
-	public WorkFolderBuilder(
+	public WorkFolderBuilderOld(
 		AppSettings appSettings,
 		IServiceScopeFactory serviceScopeFactory,
 		IVolumeImageProcessor imageProcessor,
-		ILogger<WorkFolderBuilder> logger)
+		ILogger<WorkFolderBuilderOld> logger)
 	{
 		this.appSettings = appSettings;
 		this.serviceScopeFactory = serviceScopeFactory;

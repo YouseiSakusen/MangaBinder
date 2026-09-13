@@ -107,13 +107,15 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<ArchiveVolumeExtractor>();
 		services.AddScoped<EpubVolumeExtractor>();
 		services.AddScoped<VolumeNumberExtractor>();
-		services.AddScoped<WorkFolderBuilder>();
+		services.AddScoped<WorkFolderBuilderOld>();
 		services.AddScoped<BindingVolumeTextFormatter>();
 		services.AddScoped<BindingZipFileNameFormatter>();
 		services.AddScoped<MaterialArchiveExtractor>();
 		services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<AppSettings>().ConnectionString));
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<VolumeSelectionManager>();
+		services.AddScoped<SeriesInspectionManager>();
+		services.AddScoped<WorkVolumeBuilder>();
 		services.AddScoped<MaterialFolderOpener>();
 		services.AddScoped<MaterialManager>();
 		services.AddScoped<ThemeBackgroundColorInitializer>();

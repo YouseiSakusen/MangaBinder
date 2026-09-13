@@ -7,6 +7,7 @@
              xmlns:local="clr-namespace:MangaBinder.Controls"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800"
+             x:Name="MangaSeriesCardControl"
              VerticalAlignment="Top"
              HorizontalAlignment="Center"
              MinWidth="240">
@@ -20,6 +21,8 @@
                 <!-- Thumbnail -->
                 <RowDefinition Height="Auto" />
                 <!-- SeriesVolumeStatus -->
+                <RowDefinition Height="Auto" />
+                <!-- Auxiliary info: LastUpdate / Memo -->
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -56,6 +59,80 @@
                 Grid.Row="2"
                 HorizontalAlignment="Center"
                 DataContext="{Binding VolumeStatus.Value}" />
+
+            <!-- ── Auxiliary Info Row：メモの有無で異なるレイアウト── -->
+            <Grid
+                Grid.Row="3"
+                Margin="0,8,0,0"
+                VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <!-- 可変幅（中央配置用） -->
+                    <ColumnDefinition Width="*" />
+                    <!-- SeriesLastUpdate -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- SeriesMemo -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- 可変幅（中央配置用） -->
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- ── SeriesLastUpdate ── -->
+                <local:SeriesLastUpdate
+                    x:Name="SeriesLastUpdateControl"
+                    DataContext="{Binding LastUpdateStatus}">
+                    <local:SeriesLastUpdate.Style>
+                        <Style TargetType="local:SeriesLastUpdate">
+                            <Setter Property="Grid.Column" Value="1" />
+                            <Setter Property="Grid.ColumnSpan" Value="1" />
+                            <Setter Property="HorizontalAlignment" Value="Center" />
+                            <Style.Triggers>
+                                <!-- メモなし時：SeriesLastUpdateが横幅いっぱいにStretch -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding DataContext.ShowMemo.Value, ElementName=MangaSeriesCardControl}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Grid.Column" Value="0" />
+                                    <Setter Property="Grid.ColumnSpan" Value="4" />
+                                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                </MultiDataTrigger>
+                                <!-- メモなし時（MemoStatus.HasMemo=false） -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding DataContext.ShowMemo.Value, ElementName=MangaSeriesCardControl}" Value="True" />
+                                        <Condition Binding="{Binding DataContext.MemoStatus.HasMemo.Value, ElementName=MangaSeriesCardControl}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Grid.Column" Value="0" />
+                                    <Setter Property="Grid.ColumnSpan" Value="4" />
+									<Setter Property="HorizontalAlignment" Value="Stretch" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </local:SeriesLastUpdate.Style>
+                </local:SeriesLastUpdate>
+
+                <!-- ── SeriesMemo（ShowMemo=true かつ HasMemo=true の場合だけ表示） ── -->
+                <Border
+                    Grid.Column="2"
+                    Margin="8,0,0,0">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <!-- ShowMemo=true かつ MemoStatus.HasMemo=true の時だけ表示 -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding DataContext.ShowMemo.Value, ElementName=MangaSeriesCardControl}" Value="True" />
+                                        <Condition Binding="{Binding DataContext.MemoStatus.HasMemo.Value, ElementName=MangaSeriesCardControl}" Value="True" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <local:SeriesMemo
+                        DataContext="{Binding DataContext.MemoStatus, ElementName=MangaSeriesCardControl}" />
+                </Border>
+            </Grid>
         </Grid>
     </ui:Card>
 </UserControl>

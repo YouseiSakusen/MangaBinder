@@ -81,6 +81,22 @@ public static class SupportedExtensionHelper
         => string.IsNullOrWhiteSpace(extension) ? false : conversionMap.TryGetValue(Normalize(extension), out var requires) && requires;
 
     /// <summary>
+    /// 指定されたファイル名またはフルパスが製本前に既定フォーマットへの変換が必要かどうかを返します。
+    /// ファイル名またはパスから拡張子を抽出し、RequiresConversion を呼び出します。
+    /// null または空白の場合は <c>false</c> を返します。
+    /// </summary>
+    /// <param name="fileNameOrPath">ファイル名（例: "001.avif"）またはフルパス（例: "C:\path\001.avif"）。null または空白の場合は false を返します。</param>
+    /// <returns>変換が必要な場合は <c>true</c>。</returns>
+    public static bool RequiresConversionForFile(string? fileNameOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(fileNameOrPath))
+            return false;
+
+        var extension = Path.GetExtension(fileNameOrPath);
+        return RequiresConversion(extension);
+    }
+
+    /// <summary>
     /// OpenFileDialog 用の画像ファイルフィルタ文字列を取得します。
     /// 例: "画像ファイル|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp;*.avif|すべてのファイル|*.*"
     /// </summary>

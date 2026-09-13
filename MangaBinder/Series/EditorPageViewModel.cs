@@ -127,6 +127,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public EditorSeriesVolumeStatusViewModel VolumeStatus { get; }
 
 	/// <summary>
+	/// 素材フォルダ作成日時表示用の ViewModel を取得します。
+	/// </summary>
+	public BindableReactiveProperty<MaterialFolderCreatedAtViewModel> MaterialFolderCreatedAtViewModel { get; }
+
+	/// <summary>
 	/// 作品サムネイルカード用の ViewModel を取得します。
 	/// Header、ThumbnailSource、VolumeStatus を管理し、左側パネルのサムネイルカードに使用されます。
 	/// </summary>
@@ -550,12 +555,22 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
 				.AddTo(ref this.disposableBag);
 
+			// MaterialFolderCreatedAtViewModel: 素材フォルダ作成日時表示用ViewModel
+			var materialFolderCreatedAtViewModel = new MaterialFolderCreatedAtViewModel();
+			this.MaterialFolderCreatedAtViewModel = new BindableReactiveProperty<MaterialFolderCreatedAtViewModel>(materialFolderCreatedAtViewModel)
+				.AddTo(ref this.disposableBag);
+
+			materialFolderCreatedAtViewModel.AddTo(ref this.disposableBag);
+
 			// MangaSeriesCard: 作品サムネイルカード用ViewModel
 			this.MangaSeriesCard = new MangaSeriesCardViewModel()
 				.AddTo(ref this.disposableBag);
 
 			// MangaSeriesCard の Header を "作品サムネイル" に初期設定
 			this.MangaSeriesCard.Header.Value = "作品サムネイル";
+
+			// Editor では SeriesMemo を表示しない（メモは画面右側に直接編集UIがある）
+			this.MangaSeriesCard.ShowMemo.Value = false;
 
 			// VolumeStatus.DisplayStatus の変更を購読し、MangaSeriesCard.VolumeStatus へ Reactive に反映
 			this.VolumeStatus.DisplayStatus
@@ -606,7 +621,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.CanDeleteSeries = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
-		// EditingSeries が変更された場合、CanDeleteSeries を更新
+		// EditingSeries が変更された場合、各 ViewModel と UI 状態を更新
 		this.EditingSeries
 			.Subscribe(editingSeries =>
 			{
@@ -618,6 +633,28 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 				else
 				{
 					this.CanDeleteSeries.Value = false;
+				}
+
+				// 素材フォルダ作成日時表示用の通知を流す
+				if (this.MaterialFolderCreatedAtViewModel.Value.Series.Value != editingSeries)
+				{
+					this.MaterialFolderCreatedAtViewModel.Value.Series.Value = editingSeries;
+				}
+				else if (this.MaterialFolderCreatedAtViewModel.Value.Series.Value == editingSeries)
+				{
+					// 同一インスタンスの場合は ForceNotify() で再通知させる
+					this.MaterialFolderCreatedAtViewModel.Value.Series.ForceNotify();
+				}
+
+				// MangaSeriesCard の Series へ接続
+				if (this.MangaSeriesCard.Series.Value != editingSeries)
+				{
+					this.MangaSeriesCard.Series.Value = editingSeries;
+				}
+				else if (this.MangaSeriesCard.Series.Value == editingSeries)
+				{
+					// 同一インスタンスの場合は ForceNotify() で再通知させる
+					this.MangaSeriesCard.Series.ForceNotify();
 				}
 			})
 			.AddTo(ref this.disposableBag);

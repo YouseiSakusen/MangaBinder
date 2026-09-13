@@ -28,14 +28,14 @@ public class OwnedVolumeEstimator
 
             // Single または Range の場合のみ候補とする
             int? volume = null;
-            if (parseResult.Kind == VolumeNumberParseKind.Single)
+            if (parseResult.Kind == VolumeNumberParseKind.Single && parseResult.SingleVolume.HasValue)
             {
-                volume = (int)parseResult.SingleVolume;
+                volume = (int)parseResult.SingleVolume.Value;
             }
-            else if (parseResult.Kind == VolumeNumberParseKind.Range)
+            else if (parseResult.Kind == VolumeNumberParseKind.Range && parseResult.RangeEnd.HasValue)
             {
                 // Range の場合は終了巻を候補とする
-                volume = (int)parseResult.RangeEnd;
+                volume = (int)parseResult.RangeEnd.Value;
             }
 
             // 正の整数のみを候補とする
@@ -45,7 +45,7 @@ public class OwnedVolumeEstimator
                 {
                     Name = name,
                     Volume = volume.Value,
-                    PatternName = parseResult.MatchedPattern,
+                    PatternName = parseResult.MatchedPattern ?? string.Empty,
                 });
                 decidedVolumes.Add(volume.Value);
             }
