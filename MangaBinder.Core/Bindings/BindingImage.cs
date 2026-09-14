@@ -13,10 +13,17 @@ public class BindingImage : IDisposable
 	public BindingVolume BindingVolume { get; }
 
 	/// <summary>
-	/// 素材側で、この BindingImage がどの画像を表しているか識別する名前を取得または設定します。
-	/// Folder素材ではファイル名、Archive / EPUB ではそれぞれの段階で決定される名前です。
+	/// この画像の元となった素材側の画像を取得します。
+	/// 生成時に指定された MaterialImage インスタンスを保持します。
 	/// </summary>
-	public string? SourceName { get; set; }
+	public MaterialImage MaterialImage { get; }
+
+	/// <summary>
+	/// 製本処理中のこの画像のファイル名を取得または設定します。
+	/// 初期値は MaterialImage.FileName から設定されます。
+	/// 画像変換等によって後続の処理で変更される可能性があります。
+	/// </summary>
+	public string FileName { get; set; }
 
 	/// <summary>
 	/// Work側に実体化された画像ファイルのフルパスを取得または設定します。
@@ -50,18 +57,52 @@ public class BindingImage : IDisposable
 	public Stream? TemporaryImageStream { get; set; }
 
 	/// <summary>
+	/// BindingImageProcessor の Simulation により求めた、
+	/// 実際に画像処理を行った場合の出力予定ファイル名を取得または設定します。
+	/// フルパスではなくファイル名のみです。
+	/// 初期値は null です。
+	/// </summary>
+	public string? SimulatedFileName { get; set; }
+
+	/// <summary>
+	/// 後続の実画像処理を行わない画像であるかどうかを取得または設定します。
+	/// ファイル名競合が発生した BindingImage に対して true が設定されます。
+	/// 初期値は false です。
+	/// </summary>
+	public bool SkipImageProcessing { get; set; }
+
+	/// <summary>
+	/// 実画像処理の結果を取得または設定します。
+	/// 初期値は NotProcessed です。
+	/// </summary>
+	public BindingImageProcessStatus ProcessStatus { get; set; }
+
+	/// <summary>
+	/// UIで詳細表示するための画像処理エラーメッセージを取得または設定します。
+	/// Exceptionオブジェクト自体は保持しません。
+	/// 初期値は null です。
+	/// </summary>
+	public string? ProcessErrorMessage { get; set; }
+
+	/// <summary>
 	/// <see cref="BindingImage"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="bindingVolume">この画像が所属する親 BindingVolume。</param>
-	/// <exception cref="ArgumentNullException"><paramref name="bindingVolume"/> が null の場合。</exception>
-	public BindingImage(BindingVolume bindingVolume)
+	/// <param name="materialImage">この画像の元となった素材側の画像。</param>
+	/// <exception cref="ArgumentNullException"><paramref name="bindingVolume"/> または <paramref name="materialImage"/> が null の場合。</exception>
+	public BindingImage(BindingVolume bindingVolume, MaterialImage materialImage)
 	{
 		this.BindingVolume = bindingVolume ?? throw new ArgumentNullException(nameof(bindingVolume));
-		this.SourceName = null;
+		this.MaterialImage = materialImage ?? throw new ArgumentNullException(nameof(materialImage));
+		this.FileName = materialImage.FileName;
 		this.FilePath = null;
 		this.Width = null;
 		this.Height = null;
 		this.TemporaryImageStream = null;
+		this.SimulatedFileName = null;
+		this.SkipImageProcessing = false;
+		this.ProcessStatus = BindingImageProcessStatus.NotProcessed;
+		this.ProcessErrorMessage = null;
 	}
 
 	/// <inheritdoc/>

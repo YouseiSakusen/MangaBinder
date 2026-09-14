@@ -32,9 +32,23 @@ public class BindingVolume : IDisposable
 
 	/// <summary>
 	/// この巻の製本処理で使用するWork上の画像一覧を取得します。
-	/// WorkVolumeBuilder が実体化した画像を追加します。
 	/// </summary>
 	public ObservableList<BindingImage> Images { get; }
+
+	/// <summary>
+	/// 画像処理後に同一ファイル名になる BindingImage が
+	/// この巻内に存在することを表す値を取得または設定します。
+	/// 初期値は false です。
+	/// </summary>
+	public bool HasImageFileNameConflict { get; set; }
+
+	/// <summary>
+	/// この巻内のいずれかの BindingImage が
+	/// 画像処理で失敗状態（ImageOpenFailed / ConversionFailed / OutputFailed 等）になった場合に
+	/// Manager側で設定されるフラグを取得または設定します。
+	/// 初期値は false です。
+	/// </summary>
+	public bool HasImageProcessingError { get; set; }
 
 	/// <summary>
 	/// <see cref="BindingVolume"/> の新しいインスタンスを初期化します。
@@ -47,6 +61,8 @@ public class BindingVolume : IDisposable
 			.AddTo(ref this.disposableBag);
 		this.WorkFolderPath = null;
 		this.Images = new ObservableList<BindingImage>();
+		this.HasImageFileNameConflict = false;
+		this.HasImageProcessingError = false;
 	}
 
 	/// <inheritdoc/>
@@ -62,5 +78,28 @@ public class BindingVolume : IDisposable
 		// VolumeNumber の ReactiveProperty を破棄する
 		// Material は BindingStore.Materials が所有しているため Dispose しない
 		this.disposableBag.Dispose();
+	}
+
+	/// <summary>
+	/// この巻に属する新しい画像を追加します。
+	/// 素材側の画像情報から MaterialImage を生成し、
+	/// BindingImage を作成してこの巻の Images に追加するための共通入口です。
+	/// </summary>
+	/// <param name="sourceImagePath">素材内でこの画像を特定するパス。</param>
+	/// <param name="fileName">展開直後に使用するファイル名。</param>
+	/// <returns>生成・追加された BindingImage。この巻の Images に含まれています。</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="sourceImagePath"/> または <paramref name="fileName"/> が null の場合。</exception>
+	public BindingImage AddImage(string sourceImagePath, string fileName)
+	{
+		// MaterialItem から MaterialImage を生成
+		var materialImage = this.Material.CreateMaterialImage(sourceImagePath, fileName);
+
+		// BindingImage を生成
+		var bindingImage = new BindingImage(this, materialImage);
+
+		// Images に追加
+		this.Images.Add(bindingImage);
+
+		return bindingImage;
 	}
 }

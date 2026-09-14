@@ -1,6 +1,7 @@
 using System.Data.SQLite;
 using System.IO;
 using MangaBinder.Bindings;
+using MangaBinder.Bindings.Extraction;
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Converters;
@@ -115,7 +116,10 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<VolumeSelectionManager>();
 		services.AddScoped<SeriesInspectionManager>();
-		services.AddScoped<WorkVolumeBuilder>();
+		services.AddKeyedScoped<IMaterialExtractor, ArchiveMaterialExtractor>(MaterialItemType.Archive);
+		services.AddKeyedScoped<IMaterialExtractor, FolderMaterialExtractor>(MaterialItemType.Folder);
+		services.AddKeyedScoped<IMaterialExtractor, EpubMaterialExtractor>(MaterialItemType.Epub);
+		services.AddScoped<BindingImageProcessor>();
 		services.AddScoped<MaterialFolderOpener>();
 		services.AddScoped<MaterialManager>();
 		services.AddScoped<ThemeBackgroundColorInitializer>();

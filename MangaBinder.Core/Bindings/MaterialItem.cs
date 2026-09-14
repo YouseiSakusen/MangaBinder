@@ -144,4 +144,16 @@ public class MaterialItem : IDisposable
 
 		this.disposableBag.Dispose();
 	}
+
+	/// <summary>
+	/// この素材内の1画像を表す MaterialImage を生成します。
+	/// </summary>
+	/// <param name="sourceImagePath">素材内でこの画像を特定するパス。</param>
+	/// <param name="fileName">展開直後に使用するファイル名。</param>
+	/// <returns>生成された MaterialImage。MaterialImage.MaterialItem は this に設定されています。</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="sourceImagePath"/> または <paramref name="fileName"/> が null の場合。</exception>
+	public MaterialImage CreateMaterialImage(string sourceImagePath, string fileName)
+	{
+		return MaterialImage.Create(this, sourceImagePath, fileName);
+	}
 }

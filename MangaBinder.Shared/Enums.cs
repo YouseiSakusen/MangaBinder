@@ -138,6 +138,30 @@ namespace MangaBinder.Bindings
 	}
 
 	/// <summary>
+	/// 製本用画像の処理状態を表す列挙型です。
+	/// </summary>
+	public enum BindingImageProcessStatus
+	{
+		/// <summary>まだ画像処理を実行していません。</summary>
+		NotProcessed = 0,
+
+		/// <summary>画像処理が正常終了しました。</summary>
+		Succeeded = 1,
+
+		/// <summary>SkipImageProcessing により画像処理を実行しませんでした。</summary>
+		Skipped = 2,
+
+		/// <summary>素材画像を画像としてOpenできませんでした。</summary>
+		ImageOpenFailed = 3,
+
+		/// <summary>画像形式変換に失敗しました。</summary>
+		ConversionFailed = 4,
+
+		/// <summary>Work側へのファイル出力・保存に失敗しました。</summary>
+		OutputFailed = 5,
+	}
+
+	/// <summary>
 	/// サムネイル処理の状態を表す列挙型です。
 	/// </summary>
 	public enum ThumbnailStatus

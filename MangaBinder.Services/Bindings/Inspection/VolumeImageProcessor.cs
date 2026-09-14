@@ -89,9 +89,9 @@ public sealed class VolumeImageProcessor : IVolumeImageProcessor
 		image.Height = height;
 
 		// 変換要否の判定
-		// SourceName が設定されていれば SourceName、設定されていなければ FilePath を使用
-		var nameForConversionCheck = !string.IsNullOrEmpty(image.SourceName)
-			? image.SourceName
+		// FileName が設定されていれば FileName、設定されていなければ FilePath を使用
+		var nameForConversionCheck = !string.IsNullOrEmpty(image.FileName)
+			? image.FileName
 			: filePath;
 
 		var requiresConversion = SupportedExtensionHelper.RequiresConversionForFile(nameForConversionCheck);
