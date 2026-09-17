@@ -10,7 +10,7 @@ namespace MangaBinder.Bindings.Prepress;
 /// <remarks>
 /// 完全再採番は行いません。元ファイル名の意味を残しつつ、主番号の桁数のみを統一します。
 /// </remarks>
-public sealed class VolumeFileNameNormalizer
+public sealed class VolumeFileNameNormalizerOld
 {
 	// "prefix + 主番号 + (枝番: _nn または -nn)? + 拡張子" を捉えるパターン
 	// 主番号: 末尾から見て最初の数値グループ（枝番がある場合はその前の数値）

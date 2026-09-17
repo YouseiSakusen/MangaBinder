@@ -1,4 +1,4 @@
-namespace MangaBinder.Bindings.Extraction;
+namespace MangaBinder.Bindings.Inspection;
 
 /// <summary>
 /// 素材形式ごとの展開処理を実行する抽象化です。

@@ -20,163 +20,128 @@
 		<!-- 巻カード ItemTemplate -->
 		<DataTemplate x:Key="VolumeCardTemplate" DataType="{x:Type core:VolumeInspectionResult}">
 			<ui:Card Margin="0,0,0,6" Padding="12,8">
+				<!-- 3列 × 1行 Grid -->
 				<Grid>
-					<Grid.RowDefinitions>
-						<RowDefinition Height="Auto" />
-						<RowDefinition Height="Auto" />
-						<RowDefinition Height="Auto" />
-						<RowDefinition Height="Auto" />
-						<RowDefinition Height="Auto" />
-					</Grid.RowDefinitions>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+					</Grid.ColumnDefinitions>
 
-					<!-- Row0：巻名 + 画像ファイル数 -->
-					<Grid Grid.Row="0" Margin="0,0,0,4">
-						<Grid.ColumnDefinitions>
-							<ColumnDefinition Width="*" />
-							<ColumnDefinition Width="Auto" />
-						</Grid.ColumnDefinitions>
+					<!-- Column0：左列 - サムネイル領域 -->
+					<Border
+						Grid.Column="0"
+						Width="80"
+						Height="112"
+						CornerRadius="4"
+						Margin="0,0,12,0"
+						Background="{DynamicResource ControlFillColorDefaultBrush}">
+						<Image
+							Width="80"
+							Height="112"
+							Stretch="UniformToFill"
+							RenderOptions.BitmapScalingMode="LowQuality" />
+					</Border>
+
+					<!-- Column1：中央列 - Inspection情報 -->
+					<Grid
+						Grid.Column="1"
+						Margin="0,0,12,0">
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="Auto" />
+						</Grid.RowDefinitions>
+
+						<!-- Row0：巻数 / 巻フォルダ名 -->
 						<TextBlock
-							Grid.Column="0"
-							Text="{Binding VolumeName}"
+							Grid.Row="0"
+							Text="第01巻"
 							FontSize="13"
 							FontWeight="SemiBold"
-							VerticalAlignment="Center" />
-						<TextBlock
-							Grid.Column="1"
-							FontSize="11"
 							VerticalAlignment="Center"
-							Foreground="{DynamicResource TextFillColorSecondaryBrush}">
-							<Run Text="画像ファイル数: " />
-							<Run Text="{Binding ImageFileCount, Mode=OneWay}" />
-						</TextBlock>
+							Margin="0,0,0,6" />
+
+						<!-- Row1：画像数 -->
+						<StackPanel
+							Grid.Row="1"
+							Orientation="Horizontal">
+							<ui:SymbolIcon
+								Symbol="ImageMultiple16"
+								Filled="True"
+								FontSize="16"
+								VerticalAlignment="Center"
+								Margin="0,0,6,0" />
+							<TextBlock
+								Text="総画像数：198"
+								FontSize="11"
+								VerticalAlignment="Center"
+								Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+							<!-- 横長画像ありの場合は後続実装で
+								 横長画像数 / 総画像数 表示へ切り替える -->
+						</StackPanel>
+
+						<!-- Row2：Error InfoBar -->
+						<ui:InfoBar
+							Grid.Row="2"
+							Visibility="Collapsed"
+							d:Visibility="Visible"
+							Severity="Error"
+							IsOpen="True"
+							HorizontalAlignment="Stretch"
+							Margin="0,6,0,0"
+							Title="検査エラー"
+							Message="検査中にエラーが発生しました。" />
+
+						<!-- Row3：サブフォルダあり -->
+						<StackPanel
+							Grid.Row="3"
+							Orientation="Horizontal"
+							Visibility="Collapsed"
+							d:Visibility="Visible">
+							<ui:SymbolIcon
+								Symbol="FolderMultiple16"
+								Filled="True"
+								FontSize="16"
+								Margin="0,0,6,0"
+								VerticalAlignment="Center"
+								Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+							<TextBlock
+								Text="サブフォルダあり"
+								FontSize="11"
+								VerticalAlignment="Center"
+								Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+						</StackPanel>
+
+						<!-- Row4：Warning -->
+						<StackPanel
+							Grid.Row="4"
+							Orientation="Horizontal"
+							Visibility="Collapsed"
+							d:Visibility="Visible">
+							<ui:SymbolIcon
+								Symbol="Warning16"
+								Filled="False"
+								FontSize="16"
+								Foreground="{DynamicResource SystemFillColorCautionBrush}"
+								Margin="0,0,6,0"
+								VerticalAlignment="Center" />
+							<TextBlock
+								Text="文字化けの可能性があります"
+								FontSize="11"
+								Foreground="{DynamicResource SystemFillColorCautionBrush}"
+								VerticalAlignment="Center" />
+						</StackPanel>
 					</Grid>
 
-					<!-- Row1：横長画像行（問題ありの場合のみ） -->
-					<Grid Grid.Row="1" Margin="0,0,0,2">
-						<Grid.Style>
-							<Style TargetType="Grid">
-								<Setter Property="Visibility" Value="Collapsed" />
-								<Style.Triggers>
-									<DataTrigger Binding="{Binding HasLandscapeImages}" Value="True">
-										<Setter Property="Visibility" Value="Visible" />
-									</DataTrigger>
-								</Style.Triggers>
-							</Style>
-						</Grid.Style>
-						<Grid.ColumnDefinitions>
-							<ColumnDefinition Width="*" />
-							<ColumnDefinition Width="Auto" />
-						</Grid.ColumnDefinitions>
-						<TextBlock
-							Grid.Column="0"
-							FontSize="11"
-							VerticalAlignment="Center"
-							Foreground="{DynamicResource SystemFillColorCautionBrush}">
-							<TextBlock.Style>
-								<Style TargetType="TextBlock">
-									<Setter Property="Text" Value="横長画像あり" />
-									<Style.Triggers>
-										<DataTrigger Binding="{Binding AllLandscape}" Value="True">
-											<Setter Property="Text" Value="全て横長画像" />
-										</DataTrigger>
-									</Style.Triggers>
-								</Style>
-							</TextBlock.Style>
-						</TextBlock>
-						<ui:Button
-							x:Name="VolumeMenuButton"
-							Grid.Column="1"
-							Content="…"
-							FontSize="11"
-							Padding="6,1"
-							Tag="{Binding}"
-							Click="VolumeMenuButton_Click">
-							<ui:Button.Resources>
-								<ContextMenu x:Key="VolumeContextMenu">
-									<MenuItem
-										Header="見開き分割"
-										Command="{Binding DataContext.OpenVolumeThumbnailsCommand,
-											Source={x:Reference ThisPage}}"
-										CommandParameter="{Binding PlacementTarget.Tag,
-											RelativeSource={RelativeSource AncestorType=ContextMenu}}">
-										<MenuItem.Icon>
-											<ui:SymbolIcon Symbol="BookOpen24" />
-										</MenuItem.Icon>
-									</MenuItem>
-								</ContextMenu>
-							</ui:Button.Resources>
-						</ui:Button>
-					</Grid>
-
-					<!-- Row2：ファイル形式混在（問題ありの場合のみ） -->
-					<TextBlock
-						Grid.Row="2"
-						Text="ファイル形式混在あり"
-						FontSize="11"
-						Foreground="{DynamicResource SystemFillColorCautionBrush}"
-						Margin="0,0,0,2">
-						<TextBlock.Style>
-							<Style TargetType="TextBlock">
-								<Setter Property="Visibility" Value="Collapsed" />
-								<Style.Triggers>
-									<DataTrigger Binding="{Binding HasMixedFormats}" Value="True">
-										<Setter Property="Visibility" Value="Visible" />
-									</DataTrigger>
-								</Style.Triggers>
-							</Style>
-						</TextBlock.Style>
-					</TextBlock>
-
-					<!-- Row3：ファイル名文字数不揃い（問題ありの場合のみ） -->
-					<TextBlock
-						Grid.Row="3"
-						Text="ファイル名文字数: 不揃い"
-						FontSize="11"
-						Foreground="{DynamicResource SystemFillColorCautionBrush}"
-						Margin="0,0,0,2">
-						<TextBlock.Style>
-							<Style TargetType="TextBlock">
-								<Setter Property="Visibility" Value="Collapsed" />
-								<Style.Triggers>
-									<DataTrigger Binding="{Binding HasIrregularFileNameLength}" Value="True">
-										<Setter Property="Visibility" Value="Visible" />
-									</DataTrigger>
-								</Style.Triggers>
-							</Style>
-						</TextBlock.Style>
-					</TextBlock>
-
-					<!-- Row4：サブフォルダ展開方式（サブフォルダが存在する場合のみ） -->
-					<Grid Grid.Row="4" Margin="0,2,0,0">
-						<Grid.Style>
-							<Style TargetType="Grid">
-								<Setter Property="Visibility" Value="Collapsed" />
-								<Style.Triggers>
-									<DataTrigger Binding="{Binding HasSubFolders}" Value="True">
-										<Setter Property="Visibility" Value="Visible" />
-									</DataTrigger>
-								</Style.Triggers>
-							</Style>
-						</Grid.Style>
-						<Grid.ColumnDefinitions>
-							<ColumnDefinition Width="Auto" />
-							<ColumnDefinition Width="*" />
-						</Grid.ColumnDefinitions>
-						<TextBlock
-							Grid.Column="0"
-							Text="サブフォルダ: "
-							FontSize="11"
-							VerticalAlignment="Center"
-							Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-						<ComboBox
-							Grid.Column="1"
-							FontSize="11"
-							Padding="6,3"
-							ItemsSource="{Binding DataContext.SubFolderModeItems,
-								RelativeSource={RelativeSource AncestorType=ListView}}"
-							SelectedIndex="{Binding SubFolderModeIndex}" />
-					</Grid>
-
+					<!-- Column2：右列 - 見開き分割へ進むボタン -->
+					<ui:Button
+						Grid.Column="2"
+						Style="{StaticResource CardNavigateButtonStyle}"
+						VerticalAlignment="Center"
+						ToolTip="見開き分割" />
 				</Grid>
 			</ui:Card>
 		</DataTemplate>

@@ -109,6 +109,7 @@ public class BindingImageProcessor
 		Stream? sourceStream = null;
 		FileStream? ownedFileStream = null;
 		Image? vipsImage = null;
+		string? sourceImagePath = null;
 
 		try
 		{
@@ -118,6 +119,7 @@ public class BindingImageProcessor
 			if (image.TemporaryImageStream is not null)
 			{
 				sourceStream = image.TemporaryImageStream;
+				sourceImagePath = image.MaterialImage.SourceImagePath;
 
 				// Seek 可能な場合は Position = 0 に戻す
 				if (sourceStream.CanSeek)
@@ -127,7 +129,7 @@ public class BindingImageProcessor
 			}
 			else
 			{
-				var sourceImagePath = image.MaterialImage.SourceImagePath;
+				sourceImagePath = image.MaterialImage.SourceImagePath;
 				if (string.IsNullOrEmpty(sourceImagePath) || !File.Exists(sourceImagePath))
 				{
 					image.ProcessStatus = BindingImageProcessStatus.ImageOpenFailed;
@@ -171,8 +173,13 @@ public class BindingImageProcessor
 			// 出力先パスを確定
 			var outputFilePath = Path.Combine(image.BindingVolume.WorkFolderPath, image.SimulatedFileName);
 
+			// Work 入力の場合：出力先 == 入力元パスかどうかを判定（大文字小文字区別なし）
+			var sourceAndOutputAreSame = !string.IsNullOrEmpty(sourceImagePath) 
+				&& outputFilePath.Equals(sourceImagePath, StringComparison.OrdinalIgnoreCase);
+
 			// 既存ファイルが存在するかチェック
-			if (File.Exists(outputFilePath))
+			// ただし、Work 入力で出力先が入力元と同じ場合は正常処理として扱う
+			if (File.Exists(outputFilePath) && !sourceAndOutputAreSame)
 			{
 				image.ProcessStatus = BindingImageProcessStatus.OutputFailed;
 				image.ProcessErrorMessage = $"出力先ファイルが既に存在します: {outputFilePath}";
@@ -183,6 +190,51 @@ public class BindingImageProcessor
 
 			// 変換仕様を判定して処理を分岐
 			var requiresConversion = DetermineRequiresConversion(image);
+
+			// Work 入力で出力先 == 入力元の場合：既存 Work ファイルを再利用する正常処理
+			if (sourceAndOutputAreSame)
+			{
+				try
+				{
+					// 既存ファイルから Width / Height を取得（ファイルハンドルは再度開く）
+					using (var fileStream = new FileStream(outputFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+					{
+						try
+						{
+							using (var existingImage = Image.NewFromStream(fileStream))
+							{
+								image.Width = existingImage.Width;
+								image.Height = existingImage.Height;
+							}
+						}
+						catch (Exception ex)
+						{
+							image.ProcessStatus = BindingImageProcessStatus.ImageOpenFailed;
+							image.ProcessErrorMessage = $"既存 Work 画像を開けません: {ex.Message}";
+							return;
+						}
+					}
+
+					cancellationToken.ThrowIfCancellationRequested();
+
+					// 既存 Work ファイルをそのまま使用（コピーしない）
+					image.FilePath = outputFilePath;
+					image.FileName = image.SimulatedFileName;
+					image.ProcessStatus = BindingImageProcessStatus.Succeeded;
+					image.ProcessErrorMessage = null;
+					return;
+				}
+				catch (OperationCanceledException)
+				{
+					throw;
+				}
+				catch (Exception ex) when (image.ProcessStatus == BindingImageProcessStatus.NotProcessed)
+				{
+					image.ProcessStatus = BindingImageProcessStatus.OutputFailed;
+					image.ProcessErrorMessage = $"既存 Work 画像の処理に失敗しました: {ex.Message}";
+					return;
+				}
+			}
 
 			if (requiresConversion == ConversionType.NoConversionNeeded)
 			{
@@ -207,6 +259,27 @@ public class BindingImageProcessor
 			image.FileName = image.SimulatedFileName;
 			image.ProcessStatus = BindingImageProcessStatus.Succeeded;
 			image.ProcessErrorMessage = null;
+
+			// Work 入力の場合：出力先が入力元と異なり、別のファイルを生成した場合は元ファイルを削除
+			if (image.ShouldDeleteSourceFile && !sourceAndOutputAreSame)
+			{
+				try
+				{
+					// ファイルハンドルが完全に破棄されるまで待機する必要があるため、
+					// finally ブロックで FileStream・NetVips Image が Dispose されるまで遅延
+					// ここでの削除はそれ以降に実行される
+					if (File.Exists(sourceImagePath))
+					{
+						File.Delete(sourceImagePath);
+					}
+				}
+				catch (Exception ex)
+				{
+					// 元ファイル削除失敗は ProcessStatus に反映（新しい出力は成功している）
+					image.ProcessStatus = BindingImageProcessStatus.OutputFailed;
+					image.ProcessErrorMessage = $"元ファイルの削除に失敗しました: {ex.Message}";
+				}
+			}
 		}
 		catch (OperationCanceledException)
 		{

@@ -1,8 +1,9 @@
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using MangaBinder.Bindings;
 using MangaBinder.Settings;
 
-namespace MangaBinder.Bindings;
+namespace MangaBinder;
 
 /// <summary>
 /// <see cref="MangaSeries"/> のサムネイル画像を <see cref="ImageSource"/> として読み込むクラスです。

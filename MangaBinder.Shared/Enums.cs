@@ -81,6 +81,21 @@
 		/// <summary>Rename先フォルダ名と同名のフォルダが既に存在します。</summary>
 		RenameTargetAlreadyExists,
 	}
+
+	/// <summary>
+	/// Home 画面の Empty State の種別を表す列挙型です。
+	/// </summary>
+	public enum HomeEmptyStateKind
+	{
+		/// <summary>Empty State なし（作品あり、または判定不能）。</summary>
+		None = 0,
+
+		/// <summary>素材フォルダが未登録のため作品がない。</summary>
+		MaterialFolderNotRegistered = 1,
+
+		/// <summary>素材フォルダスキャン完了済みだが作品が見つからなかった。</summary>
+		MaterialFolderScanCompletedButNoSeries = 2,
+	}
 }
 
 namespace MangaBinder.Bindings
@@ -102,6 +117,26 @@ namespace MangaBinder.Bindings
 
 		/// <summary>epub ファイル。</summary>
 		Epub = 3,
+	}
+
+	/// <summary>
+	/// 製本処理で画像を読み取る入力元の種別を表す列挙型です。
+	/// MaterialItemType は素材ツリー上のノード種別を表しますが、
+	/// 本enum は実際の入力元（素材またはWorkFolder）の種別を表します。
+	/// </summary>
+	public enum MaterialSourceType
+	{
+		/// <summary>物理フォルダから画像を取得します。</summary>
+		Folder = 0,
+
+		/// <summary>アーカイブファイルから画像を取得します。</summary>
+		Archive = 1,
+
+		/// <summary>EPUB ファイルから画像を取得します。</summary>
+		Epub = 2,
+
+		/// <summary>既存の Work フォルダから画像を取得します。</summary>
+		WorkFolder = 3,
 	}
 
 	/// <summary>
@@ -159,6 +194,99 @@ namespace MangaBinder.Bindings
 
 		/// <summary>Work側へのファイル出力・保存に失敗しました。</summary>
 		OutputFailed = 5,
+	}
+
+	/// <summary>ファイル名正規化（主番号のゼロ埋め）の処理状態を表す列挙型です。</summary>
+	public enum FileNameNormalizationStatus
+	{
+		/// <summary>まだ正規化の Simulation を実行していません。</summary>
+		NotProcessed = 0,
+
+		/// <summary>正規化後も現在のファイル名と同じで、リネーム不要です。</summary>
+		NotRequired = 1,
+
+		/// <summary>正規化後ファイル名を算出でき、リネーム可能です。</summary>
+		Ready = 2,
+
+		/// <summary>ファイル名から主番号部分を解析できませんでした。</summary>
+		ParseFailed = 3,
+
+		/// <summary>正規化後ファイル名が他のファイルと競合しています。</summary>
+		Conflict = 4,
+
+		/// <summary>実ファイルのリネームが正常終了しました。</summary>
+		Renamed = 5,
+
+		/// <summary>Simulationではリネーム可能だったが、実ファイル操作に失敗しました。</summary>
+		RenameFailed = 6,
+	}
+
+	/// <summary>
+	/// EPUB 展開時に発生した既知エラーを表す列挙型です。
+	/// </summary>
+	public enum EpubExtractionError
+	{
+		/// <summary>エラーが発生していません。</summary>
+		None = 0,
+
+		/// <summary>META-INF/container.xml が存在しません。</summary>
+		ContainerFileNotFound = 1,
+
+		/// <summary>container.xml に rootfile full-path が存在しません。</summary>
+		RootFileNotFound = 2,
+
+		/// <summary>指定された OPF ファイルが存在しません。</summary>
+		OpfFileNotFound = 3,
+
+		/// <summary>OPF spine が空です。</summary>
+		SpineEmpty = 4,
+
+		/// <summary>本文画像を1件も取得できません。</summary>
+		BodyImageNotFound = 5,
+
+		/// <summary>EPUB を ZIP として展開できない、不正なアーカイブです。</summary>
+		InvalidArchive = 6,
+
+		/// <summary>container.xml / OPF / XHTML 等の XML が不正です。</summary>
+		InvalidXml = 7,
+
+		/// <summary>I/O エラーが発生しました。</summary>
+		IoError = 8,
+
+		/// <summary>アクセス拒否エラーが発生しました。</summary>
+		AccessDenied = 9,
+
+		/// <summary>分類不能な予期しないエラーが発生しました。</summary>
+		UnexpectedError = 10,
+	}
+
+	/// <summary>
+	/// EPUB 展開時に検出された警告情報を表すフラグ列挙型です。
+	/// 複数の警告を同時に持つことができます。
+	/// </summary>
+	[Flags]
+	public enum EpubExtractionWarning
+	{
+		/// <summary>警告はありません。</summary>
+		None = 0,
+
+		/// <summary>カバー画像を特定できませんでした。</summary>
+		CoverImageNotFound = 1,
+
+		/// <summary>spine の idref に対応する manifest item が存在しません。</summary>
+		ManifestItemNotFound = 2,
+
+		/// <summary>spine が指す XHTML ファイルが物理的に存在しません。</summary>
+		XhtmlFileNotFound = 4,
+
+		/// <summary>XHTML が参照している画像ファイルが存在しません。</summary>
+		ReferencedImageFileNotFound = 8,
+
+		/// <summary>XHTML が参照している画像が対応形式ではありません。</summary>
+		UnsupportedImageFormat = 16,
+
+		/// <summary>同じ物理画像が複数回参照されて重複除外されました。</summary>
+		DuplicateImageRemoved = 32,
 	}
 
 	/// <summary>

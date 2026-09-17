@@ -9,7 +9,7 @@ namespace MangaBinder.Bindings.Prepress;
 /// </summary>
 public sealed class VolumeThumbnailLoader
 {
-	private readonly VolumeFileNameNormalizer normalizer;
+	private readonly VolumeFileNameNormalizerOld normalizer;
 	private readonly VolumeThumbnailImageProcessor imageProcessor;
 
 	/// <summary>
@@ -18,7 +18,7 @@ public sealed class VolumeThumbnailLoader
 	/// <param name="normalizer">ファイル名桁揃えリネーム担当。</param>
 	/// <param name="imageProcessor">サムネイル生成担当。</param>
 	public VolumeThumbnailLoader(
-		VolumeFileNameNormalizer normalizer,
+		VolumeFileNameNormalizerOld normalizer,
 		VolumeThumbnailImageProcessor imageProcessor)
 	{
 		this.normalizer = normalizer;

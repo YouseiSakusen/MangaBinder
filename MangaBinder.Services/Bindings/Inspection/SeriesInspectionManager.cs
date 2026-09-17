@@ -1,11 +1,9 @@
 using System.Threading.Channels;
-using MangaBinder.Bindings;
-using MangaBinder.Bindings.Extraction;
-using MangaBinder.Bindings.Inspection;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
-namespace MangaBinder.Bindings;
+namespace MangaBinder.Bindings.Inspection;
 
 /// <summary>
 /// 製本前確認工程の入口を統括するマネージャーです。
@@ -18,24 +16,36 @@ public class SeriesInspectionManager
 	private readonly BindingStore bindingStore;
 	private readonly AppSettings appSettings;
 	private readonly IServiceScopeFactory serviceScopeFactory;
+	private readonly ILogger<SeriesInspectionManager> logger;
+
+	/// <summary>
+	/// 1つの BindingVolume の Inspect() が完了したことを通知するイベント。
+	/// UI / ViewModel 側で、この巻の最終検査結果を画面へ反映するためのトリガーとして使用できます。
+	/// 通知されるのは BindingVolume の同一インスタンスです。DTOやコピーは作成されません。
+	/// 通知は Inspect() が同期的に完了した直後に発生します。
+	/// </summary>
+	public event Action<BindingVolume>? VolumeInspected;
 
 	/// <summary>
 	/// <see cref="SeriesInspectionManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="bindingStore">製本工程の正本状態ストア。</param>
 	/// <param name="appSettings">アプリケーション設定。Workフォルダパス生成に使用します。</param>
-	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。Extractor 解決に使用します。</param>
+	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。Extractor と VolumeFileNameNormalizer の解決に使用します。</param>
+	/// <param name="logger">ロガー。</param>
 	/// <exception cref="ArgumentNullException">
-	/// <paramref name="bindingStore"/>, <paramref name="appSettings"/>, または <paramref name="serviceScopeFactory"/> が null の場合。
+	/// <paramref name="bindingStore"/>, <paramref name="appSettings"/>, <paramref name="serviceScopeFactory"/>, または <paramref name="logger"/> が null の場合。
 	/// </exception>
 	public SeriesInspectionManager(
 		BindingStore bindingStore,
 		AppSettings appSettings,
-		IServiceScopeFactory serviceScopeFactory)
+		IServiceScopeFactory serviceScopeFactory,
+		ILogger<SeriesInspectionManager> logger)
 	{
 		this.bindingStore = bindingStore ?? throw new ArgumentNullException(nameof(bindingStore));
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
 		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
+		this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
 	/// <summary>
@@ -82,10 +92,18 @@ public class SeriesInspectionManager
 		// ⑤ 作品Workフォルダが存在しない場合を含め、以降の処理で使用できるよう作品Workフォルダを作成する
 		Directory.CreateDirectory(seriesFolderPath);
 
-		// ⑥ BindingStore.BindingVolumes を順番に処理して WorkFolderPath を設定し、
-		// 新規実体化が必要なボリュームのみをフィルタリングする
+		// ⑥ 作品Workフォルダ直下に既に存在するフォルダの一覧を取得
+		// 各BindingVolumeの既存Work巻フォルダ判定に使用するため、フォルダ名の集合を構築する
+		// StringComparer.OrdinalIgnoreCase で大文字小文字非依存に比較できる集合とする
+		var existingVolumeFolderNames = new HashSet<string>(
+			Directory.GetDirectories(seriesFolderPath)
+				.Select(path => Path.GetFileName(path)),
+			StringComparer.OrdinalIgnoreCase);
+
+		// ⑦ BindingStore.BindingVolumes を順番に処理して WorkFolderPath を設定し、
+		// 既存巻フォルダの判定と作成を行う
+		// 全 BindingVolume を製本前確認工程の対象とする
 		var volumeFolderDigits = this.bindingStore.VolumeFolderDigits.Value;
-		var volumesRequiringNewBuild = new List<BindingVolume>();
 
 		foreach (var bindingVolume in this.bindingStore.BindingVolumes)
 		{
@@ -108,30 +126,28 @@ public class SeriesInspectionManager
 			// 巻WorkフォルダのフルパスをBindingVolumeに設定
 			bindingVolume.WorkFolderPath = Path.Combine(seriesFolderPath, volumeFolderName);
 
-			// ⑦ 各 BindingVolume.WorkFolderPath について Directory.Exists() で存在を確認
-			var workFolderExists = Directory.Exists(bindingVolume.WorkFolderPath);
+			// 巻フォルダが既存フォルダ一覧に存在するか判定
+			var workFolderExists = existingVolumeFolderNames.Contains(volumeFolderName);
 
-			// 巻フォルダが存在しない場合は新規実体化対象に追加
+			// UseOriginalMaterial を毎回明示的に設定
+			// 既存巻フォルダが存在する場合は元素材を使用しない
+			// 存在しない場合は元素材を使用する
+			bindingVolume.Material.UseOriginalMaterial = !workFolderExists;
+
+			// Work巻フォルダが存在しない場合は新規作成
 			if (!workFolderExists)
 			{
-				volumesRequiringNewBuild.Add(bindingVolume);
+				Directory.CreateDirectory(bindingVolume.WorkFolderPath);
 			}
 		}
 
-		// ⑧ 今回素材展開する BindingVolume について、巻Workフォルダを作成する
-		foreach (var volume in volumesRequiringNewBuild)
-		{
-			cancellationToken.ThrowIfCancellationRequested();
-			Directory.CreateDirectory(volume.WorkFolderPath!);
-		}
-
-		// ⑨ 新規実体化が必要なボリュームを Material.SourcePath でGroupBy する
+		// ⑧ 全 BindingVolume を EffectiveSourcePath でGroupBy する
 		// 文字列比較には StringComparer.OrdinalIgnoreCase を使用
-		var groupsBySourcePath = volumesRequiringNewBuild
-			.GroupBy(v => v.Material.SourcePath, StringComparer.OrdinalIgnoreCase)
+		var groupsBySourcePath = this.bindingStore.BindingVolumes
+			.GroupBy(v => v.EffectiveSourcePath, StringComparer.OrdinalIgnoreCase)
 			.ToList();
 
-		// ⑩ System.Threading.Channels を使用した Producer/Consumer パターンを構築
+		// ⑨ System.Threading.Channels を使用した Producer/Consumer パターンを構築
 		// 異常終了時にProducer/Consumer間で相互停止信号を伝播させる構造
 
 		// Bounded Channel を作成：容量32、FullMode=Wait、SingleWriter/Reader=false
@@ -177,31 +193,89 @@ public class SeriesInspectionManager
 				remainingImage.TemporaryImageStream?.Dispose();
 				remainingImage.TemporaryImageStream = null;
 			}
+
+			// EPUB の一時展開フォルダをクリーンアップ
+			// Producer / Worker がすべて完了した後に実行
+			// すでにキャンセル状態でも cleanup を試みる（best-effort）
+			await this.CleanupEpubTemporaryFoldersAsync();
 		}
 
-		// ⑪ 全 Producer / Worker が正常に完了した場合のみ、
-		// 処理対象の各 BindingVolume について HasImageProcessingError を更新
-		foreach (var volume in volumesRequiringNewBuild)
+		// ⑩ ファイル名正規化処理を実行
+		// EPUB エラー巻（Material.EffectiveSourceType == MaterialSourceType.Epub かつ EpubExtractionError != None）は除外
+		var normalizationTargets = this.bindingStore.BindingVolumes
+			.Where(v => !(v.Material.EffectiveSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None))
+			.ToList();
+
+		await this.ExecuteFileNameNormalizationAsync(normalizationTargets, pipelineCancellationToken)
+			.ConfigureAwait(false);
+
+		// ⑪ EPUB エラー巻について、後段処理前に検査を実行
+		var epubErrorVolumes = this.bindingStore.BindingVolumes
+			.Where(v => v.Material.EffectiveSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None)
+			.ToList();
+
+		foreach (var volume in epubErrorVolumes)
 		{
-			var hasError = volume.Images.Any(img =>
-				img.ProcessStatus == BindingImageProcessStatus.ImageOpenFailed ||
-				img.ProcessStatus == BindingImageProcessStatus.ConversionFailed ||
-				img.ProcessStatus == BindingImageProcessStatus.OutputFailed);
+			volume.Inspect();
 
-			volume.HasImageProcessingError = hasError;
+			// Inspect() が完了したことを通知
+			this.VolumeInspected?.Invoke(volume);
 		}
+	}
+
+	/// <summary>
+	/// 複数 BindingVolume のファイル名正規化を最大4巻並列で実行します。
+	/// 各巻の処理単位でスコープを作成し、Scoped なサービスのライフサイクルを管理します。
+	/// </summary>
+	/// <param name="volumes">正規化対象の BindingVolume リスト。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	/// <returns>非同期処理のタスク。</returns>
+	private async ValueTask ExecuteFileNameNormalizationAsync(List<BindingVolume> volumes, CancellationToken cancellationToken)
+	{
+		if (volumes.Count == 0)
+			return;
+
+		// 最大4巻並列でファイル名正規化を実行
+		await Parallel.ForEachAsync(
+			volumes,
+			new ParallelOptions
+			{
+				MaxDegreeOfParallelism = 4,
+				CancellationToken = cancellationToken,
+			},
+			async (volume, ct) =>
+			{
+				// 1巻の処理単位でスコープを作成
+				using var scope = this.serviceScopeFactory.CreateScope();
+
+				// スコープから VolumeFileNameNormalizer を解決
+				var normalizer = scope.ServiceProvider.GetRequiredService<VolumeFileNameNormalizer>();
+
+				// 個別 BindingVolume の正規化処理を実行
+				// NormalizeAsync は、IOException / UnauthorizedAccessException を通常結果として
+				// BindingImage の状態へ保持し、想定外例外のみ伝播させる設計
+				await normalizer.NormalizeAsync(volume, ct).ConfigureAwait(false);
+
+				// 正規化完了後、巻の検査を実行して集計結果を保持
+				volume.Inspect();
+
+				// Inspect() が完了したことを通知
+				this.VolumeInspected?.Invoke(volume);
+
+				// スコープはusingで自動破棄
+			}).ConfigureAwait(false);
 	}
 
 	/// <summary>
 	/// 素材グループの展開・Simulation・Conflict判定・Channel投入を実行する Producer Task です。
 	/// </summary>
-	/// <param name="groupsBySourcePath">Material.SourcePath でグループ化された BindingVolume 集合。</param>
+	/// <param name="groupsByEffectiveSourcePath">EffectiveSourcePath でグループ化された BindingVolume 集合。</param>
 	/// <param name="writer">Channel.Writer。</param>
 	/// <param name="linkedCancellationTokenSource">Pipeline全体のLinked CancellationTokenSource。</param>
 	/// <param name="pipelineCancellationToken">Pipeline用のキャンセルトークン。</param>
 	/// <returns>非同期処理のタスク。</returns>
 	private async Task RunProducerAsync(
-		List<IGrouping<string, BindingVolume>> groupsBySourcePath,
+		List<IGrouping<string, BindingVolume>> groupsByEffectiveSourcePath,
 		ChannelWriter<BindingImage> writer,
 		CancellationTokenSource linkedCancellationTokenSource,
 		CancellationToken pipelineCancellationToken)
@@ -216,17 +290,18 @@ public class SeriesInspectionManager
 			};
 
 			await Parallel.ForEachAsync(
-				groupsBySourcePath,
+				groupsByEffectiveSourcePath,
 				parallelOptions,
 				async (group, ct) =>
 				{
-					// 素材形式を判定
-					var materialType = DetermineMaterialType(group);
+					// グループ内の最初のボリュームから入力元種別を取得
+					var firstVolume = group.First();
+					var sourceType = firstVolume.Material.EffectiveSourceType;
 
-					// DI Scope を作成し、素材形式に対応する IMaterialExtractor を解決
+					// DI Scope を作成し、入力元種別に対応する IMaterialExtractor を解決
 					using (var scope = this.serviceScopeFactory.CreateScope())
 					{
-						var extractor = scope.ServiceProvider.GetRequiredKeyedService<IMaterialExtractor>(materialType);
+						var extractor = scope.ServiceProvider.GetRequiredKeyedService<IMaterialExtractor>(sourceType);
 						await extractor.ExtractAsync(group, ct).ConfigureAwait(false);
 
 						// ExtractAsync 完了直後に、同じ素材グループ内の BindingVolume に対して Simulation を実行する
@@ -236,6 +311,16 @@ public class SeriesInspectionManager
 						foreach (var volume in group)
 						{
 							ct.ThrowIfCancellationRequested();
+
+							// EPUB エラー巻は後段処理をスキップ
+							var isEpubError = volume.Material.EffectiveSourceType == MaterialSourceType.Epub
+								&& volume.EpubExtractionError != EpubExtractionError.None;
+
+							if (isEpubError)
+							{
+								// EPUB エラー巻は Simulate / Conflict判定 / Channel投入をスキップ
+								continue;
+							}
 
 							// 巻単位の状態を初期化
 							volume.HasImageFileNameConflict = false;
@@ -388,30 +473,63 @@ public class SeriesInspectionManager
 	}
 
 	/// <summary>
-	/// グループ内の BindingVolume の情報から素材形式を判定します。
+	/// 今回の製本前確認処理で正常に処理された EPUB の一時展開フォルダを削除します。
+	/// 削除対象は、Material.EffectiveSourceType == MaterialSourceType.Epub かつ
+	/// EpubExtractionError == EpubExtractionError.None の BindingVolume です。
+	/// 
+	/// 削除に失敗した場合はログに記録し、例外は再送出しません（best-effort）。
+	/// すでにキャンセル状態の CancellationToken に依存せず実行します。
 	/// </summary>
-	/// <param name="group">Material.SourcePath でグループ化された BindingVolume 集合。</param>
-	/// <returns>判定された素材形式（MaterialItemType）。</returns>
-	private static MaterialItemType DetermineMaterialType(IGrouping<string, BindingVolume> group)
+	private async ValueTask CleanupEpubTemporaryFoldersAsync()
 	{
-		// グループ内の最初の BindingVolume を取得して判定
-		// 同一グループ内の全ボリュームは同じ Material.ItemType と ArchiveEntryPrefix を持つ
-		var firstVolume = group.First();
-		var material = firstVolume.Material;
-
-		// 1. ArchiveEntryPrefix が設定されている場合は Archive
-		if (!string.IsNullOrEmpty(material.ArchiveEntryPrefix))
+		try
 		{
-			return MaterialItemType.Archive;
-		}
+			// EPUB として処理され、かつエラーなく完了した BindingVolume を対象
+			var epubVolumesToCleanup = this.bindingStore.BindingVolumes
+				.Where(v =>
+					v.Material.EffectiveSourceType == MaterialSourceType.Epub &&
+					v.EpubExtractionError == EpubExtractionError.None)
+				.ToList();
 
-		// 2. ItemType.Epub の場合
-		if (material.ItemType == MaterialItemType.Epub)
+			if (epubVolumesToCleanup.Count == 0)
+			{
+				return;
+			}
+
+			// CancellationToken に依存しない cleanup を実行（既にキャンセル状態でも実行）
+			foreach (var volume in epubVolumesToCleanup)
+			{
+				if (string.IsNullOrEmpty(volume.WorkFolderPath))
+				{
+					continue;
+				}
+
+				var epubTempDir = Path.Combine(volume.WorkFolderPath, ".epub");
+
+				try
+				{
+					if (Directory.Exists(epubTempDir))
+					{
+						// .epub フォルダを再帰削除
+						// 背景タスクで実行してもメインスレッドをブロック回避
+						await Task.Run(() => Directory.Delete(epubTempDir, recursive: true))
+							.ConfigureAwait(false);
+					}
+				}
+				catch (Exception ex)
+				{
+					// cleanup 失敗時はログのみ記録（本来の Pipeline 処理を中断しない）
+					this.logger.LogWarning(
+						ex,
+						"EPUB の一時展開フォルダ削除に失敗しました。WorkFolderPath：{WorkFolder}",
+						volume.WorkFolderPath);
+				}
+			}
+		}
+		catch (Exception ex)
 		{
-			return MaterialItemType.Epub;
+			// 予期しない例外が発生した場合もログのみ記録
+			this.logger.LogWarning(ex, "EPUB 一時フォルダの cleanup 処理中に予期しないエラーが発生しました。");
 		}
-
-		// 3. それ以外は Folder
-		return MaterialItemType.Folder;
 	}
 }

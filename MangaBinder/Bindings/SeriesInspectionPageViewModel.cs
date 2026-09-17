@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Linq;
+using System.Windows;
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Controls;
@@ -15,6 +18,9 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 {
 	/// <summary>作品選択状態ストア。</summary>
 	private readonly SeriesWorkspaceStore workspaceStore;
+
+	/// <summary>製本工程の正本状態ストア。</summary>
+	private readonly BindingStore bindingStore;
 
 	/// <summary>ナビゲーションサービス。</summary>
 	private readonly INavigationService navigationService;
@@ -56,6 +62,12 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 	/// <summary>ListView にバインドする検査結果一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<VolumeInspectionResult> InspectionResults { get; }
+
+	/// <summary>巻カード表示用の ViewModel 一覧を取得します。</summary>
+	public NotifyCollectionChangedSynchronizedViewList<VolumeCardViewModel> VolumeCards { get; }
+
+	/// <summary>内部保持する巻カード用 synchronized view。</summary>
+	private ISynchronizedView<BindingVolume, VolumeCardViewModel>? volumeCardsView;
 
 	// zip 設定のプロパティ
 
@@ -108,18 +120,21 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <see cref="SeriesInspectionPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="workspaceStore">作品選択状態ストア。</param>
+	/// <param name="bindingStore">製本工程の正本状態ストア。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
 	public SeriesInspectionPageViewModel(
 		SeriesWorkspaceStore workspaceStore,
+		BindingStore bindingStore,
 		INavigationService navigationService,
 		IServiceScopeFactory serviceScopeFactory,
 		ThumbnailImageLoader thumbnailImageLoader,
 		LoadingService loadingService)
 	{
 		this.workspaceStore = workspaceStore;
+		this.bindingStore = bindingStore;
 		this.navigationService = navigationService;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.thumbnailImageLoader = thumbnailImageLoader;
@@ -163,6 +178,23 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.InspectionResults = this.inspectionResults
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
+
+		// 巻カード用の SynchronizedView を初期化
+		// BindingStore.BindingVolumes から VolumeCardViewModel へ変換
+		var volumeCardsView = this.bindingStore.BindingVolumes
+			.CreateView(bindingVolume =>
+				new VolumeCardViewModel(
+					bindingVolume,
+					this.serviceScopeFactory));
+
+		this.volumeCardsView = volumeCardsView;
+
+		this.VolumeCards = volumeCardsView
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
+
+		// VolumeCardViewModel のライフタイム管理
+		volumeCardsView.ViewChanged += this.onVolumeCardsViewChanged;
 
 		// MangaSeriesCard: 作品サムネイルカード用ViewModel
 		this.MangaSeriesCard = new MangaSeriesCardViewModel()
@@ -258,7 +290,7 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 		this.ZipOutputFileName.Value = this.buildZipOutputFileName(series);
 
-		_ = this.loadInspectionResultsAsync(series);
+		_ = this.executeSeriesInspectionAsync();
 
 		return ValueTask.CompletedTask;
 	}
@@ -288,26 +320,63 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	}
 
 	/// <summary>
-	/// バックグラウンドで製本前確認データを読み込み、完了後に UI へ反映します。
+	/// SeriesInspectionManager を実行して、製本前確認処理を開始します。
 	/// </summary>
-	/// <param name="series">対象の作品エンティティ。</param>
-	private async Task loadInspectionResultsAsync(MangaSeries series)
+	private async Task executeSeriesInspectionAsync()
 	{
 		using (this.loadingService.Begin("展開・変換・検査中..."))
 		{
 			try
 			{
 				using var scope = this.serviceScopeFactory.CreateScope();
-				var builder = scope.ServiceProvider.GetRequiredService<WorkFolderBuilderOld>();
+				var manager = scope.ServiceProvider.GetRequiredService<SeriesInspectionManager>();
 
-				var results = await Task.Run(
-					() => builder.BuildAsync(
-						series,
-						this.workspaceStore.SelectedMaterialVolumes,
-						this.workspaceStore.RecreateWorkFolder.Value).AsTask());
+				// 並列処理からのUI更新Taskを安全に保持
+				var cardUpdateTasks = new ConcurrentBag<Task>();
 
-				foreach (var result in results)
-					this.inspectionResults.Add(result);
+				// ローカルイベントハンドラ：BindingVolume 検査完了時の UI更新
+				void OnVolumeInspected(BindingVolume volume)
+				{
+					// UIスレッドへマーシャリング
+					var operation = Application.Current.Dispatcher.InvokeAsync(
+						new Func<Task>(async () =>
+						{
+							// 対象 VolumeCardViewModel を ReferenceEquals で検索
+							var card = this.VolumeCards.FirstOrDefault(
+								item => ReferenceEquals(item.Volume.Value, volume));
+
+							if (card is null)
+							{
+								throw new InvalidOperationException(
+									$"検査完了の BindingVolume に対応する VolumeCardViewModel が見つかりません。");
+							}
+
+							// BindingVolume の内部プロパティ更新を反映
+							card.Volume.ForceNotify();
+
+							// サムネイル読み込み
+							await card.LoadThumbnailAsync();
+						}));
+
+					// UI更新Taskを追跡
+					var updateTask = operation.Task.Unwrap();
+					cardUpdateTasks.Add(updateTask);
+				}
+
+				manager.VolumeInspected += OnVolumeInspected;
+
+				try
+				{
+					await manager.ExecuteAsync();
+
+					// Manager が全巻の処理を終了した後、
+					// イベントから開始した全カード更新Taskの完了を待つ
+					await Task.WhenAll(cardUpdateTasks);
+				}
+				finally
+				{
+					manager.VolumeInspected -= OnVolumeInspected;
+				}
 			}
 			catch
 			{
@@ -317,9 +386,75 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		}
 	}
 
+	/// <summary>
+	/// VolumeCardViewModel のライフタイム管理を行うイベントハンドラです。
+	/// </summary>
+	private void onVolumeCardsViewChanged(
+		in SynchronizedViewChangedEventArgs<BindingVolume, VolumeCardViewModel> e)
+	{
+		switch (e.Action)
+		{
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+				// 削除された VolumeCardViewModel を Dispose
+				if (e.IsSingleItem)
+				{
+					e.OldItem.View?.Dispose();
+				}
+				else
+				{
+					foreach (var viewModel in e.OldViews)
+					{
+						viewModel?.Dispose();
+					}
+				}
+				break;
+
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Replace:
+				// 置換前の VolumeCardViewModel を Dispose
+				if (e.IsSingleItem)
+				{
+					e.OldItem.View?.Dispose();
+				}
+				else
+				{
+					foreach (var viewModel in e.OldViews)
+					{
+						viewModel?.Dispose();
+					}
+				}
+				break;
+
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+				// Reset は Sort / Reverse / Clear の場合が考えられる
+				// IsClear で判定し、Clear の場合だけ旧 VolumeCardViewModel を Dispose
+				if (e.SortOperation.IsClear)
+				{
+					foreach (var viewModel in e.OldViews)
+					{
+						viewModel?.Dispose();
+					}
+				}
+				// Sort / Reverse の場合は現在有効な VolumeCardViewModel を Dispose しない
+				break;
+		}
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{
+		// VolumeCards に残っているすべての VolumeCardViewModel を Dispose
+		foreach (var viewModel in this.VolumeCards)
+		{
+			viewModel?.Dispose();
+		}
+
+		// volumeCardsView が null でない場合、ViewChanged イベントハンドラを解除
+		if (this.volumeCardsView is not null)
+		{
+			this.volumeCardsView.ViewChanged -= this.onVolumeCardsViewChanged;
+		}
+
 		this.disposableBag.Dispose();
 	}
 }
+

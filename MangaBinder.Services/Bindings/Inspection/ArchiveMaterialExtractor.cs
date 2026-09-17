@@ -1,7 +1,7 @@
 using MangaBinder.Helpers;
 using SharpCompress.Archives;
 
-namespace MangaBinder.Bindings.Extraction;
+namespace MangaBinder.Bindings.Inspection;
 
 /// <summary>
 /// Archive（ZIP / RAR / CBZ 等）素材の展開を実行する Extractor です。

@@ -14,8 +14,34 @@ public class MaterialItem : IDisposable
 
 	/// <summary>
 	/// 素材アイテムの種別を取得します。
+	/// UI/Worker 共通で使用される、素材ツリー上のノード種別です。
 	/// </summary>
 	public MaterialItemType ItemType { get; init; }
+
+	/// <summary>
+	/// 元素材の入力元種別を取得します。
+	/// 生成時に確定し、その後は変更されません。
+	/// Archive 配下の Folder でも、OriginalSourceType は Archive です。
+	/// </summary>
+	public MaterialSourceType OriginalSourceType { get; init; }
+
+	/// <summary>
+	/// 今回の製本で元素材を使用するかを取得または設定します。
+	/// 初期値は true（元素材を使用）。
+	/// false の場合は、既存の WorkFolder を入力元として使用します。
+	/// 「BindingVolume を製本しない」という意味ではなく、
+	/// 入力元のみが「元素材」から「既存 Work」に切り替わります。
+	/// </summary>
+	public bool UseOriginalMaterial { get; set; }
+
+	/// <summary>
+	/// 今回実際に使用する入力元種別を取得します。
+	/// UseOriginalMaterial が true の場合は OriginalSourceType をそのまま返し、
+	/// false の場合は MaterialSourceType.WorkFolder を返します。
+	/// </summary>
+	public MaterialSourceType EffectiveSourceType => this.UseOriginalMaterial
+		? this.OriginalSourceType
+		: MaterialSourceType.WorkFolder;
 
 	/// <summary>
 	/// ノードの表示名を取得します。
@@ -53,6 +79,8 @@ public class MaterialItem : IDisposable
 	/// <summary>
 	/// Archive 内部フォルダの場合のエントリ接頭辞を取得します。
 	/// 実フォルダ・Epub では空文字。
+	/// ArchiveMaterialExtractor がアーカイブ内部の対象位置を特定するための情報として使用され、
+	/// Extractor 種別選択には使用されません。
 	/// </summary>
 	public string ArchiveEntryPrefix { get; init; } = string.Empty;
 
@@ -90,7 +118,8 @@ public class MaterialItem : IDisposable
 	/// <summary>
 	/// <see cref="MaterialItem"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="itemType">素材アイテムの種別。</param>
+	/// <param name="itemType">素材アイテムの種別（Tree上のノード種別）。</param>
+	/// <param name="originalSourceType">元素材の入力元種別。</param>
 	/// <param name="name">表示名。</param>
 	/// <param name="fullPath">フルパス。</param>
 	/// <param name="fileSizeText">ファイルサイズ表示用テキスト。Archive 以外は空文字。</param>
@@ -104,6 +133,7 @@ public class MaterialItem : IDisposable
 	/// <param name="canDeleteMaterial">「素材を削除」操作を使用できるかどうか。</param>
 	public MaterialItem(
 		MaterialItemType itemType,
+		MaterialSourceType originalSourceType,
 		string name,
 		string fullPath,
 		string fileSizeText = "",
@@ -117,6 +147,7 @@ public class MaterialItem : IDisposable
 		bool canDeleteMaterial = false)
 	{
 		this.ItemType = itemType;
+		this.OriginalSourceType = originalSourceType;
 		this.Name = name;
 		this.FullPath = fullPath;
 		this.FileSizeText = fileSizeText;
@@ -128,6 +159,7 @@ public class MaterialItem : IDisposable
 		this.SelectionDisabledReason = selectionDisabledReason;
 		this.CanEnableSelectionOverride = canEnableSelectionOverride;
 		this.CanDeleteMaterial = canDeleteMaterial;
+		this.UseOriginalMaterial = true; // 初期値は元素材を使用
 
 		this.IsChecked = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);

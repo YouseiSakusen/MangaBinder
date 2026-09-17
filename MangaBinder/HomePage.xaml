@@ -442,29 +442,15 @@
 										<ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />
 									</ui:Button>
 
-									<!-- Row1: 編集ボタン（中央） -->
-									<ui:Button
-										Grid.Row="1"
-										Appearance="Transparent"
-										Width="28"
-										Height="28"
-										Padding="0"
-										VerticalAlignment="Center"
-										HorizontalAlignment="Center"
-										Background="Transparent"
-										BorderBrush="Transparent"
-										ToolTip="作品を編集"
-										Command="{Binding DataContext.EditSeriesCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-										CommandParameter="{Binding Series.Value}">
-										<TextBlock Text="▶"
-											FontSize="12"
-											Opacity="0.6"
-											VerticalAlignment="Center"
-											HorizontalAlignment="Center"
-											Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-									</ui:Button>
+										<!-- Row1: 編集ボタン（中央） -->
+										<ui:Button
+											Grid.Row="1"
+											Style="{StaticResource CardNavigateButtonStyle}"
+											ToolTip="作品を編集"
+											Command="{Binding DataContext.EditSeriesCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+											CommandParameter="{Binding Series.Value}" />
 
-									<!-- Row2: タグボタン -->
+										<!-- Row2: タグボタン -->
 									<controls:SeriesTagPicker
 										Grid.Row="2"
 										DataContext="{Binding TagSelector}"

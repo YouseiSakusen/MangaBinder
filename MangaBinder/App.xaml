@@ -26,6 +26,37 @@
 	  <SolidColorBrush x:Key="IncompleteBrush" Color="#5F6B7A" Opacity="0.65" />
 	  <!-- タグ表示用の共通色（薄いオレンジ～黄色） -->
 	  <SolidColorBrush x:Key="TagBrush" Color="#FFD983" />
+
+	  <!-- アプリケーション共通ナビゲーションボタンStyle -->
+	  <Style
+		  x:Key="CardNavigateButtonStyle"
+		  TargetType="{x:Type ui:Button}">
+		  <Setter Property="Appearance" Value="Transparent" />
+		  <Setter Property="Width" Value="28" />
+		  <Setter Property="Height" Value="28" />
+		  <Setter Property="Padding" Value="0" />
+		  <Setter Property="HorizontalAlignment" Value="Center" />
+		  <Setter Property="VerticalAlignment" Value="Center" />
+		  <Setter Property="Background" Value="Transparent" />
+		  <Setter Property="BorderBrush" Value="Transparent" />
+		  <Setter Property="MouseOverBackground"
+				  Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+		  <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+		  <Setter Property="Content" Value="▶" />
+		  <Setter Property="ContentTemplate">
+			  <Setter.Value>
+				  <DataTemplate>
+					  <TextBlock
+						  Text="{Binding}"
+						  FontSize="12"
+						  Opacity="0.6"
+						  HorizontalAlignment="Center"
+						  VerticalAlignment="Center"
+						  Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+				  </DataTemplate>
+			  </Setter.Value>
+		  </Setter>
+	  </Style>
 	</ResourceDictionary>
   </Application.Resources>
 </Application>

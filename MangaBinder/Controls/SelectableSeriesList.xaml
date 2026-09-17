@@ -212,33 +212,16 @@
                                 </ui:TextBlock>
                             </StackPanel>
 
-                            <!-- Col2: 操作列：「▶」ボタン（ShowNavigateButton 時に表示） -->
-                            <ui:Button
-                                Grid.Column="2"
-                                Appearance="Transparent"
-                                Width="28"
-                                Height="28"
-                                Padding="0"
-                                VerticalAlignment="Center"
-                                HorizontalAlignment="Center"
-                                Background="Transparent"
-                                BorderBrush="Transparent"
-                                MouseOverBackground="{DynamicResource ControlFillColorSecondaryBrush}"
-                                MouseOverBorderBrush="Transparent"
-                                ToolTip="編集"
-                                Margin="8,0,0,0"
-                                Visibility="{Binding DataContext.ShowNavigateButton.Value, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}"
-                                CommandParameter="{Binding Series.Value}">
-                                <TextBlock
-                                    Text="▶"
-                                    FontSize="12"
-                                    Opacity="0.6"
-                                    VerticalAlignment="Center"
-                                    HorizontalAlignment="Center"
-                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            </ui:Button>
-                        </Grid>
+							<!-- Col2: 操作列：「▶」ボタン（ShowNavigateButton 時に表示） -->
+							<ui:Button
+	                            Grid.Column="2"
+	                            Style="{StaticResource CardNavigateButtonStyle}"
+	                            ToolTip="編集"
+	                            Margin="8,0,0,0"
+	                            Visibility="{Binding DataContext.ShowNavigateButton.Value, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"
+	                            Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}"
+	                            CommandParameter="{Binding Series.Value}" />
+						</Grid>
                     </ui:Card>
                 </DataTemplate>
             </ListView.ItemTemplate>

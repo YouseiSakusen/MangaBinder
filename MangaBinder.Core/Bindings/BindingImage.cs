@@ -85,6 +85,57 @@ public class BindingImage : IDisposable
 	public string? ProcessErrorMessage { get; set; }
 
 	/// <summary>
+	/// ファイル名正規化 Simulation により求めた、
+	/// 正規化後に予定されるファイル名を取得または設定します。
+	/// フルパスではなくファイル名のみです。
+	/// 初期値は null です。
+	/// </summary>
+	public string? SimulatedNormalizedFileName { get; set; }
+
+	/// <summary>
+	/// ファイル名正規化（主番号のゼロ埋め）の処理状態を取得または設定します。
+	/// 初期値は NotProcessed です。
+	/// </summary>
+	public FileNameNormalizationStatus FileNameNormalizationStatus { get; set; }
+
+	/// <summary>
+	/// ファイル名正規化に関する詳細情報を取得または設定します。
+	/// 解析失敗や Conflict の詳細を後から UI で確認するために保持します。
+	/// Exception オブジェクト自体は保持しません。
+	/// 初期値は null です。
+	/// </summary>
+	public string? FileNameNormalizationErrorMessage { get; set; }
+
+	/// <summary>
+	/// ファイル名が文字化けしている可能性がある場合 true を取得または設定します。
+	/// これは FileNameNormalizationStatus とは独立した警告情報です。
+	/// 初期値は false です。
+	/// </summary>
+	public bool HasSuspectedMojibake { get; set; }
+
+	/// <summary>
+	/// ファイルを正規化ファイル名にリネーム可能かどうかを取得します。
+	/// FileNameNormalizationStatus == Ready の場合のみ true です。
+	/// </summary>
+	public bool CanRenameFile => this.FileNameNormalizationStatus == FileNameNormalizationStatus.Ready;
+
+	/// <summary>
+	/// 画像が横長（幅 > 高さ）かどうかを取得します。
+	/// Width と Height の両方が取得できており、Width > Height の場合のみ true です。
+	/// Width または Height が null の場合は false です。
+	/// 判定結果は別フィールドへ保持せず、都度 Width / Height から計算されます。
+	/// </summary>
+	public bool IsLandscape => this.Width.HasValue && this.Height.HasValue && this.Width > this.Height;
+
+	/// <summary>
+	/// この BindingImage の処理によって別の出力ファイルを正常に生成した場合、
+	/// 入力元の物理ファイルを削除すべきかを取得します。
+	/// 入力元が Work フォルダである場合のみ true を返します。
+	/// Folder、Archive、Epub の場合は false です。
+	/// </summary>
+	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.EffectiveSourceType == MaterialSourceType.WorkFolder;
+
+	/// <summary>
 	/// <see cref="BindingImage"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="bindingVolume">この画像が所属する親 BindingVolume。</param>
@@ -103,6 +154,10 @@ public class BindingImage : IDisposable
 		this.SkipImageProcessing = false;
 		this.ProcessStatus = BindingImageProcessStatus.NotProcessed;
 		this.ProcessErrorMessage = null;
+		this.SimulatedNormalizedFileName = null;
+		this.FileNameNormalizationStatus = FileNameNormalizationStatus.NotProcessed;
+		this.FileNameNormalizationErrorMessage = null;
+		this.HasSuspectedMojibake = false;
 	}
 
 	/// <inheritdoc/>

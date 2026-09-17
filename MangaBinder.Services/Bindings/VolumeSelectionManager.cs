@@ -566,11 +566,42 @@ public class VolumeSelectionManager
 
 	/// <summary>
 	/// MaterialItemDto を MaterialItem へ再帰的に変換します。
+	/// 各ノードの元素材入力元種別（OriginalSourceType）を、
+	/// 親の種別と現在のノードの種別から確定します。
 	/// </summary>
 	/// <param name="dto">変換元の DTO。</param>
+	/// <param name="isDirectChildOfRoot">Root の直下かどうか。</param>
+	/// <param name="parentSourceType">親ノードの元素材入力元種別。Root の場合は null。</param>
 	/// <returns>変換後の MaterialItem。</returns>
-	private MaterialItem ConvertMaterialItemDtoToMaterialItem(MaterialItemDto dto, bool isDirectChildOfRoot = false)
+	private MaterialItem ConvertMaterialItemDtoToMaterialItem(
+		MaterialItemDto dto,
+		bool isDirectChildOfRoot = false,
+		MaterialSourceType? parentSourceType = null)
 	{
+		// 元素材入力元種別（OriginalSourceType）を確定
+		MaterialSourceType originalSourceType;
+
+		// 親が Archive 配下の場合、子は ItemType が Folder でも Archive 由来
+		if (parentSourceType == MaterialSourceType.Archive)
+		{
+			originalSourceType = MaterialSourceType.Archive;
+		}
+		// 親が Archive ではなく、現在のノードが Archive の場合
+		else if (dto.ItemType == MaterialItemType.Archive)
+		{
+			originalSourceType = MaterialSourceType.Archive;
+		}
+		// 現在のノードが Epub の場合
+		else if (dto.ItemType == MaterialItemType.Epub)
+		{
+			originalSourceType = MaterialSourceType.Epub;
+		}
+		// それ以外（Folder または Root）は Folder
+		else
+		{
+			originalSourceType = MaterialSourceType.Folder;
+		}
+
 		// CanEnableSelectionOverride の判定
 		var canEnableSelectionOverride =
 			dto.ItemType != MaterialItemType.Root
@@ -587,6 +618,7 @@ public class VolumeSelectionManager
 
 		var materialItem = new MaterialItem(
 			itemType: dto.ItemType,
+			originalSourceType: originalSourceType,
 			name: dto.Name,
 			fullPath: dto.FullPath,
 			fileSizeText: dto.FileSizeText,
@@ -601,10 +633,18 @@ public class VolumeSelectionManager
 
 		// 子を再帰的に変換
 		// Root の場合だけ isDirectChildOfRoot = true を渡す
+		// 親の SourceType は、Archive 配下の判定に使用するため引き継ぐ
 		var childIsDirectChildOfRoot = dto.ItemType == MaterialItemType.Root;
+		var childParentSourceType = dto.ItemType == MaterialItemType.Archive
+			? MaterialSourceType.Archive
+			: parentSourceType;
+
 		foreach (var childDto in dto.Children)
 		{
-			var childMaterialItem = this.ConvertMaterialItemDtoToMaterialItem(childDto, childIsDirectChildOfRoot);
+			var childMaterialItem = this.ConvertMaterialItemDtoToMaterialItem(
+				childDto,
+				childIsDirectChildOfRoot,
+				childParentSourceType);
 			materialItem.Children.Add(childMaterialItem);
 		}
 

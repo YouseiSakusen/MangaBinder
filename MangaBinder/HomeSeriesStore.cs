@@ -1,9 +1,10 @@
+using MangaBinder.Bindings;
 using MangaBinder.Series;
 using ObservableCollections;
 using R3;
 using System.Collections.Specialized;
 
-namespace MangaBinder.Bindings;
+namespace MangaBinder;
 
 /// <summary>
 /// Home 画面専用の表示用派生 View を保持する Store です。

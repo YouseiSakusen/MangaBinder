@@ -307,24 +307,12 @@
 										</ui:Button>
 
 										<!-- ナビゲーション表示（中段） -->
-										<ui:Button Grid.Row="1"
-											Appearance="Transparent"
-											Width="28" Height="28"
-											Padding="0"
-											VerticalAlignment="Center"
-											HorizontalAlignment="Center"
-											Background="Transparent"
-											BorderBrush="Transparent"
+										<ui:Button
+											Grid.Row="1"
+											Style="{StaticResource CardNavigateButtonStyle}"
 											ToolTip="製本開始"
 											Command="{Binding DataContext.NavigateToVolumeSelectionCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=Page}}"
-											CommandParameter="{Binding BindingSeries}">
-											<TextBlock Text="▶"
-												FontSize="12"
-												Opacity="0.6"
-												VerticalAlignment="Center"
-												HorizontalAlignment="Center"
-												Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-										</ui:Button>
+											CommandParameter="{Binding BindingSeries}" />
 
 										<!-- 下段：余白 -->
 										<!-- (empty) -->

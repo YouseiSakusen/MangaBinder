@@ -82,7 +82,8 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();
 		services.AddScoped<OwnedVolumeEstimator>();
 		services.AddSingleton<IContentDialogService, ContentDialogService>();
-		services.AddSingleton<VolumeFileNameNormalizer>();
+		services.AddSingleton<VolumeFileNameNormalizerOld>();
+		services.AddScoped<VolumeFileNameNormalizer>();
 		services.AddSingleton<VolumeThumbnailImageProcessor>();
 		services.AddSingleton<VolumeThumbnailLoader>();
 		services.AddSingleton<ThumbnailImageLoader>();
@@ -116,9 +117,12 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<VolumeSelectionManager>();
 		services.AddScoped<SeriesInspectionManager>();
-		services.AddKeyedScoped<IMaterialExtractor, ArchiveMaterialExtractor>(MaterialItemType.Archive);
-		services.AddKeyedScoped<IMaterialExtractor, FolderMaterialExtractor>(MaterialItemType.Folder);
-		services.AddKeyedScoped<IMaterialExtractor, EpubMaterialExtractor>(MaterialItemType.Epub);
+		services.AddScoped<VolumeCardThumbnailImageProcessor>();
+		services.AddScoped<VolumeCardThumbnailLoader>();
+		services.AddKeyedScoped<IMaterialExtractor, ArchiveMaterialExtractor>(MaterialSourceType.Archive);
+		services.AddKeyedScoped<IMaterialExtractor, FolderMaterialExtractor>(MaterialSourceType.Folder);
+		services.AddKeyedScoped<IMaterialExtractor, EpubMaterialExtractor>(MaterialSourceType.Epub);
+		services.AddKeyedScoped<IMaterialExtractor, WorkFolderExtractor>(MaterialSourceType.WorkFolder);
 		services.AddScoped<BindingImageProcessor>();
 		services.AddScoped<MaterialFolderOpener>();
 		services.AddScoped<MaterialManager>();
