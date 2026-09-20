@@ -102,16 +102,9 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<HomeSeriesStore>();
 		services.AddScoped<BindingStoreRepository>();
 		services.AddScoped<BindingQueueDispatcher>();
+		services.AddScoped<BindingRepository>();
 		services.AddSingleton<BindingManager>();
 
-		services.AddScoped<IVolumeImageProcessor, VolumeImageProcessor>();
-		services.AddScoped<FolderVolumeExtractor>();
-		services.AddScoped<ArchiveVolumeExtractor>();
-		services.AddScoped<EpubVolumeExtractor>();
-		services.AddScoped<VolumeNumberExtractor>();
-		services.AddScoped<WorkFolderBuilderOld>();
-		services.AddScoped<BindingVolumeTextFormatter>();
-		services.AddScoped<BindingZipFileNameFormatter>();
 		services.AddScoped<MaterialArchiveExtractor>();
 		services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<AppSettings>().ConnectionString));
 		services.AddScoped<SeriesMaterialFolderLoader>();
@@ -124,6 +117,7 @@ public static class ServiceCollectionExtensions
 		services.AddKeyedScoped<IMaterialExtractor, EpubMaterialExtractor>(MaterialSourceType.Epub);
 		services.AddKeyedScoped<IMaterialExtractor, WorkFolderExtractor>(MaterialSourceType.WorkFolder);
 		services.AddScoped<BindingImageProcessor>();
+		services.AddScoped<BindingArchiver>();
 		services.AddScoped<MaterialFolderOpener>();
 		services.AddScoped<MaterialManager>();
 		services.AddScoped<ThemeBackgroundColorInitializer>();

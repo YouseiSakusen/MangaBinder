@@ -42,7 +42,7 @@ public class MaterialItemViewModel : IDisposable
 	/// この素材がチェック可能かどうかを取得します。
 	/// Material.ItemType と Material.IsSelectableByDefault、IsSelectionOverrideEnabled から導出される UI 用状態です。
 	/// </summary>
-	public ReadOnlyReactiveProperty<bool> CanCheck { get; }
+	public IReadOnlyBindableReactiveProperty<bool> CanCheck { get; }
 
 	/// <summary>
 	/// この素材に対して「チェックを有効にする」操作を使用できるかを取得します。
@@ -168,13 +168,13 @@ public class MaterialItemViewModel : IDisposable
 	/// CanCheck の Reactive プロパティを生成します。
 	/// Material.ItemType と Material.IsSelectableByDefault、IsSelectionOverrideEnabled から導出されます。
 	/// </summary>
-	private ReadOnlyReactiveProperty<bool> createCanCheckReactiveProperty()
+	private IReadOnlyBindableReactiveProperty<bool> createCanCheckReactiveProperty()
 	{
 		return this.IsSelectionOverrideEnabled
 			.Select(isOverride =>
 				this.Material.IsSelectableByDefault
 				|| (this.Material.CanEnableSelectionOverride && isOverride))
-			.ToReadOnlyReactiveProperty();
+			.ToReadOnlyBindableReactiveProperty(false);
 	}
 
 	/// <inheritdoc/>

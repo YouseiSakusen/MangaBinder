@@ -489,11 +489,10 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
 		else
 		{
 			// ケース3: 対象作品のWork作品フォルダが存在する
-			// 毎回 ImageExpansionMethod = 0（新規作成）から開始し、
-			// RecreateWorkFolder = true とする
+			// 既存の画像を使用する（ImageExpansionMethod = 1）をデフォルトに
 			this.HasExistingWorkFolder.Value = true;
-			this.ImageExpansionMethod.Value = 0;
-			this.bindingStore.RecreateWorkFolder.Value = true;
+			this.ImageExpansionMethod.Value = 1;
+			this.bindingStore.RecreateWorkFolder.Value = false;
 		}
 	}
 

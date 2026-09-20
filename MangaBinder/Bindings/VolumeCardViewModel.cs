@@ -26,19 +26,19 @@ public class VolumeCardViewModel : IDisposable
 	/// BindingVolume.WorkFolderPath から取得した巻フォルダ名を取得します。
 	/// WorkFolderPath が null / 空白の場合は string.Empty です。
 	/// </summary>
-	public ReadOnlyReactiveProperty<string> VolumeFolderName { get; }
+	public IReadOnlyBindableReactiveProperty<string> VolumeFolderName { get; }
 
 	/// <summary>
 	/// 画像数情報を表示用の文字列フォーマットで取得します。
 	/// 横長画像ありの場合は「横長画像数 / 総画像数：3 / 198」の形式で返します。
 	/// エラーまたは横長画像がない場合は「総画像数：198」の形式で返します。
 	/// </summary>
-	public ReadOnlyReactiveProperty<string> ImageCountText { get; }
+	public IReadOnlyBindableReactiveProperty<string> ImageCountText { get; }
 
 	/// <summary>
 	/// 素材フォルダの直下にサブフォルダが存在するかどうかを取得します。
 	/// </summary>
-	public ReadOnlyReactiveProperty<bool> HasSubFolder { get; }
+	public IReadOnlyBindableReactiveProperty<bool> HasSubFolder { get; }
 
 	/// <summary>
 	/// 代表画像のサムネイル ImageSource を取得または設定します。
@@ -50,26 +50,33 @@ public class VolumeCardViewModel : IDisposable
 	/// 検査結果にエラーがあるかどうかを取得します。
 	/// EPUB展開エラー または 画像処理エラーが発生している場合 true です。
 	/// </summary>
-	public ReadOnlyReactiveProperty<bool> HasError { get; }
+	public IReadOnlyBindableReactiveProperty<bool> HasError { get; }
 
 	/// <summary>
 	/// 検査エラーの表示用文字列を取得します。
 	/// Errorがない場合は string.Empty です。
 	/// </summary>
-	public ReadOnlyReactiveProperty<string> ErrorText { get; }
+	public IReadOnlyBindableReactiveProperty<string> ErrorText { get; }
 
 	/// <summary>
 	/// 検査結果に警告があるかどうかを取得します。
 	/// エラーがなく、ファイル名競合またはEPUB警告が存在する場合 true です。
 	/// </summary>
-	public ReadOnlyReactiveProperty<bool> HasWarning { get; }
+	public IReadOnlyBindableReactiveProperty<bool> HasWarning { get; }
 
 	/// <summary>
 	/// 検査警告の表示用文字列を取得します。
 	/// 警告がない場合は string.Empty です。
 	/// 複数警告は " / " で連結します。
 	/// </summary>
-	public ReadOnlyReactiveProperty<string> WarningText { get; }
+	public IReadOnlyBindableReactiveProperty<string> WarningText { get; }
+
+	/// <summary>
+	/// 横長画像数を表示するかどうかを取得します。
+	/// EpubExtractionError == None かつ LandscapeImageCount > 0 の場合 true です。
+	/// XAML側での表示条件判定用に提供されます。
+	/// </summary>
+	public IReadOnlyBindableReactiveProperty<bool> ShowsLandscapeImageCount { get; }
 
 	/// <summary>
 	/// <see cref="VolumeCardViewModel"/> の新しいインスタンスを初期化します。
@@ -95,19 +102,19 @@ public class VolumeCardViewModel : IDisposable
 			.Select(v => string.IsNullOrWhiteSpace(v.WorkFolderPath)
 				? string.Empty
 				: Path.GetFileName(v.WorkFolderPath) ?? string.Empty)
-			.ToReadOnlyReactiveProperty(string.Empty)
+			.ToReadOnlyBindableReactiveProperty(string.Empty)
 			.AddTo(ref this.disposableBag);
 
 		// ImageCountText：画像数とエラー状態を考慮した表示文字列
 		this.ImageCountText = this.Volume
 			.Select(v => this.CreateImageCountText(v))
-			.ToReadOnlyReactiveProperty(string.Empty)
+			.ToReadOnlyBindableReactiveProperty(string.Empty)
 			.AddTo(ref this.disposableBag);
 
 		// HasSubFolder：サブフォルダの有無
 		this.HasSubFolder = this.Volume
 			.Select(v => v.HasSubFolder)
-			.ToReadOnlyReactiveProperty()
+			.ToReadOnlyBindableReactiveProperty(false)
 			.AddTo(ref this.disposableBag);
 
 		// ThumbnailSource：サムネイル画像
@@ -119,13 +126,13 @@ public class VolumeCardViewModel : IDisposable
 			.Select(v =>
 				v.EpubExtractionError != EpubExtractionError.None
 				|| v.HasImageProcessingError)
-			.ToReadOnlyReactiveProperty()
+			.ToReadOnlyBindableReactiveProperty(false)
 			.AddTo(ref this.disposableBag);
 
 		// ErrorText：エラー表示文字列
 		this.ErrorText = this.Volume
 			.Select(v => this.CreateErrorText(v))
-			.ToReadOnlyReactiveProperty(string.Empty)
+			.ToReadOnlyBindableReactiveProperty(string.Empty)
 			.AddTo(ref this.disposableBag);
 
 		// HasWarning：エラーがなく、ファイル名競合またはEPUB警告がある場合 true
@@ -139,32 +146,44 @@ public class VolumeCardViewModel : IDisposable
 					&& (v.HasImageFileNameConflict
 						|| v.EpubExtractionWarnings != EpubExtractionWarning.None);
 			})
-			.ToReadOnlyReactiveProperty()
+			.ToReadOnlyBindableReactiveProperty(false)
 			.AddTo(ref this.disposableBag);
 
 		// WarningText：警告表示文字列
 		this.WarningText = this.Volume
 			.Select(v => this.CreateWarningText(v))
-			.ToReadOnlyReactiveProperty(string.Empty)
+			.ToReadOnlyBindableReactiveProperty(string.Empty)
+			.AddTo(ref this.disposableBag);
+
+		// ShowsLandscapeImageCount：横長画像数表示フラグ
+		// EpubExtractionError == None かつ LandscapeImageCount > 0 の場合 true
+		this.ShowsLandscapeImageCount = this.Volume
+			.Select(v =>
+				v.EpubExtractionError == EpubExtractionError.None
+				&& v.LandscapeImageCount > 0)
+			.ToReadOnlyBindableReactiveProperty(false)
 			.AddTo(ref this.disposableBag);
 	}
 
 	/// <summary>
 	/// 画像数表示用の文字列を生成します。
+	/// 
+	/// 表示仕様:
+	/// - EpubExtractionError != None の場合: 総画像数：xxx のみ表示
+	/// - EpubExtractionError == None かつ LandscapeImageCount == 0 の場合: 総画像数：xxx
+	/// - EpubExtractionError == None かつ LandscapeImageCount > 0 の場合: 横長画像数 / 総画像数：x / y
+	/// 
+	/// 注意: HasImageProcessingError は横長画像数を隠す条件に使用しない
 	/// </summary>
 	private string CreateImageCountText(BindingVolume volume)
 	{
-		// エラー判定
-		var hasError = volume.HasImageProcessingError
-			|| volume.EpubExtractionError != EpubExtractionError.None;
-
-		// エラーがある場合は画像数のみ表示
-		if (hasError)
+		// EPUB Extraction Error がある場合は総画像数のみ表示
+		if (volume.EpubExtractionError != EpubExtractionError.None)
 		{
 			return $"総画像数：{volume.ImageFileCount}";
 		}
 
-		// エラーがない場合
+		// EPUB Error がない場合
 		if (volume.LandscapeImageCount == 0)
 		{
 			// 横長画像がない場合は総画像数のみ

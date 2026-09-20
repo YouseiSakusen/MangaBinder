@@ -244,7 +244,7 @@ public static partial class VolumeNumberHelper
 			}
 		}
 
-		// ローマ数字パターン：I～XV
+		// ローマ数字パターン：I～XV（区切りあり）
 		var romanMatch = RegexRomanNumeral().Match(normalized);
 		if (romanMatch.Success)
 		{
@@ -256,6 +256,22 @@ public static partial class VolumeNumberHelper
 					Kind = VolumeNumberParseKind.Single,
 					SingleVolume = number,
 					MatchedPattern = "RomanNumeral",
+				};
+			}
+		}
+
+		// ローマ数字パターン：I～XV（タイトル直結）
+		var attachedRomanMatch = RegexAttachedRomanNumeral().Match(normalized);
+		if (attachedRomanMatch.Success)
+		{
+			var numStr = attachedRomanMatch.Groups["num"].Value;
+			if (TryParseVolumeNumber(numStr, out var number))
+			{
+				return new VolumeNumberParseResult
+				{
+					Kind = VolumeNumberParseKind.Single,
+					SingleVolume = number,
+					MatchedPattern = "AttachedRomanNumeral",
 				};
 			}
 		}
@@ -434,6 +450,38 @@ public static partial class VolumeNumberHelper
 			}
 		}
 
+		// 閉じ括弧・閉じ記号の直後に続く末尾巻番号：Title)9 / タイトル】9 等
+		var closingBracketMatch = RegexClosingBracketTrailingNumber().Match(normalized);
+		if (closingBracketMatch.Success && isValidWeakVolumeNumber(closingBracketMatch.Groups["num"].Value))
+		{
+			var numStr = closingBracketMatch.Groups["num"].Value.Replace('_', '.');
+			if (TryParseVolumeNumber(numStr, out var number))
+			{
+				return new VolumeNumberParseResult
+				{
+					Kind = VolumeNumberParseKind.Single,
+					SingleVolume = number,
+					MatchedPattern = "ClosingBracketTrailingNumber",
+				};
+			}
+		}
+
+		// 末尾の数字 + 英字サフィックス：Gran Familia_02s / Title 05w / vol08s 等
+		var trailingNumberWithSuffixMatch = RegexTrailingNumberWithSuffix().Match(normalized);
+		if (trailingNumberWithSuffixMatch.Success && isValidWeakVolumeNumber(trailingNumberWithSuffixMatch.Groups["num"].Value))
+		{
+			var numStr = trailingNumberWithSuffixMatch.Groups["num"].Value.Replace('_', '.');
+			if (TryParseVolumeNumber(numStr, out var number))
+			{
+				return new VolumeNumberParseResult
+				{
+					Kind = VolumeNumberParseKind.Single,
+					SingleVolume = number,
+					MatchedPattern = "TrailingNumberWithSuffix",
+				};
+			}
+		}
+
 		return null;
 	}
 
@@ -537,6 +585,22 @@ public static partial class VolumeNumberHelper
 					Kind = VolumeNumberParseKind.Single,
 					SingleVolume = number,
 					MatchedPattern = "TitleSpaceNumberBeforeParen",
+				};
+			}
+		}
+
+		// EPUB の数字～パターン：タイトル1～サブタイトル～
+		var epubWaveDashMatch = RegexEpubNumberWithWaveDash().Match(withoutExtension);
+		if (epubWaveDashMatch.Success && isValidWeakVolumeNumber(epubWaveDashMatch.Groups["num"].Value))
+		{
+			var numStr = epubWaveDashMatch.Groups["num"].Value.Replace('_', '.');
+			if (TryParseVolumeNumber(numStr, out var number))
+			{
+				return new VolumeNumberParseResult
+				{
+					Kind = VolumeNumberParseKind.Single,
+					SingleVolume = number,
+					MatchedPattern = "EpubNumberWithWaveDash",
 				};
 			}
 		}
@@ -721,11 +785,21 @@ public static partial class VolumeNumberHelper
 	private static partial Regex RegexParenPattern();
 
 	/// <summary>
-	/// ローマ数字パターン：I～XV
-	/// 単語の一部を誤検出しないよう、直前が空白等で直後が空白・記号・末尾を要求。
+	/// ローマ数字パターン（区切りあり）：I～XV
+	/// 直前が文字ではない（文字列先頭または非字母字）、直後が非字母字または文字列末尾。
+	/// Title-XIII、Title_XIII、Title (XIII) のような区切りのあるケースに対応。
 	/// </summary>
-	[GeneratedRegex(@"(?<= )(?<num>XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)(?=[^\p{L}]|$)")]
+	[GeneratedRegex(@"(?<!\p{L})(?<num>XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)(?=[^\p{L}]|$)")]
 	private static partial Regex RegexRomanNumeral();
+
+	/// <summary>
+	/// ローマ数字パターン（タイトル直結）：I～XV
+	/// 直前が小文字またはその他の字種（例：MangaTitleXIII、日本語タイトルXIII）。
+	/// 直後は文字列末尾のみ。
+	/// TITLEXIII のように大文字直後の場合は誤検出しない。
+	/// </summary>
+	[GeneratedRegex(@"(?<=[\p{Ll}\p{Lo}])(?<num>XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)$")]
+	private static partial Regex RegexAttachedRomanNumeral();
 
 	/// <summary>
 	/// YYYY-MM-DD 形式の日付を除去します。
@@ -777,6 +851,22 @@ public static partial class VolumeNumberHelper
 	private static partial Regex RegexTitleSpaceNumberBeforeParen();
 
 	/// <summary>
+	/// 閉じ括弧・閉じ記号の直後に続く末尾巻番号。
+	/// Title)9 / タイトル】9 のような、閉じ記号の直後に空白なしで末尾数字が続くケースに対応。
+	/// 数字は文字列末尾にある場合のみ。
+	/// </summary>
+	[GeneratedRegex(@"[）)】\]]\s*(?<num>\d+(?:[._]\d+)?)$")]
+	private static partial Regex RegexClosingBracketTrailingNumber();
+
+	/// <summary>
+	/// EPUB の数字～パターン。
+	/// タイトル1～サブタイトル～ のような、巻番号直後に「～」でサブタイトルが続くケース。
+	/// FormKC 正規化により「～」は標準形に統一される。
+	/// </summary>
+	[GeneratedRegex(@"(?<num>\d+(?:[._]\d+)?)(?=[～~])")]
+	private static partial Regex RegexEpubNumberWithWaveDash();
+
+	/// <summary>
 	/// 括弧内の数値。
 	/// </summary>
 	[GeneratedRegex(@"[（(](?<num>\d+(?:[._]\d+)?)[）)]")]
@@ -787,6 +877,15 @@ public static partial class VolumeNumberHelper
 	/// </summary>
 	[GeneratedRegex(@"^(?<num>\d+(?:[._]\d+)?)")]
 	private static partial Regex RegexLeadingNumber();
+
+	/// <summary>
+	/// 末尾の数字 + 英字サフィックスパターン。
+	/// 旧 VolumeNumberExtractor で対応していた仕様。
+	/// "Gran Familia_02s" / "Title 05w" / "vol08s" 等に対応。
+	/// 数字が文字列末尾の英字で終わることを要求（Title_01s_extra のような中央配置は除外）。
+	/// </summary>
+	[GeneratedRegex(@"(?<num>\d+(?:[._]\d+)?)(?=[A-Za-z]+$)")]
+	private static partial Regex RegexTrailingNumberWithSuffix();
 
 	/// <summary>
 	/// _v パターン：_v01 / _v1 / _v001

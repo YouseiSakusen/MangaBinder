@@ -71,7 +71,12 @@ public static class TreeViewSpaceKeyBehavior
 	/// </summary>
 	private static void OnPreviewKeyDown(object sender, KeyEventArgs e)
 	{
-		if (e.Key != Key.Space)
+		// IME ON時は e.Key が Key.ImeProcessed となり、実際に押されたキーが e.ImeProcessedKey に入る
+		var key = e.Key == Key.ImeProcessed
+			? e.ImeProcessedKey
+			: e.Key;
+
+		if (key != Key.Space)
 			return;
 
 		if (sender is not TreeView treeView)

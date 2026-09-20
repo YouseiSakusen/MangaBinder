@@ -518,20 +518,15 @@ public class VolumeSelectionManager
 	/// <returns>素材由来に対応する VolumeNumberSourceType。</returns>
 	private VolumeNumberSourceType DetermineVolumeNumberSourceType(MaterialItem material)
 	{
-		// Archive 内部エントリ（ArchiveEntryPrefix が null でない）
-		if (!string.IsNullOrEmpty(material.ArchiveEntryPrefix))
+		// ItemType に基づいて判定（ArchiveEntryPrefix ではなく）
+		// Archive 内部の Folder ノードも ItemType == Folder なら Folder として扱う
+		return material.ItemType switch
 		{
-			return VolumeNumberSourceType.Archive;
-		}
-
-		// EPUB ファイル
-		if (material.ItemType == MaterialItemType.Epub)
-		{
-			return VolumeNumberSourceType.Epub;
-		}
-
-		// それ以外は Folder
-		return VolumeNumberSourceType.Folder;
+			MaterialItemType.Folder => VolumeNumberSourceType.Folder,
+			MaterialItemType.Archive => VolumeNumberSourceType.Archive,
+			MaterialItemType.Epub => VolumeNumberSourceType.Epub,
+			_ => VolumeNumberSourceType.Folder, // デフォルトは Folder
+		};
 	}
 
 	/// <summary>

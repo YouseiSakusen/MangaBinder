@@ -297,8 +297,13 @@ public class BindingImageProcessor
 			// ownedFileStream（MaterialImage.SourceImagePath から開いた FileStream）は処理終了後に Dispose
 			ownedFileStream?.Dispose();
 
-			// NetVips の Image インスタンスは処理終了後に Dispose
-			vipsImage?.Dispose();
+			// NetVips の Image インスタンスは処理終了後に Invalidate → Dispose
+			// Invalidate() は pixel cache / downstream cache を無効化し、メモリ効率を改善
+			if (vipsImage is not null)
+			{
+				vipsImage.Invalidate();
+				vipsImage.Dispose();
+			}
 
 			// TemporaryImageStream の Dispose は呼び出し側で実施
 		}

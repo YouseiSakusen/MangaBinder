@@ -153,15 +153,15 @@ public class BindingVolume : IDisposable
 	/// 処理内容:
 	/// 1. Images を FileName（正規化済み）でアルファベット順（OrdinalIgnoreCase）に並び替える
 	/// 2. 集計対象:
-	///    - ImageFileCount: ProcessStatus == Succeeded かつ FilePath != null の画像数
-	///    - LandscapeImageCount: ImageFileCount に含まれる画像のうち、IsLandscape == true の画像数
+	///    - ImageFileCount: Images に存在する全 BindingImage 件数
+	///    - LandscapeImageCount: Images のうち IsLandscape == true の BindingImage 件数
 	///    - HasImageProcessingError: ProcessStatus が ImageOpenFailed / ConversionFailed / OutputFailed のいずれかの画像が存在するか
 	/// 
-	/// 以下は変更・再判定しません:
-	/// - HasSubFolder
-	/// - HasImageFileNameConflict
-	/// - EPUB の Error / Warning / ErrorMessage
-	/// - 各 BindingImage のファイル名正規化結果
+	/// 注意:
+	/// - ImageFileCount / LandscapeImageCount には、ProcessStatus や FilePath の値に関わらず全画像をカウント
+	/// - 画像処理Error等により横長判定できなかった画像は IsLandscape == false のため LandscapeImageCount には含まれない
+	/// - HasImageProcessingError は引き続き ProcessStatus のみで判定（Skipped は含めない）
+	/// - HasSubFolder / HasImageFileNameConflict / EPUB情報は変更・再判定しない
 	/// </summary>
 	public void Inspect()
 	{
@@ -170,17 +170,12 @@ public class BindingVolume : IDisposable
 		// CreateView() 等の SynchronizedView 側にも反映される構造とする
 		this.Images.Sort(fileNameComparer);
 
-		// ② ImageFileCount: 正常に実体化された画像を集計
-		var successfulImages = this.Images
-			.Where(img => img.ProcessStatus == BindingImageProcessStatus.Succeeded && img.FilePath != null)
-			.ToList();
+		// ② ImageFileCount: Images に存在する全 BindingImage 件数
+		this.ImageFileCount = this.Images.Count;
 
-		this.ImageFileCount = successfulImages.Count;
-
-		// ③ LandscapeImageCount: 正常実体化済みのうち、IsLandscape == true の画像を集計
-		this.LandscapeImageCount = successfulImages
-			.Where(img => img.IsLandscape)
-			.Count();
+		// ③ LandscapeImageCount: Images のうち IsLandscape == true の BindingImage 件数
+		this.LandscapeImageCount = this.Images
+			.Count(img => img.IsLandscape);
 
 		// ④ HasImageProcessingError: エラー状態の画像が存在するか判定
 		this.HasImageProcessingError = this.Images.Any(img =>

@@ -44,6 +44,16 @@ public class BindingStore : IDisposable
 	public BindableReactiveProperty<int> VolumeFolderDigits { get; }
 
 	/// <summary>
+	/// 製本完了時に使用する出力 ZIP ファイル名を取得します。
+	/// </summary>
+	public BindableReactiveProperty<string> ZipOutputFileName { get; }
+
+	/// <summary>
+	/// 製本完了後に対象作品を製本待ちから削除するかどうかを取得または設定します。
+	/// </summary>
+	public BindableReactiveProperty<bool> RemoveFromBindingQueueAfterCompletion { get; }
+
+	/// <summary>
 	/// <see cref="BindingStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	public BindingStore()
@@ -57,6 +67,10 @@ public class BindingStore : IDisposable
 		this.RecreateWorkFolder = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 		this.VolumeFolderDigits = new BindableReactiveProperty<int>(2)
+			.AddTo(ref this.disposableBag);
+		this.ZipOutputFileName = new BindableReactiveProperty<string>(string.Empty)
+			.AddTo(ref this.disposableBag);
+		this.RemoveFromBindingQueueAfterCompletion = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
 	}
 

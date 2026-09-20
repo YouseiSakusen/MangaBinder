@@ -323,6 +323,7 @@
 					Background="Transparent"
 					BorderThickness="0"
 					Padding="0,0,40,0"
+					InputMethod.PreferredImeState="Off"
 					VirtualizingPanel.IsVirtualizing="False"
 					ScrollViewer.VerticalScrollBarVisibility="Auto"
 					ScrollViewer.HorizontalScrollBarVisibility="Auto"

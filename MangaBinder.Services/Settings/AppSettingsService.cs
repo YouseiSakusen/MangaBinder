@@ -207,6 +207,7 @@ public class AppSettingsService
 		sql.AppendLine(" 	, BindingZipPartialCompleteVolumePrefix ");
 		sql.AppendLine(" 	, BindingZipPartialCompleteVolumeSeparator ");
 		sql.AppendLine(" 	, BindingZipPartialCompleteVolumeSuffix ");
+		sql.AppendLine(" 	, BindingZipCompleteVolumeZeroPadding ");
 		sql.AppendLine(" FROM ");
 		sql.AppendLine(" 	AppSettings; ");
 
@@ -238,6 +239,7 @@ public class AppSettingsService
 			this.appSettings.BindingZipPartialCompleteVolumePrefix.Value = reader.IsDBNull(20) ? "第" : reader.GetString(20);
 			this.appSettings.BindingZipPartialCompleteVolumeSeparator.Value = reader.IsDBNull(21) ? "-全" : reader.GetString(21);
 			this.appSettings.BindingZipPartialCompleteVolumeSuffix.Value = reader.IsDBNull(22) ? "巻" : reader.GetString(22);
+			this.appSettings.BindingZipCompleteVolumeZeroPadding.Value = !reader.IsDBNull(23) && reader.GetInt32(23) != 0;
 		}
 	}
 

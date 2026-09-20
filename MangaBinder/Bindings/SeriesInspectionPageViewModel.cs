@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Controls;
+using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using R3;
@@ -34,10 +36,10 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>ローディングサービス。</summary>
 	private readonly LoadingService loadingService;
 
-	private DisposableBag disposableBag;
+	/// <summary>製本工程マネージャー。</summary>
+	private readonly BindingManager bindingManager;
 
-	/// <summary>内部保持する検査結果リスト。</summary>
-	private readonly ObservableList<VolumeInspectionResult> inspectionResults;
+	private DisposableBag disposableBag;
 
 	/// <summary>選択中の作品エンティティを取得します（サムネイル・巻数情報表示用）。</summary>
 	public BindableReactiveProperty<MangaSeries?> SelectedSeries { get; }
@@ -60,9 +62,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>製本前確認画面が所有する巻情報表示用ViewModel。</summary>
 	private readonly SeriesVolumeStatusViewModel volumeStatusViewModel;
 
-	/// <summary>ListView にバインドする検査結果一覧を取得します。</summary>
-	public NotifyCollectionChangedSynchronizedViewList<VolumeInspectionResult> InspectionResults { get; }
-
 	/// <summary>巻カード表示用の ViewModel 一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<VolumeCardViewModel> VolumeCards { get; }
 
@@ -78,7 +77,10 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	public BindableReactiveProperty<string> ZipTitle { get; }
 
 	/// <summary>出力 zip ファイル名（編集可能）を取得します。</summary>
-	public BindableReactiveProperty<string> ZipOutputFileName { get; }
+	public BindableReactiveProperty<string> ZipOutputFileName => this.bindingStore.ZipOutputFileName;
+
+	/// <summary>製本完了後に対象作品を製本待ちから削除するかどうかを取得します。</summary>
+	public BindableReactiveProperty<bool> RemoveFromBindingQueueAfterCompletion => this.bindingStore.RemoveFromBindingQueueAfterCompletion;
 
 	/// <summary>出力形式の選択インデックスを取得します（0: 作品単位・1: 巻ごと）。</summary>
 	public BindableReactiveProperty<int> ZipOutputFormatIndex { get; }
@@ -110,11 +112,8 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>製本開始コマンドを取得します（現時点はダミー）。</summary>
 	public ReactiveCommand StartBindingCommand { get; }
 
-	/// <summary>横長画像詳細コマンドを取得します（未実装）。</summary>
-	public ReactiveCommand<VolumeInspectionResult> LandscapeDetailCommand { get; }
-
-	/// <summary>見開き分割画面を開くコマンドを取得します。</summary>
-	public ReactiveCommand<VolumeInspectionResult> OpenVolumeThumbnailsCommand { get; }
+	/// <summary>選択した巻をPrepressで開くコマンドを取得します。</summary>
+	public ReactiveCommand<BindingVolume> NavigateToPrepressCommand { get; }
 
 	/// <summary>
 	/// <see cref="SeriesInspectionPageViewModel"/> の新しいインスタンスを初期化します。
@@ -125,13 +124,15 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
+	/// <param name="bindingManager">製本工程マネージャー。</param>
 	public SeriesInspectionPageViewModel(
 		SeriesWorkspaceStore workspaceStore,
 		BindingStore bindingStore,
 		INavigationService navigationService,
 		IServiceScopeFactory serviceScopeFactory,
 		ThumbnailImageLoader thumbnailImageLoader,
-		LoadingService loadingService)
+		LoadingService loadingService,
+		BindingManager bindingManager)
 	{
 		this.workspaceStore = workspaceStore;
 		this.bindingStore = bindingStore;
@@ -139,8 +140,7 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.thumbnailImageLoader = thumbnailImageLoader;
 		this.loadingService = loadingService;
-
-		this.inspectionResults = new ObservableList<VolumeInspectionResult>();
+		this.bindingManager = bindingManager;
 
 		// 製本前確認画面が所有する巻情報表示用ViewModel を生成
 		this.volumeStatusViewModel = new SeriesVolumeStatusViewModel()
@@ -159,8 +159,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			.AddTo(ref this.disposableBag);
 		this.ZipTitle = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
-		this.ZipOutputFileName = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
 		this.ZipOutputFormatIndex = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 		this.DeleteExistingZip = new BindableReactiveProperty<bool>(false)
@@ -173,10 +171,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.DeleteExistingZip
 			.Where(v => !v)
 			.Subscribe(_ => this.DeleteFromICloud.Value = false)
-			.AddTo(ref this.disposableBag);
-
-		this.InspectionResults = this.inspectionResults
-			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
 		// 巻カード用の SynchronizedView を初期化
@@ -248,27 +242,37 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			// TODO: 製本処理実装後に置き換える
 		}).AddTo(ref this.disposableBag);
 
-		this.LandscapeDetailCommand = new ReactiveCommand<VolumeInspectionResult>()
+		this.NavigateToPrepressCommand = new ReactiveCommand<BindingVolume>()
 			.AddTo(ref this.disposableBag);
-		this.LandscapeDetailCommand.Subscribe(_ =>
+		this.NavigateToPrepressCommand.Subscribe(volume =>
 		{
-			// TODO: 見開き分割画面遷移先を実装する
-		}).AddTo(ref this.disposableBag);
+			// WorkFolderPath が null / 空白でないことを確認
+			if (string.IsNullOrWhiteSpace(volume.WorkFolderPath))
+			{
+				throw new InvalidOperationException(
+					"BindingVolume.WorkFolderPath が null または空白です。");
+			}
 
-		this.OpenVolumeThumbnailsCommand = new ReactiveCommand<VolumeInspectionResult>()
-			.AddTo(ref this.disposableBag);
-		this.OpenVolumeThumbnailsCommand.Subscribe(result =>
-		{
+			// SeriesWorkspaceStore.PrepressVolumes から対応する VolumeInspectionResult を取得
+			if (!this.workspaceStore.PrepressVolumes.TryGetValue(
+				volume.WorkFolderPath,
+				out var result))
+			{
+				throw new InvalidOperationException(
+					$"SeriesWorkspaceStore.PrepressVolumes に WorkFolderPath '{volume.WorkFolderPath}' に対応する VolumeInspectionResult が見つかりません。");
+			}
+
+			// CurrentPrepressVolume を設定
 			this.workspaceStore.SetCurrentPrepressVolume(result);
+
+			// VolumeThumbnailsPage へ遷移
 			this.navigationService.NavigateWithHierarchy(typeof(VolumeThumbnailsPage));
 		}).AddTo(ref this.disposableBag);
 	}
 
 	/// <inheritdoc/>
-	public ValueTask InitializeDataAsync()
+	public async ValueTask InitializeDataAsync()
 	{
-		this.inspectionResults.Clear();
-
 		var series = this.workspaceStore.BindingTarget;
 		this.SelectedSeries.Value = series;
 		this.SeriesTitle.Value = series?.Title ?? string.Empty;
@@ -284,39 +288,14 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 		if (series is null || this.workspaceStore.SelectedMaterialVolumes.Count == 0)
 		{
-			this.ZipOutputFileName.Value = string.Empty;
-			return ValueTask.CompletedTask;
+			this.bindingStore.ZipOutputFileName.Value = string.Empty;
+			return;
 		}
 
-		this.ZipOutputFileName.Value = this.buildZipOutputFileName(series);
+		// 製本完了用状態を初期化
+		await this.bindingManager.InitializeBindingCompletionAsync();
 
 		_ = this.executeSeriesInspectionAsync();
-
-		return ValueTask.CompletedTask;
-	}
-
-	/// <summary>
-	/// 選択巻情報と作品情報から製本後 zip ファイル名の初期値を生成します。
-	/// </summary>
-	/// <param name="series">対象の作品エンティティ。</param>
-	/// <returns>zip ファイル名文字列。</returns>
-	private string buildZipOutputFileName(MangaSeries series)
-	{
-		var volumes = this.workspaceStore.SelectedMaterialVolumes;
-		var startVolume = volumes.Min(v => v.VolumeNumber);
-		var endVolume = volumes.Max(v => v.VolumeNumber);
-
-		using var scope = this.serviceScopeFactory.CreateScope();
-		var formatter = scope.ServiceProvider.GetRequiredService<BindingZipFileNameFormatter>();
-
-		return formatter.Format(
-			series.Author,
-			series.Title,
-			startVolume,
-			endVolume,
-			series.EndVolume,
-			series.SeriesCompleted,
-			series.IsOwnedCompleted);
 	}
 
 	/// <summary>
@@ -372,6 +351,10 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 					// Manager が全巻の処理を終了した後、
 					// イベントから開始した全カード更新Taskの完了を待つ
 					await Task.WhenAll(cardUpdateTasks);
+
+					// SeriesInspectionManager 完了 → 全カード更新Task完了後、
+					// 旧Prepress互換データを準備
+					this.registerPrepressCompatibilityVolumes();
 				}
 				finally
 				{
@@ -383,6 +366,52 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 				// 例外は Fail Fast で処理（DispatcherUnhandledException へ到達）
 				throw;
 			}
+		}
+	}
+
+	/// <summary>
+	/// BindingStore.BindingVolumes 全巻から VolumeInspectionResult を作成し、
+	/// SeriesWorkspaceStore.PrepressVolumes へ登録して、旧Prepress互換データを準備します。
+	/// </summary>
+	private void registerPrepressCompatibilityVolumes()
+	{
+		// 登録前に旧データをクリア
+		this.workspaceStore.PrepressVolumes.Clear();
+
+		// 対象を固定するため、ToArray で複製
+		var volumes = this.bindingStore.BindingVolumes.ToArray();
+
+		foreach (var volume in volumes)
+		{
+			// WorkFolderPath が null / 空白でないことを確認
+			if (string.IsNullOrWhiteSpace(volume.WorkFolderPath))
+			{
+				throw new InvalidOperationException(
+					"BindingVolume.WorkFolderPath が null または空白です。");
+			}
+
+			// Path.GetFileName の結果が null / 空白でないことを確認
+			var volumeName = Path.GetFileName(volume.WorkFolderPath);
+			if (string.IsNullOrWhiteSpace(volumeName))
+			{
+				throw new InvalidOperationException(
+					$"Path.GetFileName(volume.WorkFolderPath) が null または空白です。 WorkFolderPath: {volume.WorkFolderPath}");
+			}
+
+			// VolumeInspectionResult を作成
+			var result = new VolumeInspectionResult
+			{
+				VolumeName = volumeName,
+				WorkVolumeFolderPath = volume.WorkFolderPath,
+				ImageFileCount = volume.ImageFileCount,
+				HasLandscapeImages = volume.LandscapeImageCount > 0,
+				AllLandscape = volume.ImageFileCount > 0 && volume.LandscapeImageCount == volume.ImageFileCount,
+				HasSubFolders = volume.HasSubFolder,
+				HasIrregularFileNameLength = false,
+			};
+
+			// 登録
+			this.workspaceStore.RegisterPrepressVolume(result);
 		}
 	}
 

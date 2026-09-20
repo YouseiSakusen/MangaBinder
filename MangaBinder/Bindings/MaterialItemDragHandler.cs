@@ -38,5 +38,5 @@ public sealed class MaterialItemDragHandler : DefaultDragHandler
 	}
 
 	private static bool isValidDragTarget(MaterialItemViewModel item)
-		=> item.CanCheck.CurrentValue;
+		=> item.CanCheck.Value;
 }

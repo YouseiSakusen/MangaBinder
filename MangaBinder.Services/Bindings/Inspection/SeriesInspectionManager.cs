@@ -221,6 +221,14 @@ public class SeriesInspectionManager
 			// Inspect() が完了したことを通知
 			this.VolumeInspected?.Invoke(volume);
 		}
+
+		// 画像処理パイプライン完了後、TemporaryImageStream 由来の一時 Managed オブジェクトの
+		// 回収を促すため、GC を1回だけ明示実行
+		GC.Collect(
+			GC.MaxGeneration,
+			GCCollectionMode.Forced,
+			blocking: true,
+			compacting: false);
 	}
 
 	/// <summary>
@@ -302,9 +310,11 @@ public class SeriesInspectionManager
 					using (var scope = this.serviceScopeFactory.CreateScope())
 					{
 						var extractor = scope.ServiceProvider.GetRequiredKeyedService<IMaterialExtractor>(sourceType);
-						await extractor.ExtractAsync(group, ct).ConfigureAwait(false);
 
-						// ExtractAsync 完了直後に、同じ素材グループ内の BindingVolume に対して Simulation を実行する
+						// 第1段階：素材グループを解析して BindingImage を生成
+						await extractor.PrepareAsync(group, ct).ConfigureAwait(false);
+
+						// PrepareAsync 完了直後に、同じ素材グループ内の BindingVolume に対して Simulation を実行する
 						var bindingImageProcessor = scope.ServiceProvider.GetRequiredService<BindingImageProcessor>();
 
 						// 素材グループの各 BindingVolume に対して処理を実行
@@ -342,10 +352,29 @@ public class SeriesInspectionManager
 							CheckFileNameConflicts(volume);
 
 							// ファイル名競合判定完了後、該当 BindingVolume の全 BindingImage を Channel へ投入
-							foreach (var image in volume.Images)
+							// ToArray() で snapshot を取得
+							var images = volume.Images.ToArray();
+
+							foreach (var image in images)
 							{
 								ct.ThrowIfCancellationRequested();
-								await writer.WriteAsync(image, ct).ConfigureAwait(false);
+
+								// 第2段階：1つの BindingImage を処理可能な状態へ準備
+								// (Archive の場合のみ MemoryStream 化。Folder/EPUB は no-op)
+								await extractor.PrepareImageAsync(image, ct).ConfigureAwait(false);
+
+								try
+								{
+									// Channel へ投入
+									await writer.WriteAsync(image, ct).ConfigureAwait(false);
+								}
+								catch
+								{
+									// WriteAsync 失敗時は TemporaryImageStream を明示的に解放
+									image.TemporaryImageStream?.Dispose();
+									image.TemporaryImageStream = null;
+									throw;
+								}
 							}
 						}
 					}

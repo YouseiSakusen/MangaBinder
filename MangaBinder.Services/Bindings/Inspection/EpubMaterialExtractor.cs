@@ -46,13 +46,14 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 	/// EPUB グループの素材を展開します。
 	/// group.Key は EPUB ファイルのフルパスです。
 	/// group 内の各 BindingVolume に対して、EPUB から抽出した BindingImage を生成・追加します。
+	/// 2段階処理の第1段階として、素材分析と BindingImage 生成を行います。
 	/// </summary>
 	/// <param name="group">
 	/// EffectiveSourcePath が同一の EPUB ファイルパスである BindingVolume グループ。
 	/// </param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <returns>非同期処理のタスク。</returns>
-	public async ValueTask ExtractAsync(
+	public async ValueTask PrepareAsync(
 		IGrouping<string, BindingVolume> group,
 		CancellationToken cancellationToken = default)
 	{
@@ -65,6 +66,21 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 		{
 			await this.ExtractForVolumeAsync(epubFilePath, volume, cancellationToken);
 		}
+	}
+
+	/// <summary>
+	/// 1つの BindingImage を準備します。
+	/// EPUB 素材の場合は no-op です。CancellationToken の確認のみを行います。
+	/// </summary>
+	/// <param name="image">準備対象の BindingImage。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	/// <returns>非同期処理のタスク。</returns>
+	public ValueTask PrepareImageAsync(
+		BindingImage image,
+		CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		return default;
 	}
 
 	/// <summary>

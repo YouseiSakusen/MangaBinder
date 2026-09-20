@@ -2,6 +2,7 @@ using ObservableCollections;
 using R3;
 using System.Data.SQLite;
 using System.IO;
+using System.Linq;
 
 namespace MangaBinder.Settings;
 
@@ -97,8 +98,21 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>製本後 zip ファイル名の一部完結巻数の接尾辞を取得します。</summary>
 	public BindableReactiveProperty<string> BindingZipPartialCompleteVolumeSuffix { get; }
 
+	/// <summary>製本後 zip ファイル名で、完結巻数を巻数桁数に合わせて 0 埋めするかどうかを取得します。</summary>
+	public BindableReactiveProperty<bool> BindingZipCompleteVolumeZeroPadding { get; }
+
 	/// <summary>スキャン対象フォルダの一覧を取得します。</summary>
 	public ObservableList<SourceFolder> SourceFolders { get; }
+
+	/// <summary>
+	/// 既定の製本先フォルダのパスを取得します。
+	/// SourceFolders に登録されている FolderRole.DefaultBinding のフォルダパスを返します。
+	/// 該当フォルダが存在しない場合は null を返します。
+	/// </summary>
+	public string? DefaultBindingFolderPath =>
+		this.SourceFolders
+			.FirstOrDefault(f => f.Role.Value == FolderRole.DefaultBinding)
+			?.FolderPath.Value;
 
 	/// <summary>サポート対象の拡張子一覧の実体リストです。</summary>
 	private readonly List<SupportedFileExtension> supportedExtensions = [];
@@ -193,6 +207,9 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 		this.BindingZipPartialCompleteVolumeSuffix = new BindableReactiveProperty<string>("巻")
 			.AddTo(ref this.disposableBag);
 
+		this.BindingZipCompleteVolumeZeroPadding = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
 		this.SourceFolders = new ObservableList<SourceFolder>();
 	}
 
@@ -237,6 +254,117 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <returns>ワークサムネイルファイルのフルパス。</returns>
 	public string GetWorkThumbnailFullPath(string fileName) =>
 		Path.Combine(this.WorkThumbnailFolderPath, fileName);
+
+	/// <summary>
+	/// 製本後の ZIP ファイル名を生成します。
+	/// </summary>
+	/// <param name="series">対象の作品エンティティ。</param>
+	/// <param name="selectedStartVolume">選択開始巻番号。</param>
+	/// <param name="selectedEndVolume">選択終了巻番号。</param>
+	/// <param name="volumeDigits">巻番号のゼロ埋め桁数。</param>
+	/// <returns>Windows ファイル名として使用可能な zip ファイル名文字列。</returns>
+	public string CreateBindingZipFileName(
+		MangaSeries series,
+		decimal selectedStartVolume,
+		decimal selectedEndVolume,
+		int volumeDigits)
+	{
+		// 著者名パート
+		var authorPart = $"{this.BindingZipAuthorLeftBracket.Value}{series.Author}{this.BindingZipAuthorRightBracket.Value}";
+		var sep = this.BindingZipNameSeparator.Value;
+
+		// 巻表記を生成
+		var volumeText = this.formatVolumeRange(
+			series,
+			selectedStartVolume,
+			selectedEndVolume,
+			volumeDigits);
+
+		var extension = this.BindingDefaultArchiveExtension.Value;
+
+		// [著者] タイトル 巻表記.zip の形式
+		var rawName = $"{authorPart}{sep}{series.Title}{sep}{volumeText}{extension}";
+		return sanitizeFileName(rawName);
+	}
+
+	/// <summary>
+	/// 選択巻情報をもとに巻範囲表記を生成します。
+	/// </summary>
+	private string formatVolumeRange(
+		MangaSeries series,
+		decimal selectedStartVolume,
+		decimal selectedEndVolume,
+		int volumeDigits)
+	{
+		// 完結判定: SeriesCompleted == true かつ selectedEndVolume == EndVolume
+		var isFullComplete =
+			series.SeriesCompleted
+			&& selectedEndVolume == series.EndVolume;
+
+		// 完結条件を満たし、selectedStartVolume == 1 の場合
+		if (isFullComplete && selectedStartVolume == 1)
+		{
+			// 全巻表記：全7巻 または 全07巻
+			var endVolumeStr = this.formatCompleteVolumeNumber(series.EndVolume, volumeDigits);
+			return $"{this.BindingZipCompleteVolumePrefix.Value}{endVolumeStr}{this.BindingZipCompleteVolumeSuffix.Value}";
+		}
+
+		// 完結条件を満たし、selectedStartVolume != 1 の場合
+		if (isFullComplete && selectedStartVolume != 1)
+		{
+			// 途中から完結表記：第03-全7巻 または 第03-全07巻
+			var startStr = this.formatVolumeNumber(selectedStartVolume, volumeDigits);
+			var endVolumeStr = this.formatCompleteVolumeNumber(series.EndVolume, volumeDigits);
+			return $"{this.BindingZipPartialCompleteVolumePrefix.Value}{startStr}{this.BindingZipPartialCompleteVolumeSeparator.Value}{endVolumeStr}{this.BindingZipPartialCompleteVolumeSuffix.Value}";
+		}
+
+		// 通常表記：第01-07巻
+		var start = this.formatVolumeNumber(selectedStartVolume, volumeDigits);
+		var end = this.formatVolumeNumber(selectedEndVolume, volumeDigits);
+		return $"{this.BindingZipNormalVolumePrefix.Value}{start}{this.BindingZipNormalVolumeSeparator.Value}{end}{this.BindingZipNormalVolumeSuffix.Value}";
+	}
+
+	/// <summary>
+	/// 巻番号を指定桁数でゼロ埋めした文字列に変換します。
+	/// 小数の場合はゼロ埋めせずそのまま返します。
+	/// </summary>
+	private string formatVolumeNumber(decimal volumeNumber, int digits)
+	{
+		if (volumeNumber != Math.Floor(volumeNumber))
+			return volumeNumber.ToString("G29");
+
+		return ((long)volumeNumber).ToString().PadLeft(digits, '0');
+	}
+
+	/// <summary>
+	/// 完結巻数を書式化します。
+	/// BindingZipCompleteVolumeZeroPadding に従ってゼロ埋め有無を決定します。
+	/// </summary>
+	private string formatCompleteVolumeNumber(int completeVolume, int digits)
+	{
+		if (this.BindingZipCompleteVolumeZeroPadding.Value)
+		{
+			// ゼロ埋めする
+			return completeVolume.ToString().PadLeft(digits, '0');
+		}
+		else
+		{
+			// ゼロ埋めしない
+			return completeVolume.ToString();
+		}
+	}
+
+	/// <summary>
+	/// ファイル名に使用できない文字を _ に置換します。
+	/// </summary>
+	private static string sanitizeFileName(string fileName)
+	{
+		var invalidChars = new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' };
+		foreach (var c in invalidChars)
+			fileName = fileName.Replace(c, '_');
+
+		return fileName;
+	}
 
 	/// <summary>
 	/// 現在の <see cref="SourceFolders"/> の状態をスナップショットとして保存し、初期状態を確定します。

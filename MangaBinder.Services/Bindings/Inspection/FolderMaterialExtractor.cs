@@ -27,7 +27,7 @@ public class FolderMaterialExtractor : IMaterialExtractor
 	/// </param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <returns>非同期処理のタスク。</returns>
-	public ValueTask ExtractAsync(
+	public ValueTask PrepareAsync(
 		IGrouping<string, BindingVolume> group,
 		CancellationToken cancellationToken = default)
 	{
@@ -67,6 +67,21 @@ public class FolderMaterialExtractor : IMaterialExtractor
 			}
 		}
 
+		return default;
+	}
+
+	/// <summary>
+	/// 1つの BindingImage を準備します。
+	/// Folder 素材の場合は no-op です。CancellationToken の確認のみを行います。
+	/// </summary>
+	/// <param name="image">準備対象の BindingImage。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	/// <returns>非同期処理のタスク。</returns>
+	public ValueTask PrepareImageAsync(
+		BindingImage image,
+		CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
 		return default;
 	}
 }

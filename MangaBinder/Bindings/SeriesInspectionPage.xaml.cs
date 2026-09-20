@@ -1,5 +1,4 @@
-﻿using System.Windows;
-using System.Windows.Controls;
+﻿using System.Windows.Controls;
 
 namespace MangaBinder.Bindings;
 
@@ -15,22 +14,4 @@ public partial class SeriesInspectionPage : Page
 	{
 		this.InitializeComponent();
 	}
-
-	/// <summary>
-	/// 巻カードの3点リーダボタンがクリックされた際にコンテキストメニューを表示します。
-	/// </summary>
-	private void VolumeMenuButton_Click(object sender, RoutedEventArgs e)
-	{
-		if (sender is not FrameworkElement button)
-			return;
-
-		var menu = button.Resources["VolumeContextMenu"] as ContextMenu;
-		if (menu is null)
-			return;
-
-		menu.PlacementTarget = button;
-		menu.DataContext = button;
-		menu.IsOpen = true;
-	}
 }
-

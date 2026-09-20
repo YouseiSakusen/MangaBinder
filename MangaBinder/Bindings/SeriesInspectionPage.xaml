@@ -17,8 +17,11 @@
 
 	<Page.Resources>
 
+		<!-- BooleanToVisibilityConverter -->
+		<BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
 		<!-- 巻カード ItemTemplate -->
-		<DataTemplate x:Key="VolumeCardTemplate" DataType="{x:Type core:VolumeInspectionResult}">
+		<DataTemplate x:Key="VolumeCardTemplate" DataType="{x:Type local:VolumeCardViewModel}">
 			<ui:Card Margin="0,0,0,6" Padding="12,8">
 				<!-- 3列 × 1行 Grid -->
 				<Grid>
@@ -39,7 +42,8 @@
 						<Image
 							Width="80"
 							Height="112"
-							Stretch="UniformToFill"
+							Source="{Binding ThumbnailSource.Value, Mode=OneWay}"
+							Stretch="Uniform"
 							RenderOptions.BitmapScalingMode="LowQuality" />
 					</Border>
 
@@ -58,7 +62,7 @@
 						<!-- Row0：巻数 / 巻フォルダ名 -->
 						<TextBlock
 							Grid.Row="0"
-							Text="第01巻"
+							Text="{Binding VolumeFolderName.Value, Mode=OneWay}"
 							FontSize="13"
 							FontWeight="SemiBold"
 							VerticalAlignment="Center"
@@ -70,36 +74,44 @@
 							Orientation="Horizontal">
 							<ui:SymbolIcon
 								Symbol="ImageMultiple16"
-								Filled="True"
 								FontSize="16"
 								VerticalAlignment="Center"
 								Margin="0,0,6,0" />
 							<TextBlock
-								Text="総画像数：198"
+								Text="{Binding ImageCountText.Value, Mode=OneWay}"
 								FontSize="11"
-								VerticalAlignment="Center"
-								Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-							<!-- 横長画像ありの場合は後続実装で
-								 横長画像数 / 総画像数 表示へ切り替える -->
+								VerticalAlignment="Center">
+								<TextBlock.Style>
+									<Style TargetType="TextBlock">
+										<Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+										<Setter Property="FontWeight" Value="Normal" />
+										<Style.Triggers>
+											<DataTrigger Binding="{Binding ShowsLandscapeImageCount.Value}" Value="True">
+												<Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+												<Setter Property="FontWeight" Value="SemiBold" />
+											</DataTrigger>
+										</Style.Triggers>
+									</Style>
+								</TextBlock.Style>
+							</TextBlock>
 						</StackPanel>
 
 						<!-- Row2：Error InfoBar -->
 						<ui:InfoBar
 							Grid.Row="2"
-							Visibility="Collapsed"
 							d:Visibility="Visible"
 							Severity="Error"
-							IsOpen="True"
+							IsOpen="{Binding HasError.Value, Mode=OneWay}"
 							HorizontalAlignment="Stretch"
 							Margin="0,6,0,0"
 							Title="検査エラー"
-							Message="検査中にエラーが発生しました。" />
+							Message="{Binding ErrorText.Value, Mode=OneWay}" />
 
 						<!-- Row3：サブフォルダあり -->
 						<StackPanel
 							Grid.Row="3"
 							Orientation="Horizontal"
-							Visibility="Collapsed"
+							Visibility="{Binding HasSubFolder.Value, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}"
 							d:Visibility="Visible">
 							<ui:SymbolIcon
 								Symbol="FolderMultiple16"
@@ -119,17 +131,17 @@
 						<StackPanel
 							Grid.Row="4"
 							Orientation="Horizontal"
-							Visibility="Collapsed"
+							Visibility="{Binding HasWarning.Value, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}"
 							d:Visibility="Visible">
 							<ui:SymbolIcon
-								Symbol="Warning16"
+								Symbol="Warning12"
 								Filled="False"
 								FontSize="16"
 								Foreground="{DynamicResource SystemFillColorCautionBrush}"
 								Margin="0,0,6,0"
 								VerticalAlignment="Center" />
 							<TextBlock
-								Text="文字化けの可能性があります"
+								Text="{Binding WarningText.Value, Mode=OneWay}"
 								FontSize="11"
 								Foreground="{DynamicResource SystemFillColorCautionBrush}"
 								VerticalAlignment="Center" />
@@ -141,7 +153,9 @@
 						Grid.Column="2"
 						Style="{StaticResource CardNavigateButtonStyle}"
 						VerticalAlignment="Center"
-						ToolTip="見開き分割" />
+						ToolTip="見開き分割"
+						Command="{Binding DataContext.NavigateToPrepressCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Page}}}"
+						CommandParameter="{Binding Volume.Value}" />
 				</Grid>
 			</ui:Card>
 		</DataTemplate>
@@ -185,7 +199,7 @@
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.MainContent>
 				<ListView
-					ItemsSource="{Binding InspectionResults}"
+					ItemsSource="{Binding VolumeCards}"
 					ItemTemplate="{StaticResource VolumeCardTemplate}"
 					Background="Transparent"
 					BorderThickness="0"
@@ -232,9 +246,10 @@
 							FontSize="11"
 							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
 							Margin="0,0,0,2" />
-						<TextBox
+						<ui:TextBox
 							FontSize="12"
 							Margin="0,0,0,6"
+							IsReadOnly="True"
 							Text="{Binding ZipAuthor.Value, UpdateSourceTrigger=PropertyChanged}" />
 
 						<!-- タイトル -->
@@ -243,9 +258,10 @@
 							FontSize="11"
 							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
 							Margin="0,0,0,2" />
-						<TextBox
+						<ui:TextBox
 							FontSize="12"
 							Margin="0,0,0,6"
+							IsReadOnly="True"
 							Text="{Binding ZipTitle.Value, UpdateSourceTrigger=PropertyChanged}" />
 
 						<!-- 出力zip -->
@@ -254,7 +270,7 @@
 							FontSize="11"
 							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
 							Margin="0,0,0,2" />
-						<TextBox
+						<ui:TextBox
 							FontSize="12"
 							Margin="0,0,0,6"
 							Text="{Binding ZipOutputFileName.Value, UpdateSourceTrigger=PropertyChanged}" />
@@ -311,7 +327,7 @@
 			</controls:PageLayout.FooterLeftContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<!-- FooterRightContent: 製本開始ボタン -->
+			<!-- FooterRightContent: 製本を完了ボタン -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.FooterRightContent>
 				<ui:Button
@@ -321,7 +337,7 @@
 					HorizontalAlignment="Right"
 					Appearance="Primary"
 					Command="{Binding StartBindingCommand}">
-					<TextBlock Text="製本開始" VerticalAlignment="Center" />
+					<TextBlock Text="製本を完了" VerticalAlignment="Center" />
 				</ui:Button>
 			</controls:PageLayout.FooterRightContent>
 
