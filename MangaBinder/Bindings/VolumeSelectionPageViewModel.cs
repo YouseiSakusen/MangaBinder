@@ -1,5 +1,6 @@
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Controls;
+using MangaBinder.Helpers;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
@@ -8,7 +9,6 @@ using System.Diagnostics;
 using System.IO;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
-using MangaBinder.Helpers;
 using HalationGhost.Wpf.Ui;
 
 namespace MangaBinder.Bindings;
@@ -18,12 +18,6 @@ namespace MangaBinder.Bindings;
 /// </summary>
 public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBackRequestHandler
 {
-    /// <summary>製本後ZIPサイズの推定係数（将来的に調整可能）。</summary>
-    private const double EstimatedZipSizeRatio = 1.0;
-
-    /// <summary>作品選択状態ストア。</summary>
-    private readonly SeriesWorkspaceStore workspaceStore;
-
     /// <summary>製本工程の正本状態ストア。</summary>
     private readonly BindingStore bindingStore;
 
@@ -39,28 +33,16 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// <summary>スナックバーサービス。</summary>
     private readonly ISnackbarService snackbarService;
 
-    /// <summary>アプリケーション設定。</summary>
-    private readonly AppSettings appSettings;
-
     /// <summary>サムネイル画像ローダー。</summary>
     private readonly ThumbnailImageLoader thumbnailImageLoader;
 
     /// <summary>ローディングサービス。</summary>
     private readonly LoadingService loadingService;
 
-    /// <summary>巻選択画面が所有する巻情報表示用ViewModel。</summary>
-    private readonly SeriesVolumeStatusViewModel volumeStatusViewModel;
-
     private DisposableBag disposableBag;
 
     /// <summary>選択中の作品名を取得します。</summary>
-    public BindableReactiveProperty<string> SeriesTitle { get; }
-
-    /// <summary>選択中の作品エンティティを取得します（サムネイル・巻数情報表示用）。</summary>
-    public BindableReactiveProperty<MangaSeries?> SelectedSeries { get; }
-
-    /// <summary>選択中の作品の巻情報表示用ViewModel を取得します。</summary>
-    public BindableReactiveProperty<SeriesVolumeStatusViewModel?> SelectedSeriesVolumeStatus { get; }
+    public IReadOnlyBindableReactiveProperty<string> SeriesTitle { get; }
 
     /// <summary>
     /// 作品サムネイルカード用の ViewModel を取得します。
@@ -68,44 +50,38 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// </summary>
     public MangaSeriesCardViewModel MangaSeriesCard { get; private set; }
 
-    /// <summary>素材サマリ文字列を取得します。</summary>
-    public BindableReactiveProperty<string> MaterialSummaryText { get; }
+    /// <summary>作品中間フォルダが既に存在するかどうかを取得します。</summary>
+    public BindableReactiveProperty<bool> HasExistingWorkFolder => this.bindingStore.HasExistingWorkFolder;
 
-    /// <summary>アイキャッチカード用の素材数を取得します。</summary>
-    public BindableReactiveProperty<string> MaterialCountText { get; }
+    /// <summary>Root.Children 直下のフォルダ数を取得します。</summary>
+    public IReadOnlyBindableReactiveProperty<int> MaterialFolderCount => this.bindingStore.MaterialFolderCount;
 
-    /// <summary>素材内訳：フォルダ数を取得します。</summary>
-    public BindableReactiveProperty<string> MaterialFolderCountText { get; }
+    /// <summary>Root.Children 直下の圧縮ファイル数を取得します。</summary>
+    public IReadOnlyBindableReactiveProperty<int> MaterialArchiveCount => this.bindingStore.MaterialArchiveCount;
 
-    /// <summary>素材内訳：圧縮ファイル数とサイズを取得します。</summary>
-    public BindableReactiveProperty<string> MaterialArchiveCountText { get; }
+    /// <summary>Root.Children 直下の圧縮ファイルの合計物理ファイルサイズ（バイト）を取得します。</summary>
+    public IReadOnlyBindableReactiveProperty<long> MaterialArchiveTotalBytes => this.bindingStore.MaterialArchiveTotalBytes;
 
-    /// <summary>素材内訳：EPUB数を取得します。</summary>
-    public BindableReactiveProperty<string> MaterialEpubCountText { get; }
+    /// <summary>Root.Children 直下の EPUB 数を取得します。</summary>
+    public IReadOnlyBindableReactiveProperty<int> MaterialEpubCount => this.bindingStore.MaterialEpubCount;
 
-    /// <summary>選択中の巻サマリ文字列を取得します。</summary>
-    public BindableReactiveProperty<string> SelectedVolumeSummaryText { get; }
+    /// <summary>選択済みの巻の合計画像ファイルサイズ（バイト）を取得します。</summary>
+    public IReadOnlyBindableReactiveProperty<long> SelectedVolumeTotalImageBytes => this.bindingStore.SelectedVolumeTotalImageBytes;
 
     /// <summary>次工程へ進めるかどうかを取得します。</summary>
-    public BindableReactiveProperty<bool> CanGoNext { get; }
+    public IReadOnlyBindableReactiveProperty<bool> CanGoNext => this.bindingStore.CanGoNext;
 
-    /// <summary>作品中間フォルダが既に存在するかどうかを取得します。</summary>
-    public BindableReactiveProperty<bool> HasExistingWorkFolder { get; }
-
-    /// <summary>中間フォルダを再作成するかどうかを取得します。</summary>
-    public BindableReactiveProperty<bool> RecreateWorkFolder => this.bindingStore.RecreateWorkFolder;
-
-    /// <summary>素材展開方法の選択値を取得します（0=新規作成、1=既存を使用）。</summary>
-    public BindableReactiveProperty<int> ImageExpansionMethod { get; }
+    /// <summary>素材展開方法を取得します。</summary>
+    public BindableReactiveProperty<ImageExpansionMethod> ImageExpansionMethod => this.bindingStore.ImageExpansionMethod;
 
     /// <summary>素材展開方法のオプション一覧を取得します。</summary>
-    public List<string> ImageExpansionOptions { get; }
+    public IReadOnlyList<ImageExpansionOption> ImageExpansionOptions => this.bindingStore.ImageExpansionOptions;
 
     /// <summary>巻フォルダ名の桁数を取得します（1, 2, 3 など）。</summary>
     public BindableReactiveProperty<int> VolumeFolderDigits => this.bindingStore.VolumeFolderDigits;
 
     /// <summary>巻フォルダ名の桁数選択肢一覧を取得します。</summary>
-    public List<VolumeFolderDigitOption> VolumeFolderDigitOptions { get; }
+    public IReadOnlyList<VolumeFolderDigitOption> VolumeFolderDigitOptions => this.bindingStore.VolumeFolderDigitOptions;
 
     /// <summary>次工程へ進むコマンドを取得します。</summary>
     public ReactiveCommand GoNextCommand { get; }
@@ -124,9 +100,6 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
 
     /// <summary>指定された MaterialItemViewModel を削除するコマンドを取得します。</summary>
     public ReactiveCommand<MaterialItemViewModel> DeleteMaterialCommand { get; }
-
-    /// <summary>BindingStore.BindingVolumes の変更購読用 DisposableBag。InitializeDataAsync ごとにリセットされます。</summary>
-    private DisposableBag bindingVolumesSubscriptionBag;
 
     /// <summary>Reactive側の新しい素材 TreeView の DragHandler を取得します。</summary>
     public MaterialItemDragHandler MaterialItemDragHandler { get; } = new MaterialItemDragHandler();
@@ -152,81 +125,35 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// <summary>
     /// <see cref="VolumeSelectionPageViewModel"/> の新しいインスタンスを初期化します。
     /// </summary>
-    /// <param name="workspaceStore">作品選択状態ストア。</param>
     /// <param name="bindingStore">製本工程の正本状態ストア。</param>
     /// <param name="serviceScopeFactory">スコープファクトリー。</param>
     /// <param name="navigationService">ナビゲーションサービス。</param>
     /// <param name="contentDialogService">コンテントダイアログサービス。</param>
     /// <param name="snackbarService">スナックバーサービス。</param>
-    /// <param name="appSettings">アプリケーション設定。</param>
     /// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
     /// <param name="loadingService">ローディングサービス。</param>
     public VolumeSelectionPageViewModel(
-        SeriesWorkspaceStore workspaceStore,
         BindingStore bindingStore,
         IServiceScopeFactory serviceScopeFactory,
         INavigationService navigationService,
         IContentDialogService contentDialogService,
         ISnackbarService snackbarService,
-        AppSettings appSettings,
         ThumbnailImageLoader thumbnailImageLoader,
         LoadingService loadingService)
     {
-        this.workspaceStore = workspaceStore;
         this.bindingStore = bindingStore;
         this.serviceScopeFactory = serviceScopeFactory;
         this.navigationService = navigationService;
         this.contentDialogService = contentDialogService;
         this.snackbarService = snackbarService;
-        this.appSettings = appSettings;
         this.thumbnailImageLoader = thumbnailImageLoader;
         this.loadingService = loadingService;
 
-        // 巻選択画面が所有する巻情報表示用ViewModel を生成
-        this.volumeStatusViewModel = new SeriesVolumeStatusViewModel()
+        // SeriesTitle: BindingTarget.Value?.Series.Title から Reactive に導出
+        this.SeriesTitle = this.bindingStore.BindingTarget
+            .Select(bindingTarget => bindingTarget?.Series?.Title ?? string.Empty)
+            .ToReadOnlyBindableReactiveProperty(string.Empty)
             .AddTo(ref this.disposableBag);
-
-        this.SeriesTitle = new BindableReactiveProperty<string>(string.Empty)
-            .AddTo(ref this.disposableBag);
-        this.SelectedSeries = new BindableReactiveProperty<MangaSeries?>(null)
-            .AddTo(ref this.disposableBag);
-        this.SelectedSeriesVolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel?>(null)
-            .AddTo(ref this.disposableBag);
-
-        this.MaterialSummaryText = new BindableReactiveProperty<string>(string.Empty)
-            .AddTo(ref this.disposableBag);
-        this.MaterialCountText = new BindableReactiveProperty<string>("0 件")
-            .AddTo(ref this.disposableBag);
-        this.MaterialFolderCountText = new BindableReactiveProperty<string>(string.Empty)
-            .AddTo(ref this.disposableBag);
-        this.MaterialArchiveCountText = new BindableReactiveProperty<string>(string.Empty)
-            .AddTo(ref this.disposableBag);
-        this.MaterialEpubCountText = new BindableReactiveProperty<string>(string.Empty)
-            .AddTo(ref this.disposableBag);
-
-        this.SelectedVolumeSummaryText = new BindableReactiveProperty<string>(string.Empty)
-            .AddTo(ref this.disposableBag);
-        this.CanGoNext = new BindableReactiveProperty<bool>(false)
-            .AddTo(ref this.disposableBag);
-
-        this.HasExistingWorkFolder = new BindableReactiveProperty<bool>(false)
-            .AddTo(ref this.disposableBag);
-
-        this.ImageExpansionMethod = new BindableReactiveProperty<int>(0)
-            .AddTo(ref this.disposableBag);
-
-        this.ImageExpansionOptions = new List<string>
-        {
-            "作品フォルダを新規作成する（既存フォルダ削除）",
-            "既存の画像を使用する"
-        };
-
-        this.VolumeFolderDigitOptions = new List<VolumeFolderDigitOption>
-        {
-            new VolumeFolderDigitOption(1, "1桁", "（例：1巻）"),
-            new VolumeFolderDigitOption(2, "2桁", "（例：01巻）"),
-            new VolumeFolderDigitOption(3, "3桁", "（例：001巻）"),
-        };
 
         this.GoNextCommand = new ReactiveCommand()
             .AddTo(ref this.disposableBag);
@@ -293,54 +220,34 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         this.MangaSeriesCard = new MangaSeriesCardViewModel()
             .AddTo(ref this.disposableBag);
 
-        // 素材展開方法の選択変更を監視し、RecreateWorkFolder を更新
-        this.ImageExpansionMethod.Subscribe(selectedIndex =>
+        // BindingTarget 変更時に MangaSeriesCard へ Series と ThumbnailSource を接続
+        this.bindingStore.BindingTarget.Subscribe(bindingTarget =>
         {
-            // RecreateWorkFolder == true となる条件は、
-            // HasExistingWorkFolder == true かつ ImageExpansionMethod == 0 の場合だけ
-            this.bindingStore.RecreateWorkFolder.Value =
-                this.HasExistingWorkFolder.Value && selectedIndex == 0;
-        }).AddTo(ref this.disposableBag);
-
-        // SelectedSeries 変更時に同期
-        this.SelectedSeries.Subscribe(series =>
-        {
+            var series = bindingTarget?.Series;
             if (series is not null)
             {
-                // 巻選択画面が所有する SeriesVolumeStatusViewModel に series を設定
-                this.volumeStatusViewModel.Series.Value = series;
-
                 // ThumbnailImageLoader で最終表示用 ImageSource を取得
                 var imageSource = this.thumbnailImageLoader.Load(series);
 
                 // MangaSeriesCard へ設定
                 this.MangaSeriesCard.ThumbnailSource.Value = imageSource;
-                this.MangaSeriesCard.VolumeStatus.Value = this.volumeStatusViewModel;
 
                 // MangaSeriesCard の Series へ接続
-                if (this.MangaSeriesCard.Series.Value != series)
+                if (!ReferenceEquals(this.MangaSeriesCard.Series.Value, series))
                 {
                     this.MangaSeriesCard.Series.Value = series;
                 }
-                else if (this.MangaSeriesCard.Series.Value == series)
+                else
                 {
                     // 同一インスタンスの場合は ForceNotify() で再通知させる
                     this.MangaSeriesCard.Series.ForceNotify();
                 }
-
-                // 既存 Binding との互換性: SelectedSeriesVolumeStatus に同一インスタンスを参照させる
-                this.SelectedSeriesVolumeStatus.Value = this.volumeStatusViewModel;
             }
             else
             {
                 // series が null の場合はクリア
-                this.volumeStatusViewModel.Series.Value = null;
                 this.MangaSeriesCard.ThumbnailSource.Value = null;
-                this.MangaSeriesCard.VolumeStatus.Value = null;
                 this.MangaSeriesCard.Series.Value = null;
-
-                // 既存 Binding との互換性: SelectedSeriesVolumeStatus もクリア
-                this.SelectedSeriesVolumeStatus.Value = null;
             }
         }).AddTo(ref this.disposableBag);
 
@@ -356,72 +263,10 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// <inheritdoc/>
     public async ValueTask InitializeDataAsync()
     {
-        // ① Singleton VM の前回表示状態をリセット
         // UI 状態をリセット
-        this.SeriesTitle.Value = string.Empty;
-        this.SelectedSeries.Value = null;
         this.SelectedBindingVolume.Value = null;
 
-        // 素材サマリをリセット
-        this.MaterialSummaryText.Value = string.Empty;
-        this.MaterialCountText.Value = "0 件";
-        this.MaterialFolderCountText.Value = string.Empty;
-        this.MaterialArchiveCountText.Value = string.Empty;
-        this.MaterialEpubCountText.Value = string.Empty;
-
-        // 選択巻サマリと GoNext をリセット
-        this.SelectedVolumeSummaryText.Value = string.Empty;
-        this.CanGoNext.Value = false;
-
-        // BindingStore.BindingVolumes の購読をリセット
-        this.bindingVolumesSubscriptionBag.Dispose();
-        this.bindingVolumesSubscriptionBag = new DisposableBag();
-
-        // BindingStore.BindingVolumes の変更を監視して CanGoNext と SelectedVolumeSummaryText を自動更新
-        // 購読開始は BindingTarget の取得やInitializeDataAsync の後処理より前に行い、
-        // Manager.InitializeAsync() による初期化・Clear に追従できるようにする
-        this.bindingStore.BindingVolumes.ObserveCountChanged()
-            .Subscribe(_ =>
-            {
-                this.updateCanGoNext();
-                this.updateSelectedVolumeSummary();
-            })
-            .AddTo(ref this.bindingVolumesSubscriptionBag);
-
-        // 購読開始直後に現在値を明示反映
-        // BindingVolumes が0件の場合でも "0 MB" / false の正しい状態が確定する
-        this.updateCanGoNext();
-        this.updateSelectedVolumeSummary();
-
-        // ② BindingStore.BindingTarget から BindingSeries を取得
-        var bindingTarget = this.bindingStore.BindingTarget.Value;
-        if (bindingTarget is null)
-        {
-            // BindingTarget が無い場合は初期化完了
-            this.updateWorkFolderState();
-            this.updateVolumeFolderDigits();
-            return;
-        }
-
-        // ③ BindingSeries から MangaSeries を取得
-        var series = bindingTarget.Series;
-        if (series is null)
-        {
-            // Series が取得できない場合も初期化完了
-            this.updateWorkFolderState();
-            this.updateVolumeFolderDigits();
-            return;
-        }
-
-        // ④ Series が存在する場合は UIを設定
-        this.SeriesTitle.Value = series.Title;
-        this.SelectedSeries.Value = series;
-
-        // ⑤ WorkFolder 設定と VolumeFolderDigits を初期化
-        this.updateWorkFolderState();
-        this.updateVolumeFolderDigits();
-
-        // ⑥ VolumeSelectionManager で新 Reactive 側の素材初期化を実行
+        // VolumeSelectionManager で新 Reactive 側の素材初期化を実行
         await this.initializeMaterialsAsync();
     }
 
@@ -440,205 +285,100 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         // materialItemsView への参照をクリア
         this.materialItemsView = null;
 
-        // BindingVolumesView の参照をクリア
-        // BindingVolumeViewModel は BindingVolume を所有しないため、
+		// BindingVolumesView の参照をクリア
+		// BindingVolumeViewModel は BindingVolume を所有しないため、
 		// ここでは参照をクリアするだけで十分
 		this.bindingVolumesView = null;
-
-		// BindingVolumes の購読を破棄
-		this.bindingVolumesSubscriptionBag.Dispose();
 
 		this.disposableBag.Dispose();
 	}
 
 	/// <summary>
-	/// 作品中間フォルダの存在状態を更新します。
+	/// 選択済み巻を収集してバリデーション後に次画面へ遷移します。
 	/// </summary>
-	private void updateWorkFolderState()
+	private async void executeGoNextAsync()
 	{
-		var series = this.SelectedSeries.Value;
+		// VolumeSelectionManager を解決して検証を実行
+		VolumeSelectionValidationResult validationResult;
 
-		if (series is null || !this.appSettings.HasValidWorkFolder)
+		using (var scope = this.serviceScopeFactory.CreateScope())
 		{
-			// ケース1: series == null または HasValidWorkFolder == false
-			this.HasExistingWorkFolder.Value = false;
-			this.ImageExpansionMethod.Value = 0;
-			this.bindingStore.RecreateWorkFolder.Value = false;
-			return;
+			var volumeSelectionManager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
+			validationResult = volumeSelectionManager.ValidateVolumeSelection();
 		}
 
-		var seriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(series.Title);
-		var exists = Directory.Exists(seriesFolderPath);
-
-		Debug.WriteLine("===== WorkFolderState =====");
-		Debug.WriteLine($"SeriesTitle       : [{series.Title}]");
-		Debug.WriteLine($"SeriesTitleLength : [{series.Title.Length}]");
-		Debug.WriteLine($"WorkFolderPath    : [{this.appSettings.WorkFolderPath.Value}]");
-		Debug.WriteLine($"SeriesFolderPath  : [{seriesFolderPath}]");
-		Debug.WriteLine($"Path.GetFullPath  : [{Path.GetFullPath(seriesFolderPath)}]");
-		Debug.WriteLine($"Directory.Exists  : [{exists}]");
-		Debug.WriteLine($"HasValidWorkFolder: [{this.appSettings.HasValidWorkFolder}]");
-
-		if (!exists)
+		// Error 処理
+		switch (validationResult.Error)
 		{
-			// ケース2: Work設定は有効だが、対象作品のWork作品フォルダが存在しない
-			this.HasExistingWorkFolder.Value = false;
-			this.ImageExpansionMethod.Value = 0;
-			this.bindingStore.RecreateWorkFolder.Value = false;
+			case VolumeSelectionValidationError.None:
+				// 次の Warning 判定へ進む
+				break;
+
+			case VolumeSelectionValidationError.WorkFolderUnavailable:
+				await ContentDialogHelper.ShowErrorAsync(
+					this.contentDialogService,
+					"ワークフォルダが設定されていないか、存在しません。\n設定画面で確認してください。");
+				return;
+
+			case VolumeSelectionValidationError.NoVolumes:
+				await ContentDialogHelper.ShowErrorAsync(
+					this.contentDialogService,
+					"製本対象が選択されていません。");
+				return;
+
+			case VolumeSelectionValidationError.VolumeNumberMissing:
+				await ContentDialogHelper.ShowErrorAsync(
+					this.contentDialogService,
+					"巻番号が未入力の項目があります。");
+				return;
+
+			case VolumeSelectionValidationError.DuplicateVolumeNumbers:
+				{
+					var duplicateText = string.Join(", ", 
+						validationResult.DuplicateVolumeNumbers.Select(n => $"{n:0.#}巻"));
+					var snackbarMessage = $"巻番号が重複しています：{duplicateText}";
+
+					this.snackbarService.Show(
+						"巻番号が重複しています",
+						snackbarMessage,
+						ControlAppearance.Danger,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.MaxValue);
+					return;
+				}
+
+			default:
+				throw new InvalidOperationException(
+					$"想定外の VolumeSelectionValidationError 値が返されました: {validationResult.Error}");
 		}
-		else
+
+		// Warning 処理（Error == None の場合のみ）
+		switch (validationResult.Warning)
 		{
-			// ケース3: 対象作品のWork作品フォルダが存在する
-			// 既存の画像を使用する（ImageExpansionMethod = 1）をデフォルトに
-			this.HasExistingWorkFolder.Value = true;
-			this.ImageExpansionMethod.Value = 1;
-			this.bindingStore.RecreateWorkFolder.Value = false;
+			case VolumeSelectionValidationWarning.None:
+				// 警告なし。そのまま次工程処理へ進む
+				break;
+
+			case VolumeSelectionValidationWarning.MissingVolume:
+				{
+					var confirmed = await ContentDialogHelper.ShowConfirmAsync(
+						this.contentDialogService,
+						"確認",
+						"抜け巻があります。\nこのまま続行しますか？",
+						"続行");
+					if (!confirmed)
+						return;
+					break;
+				}
+
+			default:
+				throw new InvalidOperationException(
+					$"想定外の VolumeSelectionValidationWarning 値が返されました: {validationResult.Warning}");
 		}
+
+		// ① 遷移
+		this.navigationService.NavigateWithHierarchy(typeof(SeriesInspectionPage));
 	}
-
-	/// <summary>
-	/// 巻フォルダ名の桁数を更新します。
-	/// </summary>
-	private void updateVolumeFolderDigits()
-	{
-		var series = this.SelectedSeries.Value;
-		if (series is null)
-		{
-			this.bindingStore.VolumeFolderDigits.Value = 2; // デフォルト値
-			return;
-		}
-
-		// Math.Max(2, MaxVolumeDigits) で初期値を決定
-		this.bindingStore.VolumeFolderDigits.Value = Math.Max(2, series.MaxVolumeDigits);
-	}
-
-	/// <summary>
-	/// CanGoNext を更新します。
-	/// </summary>
-	private void updateCanGoNext()
-		=> this.CanGoNext.Value = this.bindingStore.BindingVolumes.Count > 0;
-
-    /// <summary>
-    /// 選択済み巻を収集してバリデーション後に次画面へ遷移します。
-    /// </summary>
-    private async void executeGoNextAsync()
-    {
-        // ① ワークフォルダ未設定 / 不存在
-        if (!this.appSettings.HasValidWorkFolder)
-        {
-            await ContentDialogHelper.ShowErrorAsync(
-                this.contentDialogService,
-                "ワークフォルダが設定されていないか、存在しません。\n設定画面で確認してください。");
-            return;
-        }
-
-        // ② 製本対象0件（BindingStore.BindingVolumes を正本に変更）
-        if (this.bindingStore.BindingVolumes.Count == 0)
-        {
-            await ContentDialogHelper.ShowErrorAsync(
-                this.contentDialogService,
-                "製本対象が選択されていません。");
-            return;
-        }
-
-        // ③ 巻番号未入力（BindingStore.BindingVolumes から確認）
-        if (this.bindingStore.BindingVolumes.Any(volume => volume.VolumeNumber.Value is null))
-        {
-            await ContentDialogHelper.ShowErrorAsync(
-                this.contentDialogService,
-                "巻番号が未入力の項目があります。");
-            return;
-        }
-
-        // ④ 巻番号重複（BindingStore.BindingVolumes から確認）
-        var numbers = this.bindingStore.BindingVolumes
-            .Select(volume => volume.VolumeNumber.Value!.Value)
-            .ToList();
-        if (numbers.Count != numbers.Distinct().Count())
-        {
-            // 重複している巻番号を抽出
-            var duplicateNumbers = numbers
-                .GroupBy(n => n)
-                .Where(g => g.Count() > 1)
-                .Select(g => g.Key)
-                .OrderBy(n => n)
-                .ToList();
-
-            // メッセージを構築
-            var duplicateText = string.Join(", ", duplicateNumbers.Select(n => $"{n:0.#}巻"));
-            var snackbarMessage = $"巻番号が重複しています：{duplicateText}";
-
-            this.snackbarService.Show(
-                "巻番号が重複しています",
-                snackbarMessage,
-                ControlAppearance.Danger,
-                new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-                TimeSpan.MaxValue);
-            return;
-        }
-
-        // ⑤ 抜け巻警告（BindingStore.BindingVolumes から確認）
-        var sorted = numbers.OrderBy(n => n).ToList();
-        var hasMissing = sorted.Zip(sorted.Skip(1), (a, b) => b - a).Any(diff => diff > 1);
-        if (hasMissing)
-        {
-            var confirmed = await ContentDialogHelper.ShowConfirmAsync(
-                this.contentDialogService,
-                "確認",
-                "抜け巻があります。\nこのまま続行しますか？",
-                "続行");
-            if (!confirmed)
-                return;
-        }
-
-        // ⑥ BindingStore.BindingVolumes から BindingSourceVolume へ変換（現在順を保持）
-        // ローカルで変換結果を構築し、すべての変換が成功してから
-        // SeriesWorkspaceStore へ互換出力する
-        var outgoingVolumes = new List<BindingSourceVolume>();
-        foreach (var volume in this.bindingStore.BindingVolumes)
-        {
-            var material = volume.Material;
-            var volumeNumber = volume.VolumeNumber.Value!.Value;
-
-            // SourceType の決定ルール：
-            // ArchiveEntryPrefix が空文字でない → Archive
-            // ItemType == Epub → Epub
-            // それ以外 → Folder
-            var sourceType = material.ArchiveEntryPrefix != string.Empty
-                ? MaterialItemType.Archive
-                : (material.ItemType == MaterialItemType.Epub
-                    ? MaterialItemType.Epub
-                    : MaterialItemType.Folder);
-
-            outgoingVolumes.Add(new BindingSourceVolume
-            {
-                DisplayName = material.Name,
-                VolumeNumber = volumeNumber,
-                NodeType = material.ItemType,
-                SourceType = sourceType,
-                SourcePath = material.SourcePath,
-                ArchiveEntryPrefix = material.ArchiveEntryPrefix != string.Empty ? material.ArchiveEntryPrefix : null,
-                FullPath = material.FullPath,
-                OutputVolumeFolderName = this.appSettings.CreateWorkVolumeFolderName(
-                    volumeNumber,
-                    this.bindingStore.VolumeFolderDigits.Value),
-                ExpectedImageFileCount = material.FileCount,
-            });
-        }
-
-        // ⑦ すべての変換が成功したら SeriesWorkspaceStore へ互換出力
-        this.workspaceStore.RecreateWorkFolder.Value = this.bindingStore.RecreateWorkFolder.Value;
-        this.workspaceStore.VolumeFolderDigits = this.bindingStore.VolumeFolderDigits.Value;
-
-        this.workspaceStore.SelectedMaterialVolumes.Clear();
-        foreach (var sourceVolume in outgoingVolumes)
-        {
-            this.workspaceStore.SelectedMaterialVolumes.Add(sourceVolume);
-        }
-
-        // ⑧ 遷移
-        this.navigationService.NavigateWithHierarchy(typeof(SeriesInspectionPage));
-    }
 
     /// <summary>
     /// 指定された MaterialItemViewModel の選択状態を反転します。
@@ -702,43 +442,6 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         // ファイル名を含めたメッセージを構築
         var fileNameList = string.Join("\n", fileNames);
         return $"以下の圧縮ファイル内に、圧縮ファイルが含まれています。\n\n{fileNameList}\n\n上記のファイルを手作業で展開してください。";
-    }
-
-    /// <summary>
-    /// 選択済み巻の合計サイズから推定ZIPサイズを計算し、SelectedVolumeSummaryText を更新します。
-    /// </summary>
-    private void updateSelectedVolumeSummary()
-    {
-        // 選択済み巻（BindingStore.BindingVolumes）の TotalImageBytes を合計
-        var totalBytes = this.bindingStore.BindingVolumes
-            .Sum(volume => volume.Material.TotalImageBytes);
-
-        if (totalBytes == 0)
-        {
-            this.SelectedVolumeSummaryText.Value = "0 MB";
-            return;
-        }
-
-        // 推定ZIPサイズを計算
-        var estimatedBytes = (long)(totalBytes * EstimatedZipSizeRatio);
-
-        // サイズを 1024 ベースでフォーマット
-        var sizeText = string.Empty;
-
-        if (estimatedBytes >= 1024L * 1024 * 1024)
-        {
-            // 1GB以上はGB表示（小数1桁）
-            var sizeGB = estimatedBytes / (1024.0 * 1024 * 1024);
-            sizeText = $"{sizeGB:F1} GB";
-        }
-        else
-        {
-            // 1GB未満はMB表示（小数なし）
-            var sizeMB = estimatedBytes / (1024.0 * 1024);
-            sizeText = $"{(long)sizeMB} MB";
-        }
-
-        this.SelectedVolumeSummaryText.Value = sizeText;
     }
 
     /// <summary>
@@ -860,8 +563,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
 
             // Success の場合は BindingStore.Materials が既に更新されており、
             // MaterialItems（Projection）が自動的に更新される
-            // 素材サマリを計算して表示用プロパティを更新
-            await this.updateMaterialSummaryAsync();
+            // BindingStore の派生状態が自動的に更新される
         }
     }
 
@@ -935,47 +637,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
             return;
         }
 
-        // 削除成功時は成功通知なし、素材内訳を更新
-        await this.updateMaterialSummaryAsync();
-    }
-
-    /// <summary>
-    /// BindingStore.Materials から素材サマリを計算し、表示用プロパティを更新します。
-    /// Root直下の子要素のみを集計対象とします。
-    /// </summary>
-    private async ValueTask updateMaterialSummaryAsync()
-    {
-        // Root直下の子要素を取得
-        var rootChildren = this.bindingStore.Materials.SelectMany(root => root.Children).ToList();
-
-        // ItemType ごとに分類
-        var folderCount = rootChildren.Count(item => item.ItemType == MaterialItemType.Folder);
-        var archiveCount = rootChildren.Count(item => item.ItemType == MaterialItemType.Archive);
-        var epubCount = rootChildren.Count(item => item.ItemType == MaterialItemType.Epub);
-        var totalCount = folderCount + archiveCount + epubCount;
-
-        // 圧縮ファイルサイズを計算
-        var archivePaths = rootChildren
-            .Where(item => item.ItemType == MaterialItemType.Archive)
-            .Select(item => item.FullPath)
-            .ToList();
-
-        var archiveTotalBytes = await StorageSizeHelper.GetArchiveOnlyAsync(archivePaths, CancellationToken.None);
-        var archiveSizeText = archiveTotalBytes > 0
-            ? $"（{StorageSizeHelper.FormatSize(archiveTotalBytes)}）"
-            : string.Empty;
-
-        // 各表示テキストを生成
-        this.MaterialCountText.Value = $"{totalCount} 件";
-        this.MaterialFolderCountText.Value = $"フォルダ：{folderCount}";
-        this.MaterialArchiveCountText.Value = $"圧縮ファイル：{archiveCount}{archiveSizeText}";
-        this.MaterialEpubCountText.Value = $"EPUB：{epubCount}";
-
-        // MaterialSummaryText を各個別サマリから生成
-        this.MaterialSummaryText.Value =
-            $"フォルダ：{folderCount}\n" +
-            $"圧縮ファイル：{archiveCount}{archiveSizeText}\n" +
-            $"EPUB：{epubCount}";
+        // 削除成功時は成功通知なし、BindingStore の派生状態が自動的に更新される
     }
 
     /// <summary>

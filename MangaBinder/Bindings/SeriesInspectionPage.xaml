@@ -250,7 +250,7 @@
 							FontSize="12"
 							Margin="0,0,0,6"
 							IsReadOnly="True"
-							Text="{Binding ZipAuthor.Value, UpdateSourceTrigger=PropertyChanged}" />
+							Text="{Binding SeriesAuthor.Value, UpdateSourceTrigger=PropertyChanged}" />
 
 						<!-- タイトル -->
 						<TextBlock
@@ -262,7 +262,7 @@
 							FontSize="12"
 							Margin="0,0,0,6"
 							IsReadOnly="True"
-							Text="{Binding ZipTitle.Value, UpdateSourceTrigger=PropertyChanged}" />
+							Text="{Binding SeriesTitle.Value, UpdateSourceTrigger=PropertyChanged}" />
 
 						<!-- 出力zip -->
 						<TextBlock
@@ -286,23 +286,24 @@
 							Margin="0,0,0,8"
 							HorizontalAlignment="Left"
 							MinWidth="200"
-							ItemsSource="{Binding ZipOutputFormatItems}"
-							SelectedIndex="{Binding ZipOutputFormatIndex.Value}" />
+							IsEnabled="False"
+							SelectedIndex="0">
+							<ComboBoxItem Content="作品単位でzip化" />
+							<ComboBoxItem Content="巻ごとにzip化" />
+						</ComboBox>
 
 						<!-- 既存zip削除 -->
 						<CheckBox
 							Content="既存の製本済zipを削除する"
 							FontSize="12"
-							IsChecked="{Binding DeleteExistingZip.Value}"
-							IsEnabled="{Binding ExistingZipExists.Value}"
+							IsEnabled="False"
 							Margin="0,0,0,4" />
 
 						<!-- iCloud削除（インデント） -->
 						<CheckBox
 							Content="iCloudからも削除する"
 							FontSize="12"
-							IsChecked="{Binding DeleteFromICloud.Value}"
-							IsEnabled="{Binding DeleteExistingZip.Value}"
+							IsEnabled="False"
 							Margin="16,0,0,0" />
 
 					</StackPanel>

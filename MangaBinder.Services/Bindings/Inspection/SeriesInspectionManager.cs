@@ -17,6 +17,7 @@ public class SeriesInspectionManager
 	private readonly AppSettings appSettings;
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly ILogger<SeriesInspectionManager> logger;
+	private readonly BindingManager bindingManager;
 
 	/// <summary>
 	/// 1つの BindingVolume の Inspect() が完了したことを通知するイベント。
@@ -33,19 +34,22 @@ public class SeriesInspectionManager
 	/// <param name="appSettings">アプリケーション設定。Workフォルダパス生成に使用します。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。Extractor と VolumeFileNameNormalizer の解決に使用します。</param>
 	/// <param name="logger">ロガー。</param>
+	/// <param name="bindingManager">製本工程の共通処理マネージャー。</param>
 	/// <exception cref="ArgumentNullException">
-	/// <paramref name="bindingStore"/>, <paramref name="appSettings"/>, <paramref name="serviceScopeFactory"/>, または <paramref name="logger"/> が null の場合。
+	/// <paramref name="bindingStore"/>, <paramref name="appSettings"/>, <paramref name="serviceScopeFactory"/>, <paramref name="logger"/>, または <paramref name="bindingManager"/> が null の場合。
 	/// </exception>
 	public SeriesInspectionManager(
 		BindingStore bindingStore,
 		AppSettings appSettings,
 		IServiceScopeFactory serviceScopeFactory,
-		ILogger<SeriesInspectionManager> logger)
+		ILogger<SeriesInspectionManager> logger,
+		BindingManager bindingManager)
 	{
 		this.bindingStore = bindingStore ?? throw new ArgumentNullException(nameof(bindingStore));
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
 		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
 		this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		this.bindingManager = bindingManager ?? throw new ArgumentNullException(nameof(bindingManager));
 	}
 
 	/// <summary>
@@ -77,22 +81,36 @@ public class SeriesInspectionManager
 				"製本前確認処理には BindingStore.BindingTarget が設定されている必要があります。");
 		}
 
-		// ③ AppSettings.CreateWorkSeriesFolderPath() を使用して、対象作品の作品Workフォルダパスを取得する
+		// ③ 巻選択工程を完了し、製本前確認工程へ到達したことを記録
+		this.bindingStore.VolumeSelectionCompleted.Value = true;
+
+		// ④ 製本前確認工程の処理が既に完了している場合は再実行せずに終了
+		if (this.bindingStore.SeriesInspectionCompleted.Value)
+		{
+			// 既存の処理結果を保持したまま、正常終了
+			return;
+		}
+
+		// ⑤ ZIP ファイル名の初期生成を実行
+		this.bindingManager.InitializeZipOutputFileName();
+
+		// ⑥ AppSettings.CreateWorkSeriesFolderPath() を使用して、対象作品の作品Workフォルダパスを取得する
 		var seriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(bindingTarget.Series.Title);
 
-		// ④ BindingStore.RecreateWorkFolder.Value が true の場合、作品Workフォルダが存在すれば削除する
+		// ⑤ BindingStore.ImageExpansionMethod が Recreate の場合、作品Workフォルダが存在すれば削除する
 		// ファイルシステムの重い処理でUIスレッドをブロックしないようにする
-		if (this.bindingStore.RecreateWorkFolder.Value && Directory.Exists(seriesFolderPath))
+		if (this.bindingStore.ImageExpansionMethod.Value == global::MangaBinder.Bindings.ImageExpansionMethod.Recreate
+			&& Directory.Exists(seriesFolderPath))
 		{
 			await Task.Run(
 				() => Directory.Delete(seriesFolderPath, recursive: true),
 				cancellationToken).ConfigureAwait(false);
 		}
 
-		// ⑤ 作品Workフォルダが存在しない場合を含め、以降の処理で使用できるよう作品Workフォルダを作成する
+		// ⑥ 作品Workフォルダが存在しない場合を含め、以降の処理で使用できるよう作品Workフォルダを作成する
 		Directory.CreateDirectory(seriesFolderPath);
 
-		// ⑥ 作品Workフォルダ直下に既に存在するフォルダの一覧を取得
+		// ⑦ 作品Workフォルダ直下に既に存在するフォルダの一覧を取得
 		// 各BindingVolumeの既存Work巻フォルダ判定に使用するため、フォルダ名の集合を構築する
 		// StringComparer.OrdinalIgnoreCase で大文字小文字非依存に比較できる集合とする
 		var existingVolumeFolderNames = new HashSet<string>(
@@ -100,7 +118,7 @@ public class SeriesInspectionManager
 				.Select(path => Path.GetFileName(path)),
 			StringComparer.OrdinalIgnoreCase);
 
-		// ⑦ BindingStore.BindingVolumes を順番に処理して WorkFolderPath を設定し、
+		// ⑧ BindingStore.BindingVolumes を順番に処理して WorkFolderPath を設定し、
 		// 既存巻フォルダの判定と作成を行う
 		// 全 BindingVolume を製本前確認工程の対象とする
 		var volumeFolderDigits = this.bindingStore.VolumeFolderDigits.Value;
@@ -141,13 +159,13 @@ public class SeriesInspectionManager
 			}
 		}
 
-		// ⑧ 全 BindingVolume を EffectiveSourcePath でGroupBy する
+		// ⑨ 全 BindingVolume を EffectiveSourcePath でGroupBy する
 		// 文字列比較には StringComparer.OrdinalIgnoreCase を使用
 		var groupsBySourcePath = this.bindingStore.BindingVolumes
 			.GroupBy(v => v.EffectiveSourcePath, StringComparer.OrdinalIgnoreCase)
 			.ToList();
 
-		// ⑨ System.Threading.Channels を使用した Producer/Consumer パターンを構築
+		// ⑩ System.Threading.Channels を使用した Producer/Consumer パターンを構築
 		// 異常終了時にProducer/Consumer間で相互停止信号を伝播させる構造
 
 		// Bounded Channel を作成：容量32、FullMode=Wait、SingleWriter/Reader=false
@@ -200,7 +218,7 @@ public class SeriesInspectionManager
 			await this.CleanupEpubTemporaryFoldersAsync();
 		}
 
-		// ⑩ ファイル名正規化処理を実行
+		// ⑪ ファイル名正規化処理を実行
 		// EPUB エラー巻（Material.EffectiveSourceType == MaterialSourceType.Epub かつ EpubExtractionError != None）は除外
 		var normalizationTargets = this.bindingStore.BindingVolumes
 			.Where(v => !(v.Material.EffectiveSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None))
@@ -209,7 +227,7 @@ public class SeriesInspectionManager
 		await this.ExecuteFileNameNormalizationAsync(normalizationTargets, pipelineCancellationToken)
 			.ConfigureAwait(false);
 
-		// ⑪ EPUB エラー巻について、後段処理前に検査を実行
+		// ⑫ EPUB エラー巻について、後段処理前に検査を実行
 		var epubErrorVolumes = this.bindingStore.BindingVolumes
 			.Where(v => v.Material.EffectiveSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None)
 			.ToList();
@@ -229,6 +247,9 @@ public class SeriesInspectionManager
 			GCCollectionMode.Forced,
 			blocking: true,
 			compacting: false);
+
+		// ⑬ 製本前確認工程の処理がすべて正常終了したことを記録
+		this.bindingStore.SeriesInspectionCompleted.Value = true;
 	}
 
 	/// <summary>

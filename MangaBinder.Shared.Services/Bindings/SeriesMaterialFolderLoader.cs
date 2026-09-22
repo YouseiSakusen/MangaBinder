@@ -145,13 +145,14 @@ public class SeriesMaterialFolderLoader
 			cancellationToken.ThrowIfCancellationRequested();
 
 			var isSelectable = this.ContainsDirectImages(dir);
-			var fileCount = this.CountDirectImages(dir);
+			var (fileCount, totalImageBytes) = this.GetDirectImageStats(dir);
 			var folderItem = new MaterialItemDto
 			{
 				ItemType = MaterialItemType.Folder,
 				Name = Path.GetFileName(dir),
 				FullPath = dir,
 				FileCount = fileCount,
+				TotalImageBytes = totalImageBytes,
 				SourcePath = dir,
 				IsSelectableByDefault = isSelectable,
 				SelectionDisabledReason = isSelectable ? string.Empty : "直下に画像ファイルが存在しません",
@@ -184,6 +185,7 @@ public class SeriesMaterialFolderLoader
 					Name = Path.GetFileName(file),
 					FullPath = file,
 					FileSizeText = sizeText,
+					FileSizeBytes = bytes,
 					SourcePath = file,
 				};
 
@@ -403,6 +405,35 @@ public class SeriesMaterialFolderLoader
 		catch
 		{
 			return 0;
+		}
+	}
+
+	/// <summary>
+	/// 指定フォルダの直下にある画像ファイルの統計情報を取得します。
+	/// FileCount と TotalImageBytes を1回の走査で取得します。
+	/// </summary>
+	private (int FileCount, long TotalImageBytes) GetDirectImageStats(string folderPath)
+	{
+		try
+		{
+			int fileCount = 0;
+			long totalBytes = 0L;
+
+			foreach (var file in Directory.EnumerateFiles(folderPath))
+			{
+				if (SupportedExtensionHelper.GetFileType(Path.GetExtension(file)) == FileType.Image)
+				{
+					fileCount++;
+					var fileInfo = new FileInfo(file);
+					totalBytes += fileInfo.Length;
+				}
+			}
+
+			return (fileCount, totalBytes);
+		}
+		catch
+		{
+			return (0, 0L);
 		}
 	}
 

@@ -103,7 +103,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<BindingStoreRepository>();
 		services.AddScoped<BindingQueueDispatcher>();
 		services.AddScoped<BindingRepository>();
-		services.AddSingleton<BindingManager>();
+		services.AddScoped<BindingManager>();
 
 		services.AddScoped<MaterialArchiveExtractor>();
 		services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<AppSettings>().ConnectionString));

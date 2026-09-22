@@ -60,6 +60,12 @@ public class MaterialItem : IDisposable
 	public string FileSizeText { get; init; } = string.Empty;
 
 	/// <summary>
+	/// Archive ファイル自身の物理ファイルサイズ（バイト）を取得します。
+	/// Archive 以外は 0。
+	/// </summary>
+	public long FileSizeBytes { get; init; }
+
+	/// <summary>
 	/// 製本対象としてカウントするファイル数を取得します。
 	/// </summary>
 	public int FileCount { get; init; }
@@ -123,6 +129,7 @@ public class MaterialItem : IDisposable
 	/// <param name="name">表示名。</param>
 	/// <param name="fullPath">フルパス。</param>
 	/// <param name="fileSizeText">ファイルサイズ表示用テキスト。Archive 以外は空文字。</param>
+	/// <param name="fileSizeBytes">Archive ファイル自身の物理ファイルサイズ（バイト）。Archive 以外は 0。</param>
 	/// <param name="fileCount">製本対象としてカウントするファイル数。</param>
 	/// <param name="totalImageBytes">展開後の画像ファイル総サイズ（バイト）。</param>
 	/// <param name="sourcePath">解凍元の実パス。</param>
@@ -137,6 +144,7 @@ public class MaterialItem : IDisposable
 		string name,
 		string fullPath,
 		string fileSizeText = "",
+		long fileSizeBytes = 0L,
 		int fileCount = 0,
 		long totalImageBytes = 0L,
 		string sourcePath = "",
@@ -151,6 +159,7 @@ public class MaterialItem : IDisposable
 		this.Name = name;
 		this.FullPath = fullPath;
 		this.FileSizeText = fileSizeText;
+		this.FileSizeBytes = fileSizeBytes;
 		this.FileCount = fileCount;
 		this.TotalImageBytes = totalImageBytes;
 		this.SourcePath = sourcePath;

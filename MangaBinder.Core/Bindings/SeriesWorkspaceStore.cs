@@ -17,14 +17,8 @@ public class SeriesWorkspaceStore : IDisposable
     /// <summary>製本工程で現在処理対象とする単一作品を取得します。</summary>
     public MangaSeries? BindingTarget { get; private set; }
 
-    /// <summary>VolumeSelectionPage で確定した巻の一覧を取得します。</summary>
-    public List<BindingSourceVolume> SelectedMaterialVolumes { get; } = [];
-
     /// <summary>中間フォルダを再作成するかどうかを取得します。</summary>
     public BindableReactiveProperty<bool> RecreateWorkFolder { get; }
-
-    /// <summary>巻フォルダ名の桁数を取得または設定します。</summary>
-    public int VolumeFolderDigits { get; set; } = 2;
 
     /// <summary>製本前処理（Prepress）対象巻の辞書を取得します。キーは WorkVolumeFolderPath です。</summary>
     public Dictionary<string, VolumeInspectionResult> PrepressVolumes { get; } = [];

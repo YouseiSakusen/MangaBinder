@@ -64,6 +64,14 @@ public class MangaSeriesCardViewModel : IDisposable
 	public SeriesMemoViewModel MemoStatus { get; }
 
 	/// <summary>
+	/// 通常表示用の巻情報表示ViewModel を取得します。
+	/// MangaSeriesCardViewModel が生成・所有する読み取り専用インスタンスです。
+	/// Series は MangaSeriesCardViewModel.Series と同期されます。
+	/// EditorPage は VolumeStatus プロパティへの外部指定により、このインスタンスをオーバーライドできます。
+	/// </summary>
+	private readonly SeriesVolumeStatusViewModel defaultVolumeStatusViewModel;
+
+	/// <summary>
 	/// <see cref="MangaSeriesCardViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	public MangaSeriesCardViewModel()
@@ -80,7 +88,13 @@ public class MangaSeriesCardViewModel : IDisposable
 		this.ThumbnailSource = new BindableReactiveProperty<ImageSource?>(null)
 			.AddTo(ref this.disposableBag);
 
-		this.VolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel?>(null)
+		// 通常表示用の巻情報表示ViewModel を生成（内部所有）
+		var defaultVolumeStatus = new SeriesVolumeStatusViewModel()
+			.AddTo(ref this.disposableBag);
+		this.defaultVolumeStatusViewModel = defaultVolumeStatus;
+
+		// VolumeStatus の初期値に通常表示用のインスタンスを設定
+		this.VolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel?>(defaultVolumeStatus)
 			.AddTo(ref this.disposableBag);
 
 		this.Series = new BindableReactiveProperty<MangaSeries?>(null)
@@ -99,11 +113,39 @@ public class MangaSeriesCardViewModel : IDisposable
 		this.MemoStatus = memoStatusViewModel;
 
 		// Series が変更された場合、その値を子ViewModelへ流す
+		// 同一インスタンスの場合は ForceNotify() で再通知させ、表示値を再評価させる
 		this.Series
 			.Subscribe(series =>
 			{
-				lastUpdateStatusViewModel.Series.Value = series;
-				memoStatusViewModel.Series.Value = series;
+				// SeriesLastUpdateViewModel への伝播
+				if (series != null && ReferenceEquals(lastUpdateStatusViewModel.Series.Value, series))
+				{
+					lastUpdateStatusViewModel.Series.ForceNotify();
+				}
+				else
+				{
+					lastUpdateStatusViewModel.Series.Value = series;
+				}
+
+				// SeriesMemoViewModel への伝播
+				if (series != null && ReferenceEquals(memoStatusViewModel.Series.Value, series))
+				{
+					memoStatusViewModel.Series.ForceNotify();
+				}
+				else
+				{
+					memoStatusViewModel.Series.Value = series;
+				}
+
+				// 通常表示用 SeriesVolumeStatusViewModel への伝播
+				if (series != null && ReferenceEquals(defaultVolumeStatus.Series.Value, series))
+				{
+					defaultVolumeStatus.Series.ForceNotify();
+				}
+				else
+				{
+					defaultVolumeStatus.Series.Value = series;
+				}
 			})
 			.AddTo(ref this.disposableBag);
 	}

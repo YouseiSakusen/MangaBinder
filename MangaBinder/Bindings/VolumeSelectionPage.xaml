@@ -34,6 +34,12 @@
 		<!-- NodeType ごとの Filled 属性（実フォルダ vs 圧縮内フォルダを区別） -->
 		<converters:NodeTypeToFilledConverter x:Key="NodeTypeToFilledConverter" />
 
+		<!-- 圧縮ファイルの数とサイズ合計を表示文字列に変換 -->
+		<converters:ArchiveMaterialSummaryConverter x:Key="ArchiveMaterialSummaryConverter" />
+
+		<!-- バイトサイズを表示用 MB/GB 文字列に変換 -->
+		<converters:BytesToDisplaySizeConverter x:Key="BytesToDisplaySizeConverter" />
+
 		<!-- TreeViewItem に IsExpanded をバインドするスタイル、行間を適度に広げる -->
 		<Style TargetType="TreeViewItem">
 			<Setter Property="IsExpanded" Value="{Binding IsExpanded.Value, Mode=TwoWay}" />
@@ -151,7 +157,7 @@
 			IsMainRightSplitterEnabled="True"
 			EyecatchSymbol="CheckboxArrowRight24"
 			EyecatchTitle="製本後ZIPサイズ（推定）"
-			EyecatchValueText="{Binding SelectedVolumeSummaryText.Value}">
+			EyecatchValueText="{Binding SelectedVolumeTotalImageBytes.Value, Converter={StaticResource BytesToDisplaySizeConverter}, Mode=OneWay}">
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- TopContent: 上部設定Card群（素材展開方法 + 巻番号の桁数） -->
@@ -177,7 +183,9 @@
 								Margin="0,0,0,6" />
 							<ComboBox
 								ItemsSource="{Binding ImageExpansionOptions}"
-								SelectedIndex="{Binding ImageExpansionMethod.Value, Mode=TwoWay}"
+								DisplayMemberPath="Label"
+								SelectedValuePath="Method"
+								SelectedValue="{Binding ImageExpansionMethod.Value, Mode=TwoWay}"
 								IsEnabled="{Binding HasExistingWorkFolder.Value}"
 								Width="300">
 							</ComboBox>
@@ -268,7 +276,7 @@
 									FontSize="11"
 									Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 									VerticalAlignment="Center"
-									Text="{Binding MaterialFolderCountText.Value, Mode=OneWay}" />
+									Text="{Binding MaterialFolderCount.Value, StringFormat=フォルダ：{0}, Mode=OneWay}" />
 
 								<!-- 圧縮ファイル：第2行 -->
 								<ui:SymbolIcon
@@ -286,8 +294,14 @@
 									FontSize="11"
 									Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 									VerticalAlignment="Center"
-									Margin="0,2,0,0"
-									Text="{Binding MaterialArchiveCountText.Value, Mode=OneWay}" />
+									Margin="0,2,0,0">
+									<TextBlock.Text>
+										<MultiBinding Converter="{StaticResource ArchiveMaterialSummaryConverter}" Mode="OneWay">
+											<Binding Path="MaterialArchiveCount.Value" />
+											<Binding Path="MaterialArchiveTotalBytes.Value" />
+										</MultiBinding>
+									</TextBlock.Text>
+								</TextBlock>
 
 								<!-- EPUB：第3行 -->
 								<ui:SymbolIcon
@@ -306,7 +320,7 @@
 									Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 									VerticalAlignment="Center"
 									Margin="0,2,0,0"
-									Text="{Binding MaterialEpubCountText.Value, Mode=OneWay}" />
+									Text="{Binding MaterialEpubCount.Value, StringFormat=EPUB：{0}, Mode=OneWay}" />
 							</Grid>
 						</StackPanel>
 					</ui:Card>

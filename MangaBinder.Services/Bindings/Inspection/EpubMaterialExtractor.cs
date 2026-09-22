@@ -258,7 +258,7 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 		{
 			volume.EpubExtractionError = EpubExtractionError.BodyImageNotFound;
 			volume.Images.Clear();
-			await this.DeleteEpubTempFolderAsync(Path.Combine(volume.WorkFolderPath, ".epub"));
+			await this.DeleteEpubTempFolderAsync(epubTempDir);
 			return;
 		}
 

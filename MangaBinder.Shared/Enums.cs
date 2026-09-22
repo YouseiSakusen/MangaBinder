@@ -101,6 +101,19 @@
 namespace MangaBinder.Bindings
 {
 	/// <summary>
+	/// 素材展開方法を表す列挙型です。
+	/// Work 作品フォルダの構築方式を指定します。
+	/// </summary>
+	public enum ImageExpansionMethod
+	{
+		/// <summary>Work 作品フォルダを素材から新しく作成します。既存フォルダが存在する場合は削除して作り直します。</summary>
+		Recreate = 0,
+
+		/// <summary>既存 Work 作品フォルダ内の画像を使用します。</summary>
+		UseExisting = 1,
+	}
+
+	/// <summary>
 	/// 素材アイテムの種別を表す列挙型です。
 	/// UI/Worker 共通で使用されます。
 	/// </summary>
@@ -347,6 +360,39 @@ namespace MangaBinder.Bindings
 
 		/// <summary>ドライブの準備ができていない。</summary>
 		DriveNotReady = 3,
+	}
+
+	/// <summary>
+	/// 巻選択工程の検証エラーを表す列挙型です。
+	/// </summary>
+	public enum VolumeSelectionValidationError
+	{
+		/// <summary>エラーがありません。</summary>
+		None = 0,
+
+		/// <summary>ワークフォルダが設定されていないか、存在しません。</summary>
+		WorkFolderUnavailable = 1,
+
+		/// <summary>製本対象の巻が選択されていません。</summary>
+		NoVolumes = 2,
+
+		/// <summary>巻番号が未入力の項目があります。</summary>
+		VolumeNumberMissing = 3,
+
+		/// <summary>巻番号が重複しています。</summary>
+		DuplicateVolumeNumbers = 4,
+	}
+
+	/// <summary>
+	/// 巻選択工程の検証警告を表す列挙型です。
+	/// </summary>
+	public enum VolumeSelectionValidationWarning
+	{
+		/// <summary>警告がありません。</summary>
+		None = 0,
+
+		/// <summary>巻番号に抜けがあります。</summary>
+		MissingVolume = 1,
 	}
 }
 

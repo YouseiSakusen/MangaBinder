@@ -1,6 +1,7 @@
 using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Helpers;
+using MangaBinder.Settings;
 
 namespace MangaBinder.Bindings;
 
@@ -12,16 +13,22 @@ public class VolumeSelectionManager
 {
 	private readonly BindingStore bindingStore;
 	private readonly SeriesMaterialFolderLoader materialFolderLoader;
+	private readonly AppSettings appSettings;
 
 	/// <summary>
 	/// <see cref="VolumeSelectionManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="bindingStore">製本工程の正本状態ストア。</param>
 	/// <param name="materialFolderLoader">素材フォルダ解析サービス。</param>
-	public VolumeSelectionManager(BindingStore bindingStore, SeriesMaterialFolderLoader materialFolderLoader)
+	/// <param name="appSettings">アプリケーション設定。</param>
+	public VolumeSelectionManager(
+		BindingStore bindingStore,
+		SeriesMaterialFolderLoader materialFolderLoader,
+		AppSettings appSettings)
 	{
 		this.bindingStore = bindingStore ?? throw new ArgumentNullException(nameof(bindingStore));
 		this.materialFolderLoader = materialFolderLoader ?? throw new ArgumentNullException(nameof(materialFolderLoader));
+		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
 	}
 
 	/// <summary>
@@ -30,7 +37,6 @@ public class VolumeSelectionManager
 	/// SeriesMaterialFolderLoader で解析した結果を
 	/// MaterialItemDto ツリーから MaterialItem ツリーへ変換して
 	/// BindingStore.Materials へ格納します。
-	/// また、前回の BindingVolumes も完全に初期化します。
 	/// </summary>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <returns>初期化処理の結果。</returns>
@@ -46,20 +52,23 @@ public class VolumeSelectionManager
 				"巻選択の初期化には BindingStore.BindingTarget が設定されている必要があります。");
 		}
 
-		// ② 前回の BindingVolumes を完全に破棄
-		// BindingVolumes が Materials を参照しているため、先に破棄する必要がある
-		foreach (var volume in this.bindingStore.BindingVolumes)
+		// ② VolumeSelectionCompleted が true の場合は再初期化を行わない
+		if (this.bindingStore.VolumeSelectionCompleted.Value)
 		{
-			volume.Dispose();
+			// 既存の素材は保持したまま、成功結果を返す
+			// BindingTarget は既に保持しており、Materials/BindingVolumes も前回状態で保持
+			return new VolumeSelectionInitializeResult
+			{
+				Status = MaterialFolderStatus.Success,
+				TargetPath = string.Empty,
+				HasNestedArchive = false,
+				NestedArchiveFileNames = [],
+			};
 		}
-		this.bindingStore.BindingVolumes.Clear();
 
-		// ③ 前回の Materials を完全に破棄
-		foreach (var material in this.bindingStore.Materials)
-		{
-			material.Dispose();
-		}
-		this.bindingStore.Materials.Clear();
+		// ③ 素材展開方法の初期状態を決定（素材Loader実行前に設定）
+		this.initializeImageExpansionState(bindingTarget.Series);
+		this.initializeVolumeFolderDigits(bindingTarget.Series);
 
 		// ④ SeriesMaterialFolderLoader.GetMaterialsAsync() を呼び出す
 		var loaderResult = await this.materialFolderLoader.GetMaterialsAsync(
@@ -69,9 +78,6 @@ public class VolumeSelectionManager
 		// ⑤ Loader 失敗時
 		if (loaderResult.Status != MaterialFolderStatus.Success)
 		{
-			// IsManualVolumeOrder をリセット
-			this.bindingStore.IsManualVolumeOrder.Value = false;
-
 			// Materials・BindingVolumes は空のままで返す
 			return new VolumeSelectionInitializeResult
 			{
@@ -99,9 +105,6 @@ public class VolumeSelectionManager
 			{
 				this.bindingStore.Materials.Add(materialItem);
 			}
-
-			// IsManualVolumeOrder をリセット
-			this.bindingStore.IsManualVolumeOrder.Value = false;
 
 			return new VolumeSelectionInitializeResult
 			{
@@ -617,6 +620,7 @@ public class VolumeSelectionManager
 			name: dto.Name,
 			fullPath: dto.FullPath,
 			fileSizeText: dto.FileSizeText,
+			fileSizeBytes: dto.FileSizeBytes,
 			fileCount: dto.FileCount,
 			totalImageBytes: dto.TotalImageBytes,
 			sourcePath: dto.SourcePath,
@@ -644,5 +648,116 @@ public class VolumeSelectionManager
 		}
 
 		return materialItem;
+	}
+
+	/// <summary>
+	/// 巻フォルダ名の桁数を初期化します。
+	/// MaxVolumeDigits に基づいて、適切な桁数を設定します。
+	/// </summary>
+	/// <param name="series">対象作品。</param>
+	private void initializeVolumeFolderDigits(MangaSeries series)
+	{
+		this.bindingStore.VolumeFolderDigits.Value =
+			Math.Max(2, series.MaxVolumeDigits);
+	}
+
+	/// <summary>
+	/// Work 作品フォルダの存在に基づいて、素材展開方法の初期状態を決定します。
+	/// </summary>
+	/// <param name="series">対象作品。</param>
+	private void initializeImageExpansionState(MangaSeries series)
+	{
+		// WorkFolder 設定が無効な場合は Recreate で統一
+		if (!this.appSettings.HasValidWorkFolder)
+		{
+			this.bindingStore.HasExistingWorkFolder.Value = false;
+			this.bindingStore.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
+			return;
+		}
+
+		// WorkFolder 設定が有効な場合、作品別フォルダの存在確認
+		var seriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(series.Title);
+		var folderExists = Directory.Exists(seriesFolderPath);
+
+		if (folderExists)
+		{
+			// 既存フォルダがある場合は UseExisting
+			this.bindingStore.HasExistingWorkFolder.Value = true;
+			this.bindingStore.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.UseExisting;
+		}
+		else
+		{
+			// 存在しない場合は Recreate
+			this.bindingStore.HasExistingWorkFolder.Value = false;
+			this.bindingStore.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
+		}
+	}
+
+	/// <summary>
+	/// 巻選択工程から次へ進めるかを検証します。
+	/// </summary>
+	/// <returns>検証結果。</returns>
+	public VolumeSelectionValidationResult ValidateVolumeSelection()
+	{
+		// ① Work フォルダ設定の確認
+		if (!this.appSettings.HasValidWorkFolder)
+		{
+			return new VolumeSelectionValidationResult(
+				error: VolumeSelectionValidationError.WorkFolderUnavailable);
+		}
+
+		// ② 製本対象0件
+		if (this.bindingStore.BindingVolumes.Count == 0)
+		{
+			return new VolumeSelectionValidationResult(
+				error: VolumeSelectionValidationError.NoVolumes);
+		}
+
+		// ③ 巻番号未入力
+		if (this.bindingStore.BindingVolumes.Any(volume => volume.VolumeNumber.Value == null))
+		{
+			return new VolumeSelectionValidationResult(
+				error: VolumeSelectionValidationError.VolumeNumberMissing);
+		}
+
+		// ④ 巻番号重複
+		var duplicateVolumeNumbers = this.bindingStore.BindingVolumes
+			.GroupBy(volume => volume.VolumeNumber.Value)
+			.Where(group => group.Count() > 1)
+			.Select(group => group.Key!.Value)
+			.OrderBy(x => x)
+			.ToList();
+
+		if (duplicateVolumeNumbers.Count > 0)
+		{
+			return new VolumeSelectionValidationResult(
+				error: VolumeSelectionValidationError.DuplicateVolumeNumbers,
+				duplicateVolumeNumbers: duplicateVolumeNumbers.AsReadOnly());
+		}
+
+		// ⑤ 抜け巻
+		var sortedVolumeNumbers = this.bindingStore.BindingVolumes
+			.Select(volume => volume.VolumeNumber.Value!.Value)
+			.OrderBy(x => x)
+			.ToList();
+
+		var hasMissingVolume = false;
+		for (int i = 0; i < sortedVolumeNumbers.Count - 1; i++)
+		{
+			if (sortedVolumeNumbers[i + 1] - sortedVolumeNumbers[i] > 1)
+			{
+				hasMissingVolume = true;
+				break;
+			}
+		}
+
+		if (hasMissingVolume)
+		{
+			return new VolumeSelectionValidationResult(
+				warning: VolumeSelectionValidationWarning.MissingVolume);
+		}
+
+		// ⑥ 問題なし
+		return new VolumeSelectionValidationResult();
 	}
 }

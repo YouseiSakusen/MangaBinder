@@ -34,9 +34,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>製本工程正本状態 ストア。</summary>
 	private readonly BindingStore bindingStore;
 
-	/// <summary>製本工程操作 マネージャー。</summary>
-	private readonly BindingManager bindingManager;
-
 	/// <summary>スナックバーサービス。</summary>
 	private readonly ISnackbarService snackbarService;
 
@@ -96,7 +93,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
 	/// <param name="startPageStore">製本開始ページ ストア。</param>
 	/// <param name="bindingStore">製本工程正本状態 ストア。</param>
-	/// <param name="bindingManager">製本工程操作 マネージャー。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
 	public StartPageViewModel(
 		IServiceScopeFactory serviceScopeFactory,
@@ -106,7 +102,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		BindingQueueStore bindingQueueStore,
 		StartPageStore startPageStore,
 		BindingStore bindingStore,
-		BindingManager bindingManager,
 		ISnackbarService snackbarService)
 	{
 		this.serviceScopeFactory = serviceScopeFactory;
@@ -116,7 +111,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.bindingQueueStore = bindingQueueStore;
 		this.startPageStore = startPageStore;
 		this.bindingStore = bindingStore;
-		this.bindingManager = bindingManager;
 		this.snackbarService = snackbarService;
 
 		// StartPageStore が公開する WPF バインド用一覧を使用
@@ -174,7 +168,15 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	private async Task navigateToVolumeSelectionAsync(BindingSeries bindingSeries)
 	{
 		// BindingManager で素材フォルダの事前確認を実行
-		var availabilityResult = await this.bindingManager.SetBindingTargetAsync(bindingSeries);
+		MaterialSourceAvailabilityResult availabilityResult;
+
+		using (var scope = this.serviceScopeFactory.CreateScope())
+		{
+			var bindingManager =
+				scope.ServiceProvider.GetRequiredService<BindingManager>();
+
+			availabilityResult = await bindingManager.SetBindingTargetAsync(bindingSeries);
+		}
 
 		// 素材フォルダが利用できない場合はエラー表示して終了
 		if (!availabilityResult.IsSuccess)

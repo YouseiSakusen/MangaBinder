@@ -30,6 +30,12 @@ public class MaterialItemDto
 	public string FileSizeText { get; init; } = string.Empty;
 
 	/// <summary>
+	/// Archive ファイル自身の物理ファイルサイズ（バイト）を取得または設定します。
+	/// Archive 以外は 0。
+	/// </summary>
+	public long FileSizeBytes { get; init; }
+
+	/// <summary>
 	/// 製本対象としてカウントするファイル数を取得または設定します。
 	/// </summary>
 	public int FileCount { get; init; }

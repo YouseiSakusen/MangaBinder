@@ -58,22 +58,30 @@ public class BindingManager
 		}
 
 		// 成功した場合のみ、呼び出し元コンテキストで BindingTarget を設定
+		// セッション状態の初期化は BindingStore の BindingTarget 変更通知で自動実行される
 		this.bindingStore.BindingTarget.Value = bindingSeries;
 
 		return availabilityResult;
 	}
 
 	/// <summary>
-	/// 製本前確認画面へ入る際の製本完了用状態を初期化します。
+	/// ZIP ファイル名の初期値を生成して BindingStore に設定します。
+	/// 既に ZipOutputFileName が空ではない場合は上書きしません。
 	/// </summary>
-	public ValueTask InitializeBindingCompletionAsync()
+	public void InitializeZipOutputFileName()
 	{
+		// 既に ZipOutputFileName が設定されている場合は何もしない
+		if (!string.IsNullOrEmpty(this.bindingStore.ZipOutputFileName.Value))
+		{
+			return;
+		}
+
 		// BindingStore.BindingTarget から現在の BindingSeries / MangaSeries を取得
 		var bindingSeries = this.bindingStore.BindingTarget.Value;
 		if (bindingSeries?.Series is null)
 		{
 			// 製本対象が設定されていない場合は何もしない
-			return ValueTask.CompletedTask;
+			return;
 		}
 
 		// BindingStore.BindingVolumes から今回選択されている巻範囲の開始巻・終了巻を取得
@@ -81,7 +89,7 @@ public class BindingManager
 		if (volumes.Count == 0)
 		{
 			// 選択巻が無い場合は何もしない
-			return ValueTask.CompletedTask;
+			return;
 		}
 
 		// VolumeNumber.Value が null でない値のみを対象にして Min/Max を計算
@@ -93,7 +101,7 @@ public class BindingManager
 		if (volumeNumbers.Count == 0)
 		{
 			// 有効な巻番号が無い場合は何もしない
-			return ValueTask.CompletedTask;
+			return;
 		}
 
 		var startVolume = volumeNumbers.Min();
@@ -107,11 +115,6 @@ public class BindingManager
 			this.bindingStore.VolumeFolderDigits.Value);
 
 		this.bindingStore.ZipOutputFileName.Value = zipFileName;
-
-		// RemoveFromBindingQueueAfterCompletion を true に戻す
-		this.bindingStore.RemoveFromBindingQueueAfterCompletion.Value = true;
-
-		return ValueTask.CompletedTask;
 	}
 
 	/// <summary>
@@ -289,4 +292,9 @@ public class BindingManager
 
 		return totalSize;
 	}
-}
+
+	/// <summary>
+	/// 巻選択工程から次へ進むことができるかどうかを検証します。
+	/// </summary>
+	/// <returns>検証結果。</returns>
+	}

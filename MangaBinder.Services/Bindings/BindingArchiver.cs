@@ -50,23 +50,28 @@ public class BindingArchiver
 		ArgumentNullException.ThrowIfNull(volumes);
 		ArgumentNullException.ThrowIfNullOrWhiteSpace(outputFilePath);
 
-		// 各BindingVolumeのWorkFolderPathを検証
+		// 各BindingVolumeのWorkFolderPathを検証し、有効なパスのリストを作成
+		var workFolderPaths = new List<string>(volumes.Count);
 		foreach (var volume in volumes)
 		{
-			if (string.IsNullOrEmpty(volume.WorkFolderPath))
+			var workFolderPath = volume.WorkFolderPath;
+
+			if (string.IsNullOrEmpty(workFolderPath))
 			{
 				throw new ArgumentException(
 					$"BindingVolume の WorkFolderPath が null または空です。",
 					nameof(volumes));
 			}
 
-			var workFolderInfo = new DirectoryInfo(volume.WorkFolderPath);
+			var workFolderInfo = new DirectoryInfo(workFolderPath);
 			if (!workFolderInfo.Exists)
 			{
 				throw new ArgumentException(
-					$"Workフォルダが存在しません: {volume.WorkFolderPath}",
+					$"Workフォルダが存在しません: {workFolderPath}",
 					nameof(volumes));
 			}
+
+			workFolderPaths.Add(workFolderPath);
 		}
 
 		try
@@ -85,10 +90,10 @@ public class BindingArchiver
 
 				await using (writer)
 				{
-					// 各BindingVolumeのWorkフォルダ配下のファイルをZIPへ追加
-					foreach (var volume in volumes)
+					// 検証済みの WorkFolderPath を使用して各巻のファイルをZIPへ追加
+					foreach (var workFolderPath in workFolderPaths)
 					{
-						await this.addVolumeFilesToZipAsync(writer, volume.WorkFolderPath, cancellationToken);
+						await this.addVolumeFilesToZipAsync(writer, workFolderPath, cancellationToken);
 					}
 				}
 			}

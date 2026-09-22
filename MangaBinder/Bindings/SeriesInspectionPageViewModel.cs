@@ -36,31 +36,19 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>ローディングサービス。</summary>
 	private readonly LoadingService loadingService;
 
-	/// <summary>製本工程マネージャー。</summary>
-	private readonly BindingManager bindingManager;
-
 	private DisposableBag disposableBag;
 
-	/// <summary>選択中の作品エンティティを取得します（サムネイル・巻数情報表示用）。</summary>
-	public BindableReactiveProperty<MangaSeries?> SelectedSeries { get; }
-
 	/// <summary>選択中の作品名を取得します。</summary>
-	public BindableReactiveProperty<string> SeriesTitle { get; }
+	public IReadOnlyBindableReactiveProperty<string> SeriesTitle { get; }
 
-	/// <summary>選択巻数サマリ文字列を取得します。</summary>
-	public BindableReactiveProperty<string> VolumeSummaryText { get; }
-
-	/// <summary>アイキャッチカード用の選択巻数テキスト（「9巻」形式）を取得します。</summary>
-	public BindableReactiveProperty<string> SelectedVolumeCountText { get; }
+	/// <summary>選択中の作品著者を取得します。</summary>
+	public IReadOnlyBindableReactiveProperty<string> SeriesAuthor { get; }
 
 	/// <summary>
 	/// 作品サムネイルカード用の ViewModel を取得します。
 	/// ThumbnailSource と VolumeStatus を管理し、左側パネルのサムネイルカードに使用されます。
 	/// </summary>
 	public MangaSeriesCardViewModel MangaSeriesCard { get; private set; }
-
-	/// <summary>製本前確認画面が所有する巻情報表示用ViewModel。</summary>
-	private readonly SeriesVolumeStatusViewModel volumeStatusViewModel;
 
 	/// <summary>巻カード表示用の ViewModel 一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<VolumeCardViewModel> VolumeCards { get; }
@@ -70,39 +58,14 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 	// zip 設定のプロパティ
 
-	/// <summary>著者名（編集可能）を取得します。</summary>
-	public BindableReactiveProperty<string> ZipAuthor { get; }
-
-	/// <summary>タイトル（編集可能）を取得します。</summary>
-	public BindableReactiveProperty<string> ZipTitle { get; }
-
 	/// <summary>出力 zip ファイル名（編集可能）を取得します。</summary>
 	public BindableReactiveProperty<string> ZipOutputFileName => this.bindingStore.ZipOutputFileName;
 
+	/// <summary>選択済み巻数テキスト（「XX巻」形式）を取得します。</summary>
+	public IReadOnlyBindableReactiveProperty<string> SelectedVolumeCountText => this.bindingStore.SelectedVolumeCountText;
+
 	/// <summary>製本完了後に対象作品を製本待ちから削除するかどうかを取得します。</summary>
 	public BindableReactiveProperty<bool> RemoveFromBindingQueueAfterCompletion => this.bindingStore.RemoveFromBindingQueueAfterCompletion;
-
-	/// <summary>出力形式の選択インデックスを取得します（0: 作品単位・1: 巻ごと）。</summary>
-	public BindableReactiveProperty<int> ZipOutputFormatIndex { get; }
-
-	/// <summary>出力形式の選択肢を取得します。</summary>
-	public IReadOnlyList<string> ZipOutputFormatItems { get; } =
-		["作品単位でzip化", "巻ごとにzip化"];
-
-	/// <summary>既存の製本済み zip を削除するかどうかを取得します。</summary>
-	public BindableReactiveProperty<bool> DeleteExistingZip { get; }
-
-	/// <summary>既存の製本済み zip が存在するかどうかを取得します。</summary>
-	public BindableReactiveProperty<bool> ExistingZipExists { get; }
-
-	/// <summary>iCloud からも削除するかどうかを取得します。</summary>
-	public BindableReactiveProperty<bool> DeleteFromICloud { get; }
-
-	// サブフォルダ展開方式選択肢
-
-	/// <summary>サブフォルダ展開方式の選択肢を取得します。</summary>
-	public IReadOnlyList<string> SubFolderModeItems { get; } =
-		["サブフォルダを無視", "サブフォルダを含める", "サブフォルダを連番化"];
 
 	// コマンド
 
@@ -124,15 +87,13 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
-	/// <param name="bindingManager">製本工程マネージャー。</param>
 	public SeriesInspectionPageViewModel(
 		SeriesWorkspaceStore workspaceStore,
 		BindingStore bindingStore,
 		INavigationService navigationService,
 		IServiceScopeFactory serviceScopeFactory,
 		ThumbnailImageLoader thumbnailImageLoader,
-		LoadingService loadingService,
-		BindingManager bindingManager)
+		LoadingService loadingService)
 	{
 		this.workspaceStore = workspaceStore;
 		this.bindingStore = bindingStore;
@@ -140,37 +101,17 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.thumbnailImageLoader = thumbnailImageLoader;
 		this.loadingService = loadingService;
-		this.bindingManager = bindingManager;
 
-		// 製本前確認画面が所有する巻情報表示用ViewModel を生成
-		this.volumeStatusViewModel = new SeriesVolumeStatusViewModel()
-			.AddTo(ref this.disposableBag);
-
-		this.SelectedSeries = new BindableReactiveProperty<MangaSeries?>(null)
-			.AddTo(ref this.disposableBag);
-		this.SeriesTitle = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
-		this.VolumeSummaryText = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
-		this.SelectedVolumeCountText = new BindableReactiveProperty<string>(string.Empty)
+		// SeriesTitle: BindingTarget.Value?.Series.Title から Reactive に導出
+		this.SeriesTitle = this.bindingStore.BindingTarget
+			.Select(bindingTarget => bindingTarget?.Series?.Title ?? string.Empty)
+			.ToReadOnlyBindableReactiveProperty(string.Empty)
 			.AddTo(ref this.disposableBag);
 
-		this.ZipAuthor = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
-		this.ZipTitle = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
-		this.ZipOutputFormatIndex = new BindableReactiveProperty<int>(0)
-			.AddTo(ref this.disposableBag);
-		this.DeleteExistingZip = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
-		this.ExistingZipExists = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
-		this.DeleteFromICloud = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
-
-		this.DeleteExistingZip
-			.Where(v => !v)
-			.Subscribe(_ => this.DeleteFromICloud.Value = false)
+		// SeriesAuthor: BindingTarget.Value?.Series.Author から Reactive に導出
+		this.SeriesAuthor = this.bindingStore.BindingTarget
+			.Select(bindingTarget => bindingTarget?.Series?.Author ?? string.Empty)
+			.ToReadOnlyBindableReactiveProperty(string.Empty)
 			.AddTo(ref this.disposableBag);
 
 		// 巻カード用の SynchronizedView を初期化
@@ -194,27 +135,24 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.MangaSeriesCard = new MangaSeriesCardViewModel()
 			.AddTo(ref this.disposableBag);
 
-		// SelectedSeries 変更時に同期
-		this.SelectedSeries.Subscribe(series =>
+		// BindingTarget 変更時に MangaSeriesCard へ Series と ThumbnailSource を接続
+		this.bindingStore.BindingTarget.Subscribe(bindingTarget =>
 		{
+			var series = bindingTarget?.Series;
 			if (series is not null)
 			{
-				// 製本前確認画面が所有する SeriesVolumeStatusViewModel に series を設定
-				this.volumeStatusViewModel.Series.Value = series;
-
 				// ThumbnailImageLoader で最終表示用 ImageSource を取得
 				var imageSource = this.thumbnailImageLoader.Load(series);
 
 				// MangaSeriesCard へ設定
 				this.MangaSeriesCard.ThumbnailSource.Value = imageSource;
-				this.MangaSeriesCard.VolumeStatus.Value = this.volumeStatusViewModel;
 
 				// MangaSeriesCard の Series へ接続
-				if (this.MangaSeriesCard.Series.Value != series)
+				if (!ReferenceEquals(this.MangaSeriesCard.Series.Value, series))
 				{
 					this.MangaSeriesCard.Series.Value = series;
 				}
-				else if (this.MangaSeriesCard.Series.Value == series)
+				else
 				{
 					// 同一インスタンスの場合は ForceNotify() で再通知させる
 					this.MangaSeriesCard.Series.ForceNotify();
@@ -223,9 +161,7 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			else
 			{
 				// series が null の場合はクリア
-				this.volumeStatusViewModel.Series.Value = null;
 				this.MangaSeriesCard.ThumbnailSource.Value = null;
-				this.MangaSeriesCard.VolumeStatus.Value = null;
 				this.MangaSeriesCard.Series.Value = null;
 			}
 		}).AddTo(ref this.disposableBag);
@@ -273,28 +209,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <inheritdoc/>
 	public async ValueTask InitializeDataAsync()
 	{
-		var series = this.workspaceStore.BindingTarget;
-		this.SelectedSeries.Value = series;
-		this.SeriesTitle.Value = series?.Title ?? string.Empty;
-		this.ZipTitle.Value = series?.Title ?? string.Empty;
-		this.ZipAuthor.Value = series?.Author ?? string.Empty;
-
-		this.ExistingZipExists.Value = true;
-		this.VolumeSummaryText.Value = string.Empty;
-
-		// アイキャッチカード用の選択巻数テキストを更新
-		var selectedVolumeCount = this.workspaceStore.SelectedMaterialVolumes.Count;
-		this.SelectedVolumeCountText.Value = $"{selectedVolumeCount}巻";
-
-		if (series is null || this.workspaceStore.SelectedMaterialVolumes.Count == 0)
-		{
-			this.bindingStore.ZipOutputFileName.Value = string.Empty;
-			return;
-		}
-
-		// 製本完了用状態を初期化
-		await this.bindingManager.InitializeBindingCompletionAsync();
-
 		_ = this.executeSeriesInspectionAsync();
 	}
 
@@ -486,4 +400,3 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.disposableBag.Dispose();
 	}
 }
-
