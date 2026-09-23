@@ -227,88 +227,303 @@
 			</controls:PageLayout.MainContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<!-- RightContent: 右パネル（製本後zipファイル設定） -->
-			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.RightContent>
-				<ui:Card Margin="0,0,0,0" Padding="12,8" VerticalAlignment="Top">
-					<StackPanel MaxWidth="720">
+				<!-- RightContent: 右パネル（製本後zipファイル設定） -->
+				<!-- ─────────────────────────────────────────────────────────────────── -->
+				<controls:PageLayout.RightContent>
+					<ScrollViewer
+						Height="Auto"
+						VerticalAlignment="Top"
+						VerticalScrollBarVisibility="Auto"
+						HorizontalScrollBarVisibility="Disabled"
+						HorizontalContentAlignment="Stretch">
 
-						<!-- カードタイトル -->
-						<TextBlock
-							Text="製本後zipファイル設定"
-							FontSize="12"
-							FontWeight="SemiBold"
-							Margin="0,0,0,8" />
+						<StackPanel>
 
-						<!-- 作者 -->
-						<TextBlock
-							Text="作者"
-							FontSize="11"
-							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-							Margin="0,0,0,2" />
-						<ui:TextBox
-							FontSize="12"
-							Margin="0,0,0,6"
-							IsReadOnly="True"
-							Text="{Binding SeriesAuthor.Value, UpdateSourceTrigger=PropertyChanged}" />
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<!-- Card 1: 作品情報 Card（2行×2列） -->
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<ui:Card Padding="12,8" Margin="0,0,0,2">
+								<Grid>
+									<Grid.RowDefinitions>
+										<RowDefinition Height="Auto" />
+										<RowDefinition Height="Auto" />
+									</Grid.RowDefinitions>
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" />
+										<ColumnDefinition Width="*" />
+									</Grid.ColumnDefinitions>
 
-						<!-- タイトル -->
-						<TextBlock
-							Text="タイトル"
-							FontSize="11"
-							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-							Margin="0,0,0,2" />
-						<ui:TextBox
-							FontSize="12"
-							Margin="0,0,0,6"
-							IsReadOnly="True"
-							Text="{Binding SeriesTitle.Value, UpdateSourceTrigger=PropertyChanged}" />
+									<!-- Row 0: タイトル -->
+									<TextBlock
+										Grid.Row="0"
+										Grid.Column="0"
+										Text="タイトル"
+										FontSize="11"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										VerticalAlignment="Center"
+										Margin="0,0,12,8" />
+									<ui:TextBox
+										Grid.Row="0"
+										Grid.Column="1"
+										FontSize="12"
+										IsReadOnly="True"
+										Margin="0,0,0,8"
+										Text="{Binding SeriesTitle.Value, Mode=OneWay}" />
 
-						<!-- 出力zip -->
-						<TextBlock
-							Text="出力zip"
-							FontSize="11"
-							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-							Margin="0,0,0,2" />
-						<ui:TextBox
-							FontSize="12"
-							Margin="0,0,0,6"
-							Text="{Binding ZipOutputFileName.Value, UpdateSourceTrigger=PropertyChanged}" />
+									<!-- Row 1: 作者 -->
+									<TextBlock
+										Grid.Row="1"
+										Grid.Column="0"
+										Text="作者"
+										FontSize="11"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										VerticalAlignment="Center"
+										Margin="0,0,12,0" />
+									<ui:TextBox
+										Grid.Row="1"
+										Grid.Column="1"
+										FontSize="12"
+										IsReadOnly="True"
+										Margin="0,0,0,0"
+										Text="{Binding SeriesAuthor.Value, Mode=OneWay}" />
+								</Grid>
+							</ui:Card>
 
-						<!-- 出力形式 -->
-						<TextBlock
-							Text="出力形式"
-							FontSize="11"
-							Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-							Margin="0,0,0,2" />
-						<ComboBox
-							FontSize="12"
-							Margin="0,0,0,8"
-							HorizontalAlignment="Left"
-							MinWidth="200"
-							IsEnabled="False"
-							SelectedIndex="0">
-							<ComboBoxItem Content="作品単位でzip化" />
-							<ComboBoxItem Content="巻ごとにzip化" />
-						</ComboBox>
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<!-- Card 2: zipを作成する Card（1行×3列） -->
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<ui:Card Padding="12,8" Margin="0,0,0,2">
+								<Grid Height="44">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
 
-						<!-- 既存zip削除 -->
-						<CheckBox
-							Content="既存の製本済zipを削除する"
-							FontSize="12"
-							IsEnabled="False"
-							Margin="0,0,0,4" />
+									<!-- Column 0: 項目名 -->
+									<TextBlock
+										Grid.Column="0"
+										Text="zipを作成する"
+										FontSize="11"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										VerticalAlignment="Center"
+										Margin="0,0,12,0" />
 
-						<!-- iCloud削除（インデント） -->
-						<CheckBox
-							Content="iCloudからも削除する"
-							FontSize="12"
-							IsEnabled="False"
-							Margin="16,0,0,0" />
+									<!-- Column 1: 可変スペース -->
 
-					</StackPanel>
-				</ui:Card>
-			</controls:PageLayout.RightContent>
+									<!-- Column 2: ToggleSwitch -->
+									<ui:ToggleSwitch
+										Grid.Column="2"
+										IsChecked="{Binding CreateZip.Value, Mode=TwoWay}"
+										VerticalAlignment="Center"
+										Margin="12,0,0,0" />
+								</Grid>
+							</ui:Card>
+
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<!-- Card 3: zipファイル名 Card（1行×3列） -->
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<ui:Card 
+								Padding="12,8" 
+								Margin="0,0,0,2"
+								IsEnabled="{Binding CreateZip.Value, Mode=OneWay}">
+								<Grid Height="44">
+									<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="Auto" />
+									<ColumnDefinition Width="*" />
+									</Grid.ColumnDefinitions>
+
+									<!-- Column 0: 項目名 -->
+									<TextBlock
+										Grid.Column="0"
+										Text="zipファイル名"
+										FontSize="11"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										VerticalAlignment="Center"
+										Margin="0,0,12,0" />
+
+									<!-- Column 1: 可変スペース -->
+
+									<!-- Column 2: TextBox -->
+									<ui:TextBox
+										Grid.Column="1"
+										FontSize="12"
+										HorizontalScrollBarVisibility="Hidden"
+										TextWrapping="NoWrap"
+										ClearButtonEnabled="False"
+										VerticalContentAlignment="Center"
+										Margin="12,0,0,0"
+										Text="{Binding ZipOutputFileName.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+								</Grid>
+							</ui:Card>
+
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<!-- Card 3: 製本待ちから削除 Card（1行×3列） -->
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<ui:Card Padding="12,8" Margin="0,0,0,2">
+								<Grid Height="44">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
+
+									<!-- Column 0: 項目名 -->
+									<TextBlock
+										Grid.Column="0"
+										Text="製本待ちから削除"
+										FontSize="11"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										VerticalAlignment="Center"
+										Margin="0,0,12,0" />
+
+									<!-- Column 1: 可変スペース -->
+
+									<!-- Column 2: ToggleSwitch -->
+									<ui:ToggleSwitch
+										Grid.Column="2"
+										IsChecked="{Binding RemoveFromBindingQueueAfterCompletion.Value, Mode=TwoWay}"
+										VerticalAlignment="Center"
+										Margin="12,0,0,0" />
+								</Grid>
+							</ui:Card>
+
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<!-- Card 5: 製本完了後に出力先を開く Card（1行×3列） -->
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<ui:Card Padding="12,8" Margin="0,0,0,2">
+								<Grid Height="44">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
+
+									<!-- Column 0: 項目名 -->
+									<TextBlock
+										Grid.Column="0"
+										Text="製本完了後に出力先を開く"
+										FontSize="11"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										VerticalAlignment="Center"
+										Margin="0,0,12,0" />
+
+									<!-- Column 1: 可変スペース -->
+
+									<!-- Column 2: ToggleSwitch -->
+									<ui:ToggleSwitch
+										Grid.Column="2"
+										IsChecked="{Binding OpenOutputAfterCompletion.Value, Mode=TwoWay}"
+										VerticalAlignment="Center"
+										Margin="12,0,0,0" />
+								</Grid>
+							</ui:Card>
+
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<!-- Card 4: 出力形式 Card（将来用） -->
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<ui:Card Padding="12,8" Margin="0,0,0,2">
+								<Grid Height="44">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
+
+									<!-- Column 0: 項目名 -->
+									<TextBlock
+										Grid.Column="0"
+										Text="出力形式"
+										FontSize="11"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										VerticalAlignment="Center"
+										Margin="0,0,12,0" />
+
+									<!-- Column 1: 可変スペース -->
+
+									<!-- Column 2: ComboBox -->
+									<ComboBox
+										Grid.Column="2"
+										FontSize="12"
+										HorizontalAlignment="Left"
+										MinWidth="200"
+										IsEnabled="False"
+										SelectedIndex="0"
+										Margin="12,0,0,0">
+										<ComboBoxItem Content="作品単位でzip化" />
+										<ComboBoxItem Content="巻ごとにzip化" />
+									</ComboBox>
+								</Grid>
+							</ui:Card>
+
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<!-- Card 5: 既存の製本済zipを削除する Card（将来用） -->
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<ui:Card Padding="12,8" Margin="0,0,0,2">
+								<Grid Height="44">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
+
+									<!-- Column 0: 項目名 -->
+									<TextBlock
+										Grid.Column="0"
+										Text="既存の製本済zipを削除する"
+										FontSize="11"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										VerticalAlignment="Center"
+										Margin="0,0,12,0" />
+
+									<!-- Column 1: 可変スペース -->
+
+									<!-- Column 2: CheckBox -->
+									<CheckBox
+										Grid.Column="2"
+										FontSize="12"
+										IsEnabled="False"
+										VerticalAlignment="Center"
+										Margin="12,0,0,0" />
+								</Grid>
+							</ui:Card>
+
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<!-- Card 6: iCloudからも削除する Card（将来用） -->
+							<!-- ───────────────────────────────────────────────────────────────── -->
+							<ui:Card Padding="12,8">
+								<Grid Height="44">
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="Auto" />
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
+
+									<!-- Column 0: 項目名 -->
+									<TextBlock
+										Grid.Column="0"
+										Text="iCloudからも削除する"
+										FontSize="11"
+										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										VerticalAlignment="Center"
+										Margin="0,0,12,0" />
+
+									<!-- Column 1: 可変スペース -->
+
+									<!-- Column 2: CheckBox -->
+									<CheckBox
+										Grid.Column="2"
+										FontSize="12"
+										IsEnabled="False"
+										VerticalAlignment="Center"
+										Margin="12,0,0,0" />
+								</Grid>
+							</ui:Card>
+
+						</StackPanel>
+
+					</ScrollViewer>
+				</controls:PageLayout.RightContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- FooterLeftContent: 戻るボタン -->

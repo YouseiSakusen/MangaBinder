@@ -52,8 +52,8 @@ public class VolumeSelectionManager
 				"巻選択の初期化には BindingStore.BindingTarget が設定されている必要があります。");
 		}
 
-		// ② VolumeSelectionCompleted が true の場合は再初期化を行わない
-		if (this.bindingStore.VolumeSelectionCompleted.Value)
+		// ② VolumeSelectionInitialized が true の場合は再初期化を行わない
+		if (this.bindingStore.VolumeSelectionInitialized.Value)
 		{
 			// 既存の素材は保持したまま、成功結果を返す
 			// BindingTarget は既に保持しており、Materials/BindingVolumes も前回状態で保持
@@ -106,6 +106,9 @@ public class VolumeSelectionManager
 				this.bindingStore.Materials.Add(materialItem);
 			}
 
+			// ⑦ 巻選択の初期化が正常完了したことを記録
+			this.bindingStore.VolumeSelectionInitialized.Value = true;
+
 			return new VolumeSelectionInitializeResult
 			{
 				Status = MaterialFolderStatus.Success,
@@ -118,6 +121,7 @@ public class VolumeSelectionManager
 		{
 			// 変換途中で例外が発生した場合は、
 			// 生成済みの MaterialItem を破棄して例外を再送出
+			// VolumeSelectionInitialized は false のまま（再試行可能）
 			foreach (var material in this.bindingStore.Materials)
 			{
 				material.Dispose();

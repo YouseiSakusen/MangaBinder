@@ -68,6 +68,18 @@ public class BindingStore : IDisposable
 	public BindableReactiveProperty<string> ZipOutputFileName { get; }
 
 	/// <summary>
+	/// 今回の製本セッションでZIPを作成するかどうかを取得または設定します。
+	/// 初期値は true です。
+	/// </summary>
+	public BindableReactiveProperty<bool> CreateZip { get; }
+
+	/// <summary>
+	/// 製本完了後に出力先を開くかどうかを取得または設定します。
+	/// 初期値は true です。
+	/// </summary>
+	public BindableReactiveProperty<bool> OpenOutputAfterCompletion { get; }
+
+	/// <summary>
 	/// 製本完了後に対象作品を製本待ちから削除するかどうかを取得または設定します。
 	/// </summary>
 	public BindableReactiveProperty<bool> RemoveFromBindingQueueAfterCompletion { get; }
@@ -76,6 +88,11 @@ public class BindingStore : IDisposable
 	/// 巻選択工程を完了し、製本前確認工程へ到達済みかどうかを取得または設定します。
 	/// </summary>
 	public BindableReactiveProperty<bool> VolumeSelectionCompleted { get; }
+
+	/// <summary>
+	/// 現在の製本セッションについて、巻選択画面で使用する Materials 等の初期状態構築が正常完了済みかどうかを取得または設定します。
+	/// </summary>
+	public BindableReactiveProperty<bool> VolumeSelectionInitialized { get; }
 
 	/// <summary>
 	/// 製本前確認工程の展開・変換・Inspection処理が正常完了済みかどうかを取得または設定します。
@@ -162,9 +179,15 @@ public class BindingStore : IDisposable
 			.AddTo(ref this.disposableBag);
 		this.ZipOutputFileName = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
+		this.CreateZip = new BindableReactiveProperty<bool>(true)
+			.AddTo(ref this.disposableBag);
+		this.OpenOutputAfterCompletion = new BindableReactiveProperty<bool>(true)
+			.AddTo(ref this.disposableBag);
 		this.RemoveFromBindingQueueAfterCompletion = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
 		this.VolumeSelectionCompleted = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+		this.VolumeSelectionInitialized = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 		this.SeriesInspectionCompleted = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
@@ -401,8 +424,11 @@ public class BindingStore : IDisposable
 		this.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
 		this.VolumeFolderDigits.Value = 2;
 		this.ZipOutputFileName.Value = string.Empty;
+		this.CreateZip.Value = true;
+		this.OpenOutputAfterCompletion.Value = true;
 		this.RemoveFromBindingQueueAfterCompletion.Value = true;
 		this.VolumeSelectionCompleted.Value = false;
+		this.VolumeSelectionInitialized.Value = false;
 		this.SeriesInspectionCompleted.Value = false;
 	}
 

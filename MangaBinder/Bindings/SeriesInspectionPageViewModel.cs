@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Controls;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using R3;
 using Wpf.Ui;
+using Wpf.Ui.Controls;
 
 namespace MangaBinder.Bindings;
 
@@ -26,6 +28,12 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 	/// <summary>ナビゲーションサービス。</summary>
 	private readonly INavigationService navigationService;
+
+	/// <summary>コンテントダイアログサービス。</summary>
+	private readonly IContentDialogService contentDialogService;
+
+	/// <summary>スナックバーサービス。</summary>
+	private readonly ISnackbarService snackbarService;
 
 	/// <summary>スコープファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
@@ -67,6 +75,12 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>製本完了後に対象作品を製本待ちから削除するかどうかを取得します。</summary>
 	public BindableReactiveProperty<bool> RemoveFromBindingQueueAfterCompletion => this.bindingStore.RemoveFromBindingQueueAfterCompletion;
 
+	/// <summary>今回の製本セッションでZIPを作成するかどうかを取得します。</summary>
+	public BindableReactiveProperty<bool> CreateZip => this.bindingStore.CreateZip;
+
+	/// <summary>製本完了後に出力先を開くかどうかを取得します。</summary>
+	public BindableReactiveProperty<bool> OpenOutputAfterCompletion => this.bindingStore.OpenOutputAfterCompletion;
+
 	// コマンド
 
 	/// <summary>戻るコマンドを取得します。</summary>
@@ -84,6 +98,8 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <param name="workspaceStore">作品選択状態ストア。</param>
 	/// <param name="bindingStore">製本工程の正本状態ストア。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
+	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
+	/// <param name="snackbarService">スナックバーサービス。</param>
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
@@ -91,6 +107,8 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		SeriesWorkspaceStore workspaceStore,
 		BindingStore bindingStore,
 		INavigationService navigationService,
+		IContentDialogService contentDialogService,
+		ISnackbarService snackbarService,
 		IServiceScopeFactory serviceScopeFactory,
 		ThumbnailImageLoader thumbnailImageLoader,
 		LoadingService loadingService)
@@ -98,6 +116,8 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.workspaceStore = workspaceStore;
 		this.bindingStore = bindingStore;
 		this.navigationService = navigationService;
+		this.contentDialogService = contentDialogService;
+		this.snackbarService = snackbarService;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.thumbnailImageLoader = thumbnailImageLoader;
 		this.loadingService = loadingService;
@@ -173,9 +193,9 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 		this.StartBindingCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
-		this.StartBindingCommand.Subscribe(_ =>
+		this.StartBindingCommand.Subscribe(async _ =>
 		{
-			// TODO: 製本処理実装後に置き換える
+			await this.executeStartBindingAsync();
 		}).AddTo(ref this.disposableBag);
 
 		this.NavigateToPrepressCommand = new ReactiveCommand<BindingVolume>()
@@ -379,6 +399,185 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 				}
 				// Sort / Reverse の場合は現在有効な VolumeCardViewModel を Dispose しない
 				break;
+		}
+	}
+
+	/// <summary>
+	/// 製本完了処理を実行します。
+	/// 事前確認 → ユーザー確認 → Loading中にCompleteAsync → Explorerを開く（失敗時は別通知） → セッション終了 → StartPage遷移 → 成功Snackbar
+	/// </summary>
+	private async Task executeStartBindingAsync()
+	{
+		try
+		{
+			// 1. BindingManager を Scope 内から取得
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var bindingManager = scope.ServiceProvider.GetRequiredService<BindingManager>();
+
+			// 2. 製本完了処理を開始する前の事前確認情報を取得
+			var startableStatus = await bindingManager.GetStartableStatusAsync();
+
+			// 3. 確認が必要かどうかを判定
+			if (startableStatus.RequiresConfirmation)
+			{
+				// ContentDialog を表示
+				var dialogResult = await this.showBindingConfirmationDialogAsync(startableStatus);
+
+				// ユーザーがキャンセルした場合は処理終了
+				if (dialogResult == ContentDialogResult.None)
+				{
+					return;
+				}
+			}
+
+			// 4. 同名ファイルの上書き許可フラグを決定
+			bool allowOverwrite = startableStatus.OutputFileExists;
+
+			// 5. Loading 表示中に CompleteAsync を実行
+			BindingCompletionResult completionResult;
+			using (this.loadingService.Begin("製本中..."))
+			{
+				completionResult = await bindingManager.CompleteAsync(allowOverwrite);
+			}
+
+			// 6. OpenOutputAfterCompletion が true ならExplorerを起動
+			if (this.bindingStore.OpenOutputAfterCompletion.Value)
+			{
+				try
+				{
+					await this.openExplorerAsync(completionResult);
+				}
+				catch (Exception explorerEx)
+				{
+					// Explorer起動失敗は製本失敗ではなく、別のSnackbarで通知
+					this.snackbarService.Show(
+						"警告",
+						$"出力先を開けませんでした：{explorerEx.Message}",
+						ControlAppearance.Caution,
+						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+						TimeSpan.FromSeconds(5));
+				}
+			}
+
+			// 7. BindingStore.BindingTarget をクリア（この時点で OpenOutputAfterCompletion が false になる）
+			this.bindingStore.BindingTarget.Value = null;
+
+			// 8. StartPage へ遷移
+			this.navigationService.Navigate(typeof(StartPage));
+
+			// 9. 製本成功Snackbar
+			var outputPath = string.IsNullOrEmpty(completionResult.OutputFilePath)
+				? completionResult.OpenFolderPath
+				: completionResult.OutputFilePath;
+
+			this.snackbarService.Show(
+				"製本が完了しました",
+				$"{completionResult.BindingSeries.Series.Title}\n{outputPath}",
+				ControlAppearance.Success,
+				new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
+				TimeSpan.FromSeconds(5));
+		}
+		catch (Exception ex)
+		{
+			// エラー時：例外を通知
+			this.snackbarService.Show(
+				"製本エラー",
+				$"製本処理に失敗しました：{ex.Message}",
+				ControlAppearance.Danger,
+				new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
+				TimeSpan.MaxValue);
+		}
+	}
+
+	/// <summary>
+	/// 製本完了処理の確認ダイアログを表示します。
+	/// </summary>
+	private async Task<ContentDialogResult> showBindingConfirmationDialogAsync(BindingStartableStatus status)
+	{
+		string title;
+		string message;
+		string primaryButtonText;
+
+		// 3パターンの ContentDialog を条件に応じて表示
+		if (status.OutputFileExists && status.IsSizeOverWarningThreshold)
+		{
+			// パターン3：同名ZIP + 2.5GB超
+			title = "製本確認";
+			message = "既に同じ名前のファイルが存在します。\n" +
+					  "作成するzipファイルのサイズが2.5GBを超えることが予想されます。\n\n" +
+					  "上書きして続行しますか？";
+			primaryButtonText = "上書きして続行";
+		}
+		else if (status.OutputFileExists)
+		{
+			// パターン1：同名ZIPのみ
+			title = "製本確認";
+			message = "既に同じ名前のファイルが存在します。\n\n" +
+					  "上書きして続行しますか？";
+			primaryButtonText = "上書きして続行";
+		}
+		else
+		{
+			// パターン2：2.5GB超のみ
+			title = "製本確認";
+			message = "作成するzipファイルのサイズが2.5GBを超えることが予想されます。\n\n" +
+					  "このまま続行しますか？";
+			primaryButtonText = "続行";
+		}
+
+		var dialog = new ContentDialog
+		{
+			Title = title,
+			Content = message,
+			PrimaryButtonText = primaryButtonText,
+			CloseButtonText = "キャンセル",
+			DefaultButton = ContentDialogButton.Primary
+		};
+
+		return await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+	}
+
+	/// <summary>
+	/// BindingCompletionResult の情報に基づいてWindows Explorerを起動します。
+	/// SelectFilePath が空でない場合は /select オプション付きで起動、
+	/// 空の場合は OpenFolderPath をそのまま開きます。
+	/// </summary>
+	/// <param name="result">BindingCompletionResult。</param>
+	private async Task openExplorerAsync(BindingCompletionResult result)
+	{
+		if (!string.IsNullOrEmpty(result.SelectFilePath))
+		{
+			// SelectFilePath が指定されている場合：ファイルを選択して開く
+			var processInfo = new System.Diagnostics.ProcessStartInfo
+			{
+				FileName = "explorer.exe",
+				Arguments = $"/select,\"{result.SelectFilePath}\"",
+				UseShellExecute = true
+			};
+
+			using var process = System.Diagnostics.Process.Start(processInfo);
+			if (process is not null)
+			{
+				// プロセスが正常に開始されたことを確認
+				await Task.Run(() => process.WaitForExit(1000));
+			}
+		}
+		else if (!string.IsNullOrEmpty(result.OpenFolderPath))
+		{
+			// SelectFilePath が空の場合：フォルダを開く
+			var processInfo = new System.Diagnostics.ProcessStartInfo
+			{
+				FileName = "explorer.exe",
+				Arguments = $"\"{result.OpenFolderPath}\"",
+				UseShellExecute = true
+			};
+
+			using var process = System.Diagnostics.Process.Start(processInfo);
+			if (process is not null)
+			{
+				// プロセスが正常に開始されたことを確認
+				await Task.Run(() => process.WaitForExit(1000));
+			}
 		}
 	}
 

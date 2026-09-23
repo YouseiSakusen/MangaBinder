@@ -119,11 +119,23 @@ public class BindingManager
 
 	/// <summary>
 	/// 製本完了処理を開始する前の事前確認情報を取得します。
+	/// CreateZip が false の場合、ZIP関連の確認は実施されません。
 	/// </summary>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <returns>事前確認情報。</returns>
 	public async ValueTask<BindingStartableStatus> GetStartableStatusAsync(CancellationToken cancellationToken = default)
 	{
+		// CreateZip が false の場合、ZIP関連の事前確認は不要
+		if (!this.bindingStore.CreateZip.Value)
+		{
+			// ZIP関連の確認なし
+			return new BindingStartableStatus(
+				outputFilePath: string.Empty,
+				outputFileExists: false,
+				totalSizeBytes: 0);
+		}
+
+		// CreateZip が true の場合、通常の事前確認を実施
 		// 出力先フォルダと出力ファイル名からフルパスを組み立てる
 		var outputFilePath = this.buildOutputFilePath();
 
@@ -141,17 +153,24 @@ public class BindingManager
 	/// <summary>
 	/// 製本完了処理を実行します。
 	/// 
-	/// BoundEndVolume を更新し、ZIP ファイルを作成し、DB を更新し、Store を更新します。
+	/// CreateZip が true の場合、ZIP ファイルを作成します。
+	/// CreateZip が false の場合、ZIP 作成をスキップします。
+	/// いずれの場合も BoundEndVolume を更新し、DB を更新し、Store を更新します。
 	/// 途中で例外が発生した場合は、その例外を呼び出し元へ伝播させます。
 	/// </summary>
 	/// <param name="allowOverwrite">
 	/// 同名の既存ZIPファイルを上書きする場合は true、新規作成のみの場合は false。
+	/// CreateZip が false の場合は無視されます。
 	/// true の場合、既存ファイルは完全に破棄され、今回の BindingVolumes だけから新しいZIPが再生成されます。
 	/// </param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <returns>
 	/// 製本完了結果。
-	/// 今回製本した BindingSeries と、作成された ZIP ファイルのフルパスを含みます。
+	/// 今回製本した BindingSeries、出力情報、および Explorer 操作用のパス情報を含みます。
+	/// CreateZip が true の場合、OutputFilePath と SelectFilePath は ZIPファイルのパス、
+	/// OpenFolderPath は ZIP作成先フォルダです。
+	/// CreateZip が false の場合、OutputFilePath と SelectFilePath は string.Empty、
+	/// OpenFolderPath は Work 作品フォルダです。
 	/// </returns>
 	/// <exception cref="InvalidOperationException">
 	/// 製本対象が未設定、または出力ファイルパスが不正な場合にスローされます。
@@ -196,14 +215,7 @@ public class BindingManager
 			clonedSeries.BoundEndVolume = (int)maxVolumeNumber;
 		}
 
-		// 5. 出力 ZIP ファイルのフルパスを決定する
-		var outputFilePath = this.buildOutputFilePath();
-		if (string.IsNullOrEmpty(outputFilePath))
-		{
-			throw new InvalidOperationException("出力ファイルパスを決定できません。DefaultBindingFolderPath または ZipOutputFileName が未設定です。");
-		}
-
-		// 6. IServiceScopeFactory.CreateScope() で Scope を作成し、Scope 内から以下を解決する
+		// 5. IServiceScopeFactory.CreateScope() で Scope を作成し、Scope 内から以下を解決する
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var serviceProvider = scope.ServiceProvider;
 
@@ -212,30 +224,57 @@ public class BindingManager
 		var bindingQueueDispatcher = serviceProvider.GetRequiredService<BindingQueueDispatcher>();
 		var mangaSeriesStore = serviceProvider.GetRequiredService<MangaSeriesStore>();
 
-		// 7. BindingArchiver.CreateAsync() を呼び出して ZIP を作成する
-		await bindingArchiver.CreateAsync(volumes, outputFilePath, allowOverwrite, cancellationToken);
+		// 6. CreateZip フラグに応じて処理を分岐
+		string outputFilePath = string.Empty;
+		string openFolderPath;
+		string selectFilePath = string.Empty;
 
-		// 8. ZIP 作成成功後、BindingRepository.UpdateAfterBindingAsync() を呼び出す
+		if (this.bindingStore.CreateZip.Value)
+		{
+			// CreateZip == true: ZIP を作成
+			// 出力 ZIP ファイルのフルパスを決定する
+			outputFilePath = this.buildOutputFilePath();
+			if (string.IsNullOrEmpty(outputFilePath))
+			{
+				throw new InvalidOperationException("出力ファイルパスを決定できません。DefaultBindingFolderPath または ZipOutputFileName が未設定です。");
+			}
+
+			// BindingArchiver.CreateAsync() を呼び出して ZIP を作成する
+			await bindingArchiver.CreateAsync(volumes, outputFilePath, allowOverwrite, cancellationToken);
+
+			// OpenFolderPath は ZIP作成先フォルダ
+			openFolderPath = Path.GetDirectoryName(outputFilePath) ?? string.Empty;
+			// SelectFilePath は作成したZIPファイルのフルパス
+			selectFilePath = outputFilePath;
+		}
+		else
+		{
+			// CreateZip == false: ZIP を作成しない
+			// OpenFolderPath は Work 作品フォルダ
+			openFolderPath = this.appSettings.CreateWorkSeriesFolderPath(bindingSeries.Series.Title);
+		}
+
+		// 7. BindingRepository.UpdateAfterBindingAsync() を呼び出す
 		await bindingRepository.UpdateAfterBindingAsync(
 			clonedSeries,
 			this.bindingStore.RemoveFromBindingQueueAfterCompletion.Value,
 			cancellationToken);
 
-		// 9. BindingRepository の DB 更新が正常終了した後でのみ、正本 MangaSeries を更新する
+		// 8. BindingRepository の DB 更新が正常終了した後でのみ、正本 MangaSeries を更新する
 		bindingSeries.Series.BoundEndVolume = clonedSeries.BoundEndVolume;
 
-		// 10. MangaSeriesStore.NotifySeriesChanged(seriesId) を呼び出す
+		// 9. MangaSeriesStore.NotifySeriesChanged(seriesId) を呼び出す
 		mangaSeriesStore.NotifySeriesChanged(bindingSeries.Series.SeriesId);
 
-		// 11. BindingStore.RemoveFromBindingQueueAfterCompletion.Value == true の場合のみ、
+		// 10. BindingStore.RemoveFromBindingQueueAfterCompletion.Value == true の場合のみ、
 		//     BindingQueueDispatcher.Remove(seriesId) を呼び出す
 		if (this.bindingStore.RemoveFromBindingQueueAfterCompletion.Value)
 		{
 			bindingQueueDispatcher.Remove(bindingSeries.Series.SeriesId);
 		}
 
-		// 12. 全処理正常終了後、BindingCompletionResult を生成して返す
-		return new BindingCompletionResult(bindingSeries, outputFilePath);
+		// 11. 全処理正常終了後、BindingCompletionResult を生成して返す
+		return new BindingCompletionResult(bindingSeries, outputFilePath, openFolderPath, selectFilePath);
 	}
 
 	/// <summary>
