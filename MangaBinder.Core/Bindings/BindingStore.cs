@@ -149,6 +149,11 @@ public class BindingStore : IDisposable
 	public BindableReactiveProperty<bool> HasExistingWorkFolder { get; }
 
 	/// <summary>
+	/// 現在のBindingTargetに対応する、作品単位のWorkフォルダパスを取得または設定します。
+	/// 製本セッション中の正本として機能し、初期値は string.Empty です。
+	/// </summary>
+	public BindableReactiveProperty<string> WorkSeriesFolderPath { get; }
+
 	/// 素材展開方法を取得または設定します。
 	/// 初期値は <see cref="global::MangaBinder.Bindings.ImageExpansionMethod.Recreate"/> です。
 	/// </summary>
@@ -246,6 +251,9 @@ public class BindingStore : IDisposable
 		this.HasExistingWorkFolder = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
+		this.WorkSeriesFolderPath = new BindableReactiveProperty<string>(string.Empty)
+			.AddTo(ref this.disposableBag);
+
 		this.ImageExpansionMethod = new BindableReactiveProperty<global::MangaBinder.Bindings.ImageExpansionMethod>(
 			global::MangaBinder.Bindings.ImageExpansionMethod.Recreate)
 			.AddTo(ref this.disposableBag);
@@ -254,10 +262,10 @@ public class BindingStore : IDisposable
 		{
 			new ImageExpansionOption(
 				global::MangaBinder.Bindings.ImageExpansionMethod.Recreate,
-				"作品フォルダを新規作成する（既存フォルダ削除）"),
+				"作品フォルダを新規作成（既存フォルダ削除）"),
 			new ImageExpansionOption(
 				global::MangaBinder.Bindings.ImageExpansionMethod.UseExisting,
-				"既存の画像を使用する"),
+				"既存のフォルダを再利用する"),
 		}.AsReadOnly();
 
 		this.VolumeFolderDigitOptions = new[]
@@ -421,6 +429,7 @@ public class BindingStore : IDisposable
 		// セッション固有の mutable 状態をリセット
 		this.IsManualVolumeOrder.Value = false;
 		this.HasExistingWorkFolder.Value = false;
+		this.WorkSeriesFolderPath.Value = string.Empty;
 		this.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
 		this.VolumeFolderDigits.Value = 2;
 		this.ZipOutputFileName.Value = string.Empty;

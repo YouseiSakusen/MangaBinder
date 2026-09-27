@@ -530,31 +530,33 @@
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.FooterLeftContent>
 				<ui:Button
-					Height="48"
-					MinWidth="140"
-					VerticalAlignment="Center"
+					Style="{StaticResource FooterButtonStyle}"
 					HorizontalAlignment="Left"
-					Command="{Binding GoBackCommand}">
-					<StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-						<ui:SymbolIcon Symbol="ChevronLeft16" FontSize="18" Margin="0,0,6,0" />
-						<TextBlock Text="戻る" VerticalAlignment="Center" />
-					</StackPanel>
-				</ui:Button>
+					Content="戻る"
+					Command="{Binding GoBackCommand}" />
 			</controls:PageLayout.FooterLeftContent>
+
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- FooterContent: 製本をキャンセルボタン（UI確認用） -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<controls:PageLayout.FooterContent>
+				<StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+					<ui:Button
+						Style="{StaticResource FooterButtonStyle}"
+						Content="製本をキャンセル"
+						Command="{Binding CancelCommand}" />
+				</StackPanel>
+			</controls:PageLayout.FooterContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- FooterRightContent: 製本を完了ボタン -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.FooterRightContent>
 				<ui:Button
-					Height="48"
-					MinWidth="140"
-					VerticalAlignment="Center"
+					Style="{StaticResource FooterPrimaryButtonStyle}"
 					HorizontalAlignment="Right"
-					Appearance="Primary"
-					Command="{Binding StartBindingCommand}">
-					<TextBlock Text="製本を完了" VerticalAlignment="Center" />
-				</ui:Button>
+					Content="製本を完了"
+					Command="{Binding StartBindingCommand}" />
 			</controls:PageLayout.FooterRightContent>
 
 		</controls:PageLayout>

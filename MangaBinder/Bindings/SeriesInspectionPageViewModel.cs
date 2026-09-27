@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Controls;
@@ -91,6 +92,9 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 	/// <summary>選択した巻をPrepressで開くコマンドを取得します。</summary>
 	public ReactiveCommand<BindingVolume> NavigateToPrepressCommand { get; }
+
+	/// <summary>製本をキャンセルするコマンドを取得します。</summary>
+	public ReactiveCommand CancelCommand { get; }
 
 	/// <summary>
 	/// <see cref="SeriesInspectionPageViewModel"/> の新しいインスタンスを初期化します。
@@ -224,12 +228,28 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			// VolumeThumbnailsPage へ遷移
 			this.navigationService.NavigateWithHierarchy(typeof(VolumeThumbnailsPage));
 		}).AddTo(ref this.disposableBag);
+
+		this.CancelCommand = new ReactiveCommand()
+			.AddTo(ref this.disposableBag);
+		this.CancelCommand.Subscribe(async _ => await this.executeCancelAsync())
+			.AddTo(ref this.disposableBag);
 	}
 
 	/// <inheritdoc/>
 	public async ValueTask InitializeDataAsync()
 	{
-		_ = this.executeSeriesInspectionAsync();
+		await this.executeSeriesInspectionAsync();
+	}
+
+	/// <summary>
+	/// 製本キャンセル処理を実行します。
+	/// Scoped な BindingCancelViewModel を動的に生成して ShowAsync() を呼び出します。
+	/// </summary>
+	private async ValueTask executeCancelAsync()
+	{
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var viewModel = scope.ServiceProvider.GetRequiredService<BindingCancelViewModel>();
+		await viewModel.ShowAsync();
 	}
 
 	/// <summary>
@@ -239,6 +259,10 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	{
 		using (this.loadingService.Begin("展開・変換・検査中..."))
 		{
+			// SeriesInspectionPage へのNavigation と LoadingService.Begin() 後、
+			// 高優先度Dispatcher処理（Render等）を先に処理して UI を描画させる
+			await Dispatcher.Yield(DispatcherPriority.Background);
+
 			try
 			{
 				using var scope = this.serviceScopeFactory.CreateScope();

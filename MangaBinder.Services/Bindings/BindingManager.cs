@@ -57,9 +57,20 @@ public class BindingManager
 			return availabilityResult;
 		}
 
-		// 成功した場合のみ、呼び出し元コンテキストで BindingTarget を設定
-		// セッション状態の初期化は BindingStore の BindingTarget 変更通知で自動実行される
+		// 成功した場合のみ、呼び出し元コンテキストで BindingTarget と WorkSeriesFolderPath を設定
+		// BindingTarget 変更通知で clearCurrentBindingSession() が実行されるため、
+		// WorkSeriesFolderPath が一度クリアされた後、改めて設定される構造
+		// 同一BindingTarget参照が再設定された場合でも変更通知が発生しない場合、
+		// WorkSeriesFolderPath には現在のパスが設定される
+
+		// 1. 作品Workフォルダパスを生成
+		var workSeriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(bindingSeries.Series.Title);
+
+		// 2. BindingTarget を設定（この時点で clearCurrentBindingSession() が実行される）
 		this.bindingStore.BindingTarget.Value = bindingSeries;
+
+		// 3. WorkSeriesFolderPath を設定
+		this.bindingStore.WorkSeriesFolderPath.Value = workSeriesFolderPath;
 
 		return availabilityResult;
 	}
@@ -148,6 +159,72 @@ public class BindingManager
 			cancellationToken);
 
 		return new BindingStartableStatus(outputFilePath, outputFileExists, totalSizeBytes);
+	}
+
+	/// <summary>
+	/// 現在の製本セッションをキャンセルします。
+	/// 
+	/// deleteWorkFolder が true の場合、BindingStore.WorkSeriesFolderPath に対応する
+	/// Work 作品フォルダを削除します。
+	/// フォルダ削除に失敗しても、製本セッション自体は必ず終了します。
+	/// 削除失敗時の例外は呼び出し元へ伝播します。
+	/// 
+	/// BindingTarget が設定されていない場合は、何もせず return します。
+	/// </summary>
+	/// <param name="deleteWorkFolder">
+	/// true の場合、Work 作品フォルダを削除します。
+	/// false の場合、フォルダは削除せず、製本セッション状態のみクリアします。
+	/// </param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	/// <returns>非同期処理のタスク。</returns>
+	/// <exception cref="IOException">
+	/// Work 作品フォルダの削除中に IO エラーが発生した場合。
+	/// 例外が発生した場合でも製本セッションは必ず終了します。
+	/// </exception>
+	/// <exception cref="UnauthorizedAccessException">
+	/// Work 作品フォルダの削除中にアクセス権限がない場合。
+	/// 例外が発生した場合でも製本セッションは必ず終了します。
+	/// </exception>
+	/// <exception cref="OperationCanceledException">
+	/// キャンセルトークンがキャンセルされた場合。
+	/// 例外が発生した場合でも製本セッションは必ず終了します。
+	/// </exception>
+	public async ValueTask CancelAsync(
+		bool deleteWorkFolder = false,
+		CancellationToken cancellationToken = default)
+	{
+		// BindingTarget が設定されていない場合は何もしない
+		var bindingSeries = this.bindingStore.BindingTarget.Value;
+		if (bindingSeries is null)
+		{
+			return;
+		}
+
+		try
+		{
+			// deleteWorkFolder が true の場合のみ、Work 作品フォルダを削除対象とする
+			if (deleteWorkFolder)
+			{
+				var workSeriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
+
+				// 削除条件：WorkSeriesFolderPath が空ではなく、フォルダが存在する場合のみ
+				if (!string.IsNullOrEmpty(workSeriesFolderPath) && Directory.Exists(workSeriesFolderPath))
+				{
+					// UIスレッドをブロックしないよう Task.Run で非同期実行
+					await Task.Run(
+						() => Directory.Delete(workSeriesFolderPath, recursive: true),
+						cancellationToken).ConfigureAwait(false);
+				}
+			}
+		}
+		finally
+		{
+			// Workフォルダ削除の成否に関係なく、製本セッション状態を必ずクリア
+			// BindingTarget を null にすることで、BindingStore が既存の仕組みにより
+			// BindingVolumes、Materials、WorkSeriesFolderPath、ZipOutputFileName、
+			// 各種製本セッションフラグ／設定値を一括クリアする
+			this.bindingStore.BindingTarget.Value = null;
+		}
 	}
 
 	/// <summary>
@@ -250,8 +327,8 @@ public class BindingManager
 		else
 		{
 			// CreateZip == false: ZIP を作成しない
-			// OpenFolderPath は Work 作品フォルダ
-			openFolderPath = this.appSettings.CreateWorkSeriesFolderPath(bindingSeries.Series.Title);
+			// OpenFolderPath は BindingStore.WorkSeriesFolderPath から取得した Work 作品フォルダ
+			openFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
 		}
 
 		// 7. BindingRepository.UpdateAfterBindingAsync() を呼び出す

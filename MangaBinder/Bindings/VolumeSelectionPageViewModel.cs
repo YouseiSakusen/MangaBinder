@@ -89,6 +89,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// <summary>前画面へ戻るコマンドを取得します。</summary>
     public ReactiveCommand GoBackCommand { get; }
 
+    /// <summary>製本をキャンセルするコマンドを取得します。</summary>
+    public ReactiveCommand CancelCommand { get; }
+
     /// <summary>指定された MaterialItemViewModel の選択状態を反転するコマンドを取得します。</summary>
     public ReactiveCommand<MaterialItemViewModel> ToggleMaterialSelectionCommand { get; }
 
@@ -163,6 +166,11 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         this.GoBackCommand = new ReactiveCommand()
             .AddTo(ref this.disposableBag);
         this.GoBackCommand.Subscribe(_ => this.executeGoBack())
+            .AddTo(ref this.disposableBag);
+
+        this.CancelCommand = new ReactiveCommand()
+            .AddTo(ref this.disposableBag);
+        this.CancelCommand.Subscribe(async _ => await this.executeCancelAsync())
             .AddTo(ref this.disposableBag);
 
         this.ToggleMaterialSelectionCommand = new ReactiveCommand<MaterialItemViewModel>()
@@ -641,11 +649,23 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     }
 
     /// <summary>
+    /// <summary>
     /// ナビゲーション戻る処理を実行します。
     /// </summary>
     private void executeGoBack()
     {
         this.navigationService.GoBack();
+    }
+
+    /// <summary>
+    /// 製本キャンセル処理を実行します。
+    /// Scoped な BindingCancelViewModel を動的に生成して ShowAsync() を呼び出します。
+    /// </summary>
+    private async ValueTask executeCancelAsync()
+    {
+        using var scope = this.serviceScopeFactory.CreateScope();
+        var viewModel = scope.ServiceProvider.GetRequiredService<BindingCancelViewModel>();
+        await viewModel.ShowAsync();
     }
 
     /// <inheritdoc/>

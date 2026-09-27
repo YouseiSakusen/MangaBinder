@@ -160,72 +160,6 @@
 			EyecatchValueText="{Binding SelectedVolumeTotalImageBytes.Value, Converter={StaticResource BytesToDisplaySizeConverter}, Mode=OneWay}">
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<!-- TopContent: 上部設定Card群（素材展開方法 + 巻番号の桁数） -->
-			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.TopContent>
-				<Grid>
-					<Grid.ColumnDefinitions>
-						<ColumnDefinition Width="250" />
-						<ColumnDefinition Width="Auto" />
-						<ColumnDefinition Width="80" />
-						<ColumnDefinition Width="Auto" />
-						<ColumnDefinition Width="20" />
-					</Grid.ColumnDefinitions>
-
-					<!-- Card 1：素材展開先一時フォルダへの展開 -->
-					<ui:Card Grid.Column="1" Padding="14,10">
-						<StackPanel VerticalAlignment="Center">
-							<TextBlock
-								Text="素材展開先一時フォルダへの展開"
-								FontSize="12"
-								FontWeight="SemiBold"
-								Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-								Margin="0,0,0,6" />
-							<ComboBox
-								ItemsSource="{Binding ImageExpansionOptions}"
-								DisplayMemberPath="Label"
-								SelectedValuePath="Method"
-								SelectedValue="{Binding ImageExpansionMethod.Value, Mode=TwoWay}"
-								IsEnabled="{Binding HasExistingWorkFolder.Value}"
-								Width="300">
-							</ComboBox>
-						</StackPanel>
-					</ui:Card>
-
-					<!-- Card 2：巻番号の桁数 -->
-					<ui:Card Grid.Column="3" Padding="14,10">
-						<StackPanel VerticalAlignment="Center">
-							<TextBlock
-								Text="巻番号の桁数"
-								FontSize="12"
-								FontWeight="SemiBold"
-								Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-								Margin="0,0,0,6" />
-							<ComboBox
-								ItemsSource="{Binding VolumeFolderDigitOptions}"
-								SelectedValuePath="Digits"
-								SelectedValue="{Binding VolumeFolderDigits.Value, Mode=TwoWay}"
-								Width="180">
-								<ComboBox.ItemTemplate>
-									<DataTemplate>
-										<StackPanel Orientation="Horizontal">
-											<TextBlock
-												Text="{Binding Label}"
-												Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-											<TextBlock
-												Text="{Binding ExampleText}"
-												Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-												Margin="4,0,0,0" />
-										</StackPanel>
-									</DataTemplate>
-								</ComboBox.ItemTemplate>
-							</ComboBox>
-						</StackPanel>
-					</ui:Card>
-				</Grid>
-			</controls:PageLayout.TopContent>
-
-			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- LeftContent: 左パネル（作品情報 + 素材内訳） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.LeftContent>
@@ -328,62 +262,99 @@
 			</controls:PageLayout.LeftContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<!-- MainContent: 中央パネル（素材TreeView） -->
+			<!-- MainContent: 中央パネル（素材一覧ヘッダー + 素材TreeView） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.MainContent>
-				<TreeView
-					ItemsSource="{Binding MaterialItems}"
-					ItemTemplate="{StaticResource NodeTemplate}"
-					Background="Transparent"
-					BorderThickness="0"
-					Padding="0,0,40,0"
-					InputMethod.PreferredImeState="Off"
-					VirtualizingPanel.IsVirtualizing="False"
-					ScrollViewer.VerticalScrollBarVisibility="Auto"
-					ScrollViewer.HorizontalScrollBarVisibility="Auto"
-					behaviors:VolumeSelectionInitializeBehavior.IsEnabled="True"
-					behaviors:TreeViewSpaceKeyBehavior.IsEnabled="True"
-					behaviors:TreeViewSpaceKeyBehavior.Command="{Binding ToggleMaterialSelectionCommand}"
-					behaviors:TreeViewNodeClickToggleCheckBehavior.IsEnabled="True"
-					behaviors:TreeViewNodeClickToggleCheckBehavior.Command="{Binding ToggleMaterialSelectionCommand}"
-					behaviors:TreeViewRightClickSelectBehavior.IsEnabled="True"
-					dd:DragDrop.IsDragSource="True"
-					dd:DragDrop.UseDefaultDragAdorner="True"
-					dd:DragDrop.UseDefaultEffectDataTemplate="True"
-					dd:DragDrop.DragHandler="{Binding MaterialItemDragHandler}" />
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="*" />
+					</Grid.RowDefinitions>
+
+					<!-- Row 0: 素材一覧ヘッダー -->
+					<StackPanel
+						Grid.Row="0"
+						Orientation="Horizontal"
+						VerticalAlignment="Center"
+						Margin="0,0,0,6">
+						<ui:SymbolIcon
+							Symbol="ImageMultiple16"
+							FontSize="18"
+							VerticalAlignment="Center"
+							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+							Margin="0,0,6,0" />
+						<TextBlock
+							Text="素材一覧"
+							FontSize="12"
+							FontWeight="SemiBold"
+							VerticalAlignment="Center"
+							Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+					</StackPanel>
+
+					<!-- Row 1: 素材TreeView -->
+					<TreeView
+						Grid.Row="1"
+						ItemsSource="{Binding MaterialItems}"
+						ItemTemplate="{StaticResource NodeTemplate}"
+						Background="Transparent"
+						BorderThickness="0"
+						Padding="0,0,40,0"
+						InputMethod.PreferredImeState="Off"
+						VirtualizingPanel.IsVirtualizing="False"
+						ScrollViewer.VerticalScrollBarVisibility="Auto"
+						ScrollViewer.HorizontalScrollBarVisibility="Auto"
+						behaviors:VolumeSelectionInitializeBehavior.IsEnabled="True"
+						behaviors:TreeViewSpaceKeyBehavior.IsEnabled="True"
+						behaviors:TreeViewSpaceKeyBehavior.Command="{Binding ToggleMaterialSelectionCommand}"
+						behaviors:TreeViewNodeClickToggleCheckBehavior.IsEnabled="True"
+						behaviors:TreeViewNodeClickToggleCheckBehavior.Command="{Binding ToggleMaterialSelectionCommand}"
+						behaviors:TreeViewRightClickSelectBehavior.IsEnabled="True"
+						dd:DragDrop.IsDragSource="True"
+						dd:DragDrop.UseDefaultDragAdorner="True"
+						dd:DragDrop.UseDefaultEffectDataTemplate="True"
+						dd:DragDrop.DragHandler="{Binding MaterialItemDragHandler}" />
+				</Grid>
 			</controls:PageLayout.MainContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<!-- RightContent: 右パネル（選択巻リスト） -->
+			<!-- RightContent: 右パネル（2行1列: 選択巻一覧 + 設定領域） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.RightContent>
 				<Border Margin="12,0,0,0" Padding="0">
 					<Grid>
 						<Grid.RowDefinitions>
-							<RowDefinition Height="Auto" />
-							<RowDefinition Height="Auto" />
-							<RowDefinition Height="*" />
-							<RowDefinition Height="Auto" />
+							<RowDefinition Height="3*" />
+							<RowDefinition Height="1*" />
 						</Grid.RowDefinitions>
 
-						<!-- ─ Row 0: 新規製本表示 ─ -->
-						<TextBlock
+						<!-- ─ Row 0: 選択巻一覧 ─ -->
+						<Grid Grid.Row="0">
+							<Grid.RowDefinitions>
+								<RowDefinition Height="Auto" />
+								<RowDefinition Height="Auto" />
+								<RowDefinition Height="*" />
+								<RowDefinition Height="Auto" />
+							</Grid.RowDefinitions>
+
+						<!-- ─ Row 0: 製本対象巻ヘッダー ─ -->
+						<StackPanel
 							Grid.Row="0"
-							Text="🆕 新規製本"
-							FontSize="12"
-							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+							Orientation="Horizontal"
+							VerticalAlignment="Center"
 							Margin="0,0,0,6">
-							<TextBlock.Style>
-								<Style TargetType="TextBlock">
-									<Setter Property="Visibility" Value="Collapsed" />
-									<Style.Triggers>
-										<DataTrigger Binding="{Binding HasExistingWorkFolder.Value}" Value="False">
-											<Setter Property="Visibility" Value="Visible" />
-										</DataTrigger>
-									</Style.Triggers>
-								</Style>
-							</TextBlock.Style>
-						</TextBlock>
+							<ui:SymbolIcon
+								Symbol="BoxMultipleCheckmark20"
+								FontSize="18"
+								VerticalAlignment="Center"
+								Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+								Margin="0,0,6,0" />
+							<TextBlock
+								Text="製本対象巻"
+								FontSize="12"
+								FontWeight="SemiBold"
+								VerticalAlignment="Center"
+								Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+						</StackPanel>
 
 						<!-- ─ Row 1: ヘッダー行 ─ -->
 						<Grid Grid.Row="1" Margin="0,0,0,2">
@@ -474,7 +445,9 @@
 											TextAlignment="Right"
 											Padding="0,0,4,0"
 											FontSize="12"
-											VerticalAlignment="Center" />
+											VerticalAlignment="Center"
+											ClearButtonEnabled="False"
+											behaviors:SelectAllOnFocusBehavior.IsEnabled="True" />
 
 										<!-- Column 1: 種別アイコン -->
 										<ui:SymbolIcon
@@ -510,20 +483,150 @@
 						</ListView>
 
 						<!-- ─ Row 3: ドラッグして除外領域 ─ -->
-						<Border
+						<ui:Card
 							Grid.Row="3"
-							Padding="8,6"
-							BorderThickness="0"
-							Background="Transparent"
-							Margin="0,8,0,0"
-							dd:DragDrop.IsDropTarget="True"
-							dd:DragDrop.DropHandler="{Binding BindingVolumeRemoveDropHandler}">
-							<TextBlock
-								Text="🗑 ここへドラッグして除外"
-								FontSize="11"
-								HorizontalAlignment="Center"
-								Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-						</Border>
+							Padding="12,8"
+							Margin="0,8,3,0">
+							<Border
+								Padding="0"
+								BorderThickness="0"
+								Background="Transparent"
+								dd:DragDrop.IsDropTarget="True"
+								dd:DragDrop.DropHandler="{Binding BindingVolumeRemoveDropHandler}">
+								<TextBlock
+									Text="🗑 ここへドラッグして除外"
+									FontSize="11"
+									HorizontalAlignment="Center"
+									Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+							</Border>
+						</ui:Card>
+						</Grid>
+
+						<!-- ─ Row 1: 設定領域 ─ -->
+						<ScrollViewer
+							Grid.Row="1"
+							VerticalScrollBarVisibility="Auto"
+							HorizontalScrollBarVisibility="Disabled">
+
+							<!-- 外側Card：画像展開設定グループ -->
+							<ui:Card Padding="12,8" Margin="0,0,3,0">
+								<Grid>
+									<Grid.RowDefinitions>
+										<RowDefinition Height="64" />
+										<RowDefinition Height="Auto" />
+									</Grid.RowDefinitions>
+
+									<!-- Row 0: グループ見出し -->
+									<StackPanel Grid.Row="0" VerticalAlignment="Center">
+										<TextBlock
+											Text="画像展開設定"
+											FontSize="14"
+											FontWeight="SemiBold"
+											Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+											Margin="0,0,0,4" />
+										<TextBlock
+											Text="次画面の画像展開の動作を設定します"
+											FontSize="11"
+											Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+									</StackPanel>
+
+									<!-- Row 1: 個別設定Cards -->
+									<Grid Grid.Row="1">
+										<Grid.RowDefinitions>
+											<RowDefinition Height="Auto" />
+											<RowDefinition Height="Auto" />
+										</Grid.RowDefinitions>
+
+										<!-- Row 0: 設定1 - 画像展開時の動作 -->
+										<ui:Card Grid.Row="0" Padding="12,8">
+											<Grid Height="44">
+												<Grid.ColumnDefinitions>
+													<ColumnDefinition Width="*" />
+													<ColumnDefinition Width="16" />
+													<ColumnDefinition Width="Auto" />
+												</Grid.ColumnDefinitions>
+
+												<!-- Column 0: 項目名・説明 -->
+												<StackPanel Grid.Column="0">
+													<TextBlock
+														Text="画像展開時の動作"
+														FontSize="12"
+														FontWeight="SemiBold"
+														Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+													<TextBlock
+														Text="画像展開先の動作を選択します"
+														FontSize="11"
+														Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+														Margin="0,2,0,0" />
+												</StackPanel>
+
+												<!-- Column 2: ComboBox -->
+												<ComboBox
+													Grid.Column="2"
+													ItemsSource="{Binding ImageExpansionOptions}"
+													DisplayMemberPath="Label"
+													SelectedValuePath="Method"
+													SelectedValue="{Binding ImageExpansionMethod.Value, Mode=TwoWay}"
+													IsEnabled="{Binding HasExistingWorkFolder.Value}"
+													Width="240"
+													VerticalAlignment="Center"
+													HorizontalAlignment="Right" />
+											</Grid>
+										</ui:Card>
+
+										<!-- Row 1: 設定2 - 巻フォルダ名の桁数 -->
+										<ui:Card Grid.Row="1" Padding="12,8" Margin="0,6,0,0">
+											<Grid Height="44">
+												<Grid.ColumnDefinitions>
+													<ColumnDefinition Width="*" />
+													<ColumnDefinition Width="16" />
+													<ColumnDefinition Width="Auto" />
+												</Grid.ColumnDefinitions>
+
+												<!-- Column 0: 項目名・説明 -->
+												<StackPanel Grid.Column="0">
+													<TextBlock
+														Text="巻フォルダ名の桁数"
+														FontSize="12"
+														FontWeight="SemiBold"
+														Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+													<TextBlock
+														Text="巻の番号桁数を指定します"
+														FontSize="11"
+														Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+														Margin="0,2,0,0" />
+												</StackPanel>
+
+												<!-- Column 2: ComboBox -->
+												<ComboBox
+													Grid.Column="2"
+													ItemsSource="{Binding VolumeFolderDigitOptions}"
+													SelectedValuePath="Digits"
+													SelectedValue="{Binding VolumeFolderDigits.Value, Mode=TwoWay}"
+													Width="180"
+													VerticalAlignment="Center"
+													HorizontalAlignment="Right">
+													<ComboBox.ItemTemplate>
+														<DataTemplate>
+															<StackPanel Orientation="Horizontal">
+																<TextBlock
+																	Text="{Binding Label}"
+																	Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+																<TextBlock
+																	Text="{Binding ExampleText}"
+																	Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+																	Margin="4,0,0,0" />
+															</StackPanel>
+														</DataTemplate>
+													</ComboBox.ItemTemplate>
+												</ComboBox>
+											</Grid>
+										</ui:Card>
+									</Grid>
+								</Grid>
+							</ui:Card>
+
+						</ScrollViewer>
 					</Grid>
 				</Border>
 			</controls:PageLayout.RightContent>
@@ -533,35 +636,33 @@
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.FooterLeftContent>
 				<ui:Button
-					Height="48"
-					MinWidth="140"
-					VerticalAlignment="Center"
+					Style="{StaticResource FooterButtonStyle}"
 					HorizontalAlignment="Left"
-					Command="{Binding GoBackCommand}">
-					<StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-						<ui:SymbolIcon Symbol="ChevronLeft16" FontSize="18" Margin="0,0,6,0" />
-						<TextBlock Text="戻る" VerticalAlignment="Center" />
-					</StackPanel>
-				</ui:Button>
+					Content="戻る"
+					Command="{Binding GoBackCommand}" />
 			</controls:PageLayout.FooterLeftContent>
+
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- FooterContent: 製本をキャンセルボタン（UI確認用） -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<controls:PageLayout.FooterContent>
+				<ui:Button
+					Style="{StaticResource FooterButtonStyle}"
+					HorizontalAlignment="Right" 
+					Content="製本をキャンセル"
+					Command="{Binding CancelCommand}" />
+			</controls:PageLayout.FooterContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- FooterRightContent: 次へボタン -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.FooterRightContent>
 				<ui:Button
-					Height="48"
-					MinWidth="140"
-					VerticalAlignment="Center"
+					Style="{StaticResource FooterPrimaryButtonStyle}"
 					HorizontalAlignment="Right"
-					Appearance="Primary"
+					Content="次へ"
 					IsEnabled="{Binding CanGoNext.Value}"
-					Command="{Binding GoNextCommand}">
-					<StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-						<TextBlock Text="次へ" VerticalAlignment="Center" Margin="0,0,6,0" />
-						<ui:SymbolIcon Symbol="ChevronRight16" FontSize="18" />
-					</StackPanel>
-				</ui:Button>
+					Command="{Binding GoNextCommand}" />
 			</controls:PageLayout.FooterRightContent>
 		</controls:PageLayout>
 

@@ -57,6 +57,24 @@
 			  </Setter.Value>
 		  </Setter>
 	  </Style>
+
+	  <!-- フッターボタン共通Style -->
+	  <Style
+		x:Key="FooterButtonStyle"
+		TargetType="{x:Type ui:Button}"
+		BasedOn="{StaticResource DefaultUiButtonStyle}">
+		<Setter Property="Height" Value="48" />
+		<Setter Property="MinWidth" Value="140" />
+		<Setter Property="VerticalAlignment" Value="Center" />
+	</Style>
+
+	  <!-- フッター Primary ボタンStyle -->
+	  <Style
+		  x:Key="FooterPrimaryButtonStyle"
+		  TargetType="{x:Type ui:Button}"
+		  BasedOn="{StaticResource FooterButtonStyle}">
+		  <Setter Property="Appearance" Value="Primary" />
+	  </Style>
 	</ResourceDictionary>
   </Application.Resources>
 </Application>

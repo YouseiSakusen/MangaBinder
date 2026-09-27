@@ -28,6 +28,8 @@
 							<RowDefinition Height="Auto" />
 							<!-- 本文エリア（*） -->
 							<RowDefinition Height="*" />
+							<!-- 本文とフッタの余白 -->
+							<RowDefinition Height="8" />
 							<!-- フッタエリア（Auto） -->
 							<RowDefinition Height="Auto" />
 						</Grid.RowDefinitions>
@@ -131,17 +133,17 @@
 						<!-- ═══════════════════════════════════════════════════════════════ -->
 						<!-- 左カラム - フッタ -->
 						<!-- ═══════════════════════════════════════════════════════════════ -->
-						<ContentPresenter Grid.Column="0" Grid.Row="2" Content="{TemplateBinding FooterLeftContent}" />
+						<ContentPresenter Grid.Column="0" Grid.Row="3" Content="{TemplateBinding FooterLeftContent}" />
 
 						<!-- ═══════════════════════════════════════════════════════════════ -->
 						<!-- 中央カラム - フッタ -->
 						<!-- ═══════════════════════════════════════════════════════════════ -->
-						<ContentPresenter Grid.Column="1" Grid.Row="2" Content="{TemplateBinding FooterContent}" />
+						<ContentPresenter Grid.Column="1" Grid.Row="3" Content="{TemplateBinding FooterContent}" />
 
 						<!-- ═══════════════════════════════════════════════════════════════ -->
 						<!-- 右カラム - フッタ -->
 						<!-- ═══════════════════════════════════════════════════════════════ -->
-						<ContentPresenter Grid.Column="3" Grid.Row="2" Content="{TemplateBinding FooterRightContent}" />
+						<ContentPresenter Grid.Column="3" Grid.Row="3" Content="{TemplateBinding FooterRightContent}" />
 					</Grid>
 
 					<ControlTemplate.Triggers>

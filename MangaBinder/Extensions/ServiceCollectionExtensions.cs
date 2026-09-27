@@ -104,6 +104,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<BindingQueueDispatcher>();
 		services.AddScoped<BindingRepository>();
 		services.AddScoped<BindingManager>();
+		services.AddScoped<BindingCancelViewModel>();
 
 		services.AddScoped<MaterialArchiveExtractor>();
 		services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<AppSettings>().ConnectionString));

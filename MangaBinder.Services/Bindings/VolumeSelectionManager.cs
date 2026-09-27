@@ -67,7 +67,7 @@ public class VolumeSelectionManager
 		}
 
 		// ③ 素材展開方法の初期状態を決定（素材Loader実行前に設定）
-		this.initializeImageExpansionState(bindingTarget.Series);
+		this.initializeImageExpansionState();
 		this.initializeVolumeFolderDigits(bindingTarget.Series);
 
 		// ④ SeriesMaterialFolderLoader.GetMaterialsAsync() を呼び出す
@@ -667,9 +667,9 @@ public class VolumeSelectionManager
 
 	/// <summary>
 	/// Work 作品フォルダの存在に基づいて、素材展開方法の初期状態を決定します。
+	/// BindingStore.WorkSeriesFolderPath から作品別フォルダの存在確認を行います。
 	/// </summary>
-	/// <param name="series">対象作品。</param>
-	private void initializeImageExpansionState(MangaSeries series)
+	private void initializeImageExpansionState()
 	{
 		// WorkFolder 設定が無効な場合は Recreate で統一
 		if (!this.appSettings.HasValidWorkFolder)
@@ -679,8 +679,8 @@ public class VolumeSelectionManager
 			return;
 		}
 
-		// WorkFolder 設定が有効な場合、作品別フォルダの存在確認
-		var seriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(series.Title);
+		// WorkFolder 設定が有効な場合、BindingStore.WorkSeriesFolderPath から作品別フォルダの存在確認
+		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
 		var folderExists = Directory.Exists(seriesFolderPath);
 
 		if (folderExists)

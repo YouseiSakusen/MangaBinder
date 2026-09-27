@@ -94,31 +94,36 @@ public class SeriesInspectionManager
 		// ⑤ ZIP ファイル名の初期生成を実行
 		this.bindingManager.InitializeZipOutputFileName();
 
-		// ⑥ AppSettings.CreateWorkSeriesFolderPath() を使用して、対象作品の作品Workフォルダパスを取得する
-		var seriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(bindingTarget.Series.Title);
+		// ⑥ BindingStore.WorkSeriesFolderPath から対象作品の作品Workフォルダパスを取得する
+		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
 
-		// ⑤ BindingStore.ImageExpansionMethod が Recreate の場合、作品Workフォルダが存在すれば削除する
-		// ファイルシステムの重い処理でUIスレッドをブロックしないようにする
-		if (this.bindingStore.ImageExpansionMethod.Value == global::MangaBinder.Bindings.ImageExpansionMethod.Recreate
-			&& Directory.Exists(seriesFolderPath))
-		{
-			await Task.Run(
-				() => Directory.Delete(seriesFolderPath, recursive: true),
-				cancellationToken).ConfigureAwait(false);
-		}
+		// ⑦⑧⑨ 作品Workフォルダの準備（削除・作成・既存巻フォルダ一覧取得）を
+		// UIスレッドをブロックしないよう Task.Run で非同期境界へ移す
+		// 既存Work再利用時でも必ず非同期境界を通る構造にする
+		var existingVolumeFolderNames = await Task.Run(
+			() =>
+			{
+				// ⑦ BindingStore.ImageExpansionMethod が Recreate の場合、作品Workフォルダが存在すれば削除する
+				if (this.bindingStore.ImageExpansionMethod.Value == global::MangaBinder.Bindings.ImageExpansionMethod.Recreate
+					&& Directory.Exists(seriesFolderPath))
+				{
+					Directory.Delete(seriesFolderPath, recursive: true);
+				}
 
-		// ⑥ 作品Workフォルダが存在しない場合を含め、以降の処理で使用できるよう作品Workフォルダを作成する
-		Directory.CreateDirectory(seriesFolderPath);
+				// ⑧ 作品Workフォルダが存在しない場合を含め、以降の処理で使用できるよう作品Workフォルダを作成する
+				Directory.CreateDirectory(seriesFolderPath);
 
-		// ⑦ 作品Workフォルダ直下に既に存在するフォルダの一覧を取得
-		// 各BindingVolumeの既存Work巻フォルダ判定に使用するため、フォルダ名の集合を構築する
-		// StringComparer.OrdinalIgnoreCase で大文字小文字非依存に比較できる集合とする
-		var existingVolumeFolderNames = new HashSet<string>(
-			Directory.GetDirectories(seriesFolderPath)
-				.Select(path => Path.GetFileName(path)),
-			StringComparer.OrdinalIgnoreCase);
+				// ⑨ 作品Workフォルダ直下に既に存在するフォルダの一覧を取得
+				// 各BindingVolumeの既存Work巻フォルダ判定に使用するため、フォルダ名の集合を構築する
+				// StringComparer.OrdinalIgnoreCase で大文字小文字非依存に比較できる集合とする
+				return new HashSet<string>(
+					Directory.GetDirectories(seriesFolderPath)
+						.Select(path => Path.GetFileName(path)),
+					StringComparer.OrdinalIgnoreCase);
+			},
+			cancellationToken).ConfigureAwait(false);
 
-		// ⑧ BindingStore.BindingVolumes を順番に処理して WorkFolderPath を設定し、
+		// ⑩ BindingStore.BindingVolumes を順番に処理して WorkFolderPath を設定し、
 		// 既存巻フォルダの判定と作成を行う
 		// 全 BindingVolume を製本前確認工程の対象とする
 		var volumeFolderDigits = this.bindingStore.VolumeFolderDigits.Value;
@@ -159,13 +164,13 @@ public class SeriesInspectionManager
 			}
 		}
 
-		// ⑨ 全 BindingVolume を EffectiveSourcePath でGroupBy する
+		// ⑪ 全 BindingVolume を EffectiveSourcePath でGroupBy する
 		// 文字列比較には StringComparer.OrdinalIgnoreCase を使用
 		var groupsBySourcePath = this.bindingStore.BindingVolumes
 			.GroupBy(v => v.EffectiveSourcePath, StringComparer.OrdinalIgnoreCase)
 			.ToList();
 
-		// ⑩ System.Threading.Channels を使用した Producer/Consumer パターンを構築
+		// ⑫ System.Threading.Channels を使用した Producer/Consumer パターンを構築
 		// 異常終了時にProducer/Consumer間で相互停止信号を伝播させる構造
 
 		// Bounded Channel を作成：容量32、FullMode=Wait、SingleWriter/Reader=false

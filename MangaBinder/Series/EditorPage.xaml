@@ -908,38 +908,34 @@
             </Grid>
             </controls:PageLayout.RightContent>
 
-            <!-- FooterLeftContent: フッター左側（戻るボタン） -->
-            <controls:PageLayout.FooterLeftContent>
+			<!-- FooterLeftContent: フッター左側（戻るボタン） -->
+			<controls:PageLayout.FooterLeftContent>
 				<ui:Button
-					Height="48"
-					MinWidth="140"
+					Style="{StaticResource FooterButtonStyle}"
 					HorizontalAlignment="Center"
 					Command="{Binding BackCommand}"
 					Content="戻る"
 					Icon="{ui:SymbolIcon ChevronLeft16}" />
 			</controls:PageLayout.FooterLeftContent>
 
-            <!-- FooterContent: フッター中央（保存・登録ボタン） -->
-            <controls:PageLayout.FooterContent>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"  VerticalAlignment="Center">
+			<!-- FooterContent: フッター中央（保存・登録ボタン） -->
+			<controls:PageLayout.FooterContent>
+				<StackPanel Orientation="Horizontal" HorizontalAlignment="Right"  VerticalAlignment="Center">
 					<ui:Button
-						Height="48"
-						MinWidth="140"
+						Style="{StaticResource FooterButtonStyle}"
 						Margin="0,0,8,0"
 						Command="{Binding SaveWorkSeriesCommand}"
 						IsEnabled="{Binding SaveWorkSeriesCommandCanExecute.Value}"
 						Content="一時保存"
 						Icon="{ui:SymbolIcon Save20}" />
 					<ui:Button
-						Height="48"
-						MinWidth="140"
-						Appearance="Primary"
+						Style="{StaticResource FooterPrimaryButtonStyle}"
 						Command="{Binding RegisterSeriesCommand}"
 						IsEnabled="{Binding RegisterSeriesCommandCanExecute.Value}"
 						Content="登録"
 						Icon="{ui:SymbolIcon CheckmarkCircle20}" />
 				</StackPanel>
-            </controls:PageLayout.FooterContent>
+			</controls:PageLayout.FooterContent>
 
         </controls:PageLayout>
 
