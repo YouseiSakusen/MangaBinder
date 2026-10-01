@@ -110,6 +110,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredService<AppSettings>().ConnectionString));
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<VolumeSelectionManager>();
+		services.AddScoped<ArchiveCompareCoordinator>();
 		services.AddScoped<SeriesInspectionManager>();
 		services.AddScoped<VolumeCardThumbnailImageProcessor>();
 		services.AddScoped<VolumeCardThumbnailLoader>();

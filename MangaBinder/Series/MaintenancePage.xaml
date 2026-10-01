@@ -84,28 +84,14 @@
 							Padding="16,0" />
 					</Grid>
 
-					<!-- Column1: 新規作品登録カード -->
-					<ui:Card Grid.Column="1"
-							 Width="200"
-							 Margin="16,0,0,0" Padding="0">
-						<Button
-							Background="Transparent"
-							BorderThickness="0"
-							Padding="14,10"
-							Cursor="Hand"
-							Command="{Binding ShowEditorCommand}">
-							<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-								<ui:SymbolIcon Symbol="BookAdd24" FontSize="48"
-											   Foreground="{DynamicResource BindingAccentBrush}"
-											   Margin="0,0,12,0" VerticalAlignment="Center" />
-								<StackPanel>
-									<TextBlock FontSize="11" Margin="0,0,0,2"
-											   Foreground="{DynamicResource TextFillColorSecondaryBrush}">新規作品</TextBlock>
-									<TextBlock FontSize="16" FontWeight="SemiBold">新規作品登録</TextBlock>
-								</StackPanel>
-							</StackPanel>
-						</Button>
-					</ui:Card>
+					<!-- Column1: 新規作品登録 TopActionButton -->
+					<controls:TopActionButton Grid.Column="1"
+											   Margin="16,0,0,0"
+											   PrimaryText="新規作品登録"
+											   SecondaryLabel="登録済み作品数"
+											   SecondaryValue="{Binding RegisteredSeriesCount.Value, StringFormat={}{0:N0}}"
+											   Symbol="BookAdd24"
+											   Command="{Binding ShowEditorCommand}" />
 				</Grid>
 			</Grid>
 		</controls:PageLayout.TopContent>

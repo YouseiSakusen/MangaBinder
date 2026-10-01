@@ -1,0 +1,53 @@
+﻿<UserControl x:Class="MangaBinder.Controls.TopActionButton"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             x:Name="root"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    <ui:Button Style="{StaticResource TopActionButtonStyle}"
+               Command="{Binding ElementName=root, Path=Command}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- アイコン -->
+            <ui:SymbolIcon Grid.Column="0"
+                           Symbol="{Binding ElementName=root, Path=Symbol}"
+                           FontSize="32"
+                           Foreground="{DynamicResource BindingAccentBrush}"
+                           Margin="0,0,10,0"
+                           VerticalAlignment="Center" />
+
+            <!-- 主テキスト + セカンダリ行 -->
+            <StackPanel Grid.Column="1"
+                        Orientation="Vertical"
+                        VerticalAlignment="Center">
+                <!-- 主操作名 -->
+                <TextBlock Text="{Binding ElementName=root, Path=PrimaryText}"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                <!-- セカンダリ行 -->
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,2,0,0">
+                    <TextBlock Text="{Binding ElementName=root, Path=SecondaryLabel}"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="："
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Visibility="{Binding ElementName=root, Path=ShowValueSeparator, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Text="{Binding ElementName=root, Path=SecondaryValue}"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </ui:Button>
+</UserControl>

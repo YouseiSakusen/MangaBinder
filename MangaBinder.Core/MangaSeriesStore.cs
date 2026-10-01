@@ -1,4 +1,5 @@
 using ObservableCollections;
+using R3;
 
 namespace MangaBinder;
 
@@ -10,20 +11,64 @@ using MangaBinder.Tags;
 /// アプリケーション全体で同一の MangaSeries インスタンスを参照するための中央集中管理を提供します。
 /// また、タグマスタも保持します。
 /// </summary>
-public sealed class MangaSeriesStore
+public sealed class MangaSeriesStore : IDisposable
 {
 	/// <summary>タイトル比較用Comparer。NormalizedTitleInternal のソート・検索に使用します。</summary>
 	private static readonly Comparer<string> titleComparer = Comparer<string>.Default;
 
+	private DisposableBag disposableBag;
 	private readonly ObservableList<MangaTag> tags = new();
 	private readonly ObservableList<MangaSeriesViewModel> workSeriesViewModels = new();
 	private readonly ObservableList<MangaSeriesViewModel> allViewModels = new();
+
+	/// <summary>
+	/// MangaSeriesManager による初期ロード一式が正常完了済みであるかを示す値を取得します。
+	/// true：DB からの初期ロードと BindingQueue 復元がすべて正常完了済み。
+	/// false：初期ロードがまだ実施されていない、または失敗状態。
+	/// 作品件数が0件であることとの区別が重要です。
+	/// </summary>
+	public bool IsInitialized { get; private set; }
+
+	/// <summary>
+	/// 登録済み正式作品の件数を Reactive に取得します。
+	/// MangaSeriesStore.All の件数変更に自動追従します。
+	/// </summary>
+	public BindableReactiveProperty<int> RegisteredSeriesCount { get; }
+
+	/// <summary>
+	/// 登録待ち作品の件数を Reactive に取得します。
+	/// MangaSeriesStore.WorkSeries の件数変更に自動追従します。
+	/// </summary>
+	public BindableReactiveProperty<int> WorkSeriesCount { get; }
 
 	/// <summary>
 	/// <see cref="MangaSeriesStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	public MangaSeriesStore()
 	{
+		// RegisteredSeriesCount を初期化
+		this.RegisteredSeriesCount = new BindableReactiveProperty<int>(this.allViewModels.Count)
+			.AddTo(ref this.disposableBag);
+
+		// All の件数変更を監視
+		this.allViewModels.ObserveCountChanged()
+			.Subscribe(count =>
+			{
+				this.RegisteredSeriesCount.Value = count;
+			})
+			.AddTo(ref this.disposableBag);
+
+		// WorkSeriesCount を初期化
+		this.WorkSeriesCount = new BindableReactiveProperty<int>(this.workSeriesViewModels.Count)
+			.AddTo(ref this.disposableBag);
+
+		// WorkSeries の件数変更を監視
+		this.workSeriesViewModels.ObserveCountChanged()
+			.Subscribe(count =>
+			{
+				this.WorkSeriesCount.Value = count;
+			})
+			.AddTo(ref this.disposableBag);
 	}
 
 	/// <summary>
@@ -100,6 +145,16 @@ public sealed class MangaSeriesStore
 			var viewModel = new MangaSeriesViewModel(mangaSeries);
 			this.workSeriesViewModels.Add(viewModel);
 		}
+	}
+
+	/// <summary>
+	/// MangaSeriesManager による初期ロード一式が正常完了したことを設定します。
+	/// このメソッドは、DB からの取得・BindingQueue 復元などすべての初期化処理が成功した後のみ呼ばれるべきです。
+	/// 初期化に失敗した場合は呼ばないでください。次回の EnsureInitializedAsync() で再試行が可能となります。
+	/// </summary>
+	public void MarkInitialized()
+	{
+		this.IsInitialized = true;
 	}
 
 	/// <summary>
@@ -476,6 +531,12 @@ public sealed class MangaSeriesStore
 				}
 			}
 		}
+	}
+
+	/// <inheritdoc/>
+	public void Dispose()
+	{
+		this.disposableBag.Dispose();
 	}
 
 }

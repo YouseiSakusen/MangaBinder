@@ -59,6 +59,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>Home 画面の表示状態を取得します。</summary>
     public HomeStateInformation HomeStateInformation { get; } = new();
 
+    /// <summary>登録済み正式作品の件数を取得します。MangaSeriesStore.RegisteredSeriesCount を共有します。</summary>
+    public BindableReactiveProperty<int> RegisteredSeriesCount { get; }
+
     /// <summary>設定画面へ遷移するコマンドです。</summary>
     public ReactiveCommand<Unit> NavigateToSettingsCommand { get; }
 
@@ -143,6 +146,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         // Home 用一覧を HomeSeriesStore から取得
         this.Series = this.homeSeriesStore.HomeCards;
 
+        // Store の RegisteredSeriesCount を共有
+        this.RegisteredSeriesCount = this.mangaSeriesStore.RegisteredSeriesCount;
+
         this.SavedSeriesListVerticalOffset = new BindableReactiveProperty<double>(this.appSettings.SeriesListVerticalOffset.Value)
             .AddTo(ref this.disposableBag);
 
@@ -196,21 +202,15 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <inheritdoc/>
     public async ValueTask InitializeDataAsync()
     {
-        // 初回のみ DB から取得して Store へ反映する
-        if (this.mangaSeriesStore.All.Count == 0)
-        {
-            using var managerScope = this.serviceScopeFactory.CreateScope();
-            var manager = managerScope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
-            await manager.GetAllSeriesAsync();
-            // MangaSeriesManager内部でMangaSeriesStore.ReplaceAll()が実行済み
-            // CreateViewが自動追従するため、Home側での二重ReplaceAllは不要
-        }
+        // Manager 側で IsInitialized チェックして、必要な場合だけ DB ロード実行
+        using var managerScope = this.serviceScopeFactory.CreateScope();
+        var manager = managerScope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+        await manager.EnsureInitializedAsync();
 
         // 毎回: HomeState 更新
         using var stateScope = this.serviceScopeFactory.CreateScope();
         var stateRepository = stateScope.ServiceProvider.GetRequiredService<MangaRepository>();
         var homeState = await stateRepository.GetHomeStateInformationAsync();
-        this.HomeStateInformation.SeriesCount.Value                       = homeState.SeriesCount.Value;
         this.HomeStateInformation.HasMaterialSourceFolder.Value           = homeState.HasMaterialSourceFolder.Value;
         this.HomeStateInformation.HasCompletedMaterialFolderScanJob.Value = homeState.HasCompletedMaterialFolderScanJob.Value;
         this.HomeStateInformation.EmptyStateKind.Value                    = homeState.EmptyStateKind.Value;

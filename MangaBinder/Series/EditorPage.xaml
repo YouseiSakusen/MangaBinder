@@ -11,7 +11,7 @@
 	  xmlns:controls="clr-namespace:MangaBinder.Controls"
 	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
 	  xmlns:extensions="clr-namespace:MangaBinder.Extensions"
-	  xmlns:converters="clr-namespace:MangaBinder.Converters"
+	  xmlns:app="clr-namespace:MangaBinder"
 	  mc:Ignorable="d"
 	  d:DesignHeight="800" d:DesignWidth="1200"
 	  Title="作品編集"
@@ -24,11 +24,6 @@
 	</Page.InputBindings>
 
 	<Page.Resources>
-		<!-- 素材ファイル一覧用コンバーター -->
-		<converters:NodeTypeToSymbolConverter x:Key="NodeTypeToSymbolConverter" />
-		<converters:NodeTypeToColorConverter x:Key="NodeTypeToColorConverter" />
-		<converters:NodeTypeToFilledConverter x:Key="NodeTypeToFilledConverter" />
-
 		<!-- bool を Visibility に変換（true -> Visible, false -> Collapsed） -->
 		<BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
@@ -541,8 +536,11 @@
 							Command="{Binding OpenMaterialFolderCommand}"
 							IsEnabled="{Binding EditingSeries.Value.HasMaterialSources}"
 							VerticalAlignment="Center"
-							Content="素材フォルダを開く"
-							Icon="{ui:SymbolIcon FolderOpen24}" />
+							Content="素材フォルダを開く">
+							<ui:Button.Icon>
+								<ui:SymbolIcon Symbol="{x:Static app:AppSymbols.OpenMaterialFolder}" />
+							</ui:Button.Icon>
+						</ui:Button>
 					</Grid>
 
 							<!-- Row 1: ListView -->
@@ -561,14 +559,10 @@
 										<GridViewColumn Header="種別" Width="60">
 											<GridViewColumn.CellTemplate>
 												<DataTemplate>
-													<Grid Width="44">
-														<ui:SymbolIcon
-															HorizontalAlignment="Right"
-															VerticalAlignment="Center"
-															Symbol="{Binding ItemType, Converter={StaticResource NodeTypeToSymbolConverter}}"
-															Filled="{Binding ItemType, Converter={StaticResource NodeTypeToFilledConverter}}"
-															Foreground="{Binding ItemType, Converter={StaticResource NodeTypeToColorConverter}}"
-															FontSize="16" />
+													<Grid Width="44"
+														  HorizontalAlignment="Right"
+														  VerticalAlignment="Center">
+														<controls:MaterialIcon ItemType="{Binding ItemType}" />
 													</Grid>
 												</DataTemplate>
 											</GridViewColumn.CellTemplate>

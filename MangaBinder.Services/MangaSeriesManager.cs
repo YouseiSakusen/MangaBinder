@@ -83,6 +83,21 @@ public class MangaSeriesManager
 	}
 
 	/// <summary>
+	/// MangaSeriesStore が初期化済みでない場合だけ、全 MangaSeries の取得と BindingQueue の復元を実施します。
+	/// 既に初期化済みの場合は何もせず return します。
+	/// </summary>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	public async ValueTask EnsureInitializedAsync(CancellationToken cancellationToken = default)
+	{
+		if (this.mangaSeriesStore.IsInitialized)
+		{
+			return;
+		}
+
+		await this.GetAllSeriesAsync(cancellationToken);
+	}
+
+	/// <summary>
 	/// Home 画面初期化時に全 MangaSeries を取得し、BindingQueue を復元します。
 	/// DB から取得した MangaSeries インスタンスを MangaSeriesStore に格納し、
 	/// Store から取得した参照を BindingQueue や呼び出し元に返すことで、
@@ -138,7 +153,10 @@ public class MangaSeriesManager
 		// 9. BindingQueueDispatcher に復元したBindingQueue一覧を設定する
 		this.bindingQueueDispatcher.ReplaceAll(bindingSeriesList);
 
-		// 10. MangaSeriesStore から取得した MangaSeries 一覧を返す
+		// 10. Store の初期化を完了とマーク
+		this.mangaSeriesStore.MarkInitialized();
+
+		// 11. MangaSeriesStore から取得した MangaSeries 一覧を返す
 		return this.mangaSeriesStore.All.Select(vm => vm.Series.Value).ToList();
 	}
 

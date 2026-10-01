@@ -284,7 +284,10 @@ public class SeriesMaterialFolderLoader
 	{
 		// EntryPath が null/empty のルートエントリは存在しないので、
 		// cacheInfo.Entries から直接、ParentEntryPath が null のものをルートとして扱う
-		var rootEntries = cacheInfo.Entries.Where(e => string.IsNullOrEmpty(e.ParentEntryPath)).ToList();
+		var rootEntries = cacheInfo.Entries
+			.Where(e => string.IsNullOrEmpty(e.ParentEntryPath))
+			.OrderBy(e => e.EntryPath)
+			.ToList();
 
 		foreach (var entry in rootEntries)
 		{
@@ -321,7 +324,10 @@ public class SeriesMaterialFolderLoader
 		};
 
 		// 子エントリを再帰的に復元
-		var childEntries = allEntries.Where(e => e.ParentEntryPath == entry.EntryPath).ToList();
+		var childEntries = allEntries
+			.Where(e => e.ParentEntryPath == entry.EntryPath)
+			.OrderBy(e => e.EntryPath)
+			.ToList();
 		foreach (var childEntry in childEntries)
 		{
 			var childItem = this.restoreArchiveEntryToMaterialItem(childEntry, allEntries, archivePath);

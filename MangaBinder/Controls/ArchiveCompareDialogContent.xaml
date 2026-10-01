@@ -1,0 +1,412 @@
+﻿<UserControl x:Class="MangaBinder.Controls.ArchiveCompareDialogContent"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+			 xmlns:local="clr-namespace:MangaBinder.Controls"
+			 xmlns:converters="clr-namespace:MangaBinder.Converters"
+			 xmlns:bindings="clr-namespace:MangaBinder.Bindings"
+			 mc:Ignorable="d" 
+			 d:DesignHeight="450" d:DesignWidth="800">
+	<Grid Margin="16">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="*"/>
+		</Grid.RowDefinitions>
+
+		<!-- ItemTemplate の共通定義 -->
+		<Grid.Resources>
+			<!-- BoolToVisibilityConverter -->
+			<converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+
+			<!-- NodeTypeToFilledConverter -->
+			<converters:NodeTypeToFilledConverter x:Key="NodeTypeToFilledConverter"/>
+
+			<!-- アーカイブ選択用テンプレート -->
+			<DataTemplate x:Key="ArchiveItemTemplate">
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+					<local:MaterialIcon Grid.Column="0" ItemType="{Binding ItemType}"/>
+					<TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+				</Grid>
+			</DataTemplate>
+
+			<!-- 比較結果TreeView専用の TreeViewItem ControlTemplate -->
+			<!-- WPF標準Templateを参考に、Header領域を* 幅で確保してCompareNodeTemplateへ利用可能横幅を渡す -->
+			<ControlTemplate x:Key="ArchiveCompareTreeViewItemTemplate" TargetType="TreeViewItem">
+				<Border>
+					<Border.Style>
+						<Style TargetType="Border">
+							<Setter Property="Background" Value="Transparent"/>
+							<Style.Triggers>
+								<Trigger Property="IsMouseOver" Value="True">
+									<Setter Property="Background" Value="{DynamicResource SystemFillColorNeutralSecondaryBrush}"/>
+								</Trigger>
+							</Style.Triggers>
+						</Style>
+					</Border.Style>
+					<StackPanel>
+						<!-- Header行：展開ボタン + Content(Header) -->
+						<Grid MinHeight="{TemplateBinding MinHeight}">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="Auto"/>
+								<ColumnDefinition Width="*"/>
+							</Grid.ColumnDefinitions>
+
+							<!-- 展開/折りたたみボタン -->
+							<ToggleButton Grid.Column="0"
+										  Name="Expander"
+										  Width="16"
+										  Height="16"
+										  ClickMode="Press"
+										  IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+										  Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+								<ToggleButton.Style>
+									<Style TargetType="ToggleButton">
+										<Setter Property="Background" Value="Transparent"/>
+										<Setter Property="BorderThickness" Value="0"/>
+										<Setter Property="Padding" Value="0"/>
+										<Setter Property="Template">
+											<Setter.Value>
+												<ControlTemplate TargetType="ToggleButton">
+													<Grid Background="{TemplateBinding Background}">
+														<Path Name="ExpandPath"
+															  Data="M 4 0 L 8 4 L 4 8 Z"
+															  Fill="{TemplateBinding Foreground}"
+															  SnapsToDevicePixels="True"
+															  Margin="2,2,2,2"
+															  HorizontalAlignment="Center"
+															  VerticalAlignment="Center"/>
+													</Grid>
+													<ControlTemplate.Triggers>
+														<Trigger Property="IsChecked" Value="True">
+															<Setter TargetName="ExpandPath" Property="Data" Value="M 0 4 L 4 0 L 8 4 Z"/>
+														</Trigger>
+													</ControlTemplate.Triggers>
+												</ControlTemplate>
+											</Setter.Value>
+										</Setter>
+										<Style.Triggers>
+											<DataTrigger Binding="{Binding HasItems, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" Value="False">
+												<Setter Property="Visibility" Value="Hidden"/>
+											</DataTrigger>
+										</Style.Triggers>
+									</Style>
+								</ToggleButton.Style>
+							</ToggleButton>
+
+							<!-- Header Content領域（* 幅で展開ボタン後ろいっぱいを使用） -->
+							<Border Grid.Column="1"
+									Name="PART_Header"
+									Background="Transparent">
+								<ContentPresenter
+									ContentSource="Header"
+									HorizontalAlignment="Stretch"
+									VerticalAlignment="Stretch"/>
+							</Border>
+						</Grid>
+
+						<!-- 子アイテム領域 -->
+						<ItemsPresenter Name="ItemsHost"
+										Margin="16,0,0,0"
+										Visibility="Collapsed"/>
+					</StackPanel>
+				</Border>
+				<ControlTemplate.Triggers>
+					<!-- IsExpanded が true のときだけ ItemsHost を表示 -->
+					<Trigger Property="IsExpanded" Value="True">
+						<Setter TargetName="ItemsHost" Property="Visibility" Value="Visible"/>
+					</Trigger>
+
+					<!-- 選択状態の背景色 -->
+					<Trigger Property="IsSelected" Value="True">
+						<Setter TargetName="PART_Header" Property="Background" Value="{DynamicResource SystemFillColorAccentBackgroundBrush}"/>
+					</Trigger>
+
+					<!-- 無効状態 -->
+					<Trigger Property="IsEnabled" Value="False">
+						<Setter Property="Opacity" Value="0.5"/>
+					</Trigger>
+				</ControlTemplate.Triggers>
+			</ControlTemplate>
+
+			<!-- TreeViewItem スタイル：圧縮ファイル比較TreeView専用 -->
+			<!-- ルート・子孫すべてに共通で適用される -->
+			<Style TargetType="TreeViewItem" x:Key="ArchiveCompareTreeViewItemStyle">
+				<Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+				<Setter Property="Template" Value="{StaticResource ArchiveCompareTreeViewItemTemplate}"/>
+				<Setter Property="Padding" Value="4,3"/>
+				<Setter Property="MinHeight" Value="26"/>
+				<Setter Property="Margin" Value="0"/>
+			</Style>
+
+			<!-- 比較結果ツリー用 HierarchicalDataTemplate -->
+			<HierarchicalDataTemplate x:Key="CompareNodeTemplate"
+									  DataType="{x:Type bindings:ArchiveCompareNode}"
+									  ItemsSource="{Binding Children}">
+				<Grid HorizontalAlignment="Stretch">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*"/>
+						<ColumnDefinition Width="24"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+
+					<!-- 左セル：Left -->
+					<Grid Grid.Column="0" Margin="4,0" HorizontalAlignment="Stretch">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="*"/>
+						</Grid.ColumnDefinitions>
+
+						<!-- 左セルの背景色制御 -->
+						<Grid.Style>
+							<Style TargetType="Grid">
+								<Style.Triggers>
+									<!-- Left != null && Right == null → Caution -->
+									<MultiDataTrigger>
+										<MultiDataTrigger.Conditions>
+											<Condition Binding="{Binding Left}" Value="{x:Null}" />
+											<Condition Binding="{Binding Right}" Value="{x:Null}" />
+										</MultiDataTrigger.Conditions>
+										<Setter Property="Background" Value="{DynamicResource SystemFillColorNeutralBackgroundBrush}"/>
+									</MultiDataTrigger>
+									<!-- Left != null && Right == null → Caution -->
+									<DataTrigger Binding="{Binding Right}" Value="{x:Null}">
+										<Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}"/>
+									</DataTrigger>
+									<!-- Left == null && Right != null → Neutral -->
+									<DataTrigger Binding="{Binding Left}" Value="{x:Null}">
+										<Setter Property="Background" Value="{DynamicResource SystemFillColorNeutralBackgroundBrush}"/>
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</Grid.Style>
+
+						<!-- Left アイコン -->
+						<local:MaterialIcon Grid.Column="0"
+										   ItemType="{Binding Left.ItemType}"
+										   Filled="{Binding Left, Converter={StaticResource NodeTypeToFilledConverter}}"
+										   VerticalAlignment="Center"
+										   Margin="0,0,5,0">
+							<local:MaterialIcon.Style>
+								<Style TargetType="local:MaterialIcon">
+									<Style.Triggers>
+										<DataTrigger Binding="{Binding Left}" Value="{x:Null}">
+											<Setter Property="Visibility" Value="Collapsed"/>
+										</DataTrigger>
+									</Style.Triggers>
+								</Style>
+							</local:MaterialIcon.Style>
+						</local:MaterialIcon>
+
+						<!-- Left テキスト -->
+						<TextBlock Grid.Column="1"
+								  Text="{Binding Left.Name}"
+								  VerticalAlignment="Center">
+							<TextBlock.Style>
+								<Style TargetType="TextBlock">
+									<Style.Triggers>
+										<DataTrigger Binding="{Binding Left}" Value="{x:Null}">
+											<Setter Property="Visibility" Value="Collapsed"/>
+										</DataTrigger>
+									</Style.Triggers>
+								</Style>
+							</TextBlock.Style>
+						</TextBlock>
+					</Grid>
+
+					<!-- 中央スペーサー -->
+					<Border Grid.Column="1"/>
+
+					<!-- 右セル：Right -->
+					<Grid Grid.Column="2" Margin="4,0" HorizontalAlignment="Stretch">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="*"/>
+						</Grid.ColumnDefinitions>
+
+						<!-- 右セルの背景色制御 -->
+						<Grid.Style>
+							<Style TargetType="Grid">
+								<Style.Triggers>
+									<!-- Left != null && Right == null → Neutral -->
+									<DataTrigger Binding="{Binding Right}" Value="{x:Null}">
+										<Setter Property="Background" Value="{DynamicResource SystemFillColorNeutralBackgroundBrush}"/>
+									</DataTrigger>
+									<!-- Left == null && Right != null → Caution -->
+									<DataTrigger Binding="{Binding Left}" Value="{x:Null}">
+										<Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}"/>
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</Grid.Style>
+
+						<!-- Right アイコン -->
+						<local:MaterialIcon Grid.Column="0"
+										   ItemType="{Binding Right.ItemType}"
+										   Filled="{Binding Right, Converter={StaticResource NodeTypeToFilledConverter}}"
+										   VerticalAlignment="Center"
+										   Margin="0,0,5,0">
+							<local:MaterialIcon.Style>
+								<Style TargetType="local:MaterialIcon">
+									<Style.Triggers>
+										<DataTrigger Binding="{Binding Right}" Value="{x:Null}">
+											<Setter Property="Visibility" Value="Collapsed"/>
+										</DataTrigger>
+									</Style.Triggers>
+								</Style>
+							</local:MaterialIcon.Style>
+						</local:MaterialIcon>
+
+						<!-- Right テキスト -->
+						<TextBlock Grid.Column="1"
+								  Text="{Binding Right.Name}"
+								  VerticalAlignment="Center">
+							<TextBlock.Style>
+								<Style TargetType="TextBlock">
+									<Style.Triggers>
+										<DataTrigger Binding="{Binding Right}" Value="{x:Null}">
+											<Setter Property="Visibility" Value="Collapsed"/>
+										</DataTrigger>
+									</Style.Triggers>
+								</Style>
+							</TextBlock.Style>
+						</TextBlock>
+					</Grid>
+				</Grid>
+
+				<!-- TreeViewItem用のItemContainerStyle -->
+				<HierarchicalDataTemplate.ItemContainerStyle>
+					<StaticResourceExtension ResourceKey="ArchiveCompareTreeViewItemStyle"/>
+				</HierarchicalDataTemplate.ItemContainerStyle>
+			</HierarchicalDataTemplate>
+
+		</Grid.Resources>
+
+		<!-- Row 0: 左右アーカイブ選択Card -->
+		<Grid Grid.Row="0">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="*"/>
+				<ColumnDefinition Width="24"/>
+				<ColumnDefinition Width="*"/>
+			</Grid.ColumnDefinitions>
+
+			<!-- 左Card: 比較元 -->
+			<ui:Card Grid.Column="0" Padding="16">
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="Auto"/>
+					</Grid.RowDefinitions>
+
+					<!-- 見出し -->
+					<TextBlock Grid.Row="0" Text="比較元" FontWeight="Bold" Margin="0,0,0,8"/>
+
+					<!-- 選択中ファイル名全文 -->
+					<TextBlock Grid.Row="1" 
+							   Text="{Binding LeftArchive.Value.Name}"
+							   TextWrapping="Wrap"
+							   Margin="0,0,0,12"
+							   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+
+					<!-- ComboBox -->
+					<ComboBox Grid.Row="2" 
+							  ItemsSource="{Binding ArchiveCandidates}"
+							  SelectedItem="{Binding LeftArchive.Value, Mode=TwoWay}"
+							  ItemTemplate="{StaticResource ArchiveItemTemplate}"
+							  HorizontalAlignment="Stretch"
+							  Height="32"/>
+				</Grid>
+			</ui:Card>
+
+			<!-- 右Card: 比較先 -->
+			<ui:Card Grid.Column="2" Padding="16">
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="Auto"/>
+					</Grid.RowDefinitions>
+
+					<!-- 見出し -->
+					<TextBlock Grid.Row="0" Text="比較先" FontWeight="Bold" Margin="0,0,0,8"/>
+
+					<!-- 選択中ファイル名全文 -->
+					<TextBlock Grid.Row="1" 
+							   Text="{Binding RightArchive.Value.Name}"
+							   TextWrapping="Wrap"
+							   Margin="0,0,0,12"
+							   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+
+					<!-- ComboBox -->
+					<ComboBox Grid.Row="2" 
+							  ItemsSource="{Binding ArchiveCandidates}"
+							  SelectedItem="{Binding RightArchive.Value, Mode=TwoWay}"
+							  ItemTemplate="{StaticResource ArchiveItemTemplate}"
+							  HorizontalAlignment="Stretch"
+							  Height="32"/>
+				</Grid>
+			</ui:Card>
+		</Grid>
+
+		<!-- Row 1: 比較開始ボタン -->
+		<ui:Button Grid.Row="1"
+				   Content="比較開始"
+				   Command="{Binding CompareCommand}"
+				   Appearance="Primary"
+				   HorizontalAlignment="Center"
+				   MinWidth="140"
+				   Margin="0,16,0,0"/>
+
+		<!-- Row 2: InfoBar領域 -->
+		<ui:InfoBar Grid.Row="2"
+					Title="比較エラー"
+					Message="比較エラーのメッセージを表示します。"
+					Severity="Error"
+					IsOpen="False"
+					Margin="0,16,0,0"/>
+
+		<!-- Row 3: 比較結果領域 -->
+		<Grid Grid.Row="3" Visibility="{Binding IsResultVisible.Value, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,16,0,0">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto"/>
+				<RowDefinition Height="Auto"/>
+				<RowDefinition Height="*"/>
+			</Grid.RowDefinitions>
+
+			<!-- 比較結果見出し -->
+			<TextBlock Grid.Row="0" Text="比較結果" FontWeight="Bold" Margin="0,0,0,12"/>
+
+			<!-- 左右ヘッダ -->
+			<Grid Grid.Row="1" Margin="0,0,0,12">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*"/>
+					<ColumnDefinition Width="24"/>
+					<ColumnDefinition Width="*"/>
+				</Grid.ColumnDefinitions>
+
+				<TextBlock Grid.Column="0" Text="比較元" FontWeight="Bold"/>
+				<TextBlock Grid.Column="2" Text="比較先" FontWeight="Bold"/>
+			</Grid>
+
+			<!-- TreeView -->
+			<TreeView Grid.Row="2"
+					  ItemsSource="{Binding CompareResult.Value}"
+					  ItemTemplate="{StaticResource CompareNodeTemplate}"
+					  ItemContainerStyle="{StaticResource ArchiveCompareTreeViewItemStyle}"
+					  Background="Transparent"
+					  BorderThickness="0"
+					  HorizontalContentAlignment="Stretch"
+					  ScrollViewer.CanContentScroll="False"
+					  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+					  ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+		</Grid>
+	</Grid>
+</UserControl>

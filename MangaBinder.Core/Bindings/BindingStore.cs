@@ -124,6 +124,12 @@ public class BindingStore : IDisposable
 	public IReadOnlyBindableReactiveProperty<int> MaterialEpubCount { get; }
 
 	/// <summary>
+	/// Root.Children 直下の素材総数（フォルダ + 圧縮ファイル + EPUB）を取得します。
+	/// MaterialFolderCount、MaterialArchiveCount、MaterialEpubCount から CombineLatest で自動導出されます。
+	/// </summary>
+	public IReadOnlyBindableReactiveProperty<int> MaterialTotalCount { get; }
+
+	/// <summary>
 	/// 選択済みの巻の合計画像ファイルサイズ（バイト）を取得します。
 	/// BindingVolumes の変更に追従して自動更新されます。
 	/// </summary>
@@ -212,6 +218,14 @@ public class BindingStore : IDisposable
 		this.MaterialArchiveTotalBytes = this.materialArchiveTotalBytes;
 		this.MaterialEpubCount = this.materialEpubCount;
 
+		// 素材総数を CombineLatest で導出
+		this.MaterialTotalCount = Observable.CombineLatest(
+			this.materialFolderCount,
+			this.materialArchiveCount,
+			this.materialEpubCount,
+			(folder, archive, epub) => folder + archive + epub)
+			.ToReadOnlyBindableReactiveProperty(0)
+			.AddTo(ref this.disposableBag);
 		// Materials の CollectionChanged を購読して派生状態を自動更新
 		// 新規 Root が追加される際にも、その Children の変更を購読設定
 		this.Materials.CollectionChanged += this.onMaterialsCollectionChanged;

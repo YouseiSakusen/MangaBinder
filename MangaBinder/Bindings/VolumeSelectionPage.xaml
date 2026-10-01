@@ -13,6 +13,7 @@
 	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
 	  xmlns:converters="clr-namespace:MangaBinder.Converters"
 	  xmlns:tags="clr-namespace:MangaBinder.Tags"
+	  xmlns:app="clr-namespace:MangaBinder"
 	  mc:Ignorable="d"
 	  d:DesignHeight="800" d:DesignWidth="1200"
 	  Title="巻選択"
@@ -24,12 +25,6 @@
 
 		<!-- PageViewModel 参照用BindingProxy（ContextMenuから使用） -->
 		<tags:BindingProxy x:Key="VmProxy" Data="{Binding}" />
-
-		<!-- NodeType ごとの SymbolIcon Symbol 名 -->
-		<converters:NodeTypeToSymbolConverter x:Key="NodeTypeToSymbolConverter" />
-
-		<!-- NodeType ごとのアイコン色 -->
-		<converters:NodeTypeToColorConverter x:Key="NodeTypeToColorConverter" />
 
 		<!-- NodeType ごとの Filled 属性（実フォルダ vs 圧縮内フォルダを区別） -->
 		<converters:NodeTypeToFilledConverter x:Key="NodeTypeToFilledConverter" />
@@ -88,11 +83,9 @@
 					</ContextMenu>
 				</StackPanel.ContextMenu>
 				<!-- アイコン -->
-				<ui:SymbolIcon
-					Symbol="{Binding Material.ItemType, Converter={StaticResource NodeTypeToSymbolConverter}}"
+				<controls:MaterialIcon
+					ItemType="{Binding Material.ItemType}"
 					Filled="{Binding Material, Converter={StaticResource NodeTypeToFilledConverter}}"
-					FontSize="16"
-					Foreground="{Binding Material.ItemType, Converter={StaticResource NodeTypeToColorConverter}}"
 					VerticalAlignment="Center"
 					Margin="0,0,5,0" />
 				<!-- チェックボックス (Archive / 選択不可ノードは非表示) -->
@@ -160,6 +153,41 @@
 			EyecatchValueText="{Binding SelectedVolumeTotalImageBytes.Value, Converter={StaticResource BytesToDisplaySizeConverter}, Mode=OneWay}">
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<!-- TopContent: 上部アクションボタン -->
+			<!-- ─────────────────────────────────────────────────────────────────── -->
+			<controls:PageLayout.TopContent>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="100" />
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="160" />
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+
+					<!-- Column 1: 圧縮ファイル比較 -->
+					<controls:TopActionButton
+						Grid.Column="1"
+						HorizontalAlignment="Center"
+						PrimaryText="圧縮ファイル比較"
+						SecondaryLabel="圧縮ファイル数"
+						SecondaryValue="{Binding MaterialArchiveCount.Value, StringFormat={}{0:N0}}"
+						Symbol="ColumnDoubleCompare20"
+						Command="{Binding ArchiveCompareCommand}" />
+
+					<!-- Column 3: 素材フォルダを開く -->
+					<controls:TopActionButton
+						Grid.Column="3"
+						HorizontalAlignment="Center"
+						PrimaryText="素材フォルダを開く"
+						SecondaryLabel="素材点数"
+						SecondaryValue="{Binding MaterialTotalCount.Value, StringFormat={}{0:N0}}"
+						Symbol="{x:Static app:AppSymbols.OpenMaterialFolder}"
+						Command="{Binding OpenMaterialFolderCommand}" />
+				</Grid>
+			</controls:PageLayout.TopContent>
+
+			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- LeftContent: 左パネル（作品情報 + 素材内訳） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.LeftContent>
@@ -195,13 +223,10 @@
 								</Grid.RowDefinitions>
 
 								<!-- フォルダ：第1行 -->
-								<ui:SymbolIcon
+								<controls:MaterialIcon
 									Grid.Row="0"
 									Grid.Column="0"
-									Symbol="Folder24"
-									Filled="True"
-									FontSize="14"
-									Foreground="#C58A00"
+									ItemType="Folder"
 									Margin="0,0,4,0"
 									VerticalAlignment="Center" />
 								<TextBlock
@@ -213,13 +238,10 @@
 									Text="{Binding MaterialFolderCount.Value, StringFormat=フォルダ：{0}, Mode=OneWay}" />
 
 								<!-- 圧縮ファイル：第2行 -->
-								<ui:SymbolIcon
+								<controls:MaterialIcon
 									Grid.Row="1"
 									Grid.Column="0"
-									Symbol="Archive24"
-									Filled="True"
-									FontSize="14"
-									Foreground="#6E87A8"
+									ItemType="Archive"
 									Margin="0,2,4,0"
 									VerticalAlignment="Center" />
 								<TextBlock
@@ -238,13 +260,10 @@
 								</TextBlock>
 
 								<!-- EPUB：第3行 -->
-								<ui:SymbolIcon
+								<controls:MaterialIcon
 									Grid.Row="2"
 									Grid.Column="0"
-									Symbol="Book24"
-									Filled="True"
-									FontSize="14"
-									Foreground="#2E9F55"
+									ItemType="Epub"
 									Margin="0,2,4,0"
 									VerticalAlignment="Center" />
 								<TextBlock
@@ -450,12 +469,9 @@
 											behaviors:SelectAllOnFocusBehavior.IsEnabled="True" />
 
 										<!-- Column 1: 種別アイコン -->
-										<ui:SymbolIcon
+										<controls:MaterialIcon
 											Grid.Column="1"
-											Symbol="{Binding DisplayItemType, Converter={StaticResource NodeTypeToSymbolConverter}}"
-											Filled="True"
-											Foreground="{Binding DisplayItemType, Converter={StaticResource NodeTypeToColorConverter}}"
-											FontSize="16"
+											ItemType="{Binding DisplayItemType}"
 											HorizontalAlignment="Center"
 											VerticalAlignment="Center" />
 

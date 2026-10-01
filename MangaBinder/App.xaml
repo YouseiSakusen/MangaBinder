@@ -27,6 +27,16 @@
 	  <!-- タグ表示用の共通色（薄いオレンジ～黄色） -->
 	  <SolidColorBrush x:Key="TagBrush" Color="#FFD983" />
 
+	  <!-- 素材種類アイコン用共通ブラシ -->
+		  <!-- 実フォルダルート：主役、濃い黄土色 -->
+		  <SolidColorBrush x:Key="MaterialRootIconBrush" Color="#C58A00" />
+		  <!-- 実フォルダ：主役、濃い黄土色 -->
+		  <SolidColorBrush x:Key="MaterialFolderIconBrush" Color="#B8860B" />
+		  <!-- 圧縮ファイル本体：コンテナ、控えめな青灰色 -->
+		  <SolidColorBrush x:Key="MaterialArchiveIconBrush" Color="#6E87A8" />
+		  <!-- EPUB：主役、緑系 -->
+		  <SolidColorBrush x:Key="MaterialEpubIconBrush" Color="#2E9F55" />
+
 	  <!-- アプリケーション共通ナビゲーションボタンStyle -->
 	  <Style
 		  x:Key="CardNavigateButtonStyle"
@@ -74,6 +84,18 @@
 		  TargetType="{x:Type ui:Button}"
 		  BasedOn="{StaticResource FooterButtonStyle}">
 		  <Setter Property="Appearance" Value="Primary" />
+	  </Style>
+
+	  <!-- 画面上部アクションボタン共通Style -->
+	  <Style
+		  x:Key="TopActionButtonStyle"
+		  TargetType="{x:Type ui:Button}"
+		  BasedOn="{StaticResource DefaultUiButtonStyle}">
+		  <Setter Property="Width" Value="200" />
+		  <Setter Property="Height" Value="56" />
+		  <Setter Property="Padding" Value="12,6" />
+		  <Setter Property="VerticalAlignment" Value="Center" />
+		  <Setter Property="HorizontalContentAlignment" Value="Stretch" />
 	  </Style>
 	</ResourceDictionary>
   </Application.Resources>

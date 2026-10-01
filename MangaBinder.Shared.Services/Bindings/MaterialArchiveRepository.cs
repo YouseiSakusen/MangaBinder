@@ -116,8 +116,6 @@ public class MaterialArchiveRepository
 		entriesSql.AppendLine(" 	MaterialArchiveEntries ");
 		entriesSql.AppendLine(" WHERE ");
 		entriesSql.AppendLine(" 		MaterialArchiveId = :MaterialArchiveId ");
-		entriesSql.AppendLine(" ORDER BY ");
-		entriesSql.AppendLine(" 	EntryPath ");
 
 		using var connection = new SQLiteConnection(this.connectionString);
 		await connection.OpenAsync(cancellationToken);

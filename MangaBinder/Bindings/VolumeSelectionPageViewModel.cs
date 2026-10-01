@@ -65,6 +65,9 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// <summary>Root.Children 直下の EPUB 数を取得します。</summary>
     public IReadOnlyBindableReactiveProperty<int> MaterialEpubCount => this.bindingStore.MaterialEpubCount;
 
+    /// <summary>Root.Children 直下の素材総数（フォルダ + 圧縮ファイル + EPUB）を取得します。</summary>
+    public IReadOnlyBindableReactiveProperty<int> MaterialTotalCount => this.bindingStore.MaterialTotalCount;
+
     /// <summary>選択済みの巻の合計画像ファイルサイズ（バイト）を取得します。</summary>
     public IReadOnlyBindableReactiveProperty<long> SelectedVolumeTotalImageBytes => this.bindingStore.SelectedVolumeTotalImageBytes;
 
@@ -103,6 +106,12 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
 
     /// <summary>指定された MaterialItemViewModel を削除するコマンドを取得します。</summary>
     public ReactiveCommand<MaterialItemViewModel> DeleteMaterialCommand { get; }
+
+    /// <summary>圧縮ファイル比較Dialogを開くコマンドを取得します。</summary>
+    public ReactiveCommand<Unit> ArchiveCompareCommand { get; }
+
+    /// <summary>素材フォルダを開くコマンドを取得します。</summary>
+    public ReactiveCommand<Unit> OpenMaterialFolderCommand { get; }
 
     /// <summary>Reactive側の新しい素材 TreeView の DragHandler を取得します。</summary>
     public MaterialItemDragHandler MaterialItemDragHandler { get; } = new MaterialItemDragHandler();
@@ -199,6 +208,37 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         this.DeleteMaterialCommand.Subscribe(item => this.executeDeleteMaterialAsync(item))
             .AddTo(ref this.disposableBag);
 
+        // ArchiveCompareCommand を初期化
+        var canCompareArchives = this.bindingStore.MaterialArchiveCount
+            .AsObservable()
+            .Select<int, bool>(count => count >= 2);
+
+        this.ArchiveCompareCommand =
+            new ReactiveCommand<Unit>(
+                canCompareArchives,
+                initialCanExecute: false)
+            .AddTo(ref this.disposableBag);
+
+        this.ArchiveCompareCommand
+            .Subscribe(async _ => await this.openArchiveCompareAsync())
+            .AddTo(ref this.disposableBag);
+
+        // OpenMaterialFolderCommand を初期化
+        var canOpenMaterialFolder = this.bindingStore.BindingTarget
+            .AsObservable()
+            .Select(target =>
+                target?.Series.PrimaryMaterialSource is not null);
+
+        this.OpenMaterialFolderCommand =
+            new ReactiveCommand<Unit>(
+                canOpenMaterialFolder,
+                initialCanExecute: false)
+            .AddTo(ref this.disposableBag);
+
+        this.OpenMaterialFolderCommand
+            .Subscribe(async _ => await this.openMaterialFolderAsync())
+            .AddTo(ref this.disposableBag);
+
         // Reactive側の新素材ツリーを初期化
         // BindingStore.Materials から MaterialItemViewModel へ変換
         var materialItemsView = this.bindingStore.Materials
@@ -281,17 +321,17 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// <summary>
     /// 素材フォルダを非同期で読み込みます。
     /// </summary>
-    /// <inheritdoc/>
-    public void Dispose()
-    {
-        // MaterialItems の全子 ViewModel を破棄
-        foreach (var viewModel in this.MaterialItems)
-        {
-            viewModel?.Dispose();
-        }
+	/// <inheritdoc/>
+	public void Dispose()
+	{
+		// MaterialItems の全子 ViewModel を破棄
+		foreach (var viewModel in this.MaterialItems)
+		{
+			viewModel?.Dispose();
+		}
 
-        // materialItemsView への参照をクリア
-        this.materialItemsView = null;
+		// materialItemsView への参照をクリア
+		this.materialItemsView = null;
 
 		// BindingVolumesView の参照をクリア
 		// BindingVolumeViewModel は BindingVolume を所有しないため、
@@ -299,6 +339,37 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
 		this.bindingVolumesView = null;
 
 		this.disposableBag.Dispose();
+	}
+
+	/// <summary>
+	/// 圧縮ファイル比較Dialog を非同期で開きます。
+	/// </summary>
+	private async Task openArchiveCompareAsync()
+	{
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var coordinator =
+			scope.ServiceProvider.GetRequiredService<ArchiveCompareCoordinator>();
+
+		await coordinator.StartAsync();
+	}
+
+	/// <summary>
+	/// 素材フォルダを非同期で開きます。
+	/// </summary>
+	private async Task openMaterialFolderAsync()
+	{
+		var primarySource =
+			this.bindingStore.BindingTarget.Value?.Series.PrimaryMaterialSource;
+
+		if (primarySource is null)
+			return;
+
+		using var scope = this.serviceScopeFactory.CreateScope();
+
+		var opener =
+			scope.ServiceProvider.GetRequiredService<MaterialFolderOpener>();
+
+		await opener.OpenAsync(primarySource);
 	}
 
 	/// <summary>

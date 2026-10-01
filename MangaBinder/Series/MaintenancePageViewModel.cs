@@ -40,6 +40,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>登録待ち作品件数を取得します。</summary>
 	public BindableReactiveProperty<int> WorkSeriesCount { get; }
 
+	/// <summary>登録済み正式作品件数を取得します。</summary>
+	public BindableReactiveProperty<int> RegisteredSeriesCount { get; }
+
 	/// <summary>検索結果を表示中であるかを取得します。</summary>
 	public BindableReactiveProperty<bool> IsSearchResultsShown { get; }
 
@@ -77,8 +80,11 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.SearchQuery = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
-		this.WorkSeriesCount = new BindableReactiveProperty<int>(this.mangaSeriesStore.WorkSeries.Count)
-			.AddTo(ref this.disposableBag);
+		// Store が所有する WorkSeriesCount を直接参照
+		this.WorkSeriesCount = this.mangaSeriesStore.WorkSeriesCount;
+
+		// Store が所有する RegisteredSeriesCount を直接参照
+		this.RegisteredSeriesCount = this.mangaSeriesStore.RegisteredSeriesCount;
 
 		this.IsSearchResultsShown = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
@@ -107,11 +113,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		// EditSeriesCommand の実装
 		this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
 
-		// Store.WorkSeries の Count 変更を監視して WorkSeriesCount を自動更新
-		this.mangaSeriesStore.WorkSeries.ObserveCountChanged()
-			.Subscribe(count => this.WorkSeriesCount.Value = count)
-			.AddTo(ref this.disposableBag);
-
 		// SelectableSeriesListViewModel を初期化
 		this.SelectableSeriesListViewModel = new SelectableSeriesListViewModel()
 			.AddTo(ref this.disposableBag);
@@ -132,8 +133,8 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 
 
 	/// <summary>
-	/// 画面表示後の初期データ読み込みを非同期で実行します。
-	/// 登録待ち作品件数を更新し、検索状態をリセットします。
+	/// 画面表示後の初期化を非同期で実行します。
+	/// 検索状態をリセットします。
 	/// </summary>
 	public async ValueTask InitializeDataAsync()
 	{

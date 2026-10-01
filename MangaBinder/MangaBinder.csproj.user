@@ -8,6 +8,9 @@
     <Compile Update="Bindings\VolumeSelectionPage.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="Controls\ArchiveCompareDialogContent.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Update="Controls\BindingCancelDialogContent.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -21,6 +24,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Controls\MaterialFolderCreatedAt.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="Controls\MaterialIcon.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Controls\MaterialsConfirmDialogContent.xaml.cs">
@@ -57,6 +63,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Bindings\SeriesInspectionPage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="Controls\TopActionButton.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="HomePage.xaml.cs">
