@@ -1,3 +1,5 @@
+using R3;
+
 namespace MangaBinder.Bindings;
 
 /// <summary>
@@ -6,6 +8,14 @@ namespace MangaBinder.Bindings;
 /// </summary>
 public class BindingImage : IDisposable
 {
+	private DisposableBag disposableBag;
+
+	/// <summary>
+	/// この画像を見開き分割対象とするかどうかを取得または設定します。
+	/// 初期値は false です。
+	/// </summary>
+	public BindableReactiveProperty<bool> IsSpreadSplitTarget { get; }
+
 	/// <summary>
 	/// この画像が所属する親 BindingVolume を取得します。
 	/// 生成時に指定された親 BindingVolume インスタンスを保持します。
@@ -158,11 +168,23 @@ public class BindingImage : IDisposable
 		this.FileNameNormalizationStatus = FileNameNormalizationStatus.NotProcessed;
 		this.FileNameNormalizationErrorMessage = null;
 		this.HasSuspectedMojibake = false;
+		this.IsSpreadSplitTarget = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+	}
+
+	/// <summary>
+	/// 見開き分割対象のデフォルト状態を設定します。横長画像のみ true になります。
+	/// </summary>
+	public void ApplyDefaultSpreadSplitTarget()
+	{
+		this.IsSpreadSplitTarget.Value = this.IsLandscape;
 	}
 
 	/// <inheritdoc/>
 	public void Dispose()
 	{
+		this.disposableBag.Dispose();
+
 		// TemporaryImageStream が残っている場合は破棄する
 		// 通常はファイル処理側の finally で即座に破棄されるが、
 		// 異常経路・キャンセル・将来の処理変更等でStreamが残った場合の安全網

@@ -29,7 +29,7 @@
             Foreground="{DynamicResource TextFillColorPrimaryBrush}"
             TextWrapping="Wrap"
             LineHeight="20">
-            <Run Text="{Binding SeriesTitle.Value}" />
+            <Run Text="{Binding SeriesTitle.Value, Mode=OneWay}" />
             <Run Text="の製本を中止します。" />
         </TextBlock>
 

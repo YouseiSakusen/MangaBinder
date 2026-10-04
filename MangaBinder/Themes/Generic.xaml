@@ -178,18 +178,8 @@
 						</Grid.RowDefinitions>
 
 						<!-- Row 0: 作品タイトル -->
-						<ui:TextBox
+						<controls:SelectableTextBlock
 							Grid.Row="0"
-							Background="Transparent"
-							BorderThickness="0"
-							BorderBrush="Transparent"
-							Padding="0"
-							FocusVisualStyle="{x:Null}"
-							CaretBrush="Transparent"
-							IsReadOnly="True"
-							IsTabStop="False"
-							Focusable="True"
-							Cursor="IBeam"
 							Text="{TemplateBinding SeriesTitle}"
 							FontSize="17"
 							Foreground="{DynamicResource TextFillColorPrimaryBrush}"

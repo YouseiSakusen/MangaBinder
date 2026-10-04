@@ -7,6 +7,7 @@
 			 xmlns:local="clr-namespace:MangaBinder.Controls"
 			 xmlns:converters="clr-namespace:MangaBinder.Converters"
 			 xmlns:bindings="clr-namespace:MangaBinder.Bindings"
+			 xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
 			 mc:Ignorable="d" 
 			 d:DesignHeight="450" d:DesignWidth="800">
 	<Grid Margin="16">
@@ -207,8 +208,9 @@
 
 						<!-- Left テキスト -->
 						<TextBlock Grid.Column="1"
-								  Text="{Binding Left.Name}"
-								  VerticalAlignment="Center">
+									VerticalAlignment="Center"
+									behaviors:PartialGrayTextBehavior.Text="{Binding Left.Name}"
+									behaviors:PartialGrayTextBehavior.GrayText="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=DataContext.AppliedLeftExcludedText.Value}">
 							<TextBlock.Style>
 								<Style TargetType="TextBlock">
 									<Style.Triggers>
@@ -266,8 +268,9 @@
 
 						<!-- Right テキスト -->
 						<TextBlock Grid.Column="1"
-								  Text="{Binding Right.Name}"
-								  VerticalAlignment="Center">
+									VerticalAlignment="Center"
+									behaviors:PartialGrayTextBehavior.Text="{Binding Right.Name}"
+									behaviors:PartialGrayTextBehavior.GrayText="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=DataContext.AppliedRightExcludedText.Value}">
 							<TextBlock.Style>
 								<Style TargetType="TextBlock">
 									<Style.Triggers>
@@ -304,13 +307,14 @@
 						<RowDefinition Height="Auto"/>
 						<RowDefinition Height="Auto"/>
 						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="Auto"/>
 					</Grid.RowDefinitions>
 
 					<!-- 見出し -->
 					<TextBlock Grid.Row="0" Text="比較元" FontWeight="Bold" Margin="0,0,0,8"/>
 
 					<!-- 選択中ファイル名全文 -->
-					<TextBlock Grid.Row="1" 
+					<local:SelectableTextBlock Grid.Row="1" 
 							   Text="{Binding LeftArchive.Value.Name}"
 							   TextWrapping="Wrap"
 							   Margin="0,0,0,12"
@@ -322,7 +326,13 @@
 							  SelectedItem="{Binding LeftArchive.Value, Mode=TwoWay}"
 							  ItemTemplate="{StaticResource ArchiveItemTemplate}"
 							  HorizontalAlignment="Stretch"
-							  Height="32"/>
+							  Margin="0,0,0,8"/>
+
+					<!-- 比較時除外文字列 TextBox -->
+					<ui:TextBox Grid.Row="3"
+								PlaceholderText="比較時に除外する文字列"
+								Text="{Binding LeftExcludedText.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+								behaviors:SelectAllOnFocusBehavior.IsEnabled="True"/>
 				</Grid>
 			</ui:Card>
 
@@ -333,13 +343,14 @@
 						<RowDefinition Height="Auto"/>
 						<RowDefinition Height="Auto"/>
 						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="Auto"/>
 					</Grid.RowDefinitions>
 
 					<!-- 見出し -->
 					<TextBlock Grid.Row="0" Text="比較先" FontWeight="Bold" Margin="0,0,0,8"/>
 
 					<!-- 選択中ファイル名全文 -->
-					<TextBlock Grid.Row="1" 
+					<local:SelectableTextBlock Grid.Row="1" 
 							   Text="{Binding RightArchive.Value.Name}"
 							   TextWrapping="Wrap"
 							   Margin="0,0,0,12"
@@ -351,7 +362,13 @@
 							  SelectedItem="{Binding RightArchive.Value, Mode=TwoWay}"
 							  ItemTemplate="{StaticResource ArchiveItemTemplate}"
 							  HorizontalAlignment="Stretch"
-							  Height="32"/>
+							  Margin="0,0,0,8"/>
+
+					<!-- 比較時除外文字列 TextBox -->
+					<ui:TextBox Grid.Row="3"
+								PlaceholderText="比較時に除外する文字列"
+								Text="{Binding RightExcludedText.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+								behaviors:SelectAllOnFocusBehavior.IsEnabled="True"/>
 				</Grid>
 			</ui:Card>
 		</Grid>

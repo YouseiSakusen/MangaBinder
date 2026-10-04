@@ -73,6 +73,7 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPage<StartPage, StartPageViewModel>(ServiceLifetime.Singleton);
 		services.AddNavigationPage<VolumeSelectionPage, VolumeSelectionPageViewModel>(ServiceLifetime.Singleton);
 		services.AddNavigationPage<SeriesInspectionPage, SeriesInspectionPageViewModel>(ServiceLifetime.Singleton);
+		services.AddNavigationPage<ImageSplitterPage, ImageSplitterPageViewModel>(ServiceLifetime.Transient);
 		services.AddNavigationPage<MaintenancePage, MaintenancePageViewModel>(ServiceLifetime.Singleton);
 		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>(ServiceLifetime.Singleton);
 		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>(ServiceLifetime.Singleton);
@@ -112,8 +113,10 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<VolumeSelectionManager>();
 		services.AddScoped<ArchiveCompareCoordinator>();
 		services.AddScoped<SeriesInspectionManager>();
-		services.AddScoped<VolumeCardThumbnailImageProcessor>();
+		services.AddScoped<BindingThumbnailImageProcessor>();
 		services.AddScoped<VolumeCardThumbnailLoader>();
+		services.AddScoped<ImageSplitterThumbnailLoader>();
+		services.AddScoped<ImageSplitterPreviewImageLoader>();
 		services.AddKeyedScoped<IMaterialExtractor, ArchiveMaterialExtractor>(MaterialSourceType.Archive);
 		services.AddKeyedScoped<IMaterialExtractor, FolderMaterialExtractor>(MaterialSourceType.Folder);
 		services.AddKeyedScoped<IMaterialExtractor, EpubMaterialExtractor>(MaterialSourceType.Epub);

@@ -44,6 +44,32 @@ public class ArchiveCompareDialogContentViewModel : IDisposable
 	public BindableReactiveProperty<bool> IsResultVisible { get; }
 
 	/// <summary>
+	/// 左側（比較元）で比較時に除外する文字列を取得または設定します。初期値は空文字列です。
+	/// 入力中の値を保持し、比較開始時にのみ AppliedLeftExcludedText へ反映されます。
+	/// </summary>
+	public BindableReactiveProperty<string> LeftExcludedText { get; }
+
+	/// <summary>
+	/// 右側（比較先）で比較時に除外する文字列を取得または設定します。初期値は空文字列です。
+	/// 入力中の値を保持し、比較開始時にのみ AppliedRightExcludedText へ反映されます。
+	/// </summary>
+	public BindableReactiveProperty<string> RightExcludedText { get; }
+
+	/// <summary>
+	/// 左側（比較元）の比較開始時に確定した除外文字列を取得または設定します。初期値は空文字列です。
+	/// 比較処理と比較結果表示に使用される確定値で、
+	/// CompareCommand 実行時にのみ LeftExcludedText から更新されます。
+	/// </summary>
+	public BindableReactiveProperty<string> AppliedLeftExcludedText { get; }
+
+	/// <summary>
+	/// 右側（比較先）の比較開始時に確定した除外文字列を取得または設定します。初期値は空文字列です。
+	/// 比較処理と比較結果表示に使用される確定値で、
+	/// CompareCommand 実行時にのみ RightExcludedText から更新されます。
+	/// </summary>
+	public BindableReactiveProperty<string> AppliedRightExcludedText { get; }
+
+	/// <summary>
 	/// <see cref="ArchiveCompareDialogContentViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="archiveCandidates">
@@ -58,6 +84,18 @@ public class ArchiveCompareDialogContentViewModel : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		this.RightArchive = new BindableReactiveProperty<MaterialItem?>(null)
+			.AddTo(ref this.disposableBag);
+
+		this.LeftExcludedText = new BindableReactiveProperty<string>(string.Empty)
+			.AddTo(ref this.disposableBag);
+
+		this.RightExcludedText = new BindableReactiveProperty<string>(string.Empty)
+			.AddTo(ref this.disposableBag);
+
+		this.AppliedLeftExcludedText = new BindableReactiveProperty<string>(string.Empty)
+			.AddTo(ref this.disposableBag);
+
+		this.AppliedRightExcludedText = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
 		// CanExecute を Observable.CombineLatest で導出

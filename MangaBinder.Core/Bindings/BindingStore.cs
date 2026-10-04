@@ -40,7 +40,16 @@ public class BindingStore : IDisposable
 	public BindableReactiveProperty<BindingSeries?> BindingTarget { get; }
 
 	/// <summary>
-	/// 巻選択工程で扱う素材ツリーの正本を取得します。
+	/// 現在の見開き分割画面で扱う対象巻を取得または設定します。
+	/// 値の切り替え時に、旧巻の画像は見開き分割対象を解除し、新巻の画像へデフォルトを適用します。
+	/// </summary>
+	public BindableReactiveProperty<BindingVolume?> SplitTargetVolume { get; }
+
+	/// <summary>直前の SplitTargetVolume。</summary>
+	private BindingVolume? previousSplitTargetVolume;
+
+	/// <summary>
+	/// 巻選択工程で素材ツリーの正本を取得します。
 	/// </summary>
 	public ObservableList<MaterialItem> Materials { get; }
 
@@ -176,6 +185,30 @@ public class BindingStore : IDisposable
 	public IReadOnlyList<VolumeFolderDigitOption> VolumeFolderDigitOptions { get; }
 
 	/// <summary>
+	/// SplitTargetVolume の変更時に、旧巻をOFFへ戻し、新巻へデフォルトを適用します。
+	/// </summary>
+	private void onSplitTargetVolumeChanged(BindingVolume? newVolume)
+	{
+		if (this.previousSplitTargetVolume is not null)
+		{
+			foreach (var image in this.previousSplitTargetVolume.Images)
+			{
+				image.IsSpreadSplitTarget.Value = false;
+			}
+		}
+
+		if (newVolume is not null)
+		{
+			foreach (var image in newVolume.Images)
+			{
+				image.ApplyDefaultSpreadSplitTarget();
+			}
+		}
+
+		this.previousSplitTargetVolume = newVolume;
+	}
+
+	/// <summary>
 	/// <see cref="BindingStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	public BindingStore()
@@ -201,6 +234,10 @@ public class BindingStore : IDisposable
 		this.VolumeSelectionInitialized = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 		this.SeriesInspectionCompleted = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+		this.SplitTargetVolume = new BindableReactiveProperty<BindingVolume?>(null)
+			.AddTo(ref this.disposableBag);
+		this.SplitTargetVolume.Subscribe(this.onSplitTargetVolumeChanged)
 			.AddTo(ref this.disposableBag);
 
 		// 素材サマリ派生状態を初期化（private フィールド経由）

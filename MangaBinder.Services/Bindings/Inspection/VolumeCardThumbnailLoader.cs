@@ -14,7 +14,7 @@ namespace MangaBinder.Bindings.Inspection;
 public sealed class VolumeCardThumbnailLoader
 {
 	private readonly IMangaBinderConfig config;
-	private readonly VolumeCardThumbnailImageProcessor imageProcessor;
+	private readonly BindingThumbnailImageProcessor imageProcessor;
 	private readonly ILogger<VolumeCardThumbnailLoader> logger;
 
 	/// <summary>
@@ -25,7 +25,7 @@ public sealed class VolumeCardThumbnailLoader
 	/// <param name="logger">ログ出力。</param>
 	public VolumeCardThumbnailLoader(
 		IMangaBinderConfig config,
-		VolumeCardThumbnailImageProcessor imageProcessor,
+		BindingThumbnailImageProcessor imageProcessor,
 		ILogger<VolumeCardThumbnailLoader> logger)
 	{
 		this.config = config ?? throw new ArgumentNullException(nameof(config));

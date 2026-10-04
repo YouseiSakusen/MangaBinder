@@ -22,17 +22,6 @@
 		<converters:HomeEmptyStateKindToVisibilityConverter x:Key="EmptyStateKindToVis" />
 		<!-- ViewModel をポップアップ内（切断ツリー）から参照するためのプロキシ -->
 		<tags:BindingProxy x:Key="VmProxy" Data="{Binding}" />
-		<!-- タイトル表示専用 TextBox スタイル：TextBlock 寄りの見た目、選択可能 -->
-		<Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
-			<Setter Property="Background" Value="Transparent" />
-			<Setter Property="BorderThickness" Value="0" />
-			<Setter Property="BorderBrush" Value="Transparent" />
-			<Setter Property="Padding" Value="0" />
-			<Setter Property="FocusVisualStyle" Value="{x:Null}" />
-			<Setter Property="CaretBrush" Value="Transparent" />
-			<Setter Property="IsReadOnly" Value="True" />
-			<Setter Property="IsTabStop" Value="False" />
-		</Style>
 		<!-- StartPage と統一した Empty State カードスタイル -->
 		<Style x:Key="EmptyStateCardStyle" TargetType="Border">
 			<Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
@@ -243,17 +232,14 @@
 									</Grid.RowDefinitions>
 
 									<!-- Row0: タイトル -->
-									<TextBox
+									<controls:SelectableTextBlock
 										Grid.Row="0"
-										Style="{StaticResource TitleReadOnlyTextBoxStyle}"
 										Text="{Binding Series.Value.Title}"
 										FontSize="16"
 										FontWeight="SemiBold"
 										MaxHeight="72"
 										HorizontalAlignment="Stretch"
 										TextWrapping="Wrap"
-										Focusable="True"
-										Cursor="IBeam"
 										Margin="0,0,0,4" />
 
 									<!-- Row1: 詳細情報 (2カラム2行 Grid) -->
@@ -366,15 +352,12 @@
 													VerticalAlignment="Center" />
 
 												<!-- ソースタイトル -->
-												<TextBox
+												<controls:SelectableTextBlock
 													Grid.Column="3"
-													Style="{StaticResource TitleReadOnlyTextBoxStyle}"
 													Text="{Binding Series.Value.DescriptionSourceTitle}"
 													FontSize="11"
 													Opacity="0.6"
-													VerticalAlignment="Center"
-													Focusable="True"
-													Cursor="IBeam" />
+													VerticalAlignment="Center" />
 											</Grid>
 										</Grid>
 

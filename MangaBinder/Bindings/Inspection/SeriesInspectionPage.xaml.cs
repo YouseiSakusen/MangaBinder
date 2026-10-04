@@ -1,6 +1,6 @@
 ﻿using System.Windows.Controls;
 
-namespace MangaBinder.Bindings;
+namespace MangaBinder.Bindings.Inspection;
 
 /// <summary>
 /// SeriesInspectionPage.xaml の相互作用ロジック

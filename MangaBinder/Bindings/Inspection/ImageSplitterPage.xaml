@@ -1,0 +1,411 @@
+﻿<Page x:Class="MangaBinder.Bindings.Inspection.ImageSplitterPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:local="clr-namespace:MangaBinder.Bindings.Inspection"
+      xmlns:bindings="clr-namespace:MangaBinder.Bindings"
+      xmlns:controls="clr-namespace:MangaBinder.Controls"
+      xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
+      mc:Ignorable="d"
+      x:Name="ThisPage"
+      behaviors:ImageSplitterPageInitializeBehavior.IsEnabled="True"
+      d:DesignHeight="800" d:DesignWidth="1200"
+      Title="見開き分割"
+      ui:NavigationView.HeaderContent="見開き分割"
+      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+      ScrollViewer.CanContentScroll="False">
+
+    <Page.Resources>
+        <!-- TabControl のローカルスタイル：ヘッダーを均等幅で配置 -->
+        <Style x:Key="ImageSplitterTabControlStyle" TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+			<Setter Property="ItemsPanel">
+				<Setter.Value>
+					<ItemsPanelTemplate>
+						<UniformGrid Rows="1" Columns="2" />
+					</ItemsPanelTemplate>
+				</Setter.Value>
+			</Setter>
+			<Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <!-- タブヘッダー領域 -->
+                                <RowDefinition Height="Auto" />
+                                <!-- タブコンテンツ領域 -->
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+							<!-- タブヘッダー領域 -->
+							<ItemsPresenter
+                                Grid.Row="0" />
+
+							<!-- タブコンテンツ領域 -->
+                            <ContentPresenter
+                                Grid.Row="1"
+                                x:Name="PART_SelectedContentHost"
+                                Content="{TemplateBinding SelectedContent}"
+                                ContentTemplate="{TemplateBinding SelectedContentTemplate}"
+                                ContentTemplateSelector="{TemplateBinding SelectedContentTemplateSelector}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- TabItem のローカルスタイル：ヘッダーテキストを中央寄せ -->
+        <Style x:Key="ImageSplitterTabItemStyle" TargetType="TabItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Grid
+                            Background="{TemplateBinding Background}">
+                            <!-- タブヘッダー -->
+                            <ContentPresenter
+                                x:Name="ContentSite"
+                                ContentSource="Header"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="{TemplateBinding Padding}"
+                                RecognizesAccessKey="True" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="False">
+                                <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Height" Value="32" />
+        </Style>
+    </Page.Resources>
+
+    <!-- ════════════════════════════════════════════════════════════════ -->
+    <!-- BindingPageLayout：製本工程共通レイアウト -->
+    <!-- ════════════════════════════════════════════════════════════════ -->
+    <bindings:BindingPageLayout
+        Margin="16,4,16,16"
+        SeriesTitle="{Binding BindingSeries.SeriesTitle.Value}">
+
+        <!-- PageLayout：3カラム + Eyecatch + Footer -->
+        <controls:PageLayout
+            LeftColumnWidth="250"
+            LeftColumnMinWidth="250"
+            MainColumnWidth="*"
+            RightColumnWidth="0"
+            RightColumnMinWidth="0"
+            IsMainRightSplitterEnabled="False"
+            EyecatchSymbol="BookOpen24">
+
+            <!-- ─────────────────────────────────────────────────────────────────── -->
+            <!-- LeftContent: 左パネル（作品情報） -->
+            <!-- ─────────────────────────────────────────────────────────────────── -->
+            <controls:PageLayout.LeftContent>
+                <StackPanel
+                    Width="240"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top">
+
+                    <!-- 共通作品情報カード（MangaSeriesCard） -->
+                    <controls:MangaSeriesCard DataContext="{Binding BindingSeries.MangaSeriesCard}" />
+                </StackPanel>
+            </controls:PageLayout.LeftContent>
+
+            <!-- ─────────────────────────────────────────────────────────────────── -->
+            <!-- MainContent: 中央パネル（見開き分割操作） -->
+            <!-- ─────────────────────────────────────────────────────────────────── -->
+            <controls:PageLayout.MainContent>
+                <!-- TabControl：「一覧」「プレビュー」の2タブ -->
+                <TabControl
+                    x:Name="MainTabControl"
+                    Style="{StaticResource ImageSplitterTabControlStyle}"
+                    Margin="0,0,0,0">
+
+                    <!-- タブ 1: 一覧 -->
+                    <TabItem Header="一覧" IsSelected="True" Style="{StaticResource ImageSplitterTabItemStyle}">
+                        <Grid
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            Margin="0,4,0,0">
+                            <ListView
+                                ItemsSource="{Binding ThumbnailItems}"
+                                SelectionMode="Single"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListView.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ListView.ItemsPanel>
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="Margin" Value="4" />
+                                        <Setter Property="Focusable" Value="False" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListViewItem">
+                                                    <ContentPresenter />
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                                <ListView.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:ImageSplitterThumbnailItemViewModel}">
+                                        <ui:Card Width="160" Padding="4">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="160" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+												<Image
+                                                    Width="80"
+                                                    Height="112"
+                                                    Source="{Binding ThumbnailSource}"
+                                                    Stretch="Uniform" />
+												<CheckBox
+                                                    Grid.Row="0"
+                                                    HorizontalAlignment="Left"
+                                                    VerticalAlignment="Top"
+                                                    IsChecked="{Binding Image.IsSpreadSplitTarget.Value, Mode=TwoWay}" />
+                                                <TextBlock
+                                                    Grid.Row="1"
+                                                    Margin="0,4,0,0"
+                                                    HorizontalAlignment="Center"
+                                                    Text="{Binding FileName}"
+                                                    ToolTip="{Binding FileName}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                        </ui:Card>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- タブ 2: プレビュー -->
+                    <TabItem Header="プレビュー" Style="{StaticResource ImageSplitterTabItemStyle}">
+                        <Grid
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            Margin="0,4,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Row 0: プレビュー本体＋設定領域 -->
+                            <Grid Grid.Row="0" x:Name="PreviewSettingsGrid">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="1*" />
+                                </Grid.ColumnDefinitions>
+
+                                <controls:ImageSplitterPreview
+                                    x:Name="SplitterPreview"
+                                    Grid.Column="0"
+                                    Source="{Binding PreviewSource.Value}" />
+
+                                <GridSplitter
+                                    Grid.Column="1"
+                                    Width="8"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    Background="Transparent"
+                                    ResizeDirection="Columns" />
+
+                                <ScrollViewer
+                                    x:Name="SettingsScrollViewer"
+                                    Grid.Column="2"
+                                    VerticalScrollBarVisibility="Auto"
+                                    HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <!-- 見開き分割 -->
+                                        <ui:Card Style="{StaticResource SettingsGroupCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock
+                                                    Style="{StaticResource SettingsGroupTitleStyle}"
+                                                    Text="見開き分割" />
+                                                <ui:Card Style="{StaticResource SettingsItemCardStyle}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="110" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="分割位置" />
+                                                        <Slider Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
+                                                        <ui:NumberBox Grid.Column="2" Width="110" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
+                                                    </Grid>
+                                                </ui:Card>
+                                            </StackPanel>
+                                        </ui:Card>
+
+                                        <!-- トリミング -->
+                                        <ui:Card Style="{StaticResource SettingsGroupCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock
+                                                    Style="{StaticResource SettingsGroupTitleStyle}"
+                                                    Text="トリミング" />
+                                                <ui:Card Style="{StaticResource SettingsItemCardStyle}">
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="24" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="110" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="左" />
+                                                        <Slider Grid.Row="0" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
+                                                        <ui:NumberBox Grid.Row="0" Grid.Column="2" Width="110" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="0" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
+
+                                                        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="右" />
+                                                        <Slider Grid.Row="1" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
+                                                        <ui:NumberBox Grid.Row="1" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="1" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
+
+                                                        <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="上" />
+                                                        <Slider Grid.Row="2" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
+                                                        <ui:NumberBox Grid.Row="2" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="2" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
+
+                                                        <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="下" />
+                                                        <Slider Grid.Row="3" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
+                                                        <ui:NumberBox Grid.Row="3" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="3" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
+                                                    </Grid>
+                                                </ui:Card>
+                                            </StackPanel>
+                                        </ui:Card>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Grid>
+
+                            <!-- Row 1: 現在画像情報＋画像送り -->
+                            <Grid Grid.Row="1" Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="332" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Text="{Binding CurrentFileName.Value}"
+                                    ToolTip="{Binding CurrentFileName.Value}"
+                                    TextWrapping="NoWrap"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Text="{Binding CurrentPositionText.Value}"
+                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                <Grid
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    Grid.RowSpan="2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="150" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ui:Button
+                                        Grid.Column="0"
+                                        Width="150"
+                                        Height="48"
+                                        Appearance="Secondary"
+                                        Command="{Binding PreviousImageCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Symbol="ChevronLeft16" FontSize="20" />
+                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="前の画像" />
+                                        </StackPanel>
+                                    </ui:Button>
+
+                                    <ui:Button
+                                        Grid.Column="2"
+                                        Width="150"
+                                        Height="48"
+                                        Appearance="Secondary"
+                                        Command="{Binding NextImageCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="次の画像" />
+                                            <ui:SymbolIcon Symbol="ChevronRight16" FontSize="20" />
+                                        </StackPanel>
+                                    </ui:Button>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </controls:PageLayout.MainContent>
+
+            <!-- ─────────────────────────────────────────────────────────────────── -->
+            <!-- FooterContent: フッター（キャンセル・分割実行ボタン） -->
+            <!-- ─────────────────────────────────────────────────────────────────── -->
+            <controls:PageLayout.FooterContent>
+                <Grid Margin="0,0,8,0">
+                    <Grid.ColumnDefinitions>
+                        <!-- Column 0: 可変スペース -->
+                        <ColumnDefinition Width="*" />
+                        <!-- Column 1: キャンセルボタン -->
+                        <ColumnDefinition Width="Auto" />
+                        <!-- Column 2: 8px マージン -->
+                        <ColumnDefinition Width="8" />
+                        <!-- Column 3: 分割実行ボタン -->
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Column 1: キャンセルボタン -->
+                    <ui:Button
+                        Grid.Column="1"
+                        Style="{StaticResource FooterButtonStyle}"
+                        Content="キャンセル"
+                        Command="{Binding GoBackCommand}" />
+
+                    <!-- Column 3: 分割実行ボタン -->
+                    <ui:Button
+                        Grid.Column="3"
+                        Style="{StaticResource FooterPrimaryButtonStyle}"
+                        Content="分割実行"
+                        Command="{Binding GoBackCommand}" />
+                </Grid>
+            </controls:PageLayout.FooterContent>
+
+        </controls:PageLayout>
+
+    </bindings:BindingPageLayout>
+
+</Page>

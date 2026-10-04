@@ -1,10 +1,11 @@
-<Page x:Class="MangaBinder.Bindings.SeriesInspectionPage"
+<Page x:Class="MangaBinder.Bindings.Inspection.SeriesInspectionPage"
 	  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 	  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 	  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-	  xmlns:local="clr-namespace:MangaBinder.Bindings"
+	  xmlns:local="clr-namespace:MangaBinder.Bindings.Inspection"
+	  xmlns:bindings="clr-namespace:MangaBinder.Bindings"
 	  xmlns:core="clr-namespace:MangaBinder.Bindings.Inspection;assembly=MangaBinder.Core"
 	  xmlns:controls="clr-namespace:MangaBinder.Controls"
 	  mc:Ignorable="d"
@@ -165,9 +166,9 @@
 	<!-- ════════════════════════════════════════════════════════════════ -->
 	<!-- BindingPageLayout：製本工程共通レイアウト -->
 	<!-- ════════════════════════════════════════════════════════════════ -->
-	<local:BindingPageLayout
+	<bindings:BindingPageLayout
 		Margin="16,4,16,16"
-		SeriesTitle="{Binding SeriesTitle.Value}">
+		SeriesTitle="{Binding BindingSeries.SeriesTitle.Value}">
 
 		<!-- PageLayout：3カラム + Eyecatch + Footer -->
 		<controls:PageLayout
@@ -190,7 +191,7 @@
 					VerticalAlignment="Top">
 
 					<!-- 共通作品情報カード（MangaSeriesCard） -->
-					<controls:MangaSeriesCard DataContext="{Binding MangaSeriesCard}" />
+					<controls:MangaSeriesCard DataContext="{Binding BindingSeries.MangaSeriesCard}" />
 				</StackPanel>
 			</controls:PageLayout.LeftContent>
 
@@ -242,7 +243,7 @@
 							<!-- ───────────────────────────────────────────────────────────────── -->
 							<!-- Card 1: 作品情報 Card（2行×2列） -->
 							<!-- ───────────────────────────────────────────────────────────────── -->
-							<ui:Card Padding="12,8" Margin="0,0,0,2">
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}" Margin="0,0,0,2">
 								<Grid>
 									<Grid.RowDefinitions>
 										<RowDefinition Height="Auto" />
@@ -258,8 +259,7 @@
 										Grid.Row="0"
 										Grid.Column="0"
 										Text="タイトル"
-										FontSize="11"
-										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										Style="{StaticResource SettingsItemTitleStyle}"
 										VerticalAlignment="Center"
 										Margin="0,0,12,8" />
 									<ui:TextBox
@@ -268,15 +268,14 @@
 										FontSize="12"
 										IsReadOnly="True"
 										Margin="0,0,0,8"
-										Text="{Binding SeriesTitle.Value, Mode=OneWay}" />
+										Text="{Binding BindingSeries.SeriesTitle.Value, Mode=OneWay}" />
 
 									<!-- Row 1: 作者 -->
 									<TextBlock
 										Grid.Row="1"
 										Grid.Column="0"
 										Text="作者"
-										FontSize="11"
-										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										Style="{StaticResource SettingsItemTitleStyle}"
 										VerticalAlignment="Center"
 										Margin="0,0,12,0" />
 									<ui:TextBox
@@ -292,7 +291,7 @@
 							<!-- ───────────────────────────────────────────────────────────────── -->
 							<!-- Card 2: zipを作成する Card（1行×3列） -->
 							<!-- ───────────────────────────────────────────────────────────────── -->
-							<ui:Card Padding="12,8" Margin="0,0,0,2">
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}" Margin="0,0,0,2">
 								<Grid Height="44">
 									<Grid.ColumnDefinitions>
 										<ColumnDefinition Width="Auto" />
@@ -304,8 +303,7 @@
 									<TextBlock
 										Grid.Column="0"
 										Text="zipを作成する"
-										FontSize="11"
-										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										Style="{StaticResource SettingsItemTitleStyle}"
 										VerticalAlignment="Center"
 										Margin="0,0,12,0" />
 
@@ -324,7 +322,7 @@
 							<!-- Card 3: zipファイル名 Card（1行×3列） -->
 							<!-- ───────────────────────────────────────────────────────────────── -->
 							<ui:Card 
-								Padding="12,8" 
+								Style="{StaticResource SettingsItemCardStyle}"
 								Margin="0,0,0,2"
 								IsEnabled="{Binding CreateZip.Value, Mode=OneWay}">
 								<Grid Height="44">
@@ -337,8 +335,7 @@
 									<TextBlock
 										Grid.Column="0"
 										Text="zipファイル名"
-										FontSize="11"
-										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										Style="{StaticResource SettingsItemTitleStyle}"
 										VerticalAlignment="Center"
 										Margin="0,0,12,0" />
 
@@ -360,7 +357,7 @@
 							<!-- ───────────────────────────────────────────────────────────────── -->
 							<!-- Card 3: 製本待ちから削除 Card（1行×3列） -->
 							<!-- ───────────────────────────────────────────────────────────────── -->
-							<ui:Card Padding="12,8" Margin="0,0,0,2">
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}" Margin="0,0,0,2">
 								<Grid Height="44">
 									<Grid.ColumnDefinitions>
 										<ColumnDefinition Width="Auto" />
@@ -372,8 +369,7 @@
 									<TextBlock
 										Grid.Column="0"
 										Text="製本待ちから削除"
-										FontSize="11"
-										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										Style="{StaticResource SettingsItemTitleStyle}"
 										VerticalAlignment="Center"
 										Margin="0,0,12,0" />
 
@@ -391,7 +387,7 @@
 							<!-- ───────────────────────────────────────────────────────────────── -->
 							<!-- Card 5: 製本完了後に出力先を開く Card（1行×3列） -->
 							<!-- ───────────────────────────────────────────────────────────────── -->
-							<ui:Card Padding="12,8" Margin="0,0,0,2">
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}" Margin="0,0,0,2">
 								<Grid Height="44">
 									<Grid.ColumnDefinitions>
 										<ColumnDefinition Width="Auto" />
@@ -403,8 +399,7 @@
 									<TextBlock
 										Grid.Column="0"
 										Text="製本完了後に出力先を開く"
-										FontSize="11"
-										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										Style="{StaticResource SettingsItemTitleStyle}"
 										VerticalAlignment="Center"
 										Margin="0,0,12,0" />
 
@@ -422,7 +417,7 @@
 							<!-- ───────────────────────────────────────────────────────────────── -->
 							<!-- Card 4: 出力形式 Card（将来用） -->
 							<!-- ───────────────────────────────────────────────────────────────── -->
-							<ui:Card Padding="12,8" Margin="0,0,0,2">
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}" Margin="0,0,0,2">
 								<Grid Height="44">
 									<Grid.ColumnDefinitions>
 										<ColumnDefinition Width="Auto" />
@@ -434,8 +429,7 @@
 									<TextBlock
 										Grid.Column="0"
 										Text="出力形式"
-										FontSize="11"
-										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										Style="{StaticResource SettingsItemTitleStyle}"
 										VerticalAlignment="Center"
 										Margin="0,0,12,0" />
 
@@ -459,7 +453,7 @@
 							<!-- ───────────────────────────────────────────────────────────────── -->
 							<!-- Card 5: 既存の製本済zipを削除する Card（将来用） -->
 							<!-- ───────────────────────────────────────────────────────────────── -->
-							<ui:Card Padding="12,8" Margin="0,0,0,2">
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}" Margin="0,0,0,2">
 								<Grid Height="44">
 									<Grid.ColumnDefinitions>
 										<ColumnDefinition Width="Auto" />
@@ -471,8 +465,7 @@
 									<TextBlock
 										Grid.Column="0"
 										Text="既存の製本済zipを削除する"
-										FontSize="11"
-										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										Style="{StaticResource SettingsItemTitleStyle}"
 										VerticalAlignment="Center"
 										Margin="0,0,12,0" />
 
@@ -491,7 +484,7 @@
 							<!-- ───────────────────────────────────────────────────────────────── -->
 							<!-- Card 6: iCloudからも削除する Card（将来用） -->
 							<!-- ───────────────────────────────────────────────────────────────── -->
-							<ui:Card Padding="12,8">
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}">
 								<Grid Height="44">
 									<Grid.ColumnDefinitions>
 										<ColumnDefinition Width="Auto" />
@@ -503,8 +496,7 @@
 									<TextBlock
 										Grid.Column="0"
 										Text="iCloudからも削除する"
-										FontSize="11"
-										Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										Style="{StaticResource SettingsItemTitleStyle}"
 										VerticalAlignment="Center"
 										Margin="0,0,12,0" />
 
@@ -561,6 +553,6 @@
 
 		</controls:PageLayout>
 
-	</local:BindingPageLayout>
+	</bindings:BindingPageLayout>
 
 </Page>

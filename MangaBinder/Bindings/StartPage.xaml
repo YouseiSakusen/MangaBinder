@@ -19,16 +19,6 @@
 	<Page.Resources>
 		<tags:BindingProxy x:Key="VmProxy" Data="{Binding}" />
 		<BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-		<Style x:Key="TitleReadOnlyTextBoxStyle" TargetType="TextBox">
-			<Setter Property="Background" Value="Transparent" />
-			<Setter Property="BorderThickness" Value="0" />
-			<Setter Property="BorderBrush" Value="Transparent" />
-			<Setter Property="Padding" Value="0" />
-			<Setter Property="FocusVisualStyle" Value="{x:Null}" />
-			<Setter Property="CaretBrush" Value="Transparent" />
-			<Setter Property="IsReadOnly" Value="True" />
-			<Setter Property="IsTabStop" Value="False" />
-		</Style>
 		<Style x:Key="EmptyStateCardStyle" TargetType="Border">
 			<Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
 			<Setter Property="CornerRadius" Value="6" />
@@ -123,14 +113,12 @@
 											</Grid.ColumnDefinitions>
 
 											<!-- タイトル -->
-											<TextBox Grid.Column="0"
-													 Style="{StaticResource TitleReadOnlyTextBoxStyle}"
+											<controls:SelectableTextBlock Grid.Column="0"
 													 Text="{Binding Series.Value.Title}"
 													 FontSize="16" FontWeight="SemiBold"
 													 MaxHeight="72"
 													 HorizontalAlignment="Stretch"
-													 TextWrapping="Wrap"
-													 Focusable="True" Cursor="IBeam" />
+													 TextWrapping="Wrap" />
 										</Grid>
 
 										<!-- Row1: 巻数情報 -->
@@ -200,10 +188,8 @@
 														<TextBlock FontSize="11" Opacity="0.6" VerticalAlignment="Center">出典：</TextBlock>
 														<TextBlock Text="{Binding Series.Value.DescriptionSourceName}" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
 														<TextBlock FontSize="11" Opacity="0.6" VerticalAlignment="Center">&#x20;/&#x20;</TextBlock>
-														<TextBox Style="{StaticResource TitleReadOnlyTextBoxStyle}"
-																		 Text="{Binding Series.Value.DescriptionSourceTitle}"
-																		 FontSize="11" Opacity="0.6" VerticalAlignment="Center"
-																		 Focusable="True" Cursor="IBeam" />
+														<TextBlock Text="{Binding Series.Value.DescriptionSourceTitle}"
+																		 FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
 													</StackPanel>
 												</StackPanel>
 											</ui:Flyout>

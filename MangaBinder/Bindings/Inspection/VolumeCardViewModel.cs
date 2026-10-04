@@ -1,10 +1,9 @@
 using System.IO;
 using System.Windows.Media;
-using MangaBinder.Bindings.Inspection;
 using R3;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace MangaBinder.Bindings;
+namespace MangaBinder.Bindings.Inspection;
 
 /// <summary>
 /// SeriesInspection の巻カード表示用 ViewModel です。

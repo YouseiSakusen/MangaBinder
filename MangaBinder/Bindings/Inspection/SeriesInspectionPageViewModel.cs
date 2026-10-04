@@ -4,7 +4,6 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
-using MangaBinder.Bindings.Inspection;
 using MangaBinder.Bindings.Prepress;
 using MangaBinder.Controls;
 using MangaBinder.Settings;
@@ -14,7 +13,7 @@ using R3;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
-namespace MangaBinder.Bindings;
+namespace MangaBinder.Bindings.Inspection;
 
 /// <summary>
 /// 製本前確認画面の ViewModel です。
@@ -39,25 +38,16 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>スコープファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
-	/// <summary>サムネイル画像ローダー。</summary>
-	private readonly ThumbnailImageLoader thumbnailImageLoader;
-
 	/// <summary>ローディングサービス。</summary>
 	private readonly LoadingService loadingService;
 
 	private DisposableBag disposableBag;
 
-	/// <summary>選択中の作品名を取得します。</summary>
-	public IReadOnlyBindableReactiveProperty<string> SeriesTitle { get; }
+	/// <summary>作品タイトルと作品カードの共通 ViewModel を取得します。</summary>
+	public BindingSeriesViewModel BindingSeries { get; }
 
 	/// <summary>選択中の作品著者を取得します。</summary>
 	public IReadOnlyBindableReactiveProperty<string> SeriesAuthor { get; }
-
-	/// <summary>
-	/// 作品サムネイルカード用の ViewModel を取得します。
-	/// ThumbnailSource と VolumeStatus を管理し、左側パネルのサムネイルカードに使用されます。
-	/// </summary>
-	public MangaSeriesCardViewModel MangaSeriesCard { get; private set; }
 
 	/// <summary>巻カード表示用の ViewModel 一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<VolumeCardViewModel> VolumeCards { get; }
@@ -123,13 +113,9 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.contentDialogService = contentDialogService;
 		this.snackbarService = snackbarService;
 		this.serviceScopeFactory = serviceScopeFactory;
-		this.thumbnailImageLoader = thumbnailImageLoader;
 		this.loadingService = loadingService;
 
-		// SeriesTitle: BindingTarget.Value?.Series.Title から Reactive に導出
-		this.SeriesTitle = this.bindingStore.BindingTarget
-			.Select(bindingTarget => bindingTarget?.Series?.Title ?? string.Empty)
-			.ToReadOnlyBindableReactiveProperty(string.Empty)
+		this.BindingSeries = new BindingSeriesViewModel(this.bindingStore, thumbnailImageLoader)
 			.AddTo(ref this.disposableBag);
 
 		// SeriesAuthor: BindingTarget.Value?.Series.Author から Reactive に導出
@@ -154,41 +140,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 		// VolumeCardViewModel のライフタイム管理
 		volumeCardsView.ViewChanged += this.onVolumeCardsViewChanged;
-
-		// MangaSeriesCard: 作品サムネイルカード用ViewModel
-		this.MangaSeriesCard = new MangaSeriesCardViewModel()
-			.AddTo(ref this.disposableBag);
-
-		// BindingTarget 変更時に MangaSeriesCard へ Series と ThumbnailSource を接続
-		this.bindingStore.BindingTarget.Subscribe(bindingTarget =>
-		{
-			var series = bindingTarget?.Series;
-			if (series is not null)
-			{
-				// ThumbnailImageLoader で最終表示用 ImageSource を取得
-				var imageSource = this.thumbnailImageLoader.Load(series);
-
-				// MangaSeriesCard へ設定
-				this.MangaSeriesCard.ThumbnailSource.Value = imageSource;
-
-				// MangaSeriesCard の Series へ接続
-				if (!ReferenceEquals(this.MangaSeriesCard.Series.Value, series))
-				{
-					this.MangaSeriesCard.Series.Value = series;
-				}
-				else
-				{
-					// 同一インスタンスの場合は ForceNotify() で再通知させる
-					this.MangaSeriesCard.Series.ForceNotify();
-				}
-			}
-			else
-			{
-				// series が null の場合はクリア
-				this.MangaSeriesCard.ThumbnailSource.Value = null;
-				this.MangaSeriesCard.Series.Value = null;
-			}
-		}).AddTo(ref this.disposableBag);
 
 		this.GoBackCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
@@ -225,12 +176,16 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			// CurrentPrepressVolume を設定
 			this.workspaceStore.SetCurrentPrepressVolume(result);
 
-			// VolumeThumbnailsPage へ遷移
-			this.navigationService.NavigateWithHierarchy(typeof(VolumeThumbnailsPage));
+			// 見開き分割対象巻を設定
+			this.bindingStore.SplitTargetVolume.Value = volume;
+
+			// ImageSplitterPage へ遷移
+			this.navigationService.NavigateWithHierarchy(typeof(ImageSplitterPage));
 		}).AddTo(ref this.disposableBag);
 
 		this.CancelCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
+
 		this.CancelCommand.Subscribe(async _ => await this.executeCancelAsync())
 			.AddTo(ref this.disposableBag);
 	}

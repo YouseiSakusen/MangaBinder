@@ -139,7 +139,7 @@
 	<!-- ================================================================================== -->
 	<bindings:BindingPageLayout
 		Margin="16,4,16,16"
-		SeriesTitle="{Binding SeriesTitle.Value}">
+		SeriesTitle="{Binding BindingSeries.SeriesTitle.Value}">
 
 		<!-- PageLayout：3カラム + Eyecatch + Footer -->
 		<controls:PageLayout
@@ -197,7 +197,7 @@
 					VerticalAlignment="Top">
 
 					<!-- 共通作品情報カード（MangaSeriesCard） -->
-					<controls:MangaSeriesCard DataContext="{Binding MangaSeriesCard}" />
+					<controls:MangaSeriesCard DataContext="{Binding BindingSeries.MangaSeriesCard}" />
 
 					<!-- 巻選択画面固有：素材内訳Card -->
 					<ui:Card
@@ -525,7 +525,7 @@
 							HorizontalScrollBarVisibility="Disabled">
 
 							<!-- 外側Card：画像展開設定グループ -->
-							<ui:Card Padding="12,8" Margin="0,0,3,0">
+							<ui:Card Style="{StaticResource SettingsGroupCardStyle}" Margin="0,0,3,0">
 								<Grid>
 									<Grid.RowDefinitions>
 										<RowDefinition Height="64" />
@@ -536,14 +536,10 @@
 									<StackPanel Grid.Row="0" VerticalAlignment="Center">
 										<TextBlock
 											Text="画像展開設定"
-											FontSize="14"
-											FontWeight="SemiBold"
-											Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-											Margin="0,0,0,4" />
+											Style="{StaticResource SettingsGroupTitleStyle}" />
 										<TextBlock
 											Text="次画面の画像展開の動作を設定します"
-											FontSize="11"
-											Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+											Style="{StaticResource SettingsGroupDescriptionStyle}" />
 									</StackPanel>
 
 									<!-- Row 1: 個別設定Cards -->
@@ -554,7 +550,7 @@
 										</Grid.RowDefinitions>
 
 										<!-- Row 0: 設定1 - 画像展開時の動作 -->
-										<ui:Card Grid.Row="0" Padding="12,8">
+										<ui:Card Grid.Row="0" Style="{StaticResource SettingsItemCardStyle}">
 											<Grid Height="44">
 												<Grid.ColumnDefinitions>
 													<ColumnDefinition Width="*" />
@@ -566,14 +562,10 @@
 												<StackPanel Grid.Column="0">
 													<TextBlock
 														Text="画像展開時の動作"
-														FontSize="12"
-														FontWeight="SemiBold"
-														Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+												Style="{StaticResource SettingsItemTitleStyle}" />
 													<TextBlock
 														Text="画像展開先の動作を選択します"
-														FontSize="11"
-														Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-														Margin="0,2,0,0" />
+												Style="{StaticResource SettingsItemDescriptionStyle}" />
 												</StackPanel>
 
 												<!-- Column 2: ComboBox -->
@@ -591,7 +583,7 @@
 										</ui:Card>
 
 										<!-- Row 1: 設定2 - 巻フォルダ名の桁数 -->
-										<ui:Card Grid.Row="1" Padding="12,8" Margin="0,6,0,0">
+										<ui:Card Grid.Row="1" Style="{StaticResource SettingsItemCardStyle}" Margin="0,6,0,0">
 											<Grid Height="44">
 												<Grid.ColumnDefinitions>
 													<ColumnDefinition Width="*" />
@@ -603,14 +595,10 @@
 												<StackPanel Grid.Column="0">
 													<TextBlock
 														Text="巻フォルダ名の桁数"
-														FontSize="12"
-														FontWeight="SemiBold"
-														Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+												Style="{StaticResource SettingsItemTitleStyle}" />
 													<TextBlock
 														Text="巻の番号桁数を指定します"
-														FontSize="11"
-														Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-														Margin="0,2,0,0" />
+												Style="{StaticResource SettingsItemDescriptionStyle}" />
 												</StackPanel>
 
 												<!-- Column 2: ComboBox -->

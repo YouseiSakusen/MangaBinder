@@ -8,7 +8,7 @@ namespace MangaBinder.Bindings.Inspection;
 /// 代表画像1枚を透過的な余白で表示できるよう、背景キャンバスを使用せず、
 /// リサイズ後の原寸サイズでPNG出力します。
 /// </summary>
-public sealed class VolumeCardThumbnailImageProcessor
+public sealed class BindingThumbnailImageProcessor
 {
 	/// <summary>
 	/// 指定された画像ファイルをサムネイル用にリサイズし、PNGバイト列として生成します。

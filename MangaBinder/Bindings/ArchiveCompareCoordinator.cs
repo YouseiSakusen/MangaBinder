@@ -53,7 +53,7 @@ public class ArchiveCompareCoordinator
 		if (mainWindow is not null)
 		{
 			contentWidth = mainWindow.ActualWidth * 4 / 5;
-			contentHeight = mainWindow.ActualHeight * 0.55;
+			contentHeight = mainWindow.ActualHeight * 0.53;
 		}
 		else
 		{
@@ -80,7 +80,17 @@ public class ArchiveCompareCoordinator
 			var right = viewModel.RightArchive.Value!;
 			var leftItems = GetComparisonItems(left);
 			var rightItems = GetComparisonItems(right);
-			var comparisonChildren = compare(leftItems, rightItems);
+
+			// 入力中の除外文字列を Applied... に反映
+			viewModel.AppliedLeftExcludedText.Value = viewModel.LeftExcludedText.Value;
+			viewModel.AppliedRightExcludedText.Value = viewModel.RightExcludedText.Value;
+
+			// 除外文字列を適用して比較を実行
+			var comparisonChildren = compare(
+				leftItems,
+				rightItems,
+				viewModel.AppliedLeftExcludedText.Value,
+				viewModel.AppliedRightExcludedText.Value);
 
 			// 比較結果をArchiveルートNodeで包む
 			var root = new ArchiveCompareNode(left, right, comparisonChildren);
@@ -172,5 +182,75 @@ public class ArchiveCompareCoordinator
 					x.Value.Left?.Children ?? Enumerable.Empty<MaterialItem>(),
 					x.Value.Right?.Children ?? Enumerable.Empty<MaterialItem>())))
 			.ToList();
+	}
+
+	/// <summary>
+	/// 左右の除外文字列を考慮して比較Treeを生成します。
+	/// 同じ親階層の左右Childrenを、除外文字列を適用した Name で対応付けます。
+	/// </summary>
+	private static IReadOnlyList<ArchiveCompareNode> compare(
+		IEnumerable<MaterialItem> leftItems,
+		IEnumerable<MaterialItem> rightItems,
+		string leftExcludedText,
+		string rightExcludedText)
+	{
+		// 同一階層の同名重複は想定外データのため、Add / ToDictionary の ArgumentException で即座に検知する
+		var leftByKey = leftItems.ToDictionary(
+			x => GenerateComparisonKey(x.Name, leftExcludedText),
+			StringComparer.Ordinal);
+		var rightByKey = rightItems.ToDictionary(
+			x => GenerateComparisonKey(x.Name, rightExcludedText),
+			StringComparer.Ordinal);
+
+		var pairs = new Dictionary<string, (MaterialItem? Left, MaterialItem? Right)>(StringComparer.Ordinal);
+
+		foreach (var (key, left) in leftByKey)
+		{
+			pairs.Add(key, (left, null));
+		}
+
+		foreach (var (key, right) in rightByKey)
+		{
+			if (pairs.TryGetValue(key, out var pair))
+			{
+				pairs[key] = (pair.Left, right);
+			}
+			else
+			{
+				pairs.Add(key, (null, right));
+			}
+		}
+
+		return pairs
+			.OrderBy(x => x.Key)
+			.Select(x => new ArchiveCompareNode(
+				x.Value.Left,
+				x.Value.Right,
+				compare(
+					x.Value.Left?.Children ?? Enumerable.Empty<MaterialItem>(),
+					x.Value.Right?.Children ?? Enumerable.Empty<MaterialItem>(),
+					leftExcludedText,
+					rightExcludedText)))
+			.ToList();
+	}
+
+	/// <summary>
+	/// MaterialItem の Name から除外文字列を除外した比較キーを生成します。
+	/// </summary>
+	/// <param name="name">元の MaterialItem.Name。</param>
+	/// <param name="excludedText">除外する文字列。null または空文字列の場合は name をそのまま返す。</param>
+	/// <returns>
+	/// 除外文字列が null / 空文字列の場合は name をそのまま返す。
+	/// そうでない場合は、name 内の除外文字列と完全一致する部分をすべて除外したテキストを返す。
+	/// </returns>
+	private static string GenerateComparisonKey(string name, string excludedText)
+	{
+		if (string.IsNullOrEmpty(excludedText))
+		{
+			return name;
+		}
+
+		// StringComparison.Ordinal 相当で、除外文字列をすべて削除
+		return name.Replace(excludedText, string.Empty, StringComparison.Ordinal);
 	}
 }
