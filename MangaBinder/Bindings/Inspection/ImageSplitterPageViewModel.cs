@@ -9,7 +9,7 @@ namespace MangaBinder.Bindings.Inspection;
 
 /// <summary>
 /// 見開き分割画面の ViewModel です。
-/// 責務は INavigationService.GoBack() を呼ぶ GoBackCommand のみです。
+/// 編集用 Clone の準備は ImageSplitterManager、サムネイル・プレビューの BitmapSource 生成は本 ViewModel が担当します。
 /// </summary>
 public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializable
 {
@@ -32,8 +32,17 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 	/// <summary>作品タイトルと作品カードの共通 ViewModel を取得します。</summary>
 	public BindingSeriesViewModel BindingSeries { get; }
 
-	/// <summary>戻るコマンドを取得します。</summary>
-	public ReactiveCommand GoBackCommand { get; }
+	/// <summary>
+	/// 現在の編集用対象巻を取得します。View は Value.SplitSettings の ReactiveProperty へ直接 Binding します。
+	/// BindingStore が所有するため、この ViewModel では Dispose しません。
+	/// </summary>
+	public BindableReactiveProperty<BindingVolume?> SplitTargetVolume => this.bindingStore.SplitTargetVolume;
+
+	/// <summary>キャンセルコマンドを取得します。</summary>
+	public ReactiveCommand CancelCommand { get; }
+
+	/// <summary>分割実行コマンドを取得します。</summary>
+	public ReactiveCommand ExecuteSplitCommand { get; }
 
 	/// <summary>現在のプレビュー対象の ThumbnailItems 内インデックスを取得します。画像が0件の場合は -1 です。</summary>
 	public BindableReactiveProperty<int> CurrentIndex { get; }
@@ -120,18 +129,56 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 			.Subscribe(async _ => await this.showImageAsync(this.CurrentIndex.Value + 1))
 			.AddTo(ref this.disposableBag);
 
-		this.GoBackCommand = new ReactiveCommand()
+		this.CancelCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
-		this.GoBackCommand.Subscribe(_ =>
+		this.CancelCommand
+			.Subscribe(_ => this.cancel())
+			.AddTo(ref this.disposableBag);
+
+		this.ExecuteSplitCommand = new ReactiveCommand()
+			.AddTo(ref this.disposableBag);
+		this.ExecuteSplitCommand
+			.Subscribe(_ => this.executeSplit())
+			.AddTo(ref this.disposableBag);
+	}
+
+	/// <summary>
+	/// 編集状態を終了して前の画面へ戻ります。
+	/// </summary>
+	private void cancel()
+	{
+		this.finishAndGoBack();
+	}
+
+	/// <summary>
+	/// 分割実行の入口です。現時点では実画像処理を行わず、編集状態を終了して前の画面へ戻ります。
+	/// </summary>
+	private void executeSplit()
+	{
+		this.finishAndGoBack();
+	}
+
+	/// <summary>
+	/// ImageSplitterManager の終了処理を通して SplitTargetVolume を null にし、前の画面へ戻ります。
+	/// </summary>
+	private void finishAndGoBack()
+	{
+		using (var scope = this.serviceScopeFactory.CreateScope())
 		{
-			this.bindingStore.SplitTargetVolume.Value = null;
-			this.navigationService.GoBack();
-		}).AddTo(ref this.disposableBag);
+			scope.ServiceProvider.GetRequiredService<ImageSplitterManager>().Finish();
+		}
+
+		this.navigationService.GoBack();
 	}
 
 	/// <inheritdoc/>
 	public async ValueTask InitializeDataAsync()
 	{
+		using (var managerScope = this.serviceScopeFactory.CreateScope())
+		{
+			managerScope.ServiceProvider.GetRequiredService<ImageSplitterManager>().Initialize();
+		}
+
 		var volume = this.bindingStore.SplitTargetVolume.Value
 			?? throw new InvalidOperationException("BindingStore.SplitTargetVolume が null です。");
 

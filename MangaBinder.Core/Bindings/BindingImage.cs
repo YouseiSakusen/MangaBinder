@@ -180,6 +180,33 @@ public class BindingImage : IDisposable
 		this.IsSpreadSplitTarget.Value = this.IsLandscape;
 	}
 
+	/// <summary>
+	/// ImageSplitter の編集用として、独立した BindingImage を作成します。
+	/// MaterialImage は同一インスタンスを参照し、IsSpreadSplitTarget は新しい ReactiveProperty へ値をコピーします。
+	/// TemporaryImageStream は共有せず null とします。
+	/// </summary>
+	/// <param name="cloneVolume">Clone 側の親 BindingVolume。</param>
+	/// <returns>編集用の新しい BindingImage。</returns>
+	public BindingImage CloneForImageSplitter(BindingVolume cloneVolume)
+	{
+		var clone = new BindingImage(cloneVolume, this.MaterialImage);
+		clone.FileName = this.FileName;
+		clone.FilePath = this.FilePath;
+		clone.Width = this.Width;
+		clone.Height = this.Height;
+		clone.TemporaryImageStream = null;
+		clone.SimulatedFileName = this.SimulatedFileName;
+		clone.SkipImageProcessing = this.SkipImageProcessing;
+		clone.ProcessStatus = this.ProcessStatus;
+		clone.ProcessErrorMessage = this.ProcessErrorMessage;
+		clone.SimulatedNormalizedFileName = this.SimulatedNormalizedFileName;
+		clone.FileNameNormalizationStatus = this.FileNameNormalizationStatus;
+		clone.FileNameNormalizationErrorMessage = this.FileNameNormalizationErrorMessage;
+		clone.HasSuspectedMojibake = this.HasSuspectedMojibake;
+		clone.IsSpreadSplitTarget.Value = this.IsSpreadSplitTarget.Value;
+		return clone;
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{

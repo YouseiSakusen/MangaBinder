@@ -219,7 +219,12 @@
                                 <controls:ImageSplitterPreview
                                     x:Name="SplitterPreview"
                                     Grid.Column="0"
-                                    Source="{Binding PreviewSource.Value}" />
+                                    Source="{Binding PreviewSource.Value}"
+                                                                        SplitPosition="{Binding SplitTargetVolume.Value.SplitSettings.SplitPosition.Value, Mode=TwoWay}"
+                                                                        TrimLeft="{Binding SplitTargetVolume.Value.SplitSettings.TrimLeft.Value, Mode=TwoWay}"
+                                                                        TrimRight="{Binding SplitTargetVolume.Value.SplitSettings.TrimRight.Value, Mode=TwoWay}"
+                                                                        TrimTop="{Binding SplitTargetVolume.Value.SplitSettings.TrimTop.Value, Mode=TwoWay}"
+                                                                        TrimBottom="{Binding SplitTargetVolume.Value.SplitSettings.TrimBottom.Value, Mode=TwoWay}" />
 
                                 <GridSplitter
                                     Grid.Column="1"
@@ -250,8 +255,8 @@
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="分割位置" />
-                                                        <Slider Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
-                                                        <ui:NumberBox Grid.Column="2" Width="110" VerticalAlignment="Center" />
+                                                        <Slider Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.SplitPosition.Value, Mode=TwoWay}" />
+                                                        <ui:NumberBox Grid.Column="2" Width="110" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.SplitPosition.Value, Mode=TwoWay}" />
                                                         <TextBlock Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
                                                     </Grid>
                                                 </ui:Card>
@@ -280,23 +285,23 @@
                                                         </Grid.ColumnDefinitions>
 
                                                         <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="左" />
-                                                        <Slider Grid.Row="0" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
-                                                        <ui:NumberBox Grid.Row="0" Grid.Column="2" Width="110" VerticalAlignment="Center" />
+                                                        <Slider Grid.Row="0" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimLeft.Value, Mode=TwoWay}" />
+                                                        <ui:NumberBox Grid.Row="0" Grid.Column="2" Width="110" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimLeft.Value, Mode=TwoWay}" />
                                                         <TextBlock Grid.Row="0" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
 
                                                         <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="右" />
-                                                        <Slider Grid.Row="1" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
-                                                        <ui:NumberBox Grid.Row="1" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" />
+                                                        <Slider Grid.Row="1" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimRight.Value, Mode=TwoWay}" />
+                                                        <ui:NumberBox Grid.Row="1" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimRight.Value, Mode=TwoWay}" />
                                                         <TextBlock Grid.Row="1" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
 
                                                         <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="上" />
-                                                        <Slider Grid.Row="2" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
-                                                        <ui:NumberBox Grid.Row="2" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" />
+                                                        <Slider Grid.Row="2" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelHeight}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimTop.Value, Mode=TwoWay}" />
+                                                        <ui:NumberBox Grid.Row="2" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelHeight}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimTop.Value, Mode=TwoWay}" />
                                                         <TextBlock Grid.Row="2" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
 
                                                         <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="下" />
-                                                        <Slider Grid.Row="3" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" />
-                                                        <ui:NumberBox Grid.Row="3" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" />
+                                                        <Slider Grid.Row="3" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelHeight}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimBottom.Value, Mode=TwoWay}" />
+                                                        <ui:NumberBox Grid.Row="3" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelHeight}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimBottom.Value, Mode=TwoWay}" />
                                                         <TextBlock Grid.Row="3" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
                                                     </Grid>
                                                 </ui:Card>
@@ -393,14 +398,14 @@
                         Grid.Column="1"
                         Style="{StaticResource FooterButtonStyle}"
                         Content="キャンセル"
-                        Command="{Binding GoBackCommand}" />
+                        Command="{Binding CancelCommand}" />
 
                     <!-- Column 3: 分割実行ボタン -->
                     <ui:Button
                         Grid.Column="3"
                         Style="{StaticResource FooterPrimaryButtonStyle}"
                         Content="分割実行"
-                        Command="{Binding GoBackCommand}" />
+                        Command="{Binding ExecuteSplitCommand}" />
                 </Grid>
             </controls:PageLayout.FooterContent>
 

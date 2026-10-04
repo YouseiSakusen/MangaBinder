@@ -113,6 +113,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<VolumeSelectionManager>();
 		services.AddScoped<ArchiveCompareCoordinator>();
 		services.AddScoped<SeriesInspectionManager>();
+		services.AddScoped<ImageSplitterManager>();
 		services.AddScoped<BindingThumbnailImageProcessor>();
 		services.AddScoped<VolumeCardThumbnailLoader>();
 		services.AddScoped<ImageSplitterThumbnailLoader>();

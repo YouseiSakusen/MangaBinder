@@ -41,8 +41,6 @@ public partial class ImageSplitterPreview : UserControl
 	private readonly Dictionary<GuideKind, (Grid Hit, Rectangle? Line)> guides = new();
 	/// <summary>Trim 種別ごとの塗り領域を保持する辞書。</summary>
 	private readonly Dictionary<GuideKind, Rectangle> overlays = new();
-	/// <summary>最初に設定される Source で SplitPosition を画像中央へ初期化する待機状態かどうか。</summary>
-	private bool isInitialSplitPending;
 	/// <summary>現在選択中のガイド。</summary>
 	private GuideKind? selected;
 	/// <summary>現在ドラッグ中のガイド。</summary>
@@ -152,39 +150,17 @@ public partial class ImageSplitterPreview : UserControl
 	{
 		var self = (ImageSplitterPreview)d;
 		self.PreviewImage.Source = (BitmapSource?)e.NewValue;
-		if (self.isInitialSplitPending && e.NewValue is BitmapSource source)
-		{
-			self.isInitialSplitPending = false;
-			self.SplitPosition = source.PixelWidth / 2;
-		}
-
 		self.updateGuides();
 	}
 
 	/// <summary>
-	/// 新しい画面セッション開始時に View 状態を初期状態へ戻します。
-	/// Source が未設定の場合は、最初の Source 設定時に SplitPosition を画像中央へ設定します。
+	/// 新しい画面セッション開始時に、選択中ガイドとドラッグ状態の View 状態を初期状態へ戻します。
+	/// SplitPosition / Trim 値は SplitSettings の値のため変更しません。
 	/// </summary>
 	public void ResetViewState()
 	{
 		this.selected = null;
 		this.dragging = null;
-		this.TrimLeft = 0;
-		this.TrimRight = 0;
-		this.TrimTop = 0;
-		this.TrimBottom = 0;
-
-		if (this.Source is { } source)
-		{
-			this.isInitialSplitPending = false;
-			this.SplitPosition = source.PixelWidth / 2;
-		}
-		else
-		{
-			this.isInitialSplitPending = true;
-			this.SplitPosition = 0;
-		}
-
 		this.updateGuides();
 	}
 

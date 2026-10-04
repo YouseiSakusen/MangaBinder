@@ -111,10 +111,25 @@ public class BindingVolume : IDisposable
 	public string? EpubExtractionErrorMessage { get; set; }
 
 	/// <summary>
+	/// この巻共通の見開き分割設定を取得します。
+	/// </summary>
+	public SplitSettings SplitSettings { get; }
+
+	/// <summary>
 	/// <see cref="BindingVolume"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="material">この巻の元となった素材。BindingStore.Materials 内に存在するインスタンスを指定してください。</param>
 	public BindingVolume(MaterialItem material)
+		: this(material, new SplitSettings())
+	{
+	}
+
+	/// <summary>
+	/// 指定した SplitSettings を所有する <see cref="BindingVolume"/> を初期化します。
+	/// </summary>
+	/// <param name="material">この巻の元となった素材。</param>
+	/// <param name="splitSettings">この巻が所有する見開き分割設定。</param>
+	private BindingVolume(MaterialItem material, SplitSettings splitSettings)
 	{
 		this.Material = material ?? throw new ArgumentNullException(nameof(material));
 		this.VolumeNumber = new BindableReactiveProperty<decimal?>(null)
@@ -129,6 +144,35 @@ public class BindingVolume : IDisposable
 		this.EpubExtractionError = EpubExtractionError.None;
 		this.EpubExtractionWarnings = EpubExtractionWarning.None;
 		this.EpubExtractionErrorMessage = null;
+		this.SplitSettings = splitSettings
+			.AddTo(ref this.disposableBag);
+	}
+
+	/// <summary>
+	/// ImageSplitter の編集用として、独立した BindingVolume を作成します。
+	/// Material は同一インスタンスを参照し、それ以外の状態・ReactiveProperty・コレクションは共有しません。
+	/// </summary>
+	/// <returns>編集用の新しい BindingVolume。</returns>
+	public BindingVolume CloneForImageSplitter()
+	{
+		var clone = new BindingVolume(this.Material);
+		clone.VolumeNumber.Value = this.VolumeNumber.Value;
+		clone.WorkFolderPath = this.WorkFolderPath;
+		clone.HasImageFileNameConflict = this.HasImageFileNameConflict;
+		clone.HasImageProcessingError = this.HasImageProcessingError;
+		clone.HasSubFolder = this.HasSubFolder;
+		clone.ImageFileCount = this.ImageFileCount;
+		clone.LandscapeImageCount = this.LandscapeImageCount;
+		clone.EpubExtractionError = this.EpubExtractionError;
+		clone.EpubExtractionWarnings = this.EpubExtractionWarnings;
+		clone.EpubExtractionErrorMessage = this.EpubExtractionErrorMessage;
+
+		foreach (var image in this.Images)
+		{
+			clone.Images.Add(image.CloneForImageSplitter(clone));
+		}
+
+		return clone;
 	}
 
 	/// <inheritdoc/>

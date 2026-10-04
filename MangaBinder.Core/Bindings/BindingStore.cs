@@ -45,6 +45,12 @@ public class BindingStore : IDisposable
 	/// </summary>
 	public BindableReactiveProperty<BindingVolume?> SplitTargetVolume { get; }
 
+	/// <summary>
+	/// ImageSplitter で使用する編集用 BindingVolume Clone の保持先を取得します。
+	/// BindingStore が所有し、SplitTargetVolume が null になった時点、または製本セッション初期化・Dispose 時に破棄されます。
+	/// </summary>
+	public ObservableList<BindingVolume> SplitVolumes { get; }
+
 	/// <summary>直前の SplitTargetVolume。</summary>
 	private BindingVolume? previousSplitTargetVolume;
 
@@ -206,6 +212,23 @@ public class BindingStore : IDisposable
 		}
 
 		this.previousSplitTargetVolume = newVolume;
+
+		if (newVolume is null)
+		{
+			this.disposeSplitVolumes();
+		}
+	}
+
+	/// <summary>
+	/// SplitVolumes 内の編集用 BindingVolume を Dispose し、SplitVolumes を Clear します。
+	/// </summary>
+	private void disposeSplitVolumes()
+	{
+		foreach (var volume in this.SplitVolumes)
+		{
+			volume.Dispose();
+		}
+		this.SplitVolumes.Clear();
 	}
 
 	/// <summary>
@@ -217,6 +240,7 @@ public class BindingStore : IDisposable
 			.AddTo(ref this.disposableBag);
 		this.Materials = new ObservableList<MaterialItem>();
 		this.BindingVolumes = new ObservableList<BindingVolume>();
+		this.SplitVolumes = new ObservableList<BindingVolume>();
 		this.IsManualVolumeOrder = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 		this.VolumeFolderDigits = new BindableReactiveProperty<int>(2)
@@ -463,6 +487,9 @@ public class BindingStore : IDisposable
 	/// </summary>
 	private void clearCurrentBindingSession()
 	{
+		// 編集用 Clone の終了（SplitVolumes は購読により破棄される）
+		this.SplitTargetVolume.Value = null;
+
 		// BindingVolumes が Materials を参照しているため、先に BindingVolumes を破棄
 		foreach (var volume in this.BindingVolumes)
 		{
@@ -512,6 +539,9 @@ public class BindingStore : IDisposable
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForCountText;
 
 		// 所有関係に従って破棄する
+		// 編集用 Clone は Material を参照するだけなので、先に破棄
+		this.disposeSplitVolumes();
+
 		// BindingVolumes が Materials を参照しているため、先に BindingVolumes を破棄
 		foreach (var volume in this.BindingVolumes)
 		{
