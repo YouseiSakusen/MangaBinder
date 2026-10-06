@@ -38,16 +38,28 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 	/// </summary>
 	public BindableReactiveProperty<BindingVolume?> SplitTargetVolume => this.bindingStore.SplitTargetVolume;
 
+	/// <summary>ImageSplitter の左右トリミング Maximum。BindingStore の状態を中継します。</summary>
+	public BindableReactiveProperty<int> TrimHorizontalMaximum => this.bindingStore.SplitTrimHorizontalMaximum;
+
+	/// <summary>ImageSplitter の上下トリミング Maximum。BindingStore の状態を中継します。</summary>
+	public BindableReactiveProperty<int> TrimVerticalMaximum => this.bindingStore.SplitTrimVerticalMaximum;
+
+	/// <summary>SplitOffset Minimum。BindingStore の状態を中継します。</summary>
+	public BindableReactiveProperty<int> SplitOffsetMinimum => this.bindingStore.SplitOffsetMinimum;
+
+	/// <summary>SplitOffset Maximum。BindingStore の状態を中継します。</summary>
+	public BindableReactiveProperty<int> SplitOffsetMaximum => this.bindingStore.SplitOffsetMaximum;
+
 	/// <summary>キャンセルコマンドを取得します。</summary>
 	public ReactiveCommand CancelCommand { get; }
 
 	/// <summary>分割実行コマンドを取得します。</summary>
 	public ReactiveCommand ExecuteSplitCommand { get; }
 
-	/// <summary>現在のプレビュー対象の ThumbnailItems 内インデックスを取得します。画像が0件の場合は -1 です。</summary>
+	/// <summary>CurrentItem から一意に決まる ThumbnailItems 内インデックスを取得します。未選択の場合は -1 です。</summary>
 	public BindableReactiveProperty<int> CurrentIndex { get; }
 
-	/// <summary>現在のプレビュー対象を取得します。</summary>
+	/// <summary>現在のプレビュー対象（一覧の選択項目と同一）を取得します。</summary>
 	public BindableReactiveProperty<ImageSplitterThumbnailItemViewModel?> CurrentItem { get; }
 
 	/// <summary>現在のファイル名を取得します。</summary>
@@ -91,9 +103,6 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 		this.BindingSeries = new BindingSeriesViewModel(bindingStore, thumbnailImageLoader)
 			.AddTo(ref this.disposableBag);
 
-		this.CurrentIndex = new BindableReactiveProperty<int>(-1)
-			.AddTo(ref this.disposableBag);
-
 		this.CurrentItem = new BindableReactiveProperty<ImageSplitterThumbnailItemViewModel?>(null)
 			.AddTo(ref this.disposableBag);
 
@@ -101,6 +110,15 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 			.AddTo(ref this.disposableBag);
 
 		var itemCount = this.thumbnailItemList.ObserveCountChanged(notifyCurrentCount: true);
+
+		this.CurrentIndex = Observable
+			.CombineLatest(this.CurrentItem.AsObservable(), itemCount, (item, _) => item is null ? -1 : this.thumbnailItemList.IndexOf(item))
+			.ToBindableReactiveProperty(-1)
+			.AddTo(ref this.disposableBag);
+
+		this.CurrentItem
+			.Subscribe(async item => await this.showPreviewAsync(item))
+			.AddTo(ref this.disposableBag);
 
 		this.CurrentFileName = this.CurrentItem
 			.AsObservable()
@@ -120,13 +138,13 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 		this.PreviousImageCommand = new ReactiveCommand<Unit>(canGoPrevious, initialCanExecute: false)
 			.AddTo(ref this.disposableBag);
 		this.PreviousImageCommand
-			.Subscribe(async _ => await this.showImageAsync(this.CurrentIndex.Value - 1))
+			.Subscribe(_ => this.CurrentItem.Value = this.thumbnailItemList[this.CurrentIndex.Value - 1])
 			.AddTo(ref this.disposableBag);
 
 		this.NextImageCommand = new ReactiveCommand<Unit>(canGoNext, initialCanExecute: false)
 			.AddTo(ref this.disposableBag);
 		this.NextImageCommand
-			.Subscribe(async _ => await this.showImageAsync(this.CurrentIndex.Value + 1))
+			.Subscribe(_ => this.CurrentItem.Value = this.thumbnailItemList[this.CurrentIndex.Value + 1])
 			.AddTo(ref this.disposableBag);
 
 		this.CancelCommand = new ReactiveCommand()
@@ -138,7 +156,7 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 		this.ExecuteSplitCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
 		this.ExecuteSplitCommand
-			.Subscribe(_ => this.executeSplit())
+			.SubscribeAwait(async (_, _) => await this.executeSplitAsync(), AwaitOperation.Drop)
 			.AddTo(ref this.disposableBag);
 	}
 
@@ -151,10 +169,16 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 	}
 
 	/// <summary>
-	/// 分割実行の入口です。現時点では実画像処理を行わず、編集状態を終了して前の画面へ戻ります。
+	/// 分割実行の入口です。実処理が正常完了した場合のみ、編集状態を終了して前の画面へ戻ります。
 	/// </summary>
-	private void executeSplit()
+	private async ValueTask executeSplitAsync()
 	{
+		using (this.loadingService.Begin("見開き分割を実行中..."))
+		{
+			using var scope = this.serviceScopeFactory.CreateScope();
+			await scope.ServiceProvider.GetRequiredService<ImageSplitterManager>().ExecuteSplitAsync();
+		}
+
 		this.finishAndGoBack();
 	}
 
@@ -200,20 +224,21 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 
 		if (this.thumbnailItemList.Count > 0)
 		{
-			await this.showImageAsync(0);
+			this.CurrentItem.Value = this.thumbnailItemList[0];
 		}
 	}
 
 	/// <summary>
-	/// 指定インデックスの画像を現在画像にし、PreviewSource をキャッシュ経由で反映します。
+	/// 指定項目の PreviewSource をキャッシュ経由で反映します。
 	/// </summary>
-	/// <param name="index">ThumbnailItems 内のインデックス。</param>
-	private async ValueTask showImageAsync(int index)
+	/// <param name="item">新しい CurrentItem。</param>
+	private async ValueTask showPreviewAsync(ImageSplitterThumbnailItemViewModel? item)
 	{
-		var item = this.thumbnailItemList[index];
-
-		this.CurrentIndex.Value = index;
-		this.CurrentItem.Value = item;
+		if (item is null)
+		{
+			this.PreviewSource.Value = null;
+			return;
+		}
 
 		if (item.PreviewSource is null)
 		{
@@ -242,8 +267,8 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 		}
 
 		this.thumbnailItemList.Clear();
-		this.CurrentIndex.Value = -1;
 
 		this.disposableBag.Dispose();
+		GC.Collect();
 	}
 }

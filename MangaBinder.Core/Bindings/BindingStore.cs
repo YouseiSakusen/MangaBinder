@@ -51,6 +51,27 @@ public class BindingStore : IDisposable
 	/// </summary>
 	public ObservableList<BindingVolume> SplitVolumes { get; }
 
+	private readonly Subject<BindingVolume> volumeUpdated = new();
+
+	/// <summary>正本 BindingVolume が更新されたことの通知を取得します。</summary>
+	public Observable<BindingVolume> VolumeUpdated => this.volumeUpdated;
+
+	/// <summary>正本 BindingVolume が更新されたことを通知します。</summary>
+	/// <param name="volume">更新された正本 BindingVolume。</param>
+	public void NotifyVolumeUpdated(BindingVolume volume) => this.volumeUpdated.OnNext(volume);
+
+	/// <summary>ImageSplitter の左右トリミング Maximum（px）を取得します。</summary>
+	public BindableReactiveProperty<int> SplitTrimHorizontalMaximum { get; }
+
+	/// <summary>ImageSplitter の上下トリミング Maximum（px）を取得します。</summary>
+	public BindableReactiveProperty<int> SplitTrimVerticalMaximum { get; }
+
+	/// <summary>ImageSplitter の SplitOffset Minimum（px）を取得します。</summary>
+	public BindableReactiveProperty<int> SplitOffsetMinimum { get; }
+
+	/// <summary>ImageSplitter の SplitOffset Maximum（px）を取得します。</summary>
+	public BindableReactiveProperty<int> SplitOffsetMaximum { get; }
+
 	/// <summary>直前の SplitTargetVolume。</summary>
 	private BindingVolume? previousSplitTargetVolume;
 
@@ -216,6 +237,10 @@ public class BindingStore : IDisposable
 		if (newVolume is null)
 		{
 			this.disposeSplitVolumes();
+			this.SplitTrimHorizontalMaximum.Value = 0;
+			this.SplitTrimVerticalMaximum.Value = 0;
+			this.SplitOffsetMinimum.Value = 0;
+			this.SplitOffsetMaximum.Value = 0;
 		}
 	}
 
@@ -241,6 +266,7 @@ public class BindingStore : IDisposable
 		this.Materials = new ObservableList<MaterialItem>();
 		this.BindingVolumes = new ObservableList<BindingVolume>();
 		this.SplitVolumes = new ObservableList<BindingVolume>();
+		this.volumeUpdated.AddTo(ref this.disposableBag);
 		this.IsManualVolumeOrder = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 		this.VolumeFolderDigits = new BindableReactiveProperty<int>(2)
@@ -261,10 +287,18 @@ public class BindingStore : IDisposable
 			.AddTo(ref this.disposableBag);
 		this.SplitTargetVolume = new BindableReactiveProperty<BindingVolume?>(null)
 			.AddTo(ref this.disposableBag);
+		this.SplitTrimHorizontalMaximum = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
+		this.SplitTrimVerticalMaximum = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
+		this.SplitOffsetMinimum = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
+		this.SplitOffsetMaximum = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
 		this.SplitTargetVolume.Subscribe(this.onSplitTargetVolumeChanged)
 			.AddTo(ref this.disposableBag);
 
-		// 素材サマリ派生状態を初期化（private フィールド経由）
+		// 素材サマリ
 		this.materialFolderCount = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 		this.materialArchiveCount = new BindableReactiveProperty<int>(0)

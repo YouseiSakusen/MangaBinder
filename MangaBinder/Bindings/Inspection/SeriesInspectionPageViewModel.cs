@@ -4,7 +4,6 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
-using MangaBinder.Bindings.Prepress;
 using MangaBinder.Controls;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,9 +19,6 @@ namespace MangaBinder.Bindings.Inspection;
 /// </summary>
 public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 {
-	/// <summary>作品選択状態ストア。</summary>
-	private readonly SeriesWorkspaceStore workspaceStore;
-
 	/// <summary>製本工程の正本状態ストア。</summary>
 	private readonly BindingStore bindingStore;
 
@@ -89,7 +85,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>
 	/// <see cref="SeriesInspectionPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="workspaceStore">作品選択状態ストア。</param>
 	/// <param name="bindingStore">製本工程の正本状態ストア。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
@@ -98,7 +93,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
 	public SeriesInspectionPageViewModel(
-		SeriesWorkspaceStore workspaceStore,
 		BindingStore bindingStore,
 		INavigationService navigationService,
 		IContentDialogService contentDialogService,
@@ -107,7 +101,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		ThumbnailImageLoader thumbnailImageLoader,
 		LoadingService loadingService)
 	{
-		this.workspaceStore = workspaceStore;
 		this.bindingStore = bindingStore;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
@@ -141,6 +134,10 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		// VolumeCardViewModel のライフタイム管理
 		volumeCardsView.ViewChanged += this.onVolumeCardsViewChanged;
 
+		this.bindingStore.VolumeUpdated
+			.Subscribe(updatedVolume => this.onVolumeUpdated(updatedVolume))
+			.AddTo(ref this.disposableBag);
+
 		this.GoBackCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
 		this.GoBackCommand.Subscribe(_ => this.navigationService.GoBack())
@@ -157,25 +154,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			.AddTo(ref this.disposableBag);
 		this.NavigateToPrepressCommand.Subscribe(volume =>
 		{
-			// WorkFolderPath が null / 空白でないことを確認
-			if (string.IsNullOrWhiteSpace(volume.WorkFolderPath))
-			{
-				throw new InvalidOperationException(
-					"BindingVolume.WorkFolderPath が null または空白です。");
-			}
-
-			// SeriesWorkspaceStore.PrepressVolumes から対応する VolumeInspectionResult を取得
-			if (!this.workspaceStore.PrepressVolumes.TryGetValue(
-				volume.WorkFolderPath,
-				out var result))
-			{
-				throw new InvalidOperationException(
-					$"SeriesWorkspaceStore.PrepressVolumes に WorkFolderPath '{volume.WorkFolderPath}' に対応する VolumeInspectionResult が見つかりません。");
-			}
-
-			// CurrentPrepressVolume を設定
-			this.workspaceStore.SetCurrentPrepressVolume(result);
-
 			// 見開き分割対象巻を設定
 			this.bindingStore.SplitTargetVolume.Value = volume;
 
@@ -264,10 +242,6 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 					// Manager が全巻の処理を終了した後、
 					// イベントから開始した全カード更新Taskの完了を待つ
 					await Task.WhenAll(cardUpdateTasks);
-
-					// SeriesInspectionManager 完了 → 全カード更新Task完了後、
-					// 旧Prepress互換データを準備
-					this.registerPrepressCompatibilityVolumes();
 				}
 				finally
 				{
@@ -283,49 +257,24 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	}
 
 	/// <summary>
-	/// BindingStore.BindingVolumes 全巻から VolumeInspectionResult を作成し、
-	/// SeriesWorkspaceStore.PrepressVolumes へ登録して、旧Prepress互換データを準備します。
+	/// 正本 BindingVolume の更新通知を受けて、対象巻カードの表示とサムネイルを更新します。
 	/// </summary>
-	private void registerPrepressCompatibilityVolumes()
+	private void onVolumeUpdated(BindingVolume updatedVolume)
 	{
-		// 登録前に旧データをクリア
-		this.workspaceStore.PrepressVolumes.Clear();
-
-		// 対象を固定するため、ToArray で複製
-		var volumes = this.bindingStore.BindingVolumes.ToArray();
-
-		foreach (var volume in volumes)
-		{
-			// WorkFolderPath が null / 空白でないことを確認
-			if (string.IsNullOrWhiteSpace(volume.WorkFolderPath))
+		_ = Application.Current.Dispatcher.InvokeAsync(
+			new Func<Task>(async () =>
 			{
-				throw new InvalidOperationException(
-					"BindingVolume.WorkFolderPath が null または空白です。");
-			}
+				var card = this.VolumeCards.FirstOrDefault(
+					item => ReferenceEquals(item.Volume.Value, updatedVolume));
 
-			// Path.GetFileName の結果が null / 空白でないことを確認
-			var volumeName = Path.GetFileName(volume.WorkFolderPath);
-			if (string.IsNullOrWhiteSpace(volumeName))
-			{
-				throw new InvalidOperationException(
-					$"Path.GetFileName(volume.WorkFolderPath) が null または空白です。 WorkFolderPath: {volume.WorkFolderPath}");
-			}
+				if (card is null)
+				{
+					return;
+				}
 
-			// VolumeInspectionResult を作成
-			var result = new VolumeInspectionResult
-			{
-				VolumeName = volumeName,
-				WorkVolumeFolderPath = volume.WorkFolderPath,
-				ImageFileCount = volume.ImageFileCount,
-				HasLandscapeImages = volume.LandscapeImageCount > 0,
-				AllLandscape = volume.ImageFileCount > 0 && volume.LandscapeImageCount == volume.ImageFileCount,
-				HasSubFolders = volume.HasSubFolder,
-				HasIrregularFileNameLength = false,
-			};
-
-			// 登録
-			this.workspaceStore.RegisterPrepressVolume(result);
-		}
+				card.Volume.ForceNotify();
+				await card.LoadThumbnailAsync();
+			}));
 	}
 
 	/// <summary>
@@ -444,7 +393,9 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			// 8. StartPage へ遷移
 			this.navigationService.Navigate(typeof(StartPage));
 
-			// 9. 製本成功Snackbar
+			_ = Application.Current.Dispatcher.InvokeAsync(() => GC.Collect(), DispatcherPriority.ApplicationIdle);
+
+			// 9.
 			var outputPath = string.IsNullOrEmpty(completionResult.OutputFilePath)
 				? completionResult.OpenFolderPath
 				: completionResult.OutputFilePath;

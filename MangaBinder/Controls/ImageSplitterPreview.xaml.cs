@@ -31,7 +31,7 @@ public partial class ImageSplitterPreview : UserControl
 		DependencyProperty.Register(nameof(Source), typeof(BitmapSource), typeof(ImageSplitterPreview),
 			new PropertyMetadata(null, onSourceChanged));
 
-	public static readonly DependencyProperty SplitPositionProperty = registerPosition(nameof(SplitPosition));
+	public static readonly DependencyProperty SplitOffsetProperty = registerPosition(nameof(SplitOffset));
 	public static readonly DependencyProperty TrimLeftProperty = registerPosition(nameof(TrimLeft));
 	public static readonly DependencyProperty TrimTopProperty = registerPosition(nameof(TrimTop));
 	public static readonly DependencyProperty TrimRightProperty = registerPosition(nameof(TrimRight));
@@ -52,10 +52,11 @@ public partial class ImageSplitterPreview : UserControl
 		set => SetValue(SourceProperty, value);
 	}
 
-	public int SplitPosition
+	/// <summary>トリミング後の有効領域中央を 0 とした分割位置のずれ（px、右が正）を取得または設定します。</summary>
+	public int SplitOffset
 	{
-		get => (int)GetValue(SplitPositionProperty);
-		set => SetValue(SplitPositionProperty, value);
+		get => (int)GetValue(SplitOffsetProperty);
+		set => SetValue(SplitOffsetProperty, value);
 	}
 
 	public int TrimLeft
@@ -155,7 +156,7 @@ public partial class ImageSplitterPreview : UserControl
 
 	/// <summary>
 	/// 新しい画面セッション開始時に、選択中ガイドとドラッグ状態の View 状態を初期状態へ戻します。
-	/// SplitPosition / Trim 値は SplitSettings の値のため変更しません。
+	/// SplitOffset / Trim 値は SplitSettings の値のため変更しません。
 	/// </summary>
 	public void ResetViewState()
 	{
@@ -217,14 +218,20 @@ public partial class ImageSplitterPreview : UserControl
 		GuideKind.TrimRight => this.TrimRight,
 		GuideKind.TrimTop => this.TrimTop,
 		GuideKind.TrimBottom => this.TrimBottom,
-		_ => this.SplitPosition,
+		_ => this.SplitOffset,
 	};
 
 	/// <summary>
-	/// ガイド種別に対応した値を設定します。指定値は元画像の範囲にクランプされます。
+	/// ガイド種別に対応した値を設定します。Trim 値は元画像の範囲にクランプされます。SplitOffset はそのまま設定します。
 	/// </summary>
 	private void setGuideValue(GuideKind kind, int value)
 	{
+		if (kind == GuideKind.Split)
+		{
+			this.SplitOffset = value;
+			return;
+		}
+
 		var src = this.Source!;
 		var max = isVertical(kind) ? src.PixelWidth : src.PixelHeight;
 		value = Math.Clamp(value, 0, max);
@@ -234,8 +241,18 @@ public partial class ImageSplitterPreview : UserControl
 			case GuideKind.TrimRight: this.TrimRight = value; break;
 			case GuideKind.TrimTop: this.TrimTop = value; break;
 			case GuideKind.TrimBottom: this.TrimBottom = value; break;
-			default: this.SplitPosition = value; break;
+			default: break;
 		}
+	}
+
+	/// <summary>
+	/// 現在画像のトリミング後有効領域の中央（元画像 pixel 座標）を取得します。
+	/// </summary>
+	private double getEffectiveCenter()
+	{
+		var left = (double)this.TrimLeft;
+		var right = this.Source!.PixelWidth - this.TrimRight;
+		return (left + right) / 2;
 	}
 
 	/// <summary>
@@ -250,7 +267,7 @@ public partial class ImageSplitterPreview : UserControl
 			GuideKind.TrimRight => src.PixelWidth - this.TrimRight,
 			GuideKind.TrimTop => this.TrimTop,
 			GuideKind.TrimBottom => src.PixelHeight - this.TrimBottom,
-			_ => this.SplitPosition,
+			_ => this.getEffectiveCenter() + this.SplitOffset,
 		};
 	}
 
@@ -369,6 +386,11 @@ public partial class ImageSplitterPreview : UserControl
 		if (kind is GuideKind.TrimRight or GuideKind.TrimBottom)
 		{
 			value = max - value;
+		}
+
+		if (kind == GuideKind.Split)
+		{
+			value = (int)Math.Round(value - this.getEffectiveCenter());
 		}
 
 		this.setGuideValue(kind, value);

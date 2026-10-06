@@ -155,7 +155,7 @@ public class BindingVolume : IDisposable
 	/// <returns>編集用の新しい BindingVolume。</returns>
 	public BindingVolume CloneForImageSplitter()
 	{
-		var clone = new BindingVolume(this.Material);
+		var clone = new BindingVolume(this.Material, this.SplitSettings.CloneForImageSplitter());
 		clone.VolumeNumber.Value = this.VolumeNumber.Value;
 		clone.WorkFolderPath = this.WorkFolderPath;
 		clone.HasImageFileNameConflict = this.HasImageFileNameConflict;
@@ -175,10 +175,64 @@ public class BindingVolume : IDisposable
 		return clone;
 	}
 
+	/// <summary>
+	/// SplitSettings が未設定の画像へ、この巻の共通 SplitSettings を同一インスタンスで設定します。
+	/// 設定済みの画像は上書きしません。
+	/// </summary>
+	public void ApplyCommonSplitSettings()
+	{
+		foreach (var image in this.Images)
+		{
+			image.SplitSettings ??= this.SplitSettings;
+		}
+	}
+
+	/// <summary>
+	/// Images を指定した一覧の順序で置き換えます。
+	/// 新しい一覧に同一インスタンスとして残らない旧 BindingImage のみ Dispose します。
+	/// </summary>
+	/// <param name="newImages">新しい BindingImage 一覧。</param>
+	public void ReplaceImages(IReadOnlyList<BindingImage> newImages)
+	{
+		ArgumentNullException.ThrowIfNull(newImages);
+
+		var retained = new HashSet<BindingImage>(newImages, ReferenceEqualityComparer.Instance);
+		var oldImages = this.Images.ToArray();
+
+		this.Images.Clear();
+		this.Images.AddRange(newImages);
+
+		foreach (var old in oldImages)
+		{
+			if (!retained.Contains(old))
+			{
+				old.Dispose();
+			}
+		}
+	}
+
+	/// <summary>
+	/// Images の最大 Width / Height を1回の走査で取得します。
+	/// Images が0件、または寸法が未設定の場合、該当値は 0 です。
+	/// </summary>
+	/// <returns>最大画像サイズ。</returns>
+	public (int Width, int Height) GetMaxImageSize()
+	{
+		var maxWidth = 0;
+		var maxHeight = 0;
+		foreach (var image in this.Images)
+		{
+			maxWidth = Math.Max(maxWidth, image.Width ?? 0);
+			maxHeight = Math.Max(maxHeight, image.Height ?? 0);
+		}
+
+		return (maxWidth, maxHeight);
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{
-		// Images 内の各 BindingImage を破棄する（TemporaryImageStream等の安全網）
+		// Images 内の
 		foreach (var image in this.Images)
 		{
 			image.Dispose();

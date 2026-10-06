@@ -22,12 +22,8 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>コンテントダイアログサービス。</summary>
 	private readonly IContentDialogService contentDialogService;
 
-	/// <summary>製本ワークスペース ストア。</summary>
-	private readonly SeriesWorkspaceStore workspaceStore;
-
 	/// <summary>製本開始キュー ストア。</summary>
 	private readonly BindingQueueStore bindingQueueStore;
-
 	/// <summary>製本開始ページ ストア。</summary>
 	private readonly StartPageStore startPageStore;
 
@@ -89,7 +85,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
-	/// <param name="workspaceStore">製本ワークスペース ストア。</param>
 	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
 	/// <param name="startPageStore">製本開始ページ ストア。</param>
 	/// <param name="bindingStore">製本工程正本状態 ストア。</param>
@@ -98,7 +93,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		IServiceScopeFactory serviceScopeFactory,
 		INavigationService navigationService,
 		IContentDialogService contentDialogService,
-		SeriesWorkspaceStore workspaceStore,
 		BindingQueueStore bindingQueueStore,
 		StartPageStore startPageStore,
 		BindingStore bindingStore,
@@ -107,7 +101,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
-		this.workspaceStore = workspaceStore;
 		this.bindingQueueStore = bindingQueueStore;
 		this.startPageStore = startPageStore;
 		this.bindingStore = bindingStore;
@@ -184,17 +177,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 			this.showMaterialFolderErrorSnackbar(availabilityResult);
 			return;
 		}
-
-		var series = bindingSeries.Series;
-
-		// TODO: Reactive製本フローへの移行完了後に削除。
-		// 製本前確認以降の旧製本工程との互換性維持のため、
-		// SeriesWorkspaceStoreにも現在の製本対象を設定する。
-		this.workspaceStore.SetBindingTarget(series);
-
-		// 互換維持のため SelectedSeries にも同じ1作品をセット
-		this.workspaceStore.SelectedSeries.Clear();
-		this.workspaceStore.SelectedSeries.Add(series);
 
 		// VolumeSelectionPage へナビゲート
 		this.navigationService.NavigateWithHierarchy(typeof(VolumeSelectionPage));

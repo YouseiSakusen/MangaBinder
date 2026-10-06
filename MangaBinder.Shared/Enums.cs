@@ -101,6 +101,30 @@
 namespace MangaBinder.Bindings
 {
 	/// <summary>
+	/// 見開き分割後のページ順を示す列挙体です。
+	/// </summary>
+	public enum SpreadPageOrder
+	{
+		/// <summary>右→左（日本漫画）。</summary>
+		RightToLeft = 0,
+
+		/// <summary>左→右（左開き・洋書）。</summary>
+		LeftToRight = 1,
+	}
+
+	/// <summary>
+	/// 見開き分割後の画像が、元画像のどちら側かを示す列挙体です。
+	/// </summary>
+	public enum SplitSide
+	{
+		/// <summary>元画像の左側。</summary>
+		Left = 0,
+
+		/// <summary>元画像の右側。</summary>
+		Right = 1,
+	}
+
+	/// <summary>
 	/// 素材展開方法を表す列挙型です。
 	/// Work 作品フォルダの構築方式を指定します。
 	/// </summary>

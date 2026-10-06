@@ -6,6 +6,8 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:local="clr-namespace:MangaBinder.Bindings.Inspection"
       xmlns:bindings="clr-namespace:MangaBinder.Bindings"
+      xmlns:core="clr-namespace:MangaBinder.Bindings;assembly=MangaBinder.Core"
+      xmlns:shared="clr-namespace:MangaBinder.Bindings;assembly=MangaBinder.Shared"
       xmlns:controls="clr-namespace:MangaBinder.Controls"
       xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
       mc:Ignorable="d"
@@ -141,6 +143,8 @@
                             Margin="0,4,0,0">
                             <ListView
                                 ItemsSource="{Binding ThumbnailItems}"
+                                SelectedItem="{Binding CurrentItem.Value, Mode=TwoWay}"
+                                behaviors:ImageSplitterListDoubleClickBehavior.IsEnabled="True"
                                 SelectionMode="Single"
                                 Background="Transparent"
                                 BorderThickness="0"
@@ -168,6 +172,17 @@
                                 <ListView.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:ImageSplitterThumbnailItemViewModel}">
                                         <ui:Card Width="160" Padding="4">
+                                            <ui:Card.Style>
+                                                <Style TargetType="ui:Card" BasedOn="{StaticResource {x:Type ui:Card}}">
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ui:Card.Style>
                                             <Grid>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="160" />
@@ -220,7 +235,7 @@
                                     x:Name="SplitterPreview"
                                     Grid.Column="0"
                                     Source="{Binding PreviewSource.Value}"
-                                                                        SplitPosition="{Binding SplitTargetVolume.Value.SplitSettings.SplitPosition.Value, Mode=TwoWay}"
+                                                                        SplitOffset="{Binding SplitTargetVolume.Value.SplitSettings.SplitOffset.Value, Mode=TwoWay}"
                                                                         TrimLeft="{Binding SplitTargetVolume.Value.SplitSettings.TrimLeft.Value, Mode=TwoWay}"
                                                                         TrimRight="{Binding SplitTargetVolume.Value.SplitSettings.TrimRight.Value, Mode=TwoWay}"
                                                                         TrimTop="{Binding SplitTargetVolume.Value.SplitSettings.TrimTop.Value, Mode=TwoWay}"
@@ -234,81 +249,100 @@
                                     Background="Transparent"
                                     ResizeDirection="Columns" />
 
-                                <ScrollViewer
-                                    x:Name="SettingsScrollViewer"
-                                    Grid.Column="2"
-                                    VerticalScrollBarVisibility="Auto"
-                                    HorizontalScrollBarVisibility="Disabled">
-                                    <StackPanel VerticalAlignment="Center">
-                                        <!-- 見開き分割 -->
-                                        <ui:Card Style="{StaticResource SettingsGroupCardStyle}">
-                                            <StackPanel>
-                                                <TextBlock
-                                                    Style="{StaticResource SettingsGroupTitleStyle}"
-                                                    Text="見開き分割" />
-                                                <ui:Card Style="{StaticResource SettingsItemCardStyle}">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto" />
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="110" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="分割位置" />
-                                                        <Slider Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.SplitPosition.Value, Mode=TwoWay}" />
-                                                        <ui:NumberBox Grid.Column="2" Width="110" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.SplitPosition.Value, Mode=TwoWay}" />
-                                                        <TextBlock Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
-                                                    </Grid>
-                                                </ui:Card>
-                                            </StackPanel>
-                                        </ui:Card>
+								<ScrollViewer
+									x:Name="SettingsScrollViewer"
+									Grid.Column="2"
+									VerticalScrollBarVisibility="Auto"
+									HorizontalScrollBarVisibility="Disabled">
+									<StackPanel VerticalAlignment="Center">
+										<!-- 分割対象 / ページ順 -->
+										<StackPanel>
+											<ui:Card Style="{StaticResource SettingsItemCardStyle}">
+												<CheckBox
+														Content="分割対象"
+														IsChecked="{Binding CurrentItem.Value.Image.IsSpreadSplitTarget.Value, Mode=TwoWay}" />
+											</ui:Card>
+											<ui:Card Style="{StaticResource SettingsItemCardStyle}">
+												<Grid>
+													<Grid.ColumnDefinitions>
+														<ColumnDefinition Width="Auto" />
+														<ColumnDefinition Width="*" />
+													</Grid.ColumnDefinitions>
+													<TextBlock Grid.Column="0" VerticalAlignment="Center" Style="{StaticResource SettingsItemTitleStyle}" Text="ページ順" />
+													<ComboBox
+															Grid.Column="1"
+															Width="120"
+															Margin="12,0,0,0"
+															HorizontalAlignment="Right"
+															SelectedValuePath="Tag"
+															SelectedValue="{Binding SplitTargetVolume.Value.SplitSettings.PageOrder.Value, Mode=TwoWay}">
+														<ComboBoxItem Tag="{x:Static shared:SpreadPageOrder.RightToLeft}">
+															<StackPanel Orientation="Horizontal">
+																<Viewbox Width="32" Height="20" Stretch="Uniform">
+																	<Canvas Width="32" Height="20">
+																		<Rectangle Canvas.Left="1" Canvas.Top="1" Width="12" Height="18" RadiusX="2" RadiusY="2" Stroke="{DynamicResource TextFillColorPrimaryBrush}" StrokeThickness="1.2" />
+																		<Rectangle Canvas.Left="19" Canvas.Top="1" Width="12" Height="18" RadiusX="2" RadiusY="2" Stroke="{DynamicResource TextFillColorPrimaryBrush}" StrokeThickness="1.2" />
+																		<Path Data="M 20.5,10 L 11.5,10 M 14.5,7 L 11.5,10 L 14.5,13" Stroke="{DynamicResource TextFillColorPrimaryBrush}" StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+																	</Canvas>
+																</Viewbox>
+																<TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="右→左" />
+															</StackPanel>
+														</ComboBoxItem>
+														<ComboBoxItem Tag="{x:Static shared:SpreadPageOrder.LeftToRight}">
+															<StackPanel Orientation="Horizontal">
+																<Viewbox Width="32" Height="20" Stretch="Uniform">
+																	<Canvas Width="32" Height="20">
+																		<Rectangle Canvas.Left="1" Canvas.Top="1" Width="12" Height="18" RadiusX="2" RadiusY="2" Stroke="{DynamicResource TextFillColorPrimaryBrush}" StrokeThickness="1.2" />
+																		<Rectangle Canvas.Left="19" Canvas.Top="1" Width="12" Height="18" RadiusX="2" RadiusY="2" Stroke="{DynamicResource TextFillColorPrimaryBrush}" StrokeThickness="1.2" />
+																		<Path Data="M 11.5,10 L 20.5,10 M 17.5,7 L 20.5,10 L 17.5,13" Stroke="{DynamicResource TextFillColorPrimaryBrush}" StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+																	</Canvas>
+																</Viewbox>
+																<TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="左→右" />
+															</StackPanel>
+														</ComboBoxItem>
+													</ComboBox>
+												</Grid>
+											</ui:Card>
+										</StackPanel>
 
-                                        <!-- トリミング -->
-                                        <ui:Card Style="{StaticResource SettingsGroupCardStyle}">
-                                            <StackPanel>
-                                                <TextBlock
-                                                    Style="{StaticResource SettingsGroupTitleStyle}"
-                                                    Text="トリミング" />
-                                                <ui:Card Style="{StaticResource SettingsItemCardStyle}">
-                                                    <Grid>
-                                                        <Grid.RowDefinitions>
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                        </Grid.RowDefinitions>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="24" />
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="110" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
+										<!-- トリミング -->
+										<ui:Card Style="{StaticResource SettingsGroupCardStyle}">
+											<StackPanel>
+												<TextBlock
+													Style="{StaticResource SettingsGroupTitleStyle}"
+													Text="トリミング" />
+									<controls:SliderNumberSettingItem
+										Label="左"
+										Minimum="0"
+										Maximum="{Binding TrimHorizontalMaximum.Value}"
+										Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimLeft.Value, Mode=TwoWay}" />
+									<controls:SliderNumberSettingItem
+										Label="右"
+										Minimum="0"
+										Maximum="{Binding TrimHorizontalMaximum.Value}"
+										Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimRight.Value, Mode=TwoWay}" />
+									<controls:SliderNumberSettingItem
+										Label="上"
+										Minimum="0"
+										Maximum="{Binding TrimVerticalMaximum.Value}"
+										Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimTop.Value, Mode=TwoWay}" />
+									<controls:SliderNumberSettingItem
+										Label="下"
+										Minimum="0"
+										Maximum="{Binding TrimVerticalMaximum.Value}"
+										Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimBottom.Value, Mode=TwoWay}" />
+											</StackPanel>
+										</ui:Card>
 
-                                                        <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="左" />
-                                                        <Slider Grid.Row="0" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimLeft.Value, Mode=TwoWay}" />
-                                                        <ui:NumberBox Grid.Row="0" Grid.Column="2" Width="110" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimLeft.Value, Mode=TwoWay}" />
-                                                        <TextBlock Grid.Row="0" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
-
-                                                        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="右" />
-                                                        <Slider Grid.Row="1" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimRight.Value, Mode=TwoWay}" />
-                                                        <ui:NumberBox Grid.Row="1" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelWidth}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimRight.Value, Mode=TwoWay}" />
-                                                        <TextBlock Grid.Row="1" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
-
-                                                        <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="上" />
-                                                        <Slider Grid.Row="2" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelHeight}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimTop.Value, Mode=TwoWay}" />
-                                                        <ui:NumberBox Grid.Row="2" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelHeight}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimTop.Value, Mode=TwoWay}" />
-                                                        <TextBlock Grid.Row="2" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
-
-                                                        <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="下" />
-                                                        <Slider Grid.Row="3" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelHeight}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimBottom.Value, Mode=TwoWay}" />
-                                                        <ui:NumberBox Grid.Row="3" Grid.Column="2" Width="110" Margin="0,4,0,0" VerticalAlignment="Center" Minimum="0" Maximum="{Binding PreviewSource.Value.PixelHeight}" Value="{Binding SplitTargetVolume.Value.SplitSettings.TrimBottom.Value, Mode=TwoWay}" />
-                                                        <TextBlock Grid.Row="3" Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" Text="px" />
-                                                    </Grid>
-                                                </ui:Card>
-                                            </StackPanel>
-                                        </ui:Card>
-                                    </StackPanel>
-                                </ScrollViewer>
+										<!-- 分割位置 -->
+										<controls:SliderNumberSettingItem
+											Label="分割位置"
+                                            Margin="0,0,12,0"
+											Minimum="{Binding SplitOffsetMinimum.Value}"
+											Maximum="{Binding SplitOffsetMaximum.Value}"
+											Value="{Binding SplitTargetVolume.Value.SplitSettings.SplitOffset.Value, Mode=TwoWay}" />
+									</StackPanel>
+								</ScrollViewer>
                             </Grid>
 
                             <!-- Row 1: 現在画像情報＋画像送り -->

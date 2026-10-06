@@ -138,6 +138,7 @@ public class BindingCancelViewModel : IDisposable
 		}
 
 		// キャンセル処理を実行
+		var cancelCompleted = false;
 		try
 		{
 			using (this.loadingService.Begin("製本を中止しています..."))
@@ -150,6 +151,8 @@ public class BindingCancelViewModel : IDisposable
 					this.DeleteWorkFolder.Value,
 					CancellationToken.None);
 			}
+
+			cancelCompleted = true;
 		}
 		catch (Exception ex)
 		{
@@ -166,6 +169,13 @@ public class BindingCancelViewModel : IDisposable
 			// 成功・失敗に関わらず、最後に必ず StartPage へ戻す
 			this.navigationService.GetNavigationControl().ClearJournal();
 			this.navigationService.Navigate(typeof(StartPage));
+
+			if (cancelCompleted)
+			{
+				_ = System.Windows.Application.Current.Dispatcher.InvokeAsync(
+					() => GC.Collect(),
+					System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+			}
 		}
 	}
 

@@ -99,11 +99,15 @@
 	  </Style>
 
 		<!-- 設定グループCard（GroupBox相当の外側Card）Style -->
-		<Style x:Key="SettingsGroupCardStyle" TargetType="{x:Type ui:Card}">
+		<Style
+			x:Key="SettingsGroupCardStyle"
+			TargetType="{x:Type ui:Card}"
+			BasedOn="{StaticResource {x:Type ui:Card}}">
 			<Setter Property="Padding" Value="12,8" />
+			<Setter Property="Margin" Value="0,0,0,8" />
 		</Style>
 
-		<!-- 設定グループタイトルStyle -->
+			<!-- 設定グループタイトルStyle -->
 		<Style x:Key="SettingsGroupTitleStyle" TargetType="{x:Type TextBlock}">
 			<Setter Property="FontSize" Value="14" />
 			<Setter Property="FontWeight" Value="SemiBold" />
@@ -118,14 +122,24 @@
 		</Style>
 
 		<!-- 設定項目Card Style -->
-		<Style x:Key="SettingsItemCardStyle" TargetType="{x:Type ui:Card}">
+		<Style
+			x:Key="SettingsItemCardStyle"
+			TargetType="{x:Type ui:Card}"
+			BasedOn="{StaticResource {x:Type ui:Card}}">
 			<Setter Property="Padding" Value="12,8" />
+			<Setter Property="Margin" Value="0,0,0,2" />
 		</Style>
+
+			<!-- Slider + NumberBox 複合数値設定項目Card Style -->
+		<Style
+			x:Key="SliderNumberSettingItemCardStyle"
+			TargetType="{x:Type ui:Card}"
+			BasedOn="{StaticResource SettingsItemCardStyle}" />
 
 		<!-- 設定項目タイトルStyle -->
 		<Style x:Key="SettingsItemTitleStyle" TargetType="{x:Type TextBlock}">
-			<Setter Property="FontSize" Value="11" />
-			<Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+			<Setter Property="FontSize" Value="13" />
+			<Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
 		</Style>
 
 		<!-- 設定項目説明Style -->

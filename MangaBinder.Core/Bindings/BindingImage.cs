@@ -146,6 +146,18 @@ public class BindingImage : IDisposable
 	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.EffectiveSourceType == MaterialSourceType.WorkFolder;
 
 	/// <summary>
+	/// この画像の実処理で使用する見開き分割設定を取得または設定します。
+	/// 初期値は null です。所有者は別（BindingVolume 等）であり、BindingImage.Dispose() では破棄しません。
+	/// </summary>
+	public SplitSettings? SplitSettings { get; set; }
+
+	/// <summary>
+	/// 分割によって生成された画像の、元画像上の左右を取得または設定します。
+	/// 未分割の画像では null です。
+	/// </summary>
+	public SplitSide? SplitSide { get; set; }
+
+	/// <summary>
 	/// <see cref="BindingImage"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="bindingVolume">この画像が所属する親 BindingVolume。</param>
@@ -178,6 +190,38 @@ public class BindingImage : IDisposable
 	public void ApplyDefaultSpreadSplitTarget()
 	{
 		this.IsSpreadSplitTarget.Value = this.IsLandscape;
+	}
+
+	/// <summary>
+	/// 分割後の BindingImage 2件をページ順（-1 → -2）で生成します。
+	/// BindingVolume / MaterialImage / SplitSettings は同一インスタンスを参照し、SplitSettings の所有権は移しません。
+	/// </summary>
+	/// <returns>ページ順の分割後 BindingImage 2件。</returns>
+	/// <exception cref="InvalidOperationException">SplitSettings が null の場合。</exception>
+	public IReadOnlyList<BindingImage> CreateSplitImages()
+	{
+		var settings = this.SplitSettings
+			?? throw new InvalidOperationException("BindingImage.SplitSettings が設定されていません。");
+
+		var extension = Path.GetExtension(this.FileName);
+		var baseName = Path.GetFileNameWithoutExtension(this.FileName);
+		var rightToLeft = settings.PageOrder.Value == SpreadPageOrder.RightToLeft;
+
+		var firstSide = rightToLeft ? MangaBinder.Bindings.SplitSide.Right : MangaBinder.Bindings.SplitSide.Left;
+		var secondSide = rightToLeft ? MangaBinder.Bindings.SplitSide.Left : MangaBinder.Bindings.SplitSide.Right;
+
+		var first = this.CreateSplitImage(settings, firstSide, $"{baseName}-1{extension}");
+		var second = this.CreateSplitImage(settings, secondSide, $"{baseName}-2{extension}");
+		return [first, second];
+	}
+
+	private BindingImage CreateSplitImage(SplitSettings settings, SplitSide side, string fileName)
+	{
+		var image = new BindingImage(this.BindingVolume, this.MaterialImage);
+		image.FileName = fileName;
+		image.SplitSettings = settings;
+		image.SplitSide = side;
+		return image;
 	}
 
 	/// <summary>

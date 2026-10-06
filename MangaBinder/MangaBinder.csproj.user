@@ -65,13 +65,10 @@
     <Compile Update="Controls\SeriesVolumeStatus.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Bindings\Prepress\SpreadSplitterPage.xaml.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Update="Bindings\Prepress\VolumeThumbnailsPage.xaml.cs">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Update="Bindings\Inspection\SeriesInspectionPage.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="Controls\SliderNumberSettingItem.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Controls\TopActionButton.xaml.cs">

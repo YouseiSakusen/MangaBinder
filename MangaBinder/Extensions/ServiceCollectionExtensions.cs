@@ -1,9 +1,8 @@
-using System.Data.SQLite;
+﻿using System.Data.SQLite;
 using System.IO;
 using MangaBinder.Bindings;
 using MangaBinder.Bindings.Extraction;
 using MangaBinder.Bindings.Inspection;
-using MangaBinder.Bindings.Prepress;
 using MangaBinder.Converters;
 using MangaBinder.Helpers;
 using MangaBinder.Jobs;
@@ -75,24 +74,17 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPage<SeriesInspectionPage, SeriesInspectionPageViewModel>(ServiceLifetime.Singleton);
 		services.AddNavigationPage<ImageSplitterPage, ImageSplitterPageViewModel>(ServiceLifetime.Transient);
 		services.AddNavigationPage<MaintenancePage, MaintenancePageViewModel>(ServiceLifetime.Singleton);
-		services.AddNavigationPage<VolumeThumbnailsPage, VolumeThumbnailsPageViewModel>(ServiceLifetime.Singleton);
-		services.AddNavigationPage<SpreadSplitterPage, SpreadSplitterPageViewModel>(ServiceLifetime.Singleton);
 		services.AddNavigationPage<EditorPage, EditorPageViewModel>(ServiceLifetime.Transient);
 		services.AddTransient<EditingSession>();
 		services.AddScoped<ThumbnailPicker>();
 		services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();
 		services.AddScoped<OwnedVolumeEstimator>();
 		services.AddSingleton<IContentDialogService, ContentDialogService>();
-		services.AddSingleton<VolumeFileNameNormalizerOld>();
 		services.AddScoped<VolumeFileNameNormalizer>();
-		services.AddSingleton<VolumeThumbnailImageProcessor>();
-		services.AddSingleton<VolumeThumbnailLoader>();
 		services.AddSingleton<ThumbnailImageLoader>();
 		services.AddSingleton<ThumbnailImageConverter>();
 		services.AddSingleton<ThumbnailPreviewOrDefaultConverter>();
-		services.AddSingleton<SpreadSplitterImageLoader>();
 
-		services.AddSingleton<SeriesWorkspaceStore>();
 		services.AddSingleton<BindingStore>();
 		services.AddSingleton<EditStore>();
 		services.AddSingleton<SeriesTagStore>();
@@ -113,6 +105,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<VolumeSelectionManager>();
 		services.AddScoped<ArchiveCompareCoordinator>();
 		services.AddScoped<SeriesInspectionManager>();
+		services.AddScoped<SplitImageProcessor>();
 		services.AddScoped<ImageSplitterManager>();
 		services.AddScoped<BindingThumbnailImageProcessor>();
 		services.AddScoped<VolumeCardThumbnailLoader>();

@@ -10,8 +10,11 @@ public class SplitSettings : IDisposable
 {
 	private DisposableBag disposableBag;
 
-	/// <summary>見開き分割位置（px）を取得します。</summary>
-	public BindableReactiveProperty<int> SplitPosition { get; }
+	/// <summary>左右トリミング後の有効領域の中央を 0 とした分割位置のずれ（px、右が正）を取得します。</summary>
+	public BindableReactiveProperty<int> SplitOffset { get; }
+
+	/// <summary>見開き分割後のページ順を取得します。</summary>
+	public BindableReactiveProperty<SpreadPageOrder> PageOrder { get; }
 
 	/// <summary>左トリミング量（px）を取得します。</summary>
 	public BindableReactiveProperty<int> TrimLeft { get; }
@@ -30,7 +33,9 @@ public class SplitSettings : IDisposable
 	/// </summary>
 	public SplitSettings()
 	{
-		this.SplitPosition = new BindableReactiveProperty<int>(0)
+		this.SplitOffset = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
+		this.PageOrder = new BindableReactiveProperty<SpreadPageOrder>(SpreadPageOrder.RightToLeft)
 			.AddTo(ref this.disposableBag);
 		this.TrimLeft = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
@@ -50,7 +55,8 @@ public class SplitSettings : IDisposable
 	public SplitSettings CloneForImageSplitter()
 	{
 		var clone = new SplitSettings();
-		clone.SplitPosition.Value = this.SplitPosition.Value;
+		clone.SplitOffset.Value = this.SplitOffset.Value;
+		clone.PageOrder.Value = this.PageOrder.Value;
 		clone.TrimLeft.Value = this.TrimLeft.Value;
 		clone.TrimTop.Value = this.TrimTop.Value;
 		clone.TrimRight.Value = this.TrimRight.Value;

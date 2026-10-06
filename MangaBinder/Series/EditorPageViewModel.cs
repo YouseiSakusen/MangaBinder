@@ -23,7 +23,6 @@ namespace MangaBinder.Series;
 public partial class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, INavigationDisposable, IBackRequestHandler
 {
 	private readonly IServiceScopeFactory serviceScopeFactory;
-	private readonly SeriesWorkspaceStore workspaceStore;
 	private readonly EditStore editStore;
 	private readonly IContentDialogService contentDialogService;
 	private readonly INavigationService navigationService;
@@ -269,7 +268,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <see cref="EditorPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="serviceScopeFactory">サービススコープファクトリ。</param>
-	/// <param name="workspaceStore">作業域ストア。</param>
 	/// <param name="contentDialogService">コンテンツダイアログサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="mangaSeriesStore">漫画シリーズストア。</param>
@@ -280,7 +278,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	public EditorPageViewModel(
 		IServiceScopeFactory serviceScopeFactory,
-		SeriesWorkspaceStore workspaceStore,
 		EditStore editStore,
 		IContentDialogService contentDialogService,
 		INavigationService navigationService,
@@ -292,7 +289,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		ThumbnailImageLoader thumbnailImageLoader)
 	{
 		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
-		this.workspaceStore = workspaceStore ?? throw new ArgumentNullException(nameof(workspaceStore));
 		this.editStore = editStore ?? throw new ArgumentNullException(nameof(editStore));
 		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
 		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
