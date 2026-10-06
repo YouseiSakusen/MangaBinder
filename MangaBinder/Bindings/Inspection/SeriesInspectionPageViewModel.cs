@@ -73,11 +73,17 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	/// <summary>戻るコマンドを取得します。</summary>
 	public ReactiveCommand GoBackCommand { get; }
 
-	/// <summary>製本開始コマンドを取得します（現時点はダミー）。</summary>
+	/// <summary>製本開始コマンドを取得します。</summary>
 	public ReactiveCommand StartBindingCommand { get; }
 
-	/// <summary>選択した巻をPrepressで開くコマンドを取得します。</summary>
-	public ReactiveCommand<BindingVolume> NavigateToPrepressCommand { get; }
+	/// <summary>選択した巻を見開き分割画面で開くコマンドを取得します。</summary>
+	public ReactiveCommand<BindingVolume> NavigateToImageSplitterCommand { get; }
+
+	/// <summary>展開先作品フォルダを開くコマンドを取得します。</summary>
+	public ReactiveCommand OpenBindingFolderCommand { get; }
+
+	/// <summary>展開先作品フォルダ直下の巻フォルダ数を取得します。</summary>
+	public BindableReactiveProperty<int> WorkVolumeFolderCount => this.bindingStore.WorkVolumeFolderCount;
 
 	/// <summary>製本をキャンセルするコマンドを取得します。</summary>
 	public ReactiveCommand CancelCommand { get; }
@@ -135,7 +141,9 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		volumeCardsView.ViewChanged += this.onVolumeCardsViewChanged;
 
 		this.bindingStore.VolumeUpdated
-			.Subscribe(updatedVolume => this.onVolumeUpdated(updatedVolume))
+			.SubscribeAwait(
+				async (updatedVolume, _) => await this.refreshVolumeCardAsync(updatedVolume),
+				AwaitOperation.Sequential)
 			.AddTo(ref this.disposableBag);
 
 		this.GoBackCommand = new ReactiveCommand()
@@ -150,9 +158,9 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			await this.executeStartBindingAsync();
 		}).AddTo(ref this.disposableBag);
 
-		this.NavigateToPrepressCommand = new ReactiveCommand<BindingVolume>()
+		this.NavigateToImageSplitterCommand = new ReactiveCommand<BindingVolume>()
 			.AddTo(ref this.disposableBag);
-		this.NavigateToPrepressCommand.Subscribe(volume =>
+		this.NavigateToImageSplitterCommand.Subscribe(volume =>
 		{
 			// 見開き分割対象巻を設定
 			this.bindingStore.SplitTargetVolume.Value = volume;
@@ -160,6 +168,12 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			// ImageSplitterPage へ遷移
 			this.navigationService.NavigateWithHierarchy(typeof(ImageSplitterPage));
 		}).AddTo(ref this.disposableBag);
+
+		this.OpenBindingFolderCommand = new ReactiveCommand()
+			.AddTo(ref this.disposableBag);
+		this.OpenBindingFolderCommand
+			.SubscribeAwait(async (_, _) => await this.openBindingFolderAsync(), AwaitOperation.Drop)
+			.AddTo(ref this.disposableBag);
 
 		this.CancelCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
@@ -186,6 +200,16 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	}
 
 	/// <summary>
+	/// 展開先作品フォルダを Explorer で開きます。
+	/// </summary>
+	private async ValueTask openBindingFolderAsync()
+	{
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var opener = scope.ServiceProvider.GetRequiredService<BindingFolderOpener>();
+		await opener.OpenAsync(this.bindingStore.WorkSeriesFolderPath.Value);
+	}
+
+	/// <summary>
 	/// SeriesInspectionManager を実行して、製本前確認処理を開始します。
 	/// </summary>
 	private async Task executeSeriesInspectionAsync()
@@ -208,29 +232,7 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 				void OnVolumeInspected(BindingVolume volume)
 				{
 					// UIスレッドへマーシャリング
-					var operation = Application.Current.Dispatcher.InvokeAsync(
-						new Func<Task>(async () =>
-						{
-							// 対象 VolumeCardViewModel を ReferenceEquals で検索
-							var card = this.VolumeCards.FirstOrDefault(
-								item => ReferenceEquals(item.Volume.Value, volume));
-
-							if (card is null)
-							{
-								throw new InvalidOperationException(
-									$"検査完了の BindingVolume に対応する VolumeCardViewModel が見つかりません。");
-							}
-
-							// BindingVolume の内部プロパティ更新を反映
-							card.Volume.ForceNotify();
-
-							// サムネイル読み込み
-							await card.LoadThumbnailAsync();
-						}));
-
-					// UI更新Taskを追跡
-					var updateTask = operation.Task.Unwrap();
-					cardUpdateTasks.Add(updateTask);
+					cardUpdateTasks.Add(this.refreshVolumeCardAsync(volume).AsTask());
 				}
 
 				manager.VolumeInspected += OnVolumeInspected;
@@ -257,24 +259,26 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 	}
 
 	/// <summary>
-	/// 正本 BindingVolume の更新通知を受けて、対象巻カードの表示とサムネイルを更新します。
+	/// 正本 BindingVolume に対応する巻カードを ForceNotify し、サムネイルを再読み込みします。
+	/// UI スレッドへマーシャリングし、対象カードが見つからない場合は例外をスローします。
 	/// </summary>
-	private void onVolumeUpdated(BindingVolume updatedVolume)
+	private async ValueTask refreshVolumeCardAsync(BindingVolume volume)
 	{
-		_ = Application.Current.Dispatcher.InvokeAsync(
+		await Application.Current.Dispatcher.InvokeAsync(
 			new Func<Task>(async () =>
 			{
 				var card = this.VolumeCards.FirstOrDefault(
-					item => ReferenceEquals(item.Volume.Value, updatedVolume));
+					item => ReferenceEquals(item.Volume.Value, volume));
 
 				if (card is null)
 				{
-					return;
+					throw new InvalidOperationException(
+						"BindingVolume に対応する VolumeCardViewModel が見つかりません。");
 				}
 
 				card.Volume.ForceNotify();
 				await card.LoadThumbnailAsync();
-			}));
+			})).Task.Unwrap();
 	}
 
 	/// <summary>

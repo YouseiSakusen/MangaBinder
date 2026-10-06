@@ -253,7 +253,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
 
         // Reactive側の新しいD&D Handlerを初期化
         this.BindingVolumeDropHandler = new BindingVolumeDropHandler(
-            item => this.selectMaterialFromDrop(item),
+            (item, insertIndex) => this.selectMaterialFromDrop(item, insertIndex),
             (item, newIndex) => this.moveBindingVolumeFromDrop(item, newIndex));
 
         this.BindingVolumeRemoveDropHandler = new BindingVolumeRemoveDropHandler(
@@ -438,11 +438,12 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// VolumeSelectionManager.SelectMaterial() を呼び出して選択します。
     /// </summary>
     /// <param name="item">ドロップされた MaterialItemViewModel。</param>
-    private void selectMaterialFromDrop(MaterialItemViewModel item)
+    /// <param name="insertIndex">ユーザーがドロップした挿入位置。</param>
+    private void selectMaterialFromDrop(MaterialItemViewModel item, int insertIndex)
     {
         using var scope = this.serviceScopeFactory.CreateScope();
         var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
-        manager.SelectMaterial(item.Material, item.IsSelectionOverrideEnabled.Value);
+        manager.SelectMaterial(item.Material, item.IsSelectionOverrideEnabled.Value, insertIndex);
     }
 
     /// <summary>

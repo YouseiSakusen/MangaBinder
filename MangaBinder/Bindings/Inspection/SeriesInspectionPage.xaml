@@ -5,8 +5,8 @@
 	  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 	  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
 	  xmlns:local="clr-namespace:MangaBinder.Bindings.Inspection"
+	  xmlns:app="clr-namespace:MangaBinder"
 	  xmlns:bindings="clr-namespace:MangaBinder.Bindings"
-	  xmlns:core="clr-namespace:MangaBinder.Bindings.Inspection;assembly=MangaBinder.Core"
 	  xmlns:controls="clr-namespace:MangaBinder.Controls"
 	  mc:Ignorable="d"
 	  x:Name="ThisPage"
@@ -87,7 +87,7 @@
 										<Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
 										<Setter Property="FontWeight" Value="Normal" />
 										<Style.Triggers>
-											<DataTrigger Binding="{Binding ShowsLandscapeImageCount.Value}" Value="True">
+											<DataTrigger Binding="{Binding EmphasizesImageCount.Value}" Value="True">
 												<Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
 												<Setter Property="FontWeight" Value="SemiBold" />
 											</DataTrigger>
@@ -155,7 +155,7 @@
 						Style="{StaticResource CardNavigateButtonStyle}"
 						VerticalAlignment="Center"
 						ToolTip="見開き分割"
-						Command="{Binding DataContext.NavigateToPrepressCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Page}}}"
+						Command="{Binding DataContext.NavigateToImageSplitterCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Page}}}"
 						CommandParameter="{Binding Volume.Value}" />
 				</Grid>
 			</ui:Card>
@@ -180,6 +180,26 @@
 			EyecatchSymbol="ClipboardCheckmark24"
 			EyecatchTitle="製本対象"
 			EyecatchValueText="{Binding SelectedVolumeCountText.Value}">
+
+			<controls:PageLayout.TopContent>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="100" />
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+
+					<!-- Column 1: 展開先フォルダを開く -->
+					<controls:TopActionButton
+						Grid.Column="1"
+						HorizontalAlignment="Center"
+						PrimaryText="展開先フォルダを開く"
+						SecondaryLabel="巻フォルダ数"
+						SecondaryValue="{Binding WorkVolumeFolderCount.Value, StringFormat={}{0:N0}}"
+						Symbol="{x:Static app:AppSymbols.OpenBindingFolder}"
+						Command="{Binding OpenBindingFolderCommand}" />
+				</Grid>
+			</controls:PageLayout.TopContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- LeftContent: 左パネル（作品情報） -->

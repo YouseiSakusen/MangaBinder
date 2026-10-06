@@ -199,7 +199,7 @@ public class VolumeSelectionManager
 	/// Material.IsSelectableByDefault == false の場合、このフラグが true なら選択可能になります。
 	/// </param>
 	/// <exception cref="ArgumentNullException">material が null の場合。</exception>
-	public void SelectMaterial(MaterialItem material, bool allowSelectionOverride = false)
+	public void SelectMaterial(MaterialItem material, bool allowSelectionOverride = false, int? insertIndex = null)
 	{
 		if (material is null)
 		{
@@ -239,7 +239,26 @@ public class VolumeSelectionManager
 			{
 				newVolume.VolumeNumber.Value = parseResult.SingleVolume.Value;
 			}
-			// Range / Unknown / NotVolume の場合は VolumeNumber は null のままにする
+			else if (material.OriginalSourceType == MaterialSourceType.Archive
+				&& material.ItemType == MaterialItemType.Folder
+				&& !string.IsNullOrEmpty(material.SourcePath))
+			{
+				// 自身から取得できない場合のみ、Archive 内部の祖先 Folder 名を近い順に既存 Parse へ渡す
+				var segments = (material.ArchiveEntryPrefix ?? string.Empty)
+					.Replace('\\', '/')
+					.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+				for (var i = segments.Length - 2; i >= 0; i--)
+				{
+					var ancestorResult = VolumeNumberHelper.Parse(segments[i], sourceType);
+					if (ancestorResult.Kind == VolumeNumberParseKind.Single && ancestorResult.SingleVolume.HasValue)
+					{
+						newVolume.VolumeNumber.Value = ancestorResult.SingleVolume.Value;
+						break;
+					}
+				}
+			}
+			// 上記で取得できない場合は VolumeNumber は null のままにする
 		}
 		catch
 		{
@@ -251,16 +270,15 @@ public class VolumeSelectionManager
 		// BindingVolumes へ挿入
 		try
 		{
-			// IsManualVolumeOrder の状態に応じて挿入ルールを変更
-			if (this.bindingStore.IsManualVolumeOrder.Value)
+			if (insertIndex.HasValue)
 			{
-				// 手動並び替え済みの場合は末尾に追加
-				this.bindingStore.BindingVolumes.Add(newVolume);
+				// D&D による明示的な位置指定
+				var index = Math.Clamp(insertIndex.Value, 0, this.bindingStore.BindingVolumes.Count);
+				this.bindingStore.BindingVolumes.Insert(index, newVolume);
 			}
 			else
 			{
-				// 自動挿入（昇順）の場合
-				this.InsertBindingVolumeInOrder(newVolume);
+				this.bindingStore.InsertBindingVolumeInOrder(newVolume);
 			}
 		}
 		catch
@@ -276,58 +294,7 @@ public class VolumeSelectionManager
 	}
 
 	/// <summary>
-	/// BindingVolume を VolumeNumber の昇順で BindingStore.BindingVolumes へ挿入します。
-	/// VolumeNumber == null の項目は末尾に配置されます。
-	/// </summary>
-	/// <param name="bindingVolume">挿入対象の BindingVolume。</param>
-	private void InsertBindingVolumeInOrder(BindingVolume bindingVolume)
-	{
-		var targetVolumeNumber = bindingVolume.VolumeNumber.Value;
-
-		// 昇順挿入位置を探す
-		int insertIndex = this.bindingStore.BindingVolumes.Count;
-
-		for (int i = 0; i < this.bindingStore.BindingVolumes.Count; i++)
-		{
-			var existingVolume = this.bindingStore.BindingVolumes[i];
-			var existingVolumeNumber = existingVolume.VolumeNumber.Value;
-
-			// targetVolumeNumber が null の場合は末尾に挿入
-			if (targetVolumeNumber is null)
-			{
-				// null は末尾なので、null でない項目が見つかるまでスキップ
-				if (existingVolumeNumber is null)
-				{
-					// 既に null の項目を見つけたら、その位置に挿入
-					insertIndex = i;
-					break;
-				}
-			}
-			else
-			{
-				// targetVolumeNumber が値を持つ場合
-				if (existingVolumeNumber is null)
-				{
-					// 値を持つ項目より後ろにある null 項目に到達したので、その位置に挿入
-					insertIndex = i;
-					break;
-				}
-
-				// どちらも値を持つ場合は昇順比較
-				if (targetVolumeNumber < existingVolumeNumber)
-				{
-					insertIndex = i;
-					break;
-				}
-			}
-		}
-
-		this.bindingStore.BindingVolumes.Insert(insertIndex, bindingVolume);
-	}
-
-	/// <summary>
 	/// BindingStore.BindingVolumes 内の BindingVolume を指定された位置へ移動します。
-	/// 移動が実際に実行された場合、IsManualVolumeOrder を true に設定します。
 	/// </summary>
 	/// <param name="bindingVolume">移動対象の BindingVolume。</param>
 	/// <param name="newIndex">移動先のインデックス。</param>
@@ -375,9 +342,6 @@ public class VolumeSelectionManager
 		// Remove → Insert で同一インスタンスを維持（ObservableList に正式な Move API がない場合の標準パターン）
 		this.bindingStore.BindingVolumes.RemoveAt(currentIndex);
 		this.bindingStore.BindingVolumes.Insert(newIndex, bindingVolume);
-
-		// 実際に順番が変わったので手動並び替え済みに設定
-		this.bindingStore.IsManualVolumeOrder.Value = true;
 	}
 
 	/// <summary>

@@ -6,7 +6,7 @@ using MangaBinder.Helpers;
 namespace MangaBinder.Bindings.Inspection;
 
 /// <summary>
-/// 製本前確認新ルート向けの、ファイル名正規化（主番号のゼロ埋め）Simulation と実リネーム処理を行うクラスです。
+/// 製本前確認における、
 /// </summary>
 /// <remarks>
 /// 1巻内の BindingImage について、正規化後のファイル名を Simulation し、

@@ -253,7 +253,10 @@ public class SeriesInspectionManager
 			blocking: true,
 			compacting: false);
 
-		// ⑬ 製本前確認工程の処理がすべて正常終了したことを記録
+		// ⑬ 展開先作品フォルダ直下の巻フォルダ数を1回だけ取得し、Store へ保持
+		this.bindingStore.WorkVolumeFolderCount.Value = Directory.GetDirectories(this.bindingStore.WorkSeriesFolderPath.Value).Length;
+
+		// ⑭ 製本前確認工程の処理がすべて正常終了したことを記録
 		this.bindingStore.SeriesInspectionCompleted.Value = true;
 	}
 

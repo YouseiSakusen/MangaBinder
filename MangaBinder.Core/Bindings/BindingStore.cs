@@ -10,6 +10,9 @@ public class BindingStore : IDisposable
 {
 	private DisposableBag disposableBag;
 
+	/// <summary>BindingVolumes に含まれる各 BindingVolume の VolumeNumber 購読。</summary>
+	private readonly Dictionary<BindingVolume, IDisposable> volumeNumberSubscriptions = new();
+
 	/// <summary>現在 Children.CollectionChanged を購読している Root の集合。</summary>
 	private readonly HashSet<MaterialItem> subscribedRoots = new();
 
@@ -85,13 +88,6 @@ public class BindingStore : IDisposable
 	/// BindingVolumes 内の各 BindingVolume は、Materials 内の MaterialItem と同一インスタンスを参照します。
 	/// </summary>
 	public ObservableList<BindingVolume> BindingVolumes { get; }
-
-	/// <summary>
-	/// 巻選択工程中に、ユーザーが選択巻一覧を手動並び替えしたかどうかを示します。
-	/// true の場合、SelectMaterial() は新規選択巻を常に末尾に追加します。
-	/// false の場合、巻番号の昇順（null末尾）で自動挿入されます。
-	/// </summary>
-	public BindableReactiveProperty<bool> IsManualVolumeOrder { get; }
 
 	/// <summary>
 	/// 製本用Workフォルダ内に作成する巻フォルダ名の巻番号桁数を取得します。
@@ -196,6 +192,11 @@ public class BindingStore : IDisposable
 	/// </summary>
 	public BindableReactiveProperty<string> WorkSeriesFolderPath { get; }
 
+	/// <summary>
+	/// 製本前確認画面で表示する、作品単位の展開先フォルダ直下の巻フォルダ数を取得または設定します。
+	/// </summary>
+	public BindableReactiveProperty<int> WorkVolumeFolderCount { get; }
+
 	/// 素材展開方法を取得または設定します。
 	/// 初期値は <see cref="global::MangaBinder.Bindings.ImageExpansionMethod.Recreate"/> です。
 	/// </summary>
@@ -267,8 +268,6 @@ public class BindingStore : IDisposable
 		this.BindingVolumes = new ObservableList<BindingVolume>();
 		this.SplitVolumes = new ObservableList<BindingVolume>();
 		this.volumeUpdated.AddTo(ref this.disposableBag);
-		this.IsManualVolumeOrder = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
 		this.VolumeFolderDigits = new BindableReactiveProperty<int>(2)
 			.AddTo(ref this.disposableBag);
 		this.ZipOutputFileName = new BindableReactiveProperty<string>(string.Empty)
@@ -345,6 +344,9 @@ public class BindingStore : IDisposable
 			.AddTo(ref this.disposableBag);
 		this.CanGoNext = this.canGoNext;
 
+		// BindingVolumes 内の各 BindingVolume の VolumeNumber 変更を監視
+		this.BindingVolumes.CollectionChanged += this.onBindingVolumesCollectionChangedForVolumeNumber;
+
 		// BindingVolumes の Count 変化で CanGoNext を自動更新
 		this.BindingVolumes.CollectionChanged += this.onBindingVolumesCollectionChangedForCanGoNext;
 
@@ -361,6 +363,9 @@ public class BindingStore : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		this.WorkSeriesFolderPath = new BindableReactiveProperty<string>(string.Empty)
+			.AddTo(ref this.disposableBag);
+
+		this.WorkVolumeFolderCount = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
 		this.ImageExpansionMethod = new BindableReactiveProperty<global::MangaBinder.Bindings.ImageExpansionMethod>(
@@ -499,6 +504,138 @@ public class BindingStore : IDisposable
 	}
 
 	/// <summary>
+	/// BindingVolume を VolumeNumber の昇順（null 末尾）で、既存の並びを保ったまま1件だけ挿入します。
+	/// </summary>
+	/// <param name="bindingVolume">挿入対象の BindingVolume。</param>
+	public void InsertBindingVolumeInOrder(BindingVolume bindingVolume)
+	{
+		var insertIndex = this.findInsertIndex(bindingVolume.VolumeNumber.Value, -1);
+		this.BindingVolumes.Insert(insertIndex, bindingVolume);
+	}
+
+	/// <summary>
+	/// 指定位置を除いた BindingVolumes に対する、VolumeNumber 順の挿入位置を返します。
+	/// </summary>
+	private int findInsertIndex(decimal? targetVolumeNumber, int ignoreIndex)
+	{
+		var position = 0;
+		for (int i = 0; i < this.BindingVolumes.Count; i++)
+		{
+			if (i == ignoreIndex)
+			{
+				continue;
+			}
+
+			var existingVolumeNumber = this.BindingVolumes[i].VolumeNumber.Value;
+
+			if (targetVolumeNumber is null)
+			{
+				if (existingVolumeNumber is null)
+				{
+					return position;
+				}
+			}
+			else if (existingVolumeNumber is null || targetVolumeNumber < existingVolumeNumber)
+			{
+				return position;
+			}
+
+			position++;
+		}
+
+		return position;
+	}
+
+	/// <summary>
+	/// VolumeNumber が変更された BindingVolume 1件だけを再配置します。
+	/// </summary>
+	private void repositionBindingVolume(BindingVolume volume)
+	{
+		var currentIndex = this.BindingVolumes.IndexOf(volume);
+		if (currentIndex < 0)
+		{
+			return;
+		}
+
+		var newIndex = this.findInsertIndex(volume.VolumeNumber.Value, currentIndex);
+		if (newIndex == currentIndex)
+		{
+			return;
+		}
+
+		this.BindingVolumes.RemoveAt(currentIndex);
+		this.BindingVolumes.Insert(newIndex, volume);
+	}
+
+	private void subscribeVolumeNumber(BindingVolume volume)
+	{
+		if (this.volumeNumberSubscriptions.ContainsKey(volume))
+		{
+			return;
+		}
+
+		// Skip(1) で購読開始時の現在値通知を無視し、実際の変更のみ再配置の契機とする
+		this.volumeNumberSubscriptions[volume] = volume.VolumeNumber
+			.Skip(1)
+			.Subscribe(_ => this.repositionBindingVolume(volume));
+	}
+
+	private void unsubscribeVolumeNumber(BindingVolume volume)
+	{
+		if (this.volumeNumberSubscriptions.Remove(volume, out var subscription))
+		{
+			subscription.Dispose();
+		}
+	}
+
+	private void disposeAllVolumeNumberSubscriptions()
+	{
+		foreach (var subscription in this.volumeNumberSubscriptions.Values)
+		{
+			subscription.Dispose();
+		}
+		this.volumeNumberSubscriptions.Clear();
+	}
+
+	/// <summary>
+	/// BindingVolumes の CollectionChanged イベントハンドラ。VolumeNumber の購読を追加・削除に同期します。
+	/// </summary>
+	private void onBindingVolumesCollectionChangedForVolumeNumber(in NotifyCollectionChangedEventArgs<BindingVolume> e)
+	{
+		switch (e.Action)
+		{
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
+				foreach (BindingVolume added in e.IsSingleItem ? new[] { e.NewItem } : e.NewItems.ToArray())
+				{
+					this.subscribeVolumeNumber(added);
+				}
+				break;
+
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+				foreach (BindingVolume removed in e.IsSingleItem ? new[] { e.OldItem } : e.OldItems.ToArray())
+				{
+					this.unsubscribeVolumeNumber(removed);
+				}
+				break;
+
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Replace:
+				foreach (BindingVolume removed in e.IsSingleItem ? new[] { e.OldItem } : e.OldItems.ToArray())
+				{
+					this.unsubscribeVolumeNumber(removed);
+				}
+				foreach (BindingVolume added in e.IsSingleItem ? new[] { e.NewItem } : e.NewItems.ToArray())
+				{
+					this.subscribeVolumeNumber(added);
+				}
+				break;
+
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+				this.disposeAllVolumeNumberSubscriptions();
+				break;
+		}
+	}
+
+	/// <summary>
 	/// BindingVolumes の CollectionChanged イベントハンドラ。CanGoNext を更新します。
 	/// </summary>
 	private void onBindingVolumesCollectionChangedForCanGoNext(in NotifyCollectionChangedEventArgs<BindingVolume> e)
@@ -539,9 +676,9 @@ public class BindingStore : IDisposable
 		this.Materials.Clear();
 
 		// セッション固有の mutable 状態をリセット
-		this.IsManualVolumeOrder.Value = false;
 		this.HasExistingWorkFolder.Value = false;
 		this.WorkSeriesFolderPath.Value = string.Empty;
+		this.WorkVolumeFolderCount.Value = 0;
 		this.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
 		this.VolumeFolderDigits.Value = 2;
 		this.ZipOutputFileName.Value = string.Empty;
@@ -571,6 +708,8 @@ public class BindingStore : IDisposable
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForSize;
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForCanGoNext;
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForCountText;
+		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForVolumeNumber;
+		this.disposeAllVolumeNumberSubscriptions();
 
 		// 所有関係に従って破棄する
 		// 編集用 Clone は Material を参照するだけなので、先に破棄

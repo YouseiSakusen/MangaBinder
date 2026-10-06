@@ -118,6 +118,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<BindingImageProcessor>();
 		services.AddScoped<BindingArchiver>();
 		services.AddScoped<MaterialFolderOpener>();
+		services.AddScoped<BindingFolderOpener>();
 		services.AddScoped<MaterialManager>();
 		services.AddScoped<ThemeBackgroundColorInitializer>();
 

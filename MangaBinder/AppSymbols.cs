@@ -11,4 +11,9 @@ public static class AppSymbols
 	/// 素材フォルダを開く操作に使用する共通 Symbol です。
 	/// </summary>
 	public static readonly SymbolRegular OpenMaterialFolder = SymbolRegular.FolderOpen24;
+
+	/// <summary>
+	/// 展開先フォルダを開く操作に使用する共通 Symbol です。
+	/// </summary>
+	public static readonly SymbolRegular OpenBindingFolder = SymbolRegular.TabDesktopImage24;
 }

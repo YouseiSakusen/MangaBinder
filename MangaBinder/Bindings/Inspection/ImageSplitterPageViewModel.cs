@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using System.Windows.Media.Imaging;
 using R3;
+using System.Diagnostics;
 using Wpf.Ui;
+using Wpf.Ui.Controls;
 
 namespace MangaBinder.Bindings.Inspection;
 
@@ -18,6 +20,8 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
 	private readonly LoadingService loadingService;
+
+	private readonly ISnackbarService snackbarService;
 
 	private readonly ObservableList<ImageSplitterThumbnailItemViewModel> thumbnailItemList = new();
 
@@ -88,8 +92,10 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 		BindingStore bindingStore,
 		ThumbnailImageLoader thumbnailImageLoader,
 		IServiceScopeFactory serviceScopeFactory,
-		LoadingService loadingService)
+		LoadingService loadingService,
+		ISnackbarService snackbarService)
 	{
+		this.snackbarService = snackbarService;
 		this.navigationService = navigationService;
 		this.bindingStore = bindingStore;
 		this.serviceScopeFactory = serviceScopeFactory;
@@ -117,7 +123,7 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 			.AddTo(ref this.disposableBag);
 
 		this.CurrentItem
-			.Subscribe(async item => await this.showPreviewAsync(item))
+			.SubscribeAwait(async (item, token) => await this.showPreviewAsync(item, token), AwaitOperation.Switch)
 			.AddTo(ref this.disposableBag);
 
 		this.CurrentFileName = this.CurrentItem
@@ -173,10 +179,39 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 	/// </summary>
 	private async ValueTask executeSplitAsync()
 	{
+		string? errorLogPath;
 		using (this.loadingService.Begin("見開き分割を実行中..."))
 		{
 			using var scope = this.serviceScopeFactory.CreateScope();
-			await scope.ServiceProvider.GetRequiredService<ImageSplitterManager>().ExecuteSplitAsync();
+			errorLogPath = await scope.ServiceProvider.GetRequiredService<ImageSplitterManager>().ExecuteSplitAsync();
+		}
+
+		if (errorLogPath is not null)
+		{
+			this.snackbarService.Show(
+				"見開き分割",
+				"一部の画像の分割に失敗したため、元画像をそのまま使用しました。エラーログを出力しました。",
+				ControlAppearance.Caution,
+				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+				TimeSpan.FromSeconds(10));
+
+			try
+			{
+				Process.Start(new ProcessStartInfo
+				{
+					FileName = errorLogPath,
+					UseShellExecute = true,
+				});
+			}
+			catch (Exception)
+			{
+				this.snackbarService.Show(
+					"見開き分割",
+					"ログファイルを開けませんでした。",
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.FromSeconds(10));
+			}
 		}
 
 		this.finishAndGoBack();
@@ -232,7 +267,7 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 	/// 指定項目の PreviewSource をキャッシュ経由で反映します。
 	/// </summary>
 	/// <param name="item">新しい CurrentItem。</param>
-	private async ValueTask showPreviewAsync(ImageSplitterThumbnailItemViewModel? item)
+	private async ValueTask showPreviewAsync(ImageSplitterThumbnailItemViewModel? item, CancellationToken cancellationToken)
 	{
 		if (item is null)
 		{
@@ -244,7 +279,7 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 		{
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var loader = scope.ServiceProvider.GetRequiredService<ImageSplitterPreviewImageLoader>();
-			item.PreviewSource = await loader.LoadAsync(item.Image);
+			item.PreviewSource = await loader.LoadAsync(item.Image, cancellationToken);
 		}
 
 		if (this.CurrentItem.Value == item)

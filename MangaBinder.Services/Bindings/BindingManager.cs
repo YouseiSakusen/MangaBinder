@@ -409,8 +409,4 @@ public class BindingManager
 		return totalSize;
 	}
 
-	/// <summary>
-	/// 巻選択工程から次へ進むことができるかどうかを検証します。
-	/// </summary>
-	/// <returns>検証結果。</returns>
-	}
+}

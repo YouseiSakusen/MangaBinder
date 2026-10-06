@@ -8,16 +8,16 @@ namespace MangaBinder.Bindings;
 /// </summary>
 public sealed class BindingVolumeDropHandler : DefaultDropHandler
 {
-	private readonly Action<MaterialItemViewModel> onSelectMaterialFromDrop;
+	private readonly Action<MaterialItemViewModel, int> onSelectMaterialFromDrop;
 	private readonly Action<BindingVolumeViewModel, int> onMoveBindingVolumeFromDrop;
 
 	/// <summary>
 	/// <see cref="BindingVolumeDropHandler"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="onSelectMaterialFromDrop">TreeView から選択巻一覧へドロップされた MaterialItemViewModel を処理するコールバック。</param>
+	/// <param name="onSelectMaterialFromDrop">TreeView から選択巻一覧へドロップされた MaterialItemViewModel を処理するコールバック。引数は (item, insertIndex)。</param>
 	/// <param name="onMoveBindingVolumeFromDrop">選択巻一覧内で並び替えされた BindingVolumeViewModel を処理するコールバック。引数は (item, newIndex)。</param>
 	public BindingVolumeDropHandler(
-		Action<MaterialItemViewModel> onSelectMaterialFromDrop,
+		Action<MaterialItemViewModel, int> onSelectMaterialFromDrop,
 		Action<BindingVolumeViewModel, int> onMoveBindingVolumeFromDrop)
 	{
 		this.onSelectMaterialFromDrop = onSelectMaterialFromDrop;
@@ -103,7 +103,7 @@ public sealed class BindingVolumeDropHandler : DefaultDropHandler
 			return;
 
 		// コールバックを呼び出して PageVM 側で Manager 操作を実施
-		this.onSelectMaterialFromDrop?.Invoke(materialItem);
+		this.onSelectMaterialFromDrop?.Invoke(materialItem, dropInfo.InsertIndex);
 	}
 
 	private bool isSameListViewMove(IDropInfo dropInfo)

@@ -71,11 +71,11 @@ public class VolumeCardViewModel : IDisposable
 	public IReadOnlyBindableReactiveProperty<string> WarningText { get; }
 
 	/// <summary>
-	/// 横長画像数を表示するかどうかを取得します。
-	/// EpubExtractionError == None かつ LandscapeImageCount > 0 の場合 true です。
-	/// XAML側での表示条件判定用に提供されます。
+	/// 画像数表示を強調するかどうかを取得します。
+	/// EpubExtractionError == None かつ ImageFileCount > 0 かつ LandscapeImageCount == ImageFileCount の場合 true です。
+	/// XAML側での強調表示判定用に提供されます。
 	/// </summary>
-	public IReadOnlyBindableReactiveProperty<bool> ShowsLandscapeImageCount { get; }
+	public IReadOnlyBindableReactiveProperty<bool> EmphasizesImageCount { get; }
 
 	/// <summary>
 	/// <see cref="VolumeCardViewModel"/> の新しいインスタンスを初期化します。
@@ -154,12 +154,13 @@ public class VolumeCardViewModel : IDisposable
 			.ToReadOnlyBindableReactiveProperty(string.Empty)
 			.AddTo(ref this.disposableBag);
 
-		// ShowsLandscapeImageCount：横長画像数表示フラグ
-		// EpubExtractionError == None かつ LandscapeImageCount > 0 の場合 true
-		this.ShowsLandscapeImageCount = this.Volume
+		// EmphasizesImageCount：画像数強調表示フラグ
+		// EpubExtractionError == None かつ ImageFileCount > 0 かつ LandscapeImageCount == ImageFileCount の場合 true
+		this.EmphasizesImageCount = this.Volume
 			.Select(v =>
 				v.EpubExtractionError == EpubExtractionError.None
-				&& v.LandscapeImageCount > 0)
+				&& v.ImageFileCount > 0
+				&& v.LandscapeImageCount >= v.ImageFileCount * 0.9)
 			.ToReadOnlyBindableReactiveProperty(false)
 			.AddTo(ref this.disposableBag);
 	}

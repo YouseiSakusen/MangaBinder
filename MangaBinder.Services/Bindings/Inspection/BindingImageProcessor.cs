@@ -5,7 +5,7 @@ using NetVips;
 namespace MangaBinder.Bindings.Inspection;
 
 /// <summary>
-/// 製本前確認新ルート用の画像処理クラスです。
+/// 製本前確認の画像処理クラスです。
 /// BindingImage 1件ずつの処理を担当します。
 /// 
 /// Simulation（最終的な出力ファイル名を計算）と

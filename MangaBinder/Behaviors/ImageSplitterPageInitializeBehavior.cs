@@ -72,5 +72,33 @@ public static class ImageSplitterPageInitializeBehavior
 		var scrollViewer = (ScrollViewer)page.FindName("SettingsScrollViewer");
 		scrollViewer.ScrollToVerticalOffset(0);
 		scrollViewer.ScrollToHorizontalOffset(0);
+
+		var listView = (ListView)page.FindName("ThumbnailListView");
+		var listScrollViewer = FindDescendant<ScrollViewer>(listView);
+		listScrollViewer?.ScrollToVerticalOffset(0);
+		listScrollViewer?.ScrollToHorizontalOffset(0);
+	}
+
+	/// <summary>
+	/// 指定要素の Visual Tree から最初に見つかった指定型の子孫を取得します。
+	/// </summary>
+	private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+	{
+		for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+		{
+			var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+			if (child is T match)
+			{
+				return match;
+			}
+
+			var nested = FindDescendant<T>(child);
+			if (nested is not null)
+			{
+				return nested;
+			}
+		}
+
+		return null;
 	}
 }

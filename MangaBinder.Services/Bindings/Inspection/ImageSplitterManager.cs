@@ -1,8 +1,5 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Text;
-using Wpf.Ui;
-using Wpf.Ui.Controls;
 
 namespace MangaBinder.Bindings.Inspection;
 
@@ -20,22 +17,17 @@ public class ImageSplitterManager
 
 	private readonly SplitImageProcessor splitImageProcessor;
 
-	private readonly ISnackbarService snackbarService;
-
 	/// <summary>
 	/// <see cref="ImageSplitterManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="bindingStore">製本工程の正本状態ストア。</param>
 	/// <param name="splitImageProcessor">1画像の分割処理。</param>
-	/// <param name="snackbarService">スナックバーサービス。</param>
 	public ImageSplitterManager(
 		BindingStore bindingStore,
-		SplitImageProcessor splitImageProcessor,
-		ISnackbarService snackbarService)
+		SplitImageProcessor splitImageProcessor)
 	{
 		this.bindingStore = bindingStore;
 		this.splitImageProcessor = splitImageProcessor;
-		this.snackbarService = snackbarService;
 	}
 
 	/// <summary>
@@ -43,7 +35,8 @@ public class ImageSplitterManager
 	/// 個別画像の分割失敗は元画像を採用して継続し、エラーログを出力します。
 	/// </summary>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
-	public async ValueTask ExecuteSplitAsync(CancellationToken cancellationToken = default)
+	/// <returns>エラーログを出力した場合はそのフルパス。なければ null。</returns>
+	public async ValueTask<string?> ExecuteSplitAsync(CancellationToken cancellationToken = default)
 	{
 		var cloneVolume = this.bindingStore.SplitTargetVolume.Value
 			?? throw new InvalidOperationException("BindingStore.SplitTargetVolume が null です。");
@@ -58,6 +51,16 @@ public class ImageSplitterManager
 
 		var cloneSettings = cloneVolume.SplitSettings;
 		var sourceSettings = sourceVolume.SplitSettings;
+		var prevTrimLeft = sourceSettings.TrimLeft.Value;
+		var prevTrimTop = sourceSettings.TrimTop.Value;
+		var prevTrimRight = sourceSettings.TrimRight.Value;
+		var prevTrimBottom = sourceSettings.TrimBottom.Value;
+		var prevSplitOffset = sourceSettings.SplitOffset.Value;
+		var prevPageOrder = sourceSettings.PageOrder.Value;
+		var unsetImages = sourceVolume.Images.Where(i => i.SplitSettings is null).ToArray();
+		var completed = false;
+		IReadOnlyList<BindingImage>[]? results = null;
+
 		sourceSettings.TrimLeft.Value = cloneSettings.TrimLeft.Value;
 		sourceSettings.TrimTop.Value = cloneSettings.TrimTop.Value;
 		sourceSettings.TrimRight.Value = cloneSettings.TrimRight.Value;
@@ -67,19 +70,19 @@ public class ImageSplitterManager
 		sourceVolume.ApplyCommonSplitSettings();
 
 		var sourceImages = sourceVolume.Images.ToArray();
-		var cloneImages = cloneVolume.Images.ToArray();
-		var pairs = new (BindingImage Source, bool IsTarget)[sourceImages.Length];
-		for (var i = 0; i < sourceImages.Length; i++)
-		{
-			var cloneImage = cloneImages.Single(c => ReferenceEquals(c.MaterialImage, sourceImages[i].MaterialImage));
-			pairs[i] = (sourceImages[i], cloneImage.IsSpreadSplitTarget.Value);
-		}
-
 		var stagingPath = Path.Combine(volumeFolder, StagingFolderName);
 		var keepStaging = false;
 
 		try
 		{
+			var cloneImages = cloneVolume.Images.ToArray();
+			var pairs = new (BindingImage Source, bool IsTarget)[sourceImages.Length];
+			for (var i = 0; i < sourceImages.Length; i++)
+			{
+				var cloneImage = cloneImages.Single(c => ReferenceEquals(c.MaterialImage, sourceImages[i].MaterialImage));
+				pairs[i] = (sourceImages[i], cloneImage.IsSpreadSplitTarget.Value);
+			}
+
 			if (Directory.Exists(stagingPath))
 			{
 				Directory.Delete(stagingPath, true);
@@ -87,7 +90,8 @@ public class ImageSplitterManager
 
 			Directory.CreateDirectory(stagingPath);
 
-			var results = new IReadOnlyList<BindingImage>[pairs.Length];
+			var localResults = new IReadOnlyList<BindingImage>[pairs.Length];
+			results = localResults;
 			var errors = new ConcurrentQueue<(int Index, string FileName, string Message)>();
 
 			await Parallel.ForEachAsync(
@@ -100,13 +104,13 @@ public class ImageSplitterManager
 					if (!isTarget)
 					{
 						this.copyToStaging(image, stagingPath);
-						results[index] = [image];
+						localResults[index] = [image];
 						return;
 					}
 
 					try
 					{
-						results[index] = await this.splitImageProcessor.ProcessAsync(image, stagingPath, token);
+						localResults[index] = await this.splitImageProcessor.ProcessAsync(image, stagingPath, token);
 					}
 					catch (OperationCanceledException)
 					{
@@ -116,11 +120,11 @@ public class ImageSplitterManager
 					{
 						errors.Enqueue((index, image.FileName, ex.Message));
 						this.copyToStaging(image, stagingPath);
-						results[index] = [image];
+						localResults[index] = [image];
 					}
 				});
 
-			var finalImages = results.SelectMany(r => r).ToList();
+			var finalImages = localResults.SelectMany(r => r).ToList();
 			var originalSet = new HashSet<BindingImage>(sourceImages, ReferenceEqualityComparer.Instance);
 
 			keepStaging = true;
@@ -149,9 +153,10 @@ public class ImageSplitterManager
 			sourceVolume.ReplaceImages(finalImages);
 			sourceVolume.Inspect();
 
+			string? logPath = null;
 			if (!errors.IsEmpty)
 			{
-				var logPath = Path.Combine(volumeFolder, ErrorLogFileName);
+				logPath = Path.Combine(volumeFolder, ErrorLogFileName);
 				var builder = new StringBuilder();
 				builder.AppendLine("見開き分割で処理できなかった画像があります。");
 				builder.AppendLine("元画像をそのまま使用しました。");
@@ -163,25 +168,40 @@ public class ImageSplitterManager
 				}
 
 				File.WriteAllText(logPath, builder.ToString());
-
-				this.snackbarService.Show(
-					"見開き分割",
-					"一部の画像の分割に失敗したため、元画像をそのまま使用しました。エラーログを出力しました。",
-					ControlAppearance.Caution,
-					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.FromSeconds(10));
-
-				Process.Start(new ProcessStartInfo
-				{
-					FileName = logPath,
-					UseShellExecute = true,
-				});
 			}
 
+			completed = true;
 			this.bindingStore.NotifyVolumeUpdated(sourceVolume);
+			return logPath;
 		}
 		finally
 		{
+			if (!completed)
+			{
+				sourceSettings.TrimLeft.Value = prevTrimLeft;
+				sourceSettings.TrimTop.Value = prevTrimTop;
+				sourceSettings.TrimRight.Value = prevTrimRight;
+				sourceSettings.TrimBottom.Value = prevTrimBottom;
+				sourceSettings.SplitOffset.Value = prevSplitOffset;
+				sourceSettings.PageOrder.Value = prevPageOrder;
+				foreach (var image in unsetImages)
+				{
+					image.SplitSettings = null;
+				}
+
+				if (results is not null)
+				{
+					var adopted = new HashSet<BindingImage>(sourceVolume.Images, ReferenceEqualityComparer.Instance);
+					foreach (var image in results.Where(r => r is not null).SelectMany(r => r))
+					{
+						if (!adopted.Contains(image))
+						{
+							image.Dispose();
+						}
+					}
+				}
+			}
+
 			if (!keepStaging && Directory.Exists(stagingPath))
 			{
 				Directory.Delete(stagingPath, true);

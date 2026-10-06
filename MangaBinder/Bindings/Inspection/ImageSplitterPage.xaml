@@ -142,6 +142,7 @@
                             Background="{DynamicResource ControlFillColorDefaultBrush}"
                             Margin="0,4,0,0">
                             <ListView
+                                x:Name="ThumbnailListView"
                                 ItemsSource="{Binding ThumbnailItems}"
                                 SelectedItem="{Binding CurrentItem.Value, Mode=TwoWay}"
                                 behaviors:ImageSplitterListDoubleClickBehavior.IsEnabled="True"
@@ -239,7 +240,18 @@
                                                                         TrimLeft="{Binding SplitTargetVolume.Value.SplitSettings.TrimLeft.Value, Mode=TwoWay}"
                                                                         TrimRight="{Binding SplitTargetVolume.Value.SplitSettings.TrimRight.Value, Mode=TwoWay}"
                                                                         TrimTop="{Binding SplitTargetVolume.Value.SplitSettings.TrimTop.Value, Mode=TwoWay}"
-                                                                        TrimBottom="{Binding SplitTargetVolume.Value.SplitSettings.TrimBottom.Value, Mode=TwoWay}" />
+                                                                        TrimBottom="{Binding SplitTargetVolume.Value.SplitSettings.TrimBottom.Value, Mode=TwoWay}">
+                                    <controls:ImageSplitterPreview.Style>
+                                        <Style TargetType="controls:ImageSplitterPreview">
+                                            <Setter Property="Opacity" Value="1.0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CurrentItem.Value.Image.IsSpreadSplitTarget.Value}" Value="False">
+                                                    <Setter Property="Opacity" Value="0.45" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </controls:ImageSplitterPreview.Style>
+                                </controls:ImageSplitterPreview>
 
                                 <GridSplitter
                                     Grid.Column="1"
