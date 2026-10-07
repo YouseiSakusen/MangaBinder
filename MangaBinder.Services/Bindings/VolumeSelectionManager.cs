@@ -179,12 +179,49 @@ public class VolumeSelectionManager
 		// BindingVolume が存在する場合は削除・破棄
 		if (volume is not null)
 		{
+			// 展開済みの場合は、論理状態の変更前に Work 巻フォルダを削除する（失敗時は例外で論理状態を維持）
+			if (volume.RequiresUnselectCleanup)
+			{
+				this.deleteWorkVolumeFolder(volume);
+			}
+
 			this.bindingStore.BindingVolumes.Remove(volume);
 			volume.Dispose();
+			this.invalidateCompletedState();
 		}
 
 		// IsChecked を false に設定（Store内の不整合を残さない）
 		material.IsChecked.Value = false;
+	}
+
+	/// <summary>
+	/// 展開済み BindingVolume の Work 巻フォルダを削除します。
+	/// フォルダが既に存在しない場合は削除済みとして扱います。
+	/// </summary>
+	/// <param name="volume">対象の BindingVolume。</param>
+	/// <exception cref="InvalidOperationException">WorkFolderPath が未設定の場合。</exception>
+	private void deleteWorkVolumeFolder(BindingVolume volume)
+	{
+		if (string.IsNullOrWhiteSpace(volume.WorkFolderPath))
+		{
+			throw new InvalidOperationException(
+				"展開済みの BindingVolume に WorkFolderPath が設定されていないため、削除対象の Work 巻フォルダを特定できません。");
+		}
+
+		if (Directory.Exists(volume.WorkFolderPath))
+		{
+			Directory.Delete(volume.WorkFolderPath, recursive: true);
+		}
+	}
+
+	/// <summary>
+	/// 巻選択状態の変更により、巻選択・製本前確認の完了状態を無効化します。
+	/// VolumeSelectionInitialized は変更しません。
+	/// </summary>
+	private void invalidateCompletedState()
+	{
+		this.bindingStore.VolumeSelectionCompleted.Value = false;
+		this.bindingStore.SeriesInspectionCompleted.Value = false;
 	}
 
 	/// <summary>
@@ -290,6 +327,7 @@ public class VolumeSelectionManager
 
 		// 成功したので IsChecked を true に設定
 		material.IsChecked.Value = true;
+		this.invalidateCompletedState();
 
 	}
 
@@ -342,6 +380,7 @@ public class VolumeSelectionManager
 		// Remove → Insert で同一インスタンスを維持（ObservableList に正式な Move API がない場合の標準パターン）
 		this.bindingStore.BindingVolumes.RemoveAt(currentIndex);
 		this.bindingStore.BindingVolumes.Insert(newIndex, bindingVolume);
+		this.invalidateCompletedState();
 	}
 
 	/// <summary>

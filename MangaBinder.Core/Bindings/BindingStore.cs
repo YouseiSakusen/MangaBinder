@@ -577,7 +577,13 @@ public class BindingStore : IDisposable
 		// Skip(1) で購読開始時の現在値通知を無視し、実際の変更のみ再配置の契機とする
 		this.volumeNumberSubscriptions[volume] = volume.VolumeNumber
 			.Skip(1)
-			.Subscribe(_ => this.repositionBindingVolume(volume));
+			.Subscribe(_ =>
+			{
+				// 巻番号の実変更により、完了済みの後工程結果は再利用できない
+				this.VolumeSelectionCompleted.Value = false;
+				this.SeriesInspectionCompleted.Value = false;
+				this.repositionBindingVolume(volume);
+			});
 	}
 
 	private void unsubscribeVolumeNumber(BindingVolume volume)

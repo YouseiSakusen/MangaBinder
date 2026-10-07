@@ -417,9 +417,53 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// </summary>
     private void toggleMaterialSelection(MaterialItemViewModel item)
     {
+        if (item.Material.IsChecked.Value)
+        {
+            this.unselectMaterialAsync(item.Material);
+            return;
+        }
+
         using var scope = this.serviceScopeFactory.CreateScope();
         var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
         manager.ToggleMaterialSelection(item.Material, item.IsSelectionOverrideEnabled.Value);
+    }
+
+    /// <summary>
+    /// 指定した MaterialItem の選択を解除します。
+    /// 展開済みの BindingVolume の場合は ContentDialog で確認し、
+    /// 物理フォルダ削除に失敗した場合はエラーダイアログで通知します。
+    /// </summary>
+    /// <param name="material">選択解除対象の MaterialItem。</param>
+    private async void unselectMaterialAsync(MaterialItem material)
+    {
+        var volume = this.bindingStore.BindingVolumes
+            .FirstOrDefault(v => ReferenceEquals(v.Material, material));
+
+        if (volume is not null && volume.RequiresUnselectCleanup)
+        {
+            var confirmed = await ContentDialogHelper.ShowConfirmAsync(
+                this.contentDialogService,
+                "確認",
+                "選択を解除すると、この巻の展開済みフォルダも削除されます。\nよろしいですか？",
+                "解除");
+            if (!confirmed)
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            using var scope = this.serviceScopeFactory.CreateScope();
+            var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
+            manager.UnselectMaterial(material);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            await ContentDialogHelper.ShowErrorAsync(
+                this.contentDialogService,
+                $"展開済みフォルダを削除できなかったため、選択を解除できませんでした。\n{ex.Message}");
+        }
     }
 
     /// <summary>
@@ -428,9 +472,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// </summary>
     private void removeBindingVolume(BindingVolumeViewModel item)
     {
-        using var scope = this.serviceScopeFactory.CreateScope();
-        var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
-        manager.UnselectMaterial(item.Material);
+        this.unselectMaterialAsync(item.Material);
     }
 
     /// <summary>
