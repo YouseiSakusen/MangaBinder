@@ -22,6 +22,24 @@ public partial class ImageSplitterPreview : UserControl
 	}
 
 	private const double HitThickness = 12;
+	/// <summary>実画像基準の通常最大倍率。</summary>
+	private const double MaxZoom = 2.0;
+	/// <summary>ホイール1ノッチあたりの倍率係数。</summary>
+	private const double WheelZoomStep = 1.1;
+	private static readonly string[] zoomPresets = ["Fit", "100%", "125%", "150%", "200%"];
+
+	/// <summary>Fit 表示かどうか。</summary>
+	private bool isFit = true;
+	/// <summary>Fit 以外の場合の実画像基準の倍率。</summary>
+	private double zoom = 1.0;
+	/// <summary>中央配置からの Pan オフセット。</summary>
+	private double panX;
+	private double panY;
+	private bool isPanning;
+	private Point panStart;
+	private double panStartX;
+	private double panStartY;
+	private bool updatingZoomCombo;
 	/// <summary>通常状態の Trim 領域の不透明度。</summary>
 	private const double TrimOverlayOpacity = 0.30;
 	/// <summary>選択中の Trim 領域の不透明度。</summary>
@@ -87,6 +105,11 @@ public partial class ImageSplitterPreview : UserControl
 	{
 		InitializeComponent();
 
+		foreach (var preset in zoomPresets)
+		{
+			this.ZoomComboBox.Items.Add(preset);
+		}
+
 		foreach (var kind in Enum.GetValues<GuideKind>().Where(k => k != GuideKind.Split))
 		{
 			var overlay = new Rectangle
@@ -150,7 +173,10 @@ public partial class ImageSplitterPreview : UserControl
 	private static void onSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
 	{
 		var self = (ImageSplitterPreview)d;
-		self.PreviewImage.Source = (BitmapSource?)e.NewValue;
+		var src = (BitmapSource?)e.NewValue;
+		self.PreviewImage.Source = src;
+		self.ImageSizeText.Text = src is null ? string.Empty : $"{src.PixelWidth} × {src.PixelHeight} px";
+		self.resetZoomPan();
 		self.updateGuides();
 	}
 
@@ -162,7 +188,134 @@ public partial class ImageSplitterPreview : UserControl
 	{
 		this.selected = null;
 		this.dragging = null;
+		this.resetZoomPan();
 		this.updateGuides();
+	}
+
+	/// <summary>
+	/// Zoom を Fit、Pan を中央へ戻します。
+	/// </summary>
+	private void resetZoomPan()
+	{
+		this.isFit = true;
+		this.zoom = 1.0;
+		this.panX = 0;
+		this.panY = 0;
+		this.isPanning = false;
+	}
+
+	/// <summary>
+	/// 現在の表示倍率をコンボボックスへ反映します。
+	/// </summary>
+	private void updateZoomCombo(double scale)
+	{
+		var label = this.isFit ? "Fit" : $"{Math.Round(scale * 100)}%";
+		this.updatingZoomCombo = true;
+		this.ZoomComboBox.SelectedItem = zoomPresets.Contains(label) ? label : null;
+		this.ZoomComboBox.Text = label;
+		this.updatingZoomCombo = false;
+	}
+
+	/// <summary>
+	/// 指定した表示倍率へ変更します。Fit 以下の場合は Fit に戻します。
+	/// </summary>
+	/// <param name="newScale">実画像基準の新しい倍率。</param>
+	/// <param name="anchor">倍率変更の中心となる表示領域内の位置。</param>
+	private void applyZoom(double newScale, Point anchor)
+	{
+		if (!this.tryGetDisplay(out var ox, out var oy, out var scale, out _, out _))
+		{
+			return;
+		}
+
+		var src = this.Source!;
+		var aw = this.RootGrid.ActualWidth;
+		var ah = this.RootGrid.ActualHeight;
+		var fit = Math.Min(aw / src.PixelWidth, ah / src.PixelHeight);
+		newScale = Math.Min(newScale, Math.Max(MaxZoom, fit));
+		if (newScale <= fit + 1e-6)
+		{
+			this.resetZoomPan();
+			this.updateGuides();
+			return;
+		}
+
+		var u = (anchor.X - ox) / scale;
+		var v = (anchor.Y - oy) / scale;
+		this.isFit = false;
+		this.zoom = newScale;
+		this.panX = anchor.X - u * newScale - (aw - src.PixelWidth * newScale) / 2;
+		this.panY = anchor.Y - v * newScale - (ah - src.PixelHeight * newScale) / 2;
+		this.updateGuides();
+	}
+
+	private void zoomComboBoxSelectionChanged(object sender, SelectionChangedEventArgs e)
+	{
+		if (this.updatingZoomCombo || this.ZoomComboBox.SelectedItem is not string item)
+		{
+			return;
+		}
+
+		if (item == "Fit")
+		{
+			this.resetZoomPan();
+			this.updateGuides();
+			return;
+		}
+
+		var value = double.Parse(item.TrimEnd('%')) / 100;
+		this.applyZoom(value, new Point(this.RootGrid.ActualWidth / 2, this.RootGrid.ActualHeight / 2));
+	}
+
+	private void rootGridMouseWheel(object sender, MouseWheelEventArgs e)
+	{
+		if (Keyboard.Modifiers != ModifierKeys.Control || !this.tryGetDisplay(out _, out _, out var scale, out _, out _))
+		{
+			return;
+		}
+
+		this.applyZoom(scale * Math.Pow(WheelZoomStep, e.Delta / 120.0), e.GetPosition(this.RootGrid));
+		e.Handled = true;
+	}
+
+	private void rootGridMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+	{
+		if (this.isFit || this.Source is null)
+		{
+			return;
+		}
+
+		this.isPanning = true;
+		this.panStart = e.GetPosition(this.RootGrid);
+		this.panStartX = this.panX;
+		this.panStartY = this.panY;
+		this.RootGrid.CaptureMouse();
+		e.Handled = true;
+	}
+
+	private void rootGridMouseMove(object sender, MouseEventArgs e)
+	{
+		if (!this.isPanning)
+		{
+			return;
+		}
+
+		var p = e.GetPosition(this.RootGrid);
+		this.panX = this.panStartX + p.X - this.panStart.X;
+		this.panY = this.panStartY + p.Y - this.panStart.Y;
+		this.updateGuides();
+	}
+
+	private void rootGridMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+	{
+		if (!this.isPanning)
+		{
+			return;
+		}
+
+		this.isPanning = false;
+		this.RootGrid.ReleaseMouseCapture();
+		e.Handled = true;
 	}
 
 	/// <summary>
@@ -201,11 +354,16 @@ public partial class ImageSplitterPreview : UserControl
 			return false;
 		}
 
-		scale = Math.Min(aw / src.PixelWidth, ah / src.PixelHeight);
+		var fit = Math.Min(aw / src.PixelWidth, ah / src.PixelHeight);
+		scale = this.isFit ? fit : Math.Max(this.zoom, fit);
 		width = src.PixelWidth * scale;
 		height = src.PixelHeight * scale;
-		offsetX = (aw - width) / 2;
-		offsetY = (ah - height) / 2;
+		var maxPanX = Math.Max(0, (width - aw) / 2);
+		var maxPanY = Math.Max(0, (height - ah) / 2);
+		this.panX = Math.Clamp(this.panX, -maxPanX, maxPanX);
+		this.panY = Math.Clamp(this.panY, -maxPanY, maxPanY);
+		offsetX = (aw - width) / 2 + this.panX;
+		offsetY = (ah - height) / 2 + this.panY;
 		return true;
 	}
 
@@ -282,6 +440,14 @@ public partial class ImageSplitterPreview : UserControl
 		}
 
 		var visible = this.tryGetDisplay(out var ox, out var oy, out var scale, out var w, out var h);
+		if (visible)
+		{
+			this.PreviewImage.Width = w;
+			this.PreviewImage.Height = h;
+			this.PreviewImage.Margin = new Thickness(ox, oy, 0, 0);
+			this.updateZoomCombo(scale);
+		}
+
 		this.updateOverlays(visible, ox, oy, scale, w, h);
 		foreach (var (kind, (hit, _)) in this.guides)
 		{
