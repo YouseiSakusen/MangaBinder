@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Threading.Channels;
+using MangaBinder.Helpers;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -84,12 +86,10 @@ public class SeriesInspectionManager
 		// ③ 巻選択工程を完了し、製本前確認工程へ到達したことを記録
 		this.bindingStore.VolumeSelectionCompleted.Value = true;
 
-		// ④ 製本前確認工程の処理が既に完了している場合は再実行せずに終了
-		if (this.bindingStore.SeriesInspectionCompleted.Value)
-		{
-			// 既存の処理結果を保持したまま、正常終了
-			return;
-		}
+		// ④ 今回の確認処理の開始に伴い完了状態を解除する
+		// SeriesInspectionCompleted が true であっても現物確認を行い、既存 BindingImage との差分だけを処理する
+		// 正常終了時にのみ再度 true を設定する（失敗した処理を完了済みとして扱わない）
+		this.bindingStore.SeriesInspectionCompleted.Value = false;
 
 		// ⑤ ZIP ファイル名の初期生成を実行
 		this.bindingManager.InitializeZipOutputFileName();
@@ -191,10 +191,14 @@ public class SeriesInspectionManager
 			workerTasks.Add(RunImageProcessorWorker(reader, linkedCancellationTokenSource, pipelineCancellationToken));
 		}
 
+		// 画像処理パイプラインへ流した BindingImage（最終状態確定後に Work 実ファイル情報を記録する対象）
+		var pipelineImages = new ConcurrentBag<BindingImage>();
+
 		// Producer Task を起動
 		var producerTask = RunProducerAsync(
 			groupsBySourcePath,
 			writer,
+			pipelineImages,
 			linkedCancellationTokenSource,
 			pipelineCancellationToken);
 
@@ -231,6 +235,24 @@ public class SeriesInspectionManager
 
 		await this.ExecuteFileNameNormalizationAsync(normalizationTargets, pipelineCancellationToken)
 			.ConfigureAwait(false);
+
+		// 正規化まで完了し最終状態が確定した Work 実ファイルのサイズ・最終更新日時を記録する
+		await Task.Run(
+			() =>
+			{
+				foreach (var image in pipelineImages)
+				{
+					pipelineCancellationToken.ThrowIfCancellationRequested();
+
+					if (image.ProcessStatus != BindingImageProcessStatus.Succeeded || image.FilePath is null)
+					{
+						continue;
+					}
+
+					image.RecordWorkFileState(new FileInfo(image.FilePath));
+				}
+			},
+			pipelineCancellationToken).ConfigureAwait(false);
 
 		// ⑫ EPUB エラー巻について、後段処理前に検査を実行
 		var epubErrorVolumes = this.bindingStore.BindingVolumes
@@ -314,6 +336,7 @@ public class SeriesInspectionManager
 	private async Task RunProducerAsync(
 		List<IGrouping<string, BindingVolume>> groupsByEffectiveSourcePath,
 		ChannelWriter<BindingImage> writer,
+		ConcurrentBag<BindingImage> pipelineImages,
 		CancellationTokenSource linkedCancellationTokenSource,
 		CancellationToken pipelineCancellationToken)
 	{
@@ -340,8 +363,31 @@ public class SeriesInspectionManager
 					{
 						var extractor = scope.ServiceProvider.GetRequiredKeyedService<IMaterialExtractor>(sourceType);
 
-						// 第1段階：素材グループを解析して BindingImage を生成
-						await extractor.PrepareAsync(group, ct).ConfigureAwait(false);
+						// 第1段階：処理対象の BindingImage を確定する
+						// Work 巻フォルダ入力：実ファイルと既存 BindingImage を照合し、新規・変更分のみを対象にする
+						// それ以外：Extractor が生成した新規 BindingImage を対象にし、旧 BindingImage は確認済み一覧に含まれないため削除する
+						var imagesToProcess = new Dictionary<BindingVolume, List<BindingImage>>();
+						if (sourceType == MaterialSourceType.WorkFolder)
+						{
+							foreach (var volume in group)
+							{
+								ct.ThrowIfCancellationRequested();
+								imagesToProcess[volume] = ReconcileWorkFolderImages(volume, ct);
+							}
+						}
+						else
+						{
+							var previousImages = group.ToDictionary(v => v, v => v.Images.ToArray());
+
+							await extractor.PrepareAsync(group, ct).ConfigureAwait(false);
+
+							foreach (var volume in group)
+							{
+								var newImages = volume.Images.Except(previousImages[volume]).ToList();
+								volume.RemoveUnconfirmedImages(newImages);
+								imagesToProcess[volume] = newImages;
+							}
+						}
 
 						// PrepareAsync 完了直後に、同じ素材グループ内の BindingVolume に対して Simulation を実行する
 						var bindingImageProcessor = scope.ServiceProvider.GetRequiredService<BindingImageProcessor>();
@@ -381,8 +427,8 @@ public class SeriesInspectionManager
 							CheckFileNameConflicts(volume);
 
 							// ファイル名競合判定完了後、該当 BindingVolume の全 BindingImage を Channel へ投入
-							// ToArray() で snapshot を取得
-							var images = volume.Images.ToArray();
+							// 新規・変更された BindingImage のみを対象にする
+							var images = imagesToProcess[volume];
 
 							foreach (var image in images)
 							{
@@ -391,6 +437,7 @@ public class SeriesInspectionManager
 								// 第2段階：1つの BindingImage を処理可能な状態へ準備
 								// (Archive の場合のみ MemoryStream 化。Folder/EPUB は no-op)
 								await extractor.PrepareImageAsync(image, ct).ConfigureAwait(false);
+								pipelineImages.Add(image);
 
 								try
 								{
@@ -422,6 +469,46 @@ public class SeriesInspectionManager
 			// Channel.Writer を完了させて Workerの読み込み完了を通知
 			writer.TryComplete();
 		}
+	}
+
+	/// <summary>
+	/// Work 巻フォルダの実ファイルと既存 BindingImage を1ファイルずつ照合し、処理対象を返します。
+	/// 今回存在を確認できた BindingImage（未変更を含む）以外は BindingVolume 側で削除・Dispose されます。
+	/// </summary>
+	/// <param name="volume">対象の BindingVolume。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	/// <returns>新規または変更された、画像処理対象の BindingImage。</returns>
+	private static List<BindingImage> ReconcileWorkFolderImages(BindingVolume volume, CancellationToken cancellationToken)
+	{
+		var confirmedImages = new List<BindingImage>();
+		var imagesToProcess = new List<BindingImage>();
+
+		var workFiles = new DirectoryInfo(volume.EffectiveSourcePath)
+			.EnumerateFiles("*", SearchOption.TopDirectoryOnly)
+			.Where(file => SupportedExtensionHelper.IsImage(file.Extension))
+			.OrderBy(file => file.FullName, StringComparer.OrdinalIgnoreCase);
+
+		foreach (var workFile in workFiles)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			var image = volume.FindImageByFilePath(workFile.FullName);
+			if (image is null)
+			{
+				image = volume.AddImage(workFile.FullName, workFile.Name);
+				imagesToProcess.Add(image);
+			}
+			else if (image.IsChanged(workFile))
+			{
+				imagesToProcess.Add(image);
+			}
+
+			confirmedImages.Add(image);
+		}
+
+		volume.RemoveUnconfirmedImages(confirmedImages);
+
+		return imagesToProcess;
 	}
 
 	/// <summary>

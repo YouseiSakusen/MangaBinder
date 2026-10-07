@@ -146,6 +146,8 @@ public class ImageSplitterManager
 				{
 					image.FilePath = finalPath;
 				}
+
+				image.RecordWorkFileState(new FileInfo(finalPath));
 			}
 
 			keepStaging = false;

@@ -52,7 +52,11 @@ public class VolumeSelectionManager
 				"巻選択の初期化には BindingStore.BindingTarget が設定されている必要があります。");
 		}
 
-		// ② VolumeSelectionInitialized が true の場合は再初期化を行わない
+		// ② 画像展開状態は VolumeSelection へ入るたびに現在のファイルシステムで再評価する
+		// ファイルシステムアクセスを UI スレッドで直接実行しないよう Task.Run で別タスクへ移す
+		await Task.Run(this.initializeImageExpansionState, cancellationToken);
+
+		// ③ VolumeSelectionInitialized が true の場合は再初期化を行わない
 		if (this.bindingStore.VolumeSelectionInitialized.Value)
 		{
 			// 既存の素材は保持したまま、成功結果を返す
@@ -66,8 +70,7 @@ public class VolumeSelectionManager
 			};
 		}
 
-		// ③ 素材展開方法の初期状態を決定（素材Loader実行前に設定）
-		this.initializeImageExpansionState();
+		// 未初期化の場合のみ、巻フォルダ桁数を初期化する
 		this.initializeVolumeFolderDigits(bindingTarget.Series);
 
 		// ④ SeriesMaterialFolderLoader.GetMaterialsAsync() を呼び出す

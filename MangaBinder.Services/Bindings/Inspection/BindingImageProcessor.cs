@@ -51,6 +51,18 @@ public class BindingImageProcessor
 	}
 
 	/// <summary>
+	/// 画像処理の入力元パスを取得します。
+	/// Work 入力の BindingImage で FilePath が設定済みの場合、現在の Work 実ファイルである FilePath を返します。
+	/// それ以外は MaterialImage.SourceImagePath を返します。
+	/// </summary>
+	private static string GetSourceImagePath(BindingImage image)
+	{
+		return image.ShouldDeleteSourceFile && !string.IsNullOrEmpty(image.FilePath)
+			? image.FilePath
+			: image.MaterialImage.SourceImagePath;
+	}
+
+	/// <summary>
 	/// BindingImage 1件を実際に画像処理してWorkへ出力します。
 	/// 
 	/// 処理フロー：
@@ -119,7 +131,7 @@ public class BindingImageProcessor
 			if (image.TemporaryImageStream is not null)
 			{
 				sourceStream = image.TemporaryImageStream;
-				sourceImagePath = image.MaterialImage.SourceImagePath;
+				sourceImagePath = GetSourceImagePath(image);
 
 				// Seek 可能な場合は Position = 0 に戻す
 				if (sourceStream.CanSeek)
@@ -129,7 +141,7 @@ public class BindingImageProcessor
 			}
 			else
 			{
-				sourceImagePath = image.MaterialImage.SourceImagePath;
+				sourceImagePath = GetSourceImagePath(image);
 				if (string.IsNullOrEmpty(sourceImagePath) || !File.Exists(sourceImagePath))
 				{
 					image.ProcessStatus = BindingImageProcessStatus.ImageOpenFailed;

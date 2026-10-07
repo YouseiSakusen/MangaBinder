@@ -218,6 +218,47 @@ public class BindingVolume : IDisposable
 	}
 
 	/// <summary>
+	/// Work 上の実ファイルのフルパスに対応する既存 BindingImage を取得します。
+	/// FilePath と OrdinalIgnoreCase で比較します。FilePath が null の BindingImage は対応しません。
+	/// </summary>
+	/// <param name="workFilePath">Work 上の実ファイルのフルパス。</param>
+	/// <returns>対応する BindingImage。存在しない場合は null。</returns>
+	public BindingImage? FindImageByFilePath(string workFilePath)
+	{
+		ArgumentNullException.ThrowIfNull(workFilePath);
+
+		foreach (var image in this.Images)
+		{
+			if (image.FilePath is not null
+				&& string.Equals(image.FilePath, workFilePath, StringComparison.OrdinalIgnoreCase))
+			{
+				return image;
+			}
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// 今回存在を確認できた BindingImage 一覧に含まれない BindingImage を Images から削除し Dispose します。
+	/// 確認済み一覧に含まれる BindingImage は同一インスタンスのまま維持します。
+	/// </summary>
+	/// <param name="confirmedImages">今回存在を確認できた BindingImage 一覧。</param>
+	public void RemoveUnconfirmedImages(IEnumerable<BindingImage> confirmedImages)
+	{
+		ArgumentNullException.ThrowIfNull(confirmedImages);
+
+		var confirmed = new HashSet<BindingImage>(confirmedImages, ReferenceEqualityComparer.Instance);
+		var unconfirmed = this.Images.Where(image => !confirmed.Contains(image)).ToArray();
+
+		foreach (var image in unconfirmed)
+		{
+			this.Images.Remove(image);
+			image.Dispose();
+		}
+	}
+
+	/// <summary>
 	/// Images の最大 Width / Height を1回の走査で取得します。
 	/// Images が0件、または寸法が未設定の場合、該当値は 0 です。
 	/// </summary>

@@ -43,6 +43,18 @@ public class BindingImage : IDisposable
 	public string? FilePath { get; set; }
 
 	/// <summary>
+	/// 前回正常に確認・処理したWork側の実ファイルのファイルサイズ（バイト）を取得します。
+	/// 未確認の場合は null です。元素材のファイル情報ではありません。
+	/// </summary>
+	public long? WorkFileSize { get; private set; }
+
+	/// <summary>
+	/// 前回正常に確認・処理したWork側の実ファイルの最終更新日時（UTC）を取得します。
+	/// 未確認の場合は null です。元素材のファイル情報ではありません。
+	/// </summary>
+	public DateTime? WorkFileLastWriteTimeUtc { get; private set; }
+
+	/// <summary>
 	/// 画像の幅（ピクセル）を取得または設定します。
 	/// 画像を実際に開いた際に判明する値です。
 	/// 初期値は null です。
@@ -185,6 +197,34 @@ public class BindingImage : IDisposable
 	}
 
 	/// <summary>
+	/// 指定したWork実ファイルの情報が、前回確認した状態から変更されているかを判定します。
+	/// 前回の確認情報が未保持の場合は変更ありとして扱います。
+	/// </summary>
+	/// <param name="workFile">現在のWork側の実ファイル。</param>
+	/// <returns>ファイルサイズまたは最終更新日時が異なる場合 true。</returns>
+	public bool IsChanged(FileInfo workFile)
+	{
+		ArgumentNullException.ThrowIfNull(workFile);
+
+		return this.WorkFileSize is null
+			|| this.WorkFileLastWriteTimeUtc is null
+			|| workFile.Length != this.WorkFileSize.Value
+			|| workFile.LastWriteTimeUtc != this.WorkFileLastWriteTimeUtc.Value;
+	}
+
+	/// <summary>
+	/// 最終状態が確定したWork実ファイルのサイズと最終更新日時（UTC）を、次回の比較用に記録します。
+	/// </summary>
+	/// <param name="workFile">確定したWork側の実ファイル。</param>
+	public void RecordWorkFileState(FileInfo workFile)
+	{
+		ArgumentNullException.ThrowIfNull(workFile);
+
+		this.WorkFileSize = workFile.Length;
+		this.WorkFileLastWriteTimeUtc = workFile.LastWriteTimeUtc;
+	}
+
+	/// <summary>
 	/// 見開き分割対象のデフォルト状態を設定します。横長画像のみ true になります。
 	/// </summary>
 	public void ApplyDefaultSpreadSplitTarget()
@@ -236,6 +276,8 @@ public class BindingImage : IDisposable
 		var clone = new BindingImage(cloneVolume, this.MaterialImage);
 		clone.FileName = this.FileName;
 		clone.FilePath = this.FilePath;
+		clone.WorkFileSize = this.WorkFileSize;
+		clone.WorkFileLastWriteTimeUtc = this.WorkFileLastWriteTimeUtc;
 		clone.Width = this.Width;
 		clone.Height = this.Height;
 		clone.TemporaryImageStream = null;
