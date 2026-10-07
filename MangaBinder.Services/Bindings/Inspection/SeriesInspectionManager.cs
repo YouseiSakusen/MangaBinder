@@ -96,6 +96,7 @@ public class SeriesInspectionManager
 
 		// ⑥ BindingStore.WorkSeriesFolderPath から対象作品の作品Workフォルダパスを取得する
 		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
+		var isRecreate = this.bindingStore.ImageExpansionMethod.Value == global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
 
 		// ⑦⑧⑨ 作品Workフォルダの準備（削除・作成・既存巻フォルダ一覧取得）を
 		// UIスレッドをブロックしないよう Task.Run で非同期境界へ移す
@@ -280,6 +281,13 @@ public class SeriesInspectionManager
 
 		// ⑭ 製本前確認工程の処理がすべて正常終了したことを記録
 		this.bindingStore.SeriesInspectionCompleted.Value = true;
+
+		// ⑮ Recreate を実行して正常完了した場合、以降は現在の Work を再利用する状態へ更新
+		if (isRecreate)
+		{
+			this.bindingStore.HasExistingWorkFolder.Value = true;
+			this.bindingStore.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.UseExisting;
+		}
 	}
 
 	/// <summary>

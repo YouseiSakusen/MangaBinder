@@ -145,7 +145,7 @@ public class VolumeSelectionManager
 	/// SelectMaterial 呼び出し時に使用する allowSelectionOverride フラグ。
 	/// </param>
 	/// <exception cref="ArgumentNullException">material が null の場合。</exception>
-	public void ToggleMaterialSelection(MaterialItem material, bool allowSelectionOverride = false)
+	public async ValueTask ToggleMaterialSelectionAsync(MaterialItem material, bool allowSelectionOverride = false)
 	{
 		if (material is null)
 		{
@@ -154,7 +154,7 @@ public class VolumeSelectionManager
 
 		if (material.IsChecked.Value)
 		{
-			this.UnselectMaterial(material);
+			await this.UnselectMaterialAsync(material);
 		}
 		else
 		{
@@ -169,7 +169,7 @@ public class VolumeSelectionManager
 	/// </summary>
 	/// <param name="material">選択解除対象の MaterialItem。</param>
 	/// <exception cref="ArgumentNullException">material が null の場合。</exception>
-	public void UnselectMaterial(MaterialItem material)
+	public async ValueTask UnselectMaterialAsync(MaterialItem material)
 	{
 		if (material is null)
 		{
@@ -185,7 +185,7 @@ public class VolumeSelectionManager
 			// 展開済みの場合は、論理状態の変更前に Work 巻フォルダを削除する（失敗時は例外で論理状態を維持）
 			if (volume.RequiresUnselectCleanup)
 			{
-				this.deleteWorkVolumeFolder(volume);
+				await this.deleteWorkVolumeFolderAsync(volume);
 			}
 
 			this.bindingStore.BindingVolumes.Remove(volume);
@@ -203,7 +203,7 @@ public class VolumeSelectionManager
 	/// </summary>
 	/// <param name="volume">対象の BindingVolume。</param>
 	/// <exception cref="InvalidOperationException">WorkFolderPath が未設定の場合。</exception>
-	private void deleteWorkVolumeFolder(BindingVolume volume)
+	private async ValueTask deleteWorkVolumeFolderAsync(BindingVolume volume)
 	{
 		if (string.IsNullOrWhiteSpace(volume.WorkFolderPath))
 		{
@@ -211,10 +211,14 @@ public class VolumeSelectionManager
 				"展開済みの BindingVolume に WorkFolderPath が設定されていないため、削除対象の Work 巻フォルダを特定できません。");
 		}
 
-		if (Directory.Exists(volume.WorkFolderPath))
+		var workFolderPath = volume.WorkFolderPath;
+		await Task.Run(() =>
 		{
-			Directory.Delete(volume.WorkFolderPath, recursive: true);
-		}
+			if (Directory.Exists(workFolderPath))
+			{
+				Directory.Delete(workFolderPath, recursive: true);
+			}
+		});
 	}
 
 	/// <summary>
@@ -402,7 +406,7 @@ public class VolumeSelectionManager
 	/// または material が BindingStore.Materials の Root 直下に存在しない、
 	/// または material.ItemType が削除対象外の場合。
 	/// </exception>
-	public bool DeleteMaterial(MaterialItem material, bool sendToRecycleBin)
+	public async ValueTask<bool> DeleteMaterialAsync(MaterialItem material, bool sendToRecycleBin)
 	{
 		// null チェック
 		if (material is null)
@@ -493,9 +497,9 @@ public class VolumeSelectionManager
 		// 物理削除成功後、BindingStore を更新
 
 		// 1. 既存の UnselectMaterial を呼び出し（BindingVolume 削除と IsChecked = false）
-		this.UnselectMaterial(material);
+		await this.UnselectMaterialAsync(material);
 
-		// 2. 親 Root.Children から対象 Material を削除
+		// 2.
 		parentRoot.Children.RemoveAt(materialIndexInRoot);
 
 		// 3. Material を Dispose（子ノードを所有している場合も含め）

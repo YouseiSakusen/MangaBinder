@@ -415,7 +415,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// 指定された MaterialItemViewModel の選択状態を反転します。
     /// VolumeSelectionManager をスコープ内で解決して選択操作を実行します。
     /// </summary>
-    private void toggleMaterialSelection(MaterialItemViewModel item)
+    private async void toggleMaterialSelection(MaterialItemViewModel item)
     {
         if (item.Material.IsChecked.Value)
         {
@@ -425,7 +425,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
 
         using var scope = this.serviceScopeFactory.CreateScope();
         var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
-        manager.ToggleMaterialSelection(item.Material, item.IsSelectionOverrideEnabled.Value);
+        await manager.ToggleMaterialSelectionAsync(item.Material, item.IsSelectionOverrideEnabled.Value);
     }
 
     /// <summary>
@@ -456,7 +456,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         {
             using var scope = this.serviceScopeFactory.CreateScope();
             var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
-            manager.UnselectMaterial(material);
+            await manager.UnselectMaterialAsync(material);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -696,7 +696,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
 
         // DeleteMaterial() を実行
-        var succeeded = manager.DeleteMaterial(item.Material, sendToRecycleBin);
+        var succeeded = await manager.DeleteMaterialAsync(item.Material, sendToRecycleBin);
 
         // 結果に応じて処理
         if (!succeeded)
