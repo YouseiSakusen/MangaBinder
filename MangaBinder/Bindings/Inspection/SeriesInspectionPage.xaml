@@ -184,7 +184,7 @@
 			<controls:PageLayout.TopContent>
 				<Grid>
 					<Grid.ColumnDefinitions>
-						<ColumnDefinition Width="100" />
+						<ColumnDefinition Width="300" />
 						<ColumnDefinition Width="Auto" />
 						<ColumnDefinition Width="*" />
 					</Grid.ColumnDefinitions>
