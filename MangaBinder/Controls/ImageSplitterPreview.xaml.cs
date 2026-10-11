@@ -26,7 +26,37 @@ public partial class ImageSplitterPreview : UserControl
 	private const double MaxZoom = 2.0;
 	/// <summary>ホイール1ノッチあたりの倍率係数。</summary>
 	private const double WheelZoomStep = 1.1;
-	private static readonly string[] zoomPresets = ["Fit", "100%", "125%", "150%", "200%"];
+	private static readonly Cursor grabCursor = loadCursor("Grab.cur");
+	private static readonly Cursor grabbingCursor = loadCursor("Grabbing.cur");
+
+	/// <summary>ズーム選択肢の表示項目。</summary>
+	private sealed class ZoomItem(string displayText, double? scale, bool isCustom = false) : System.ComponentModel.INotifyPropertyChanged
+	{
+		private string displayText = displayText;
+
+		public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+		/// <summary>表示文字列。</summary>
+		public string DisplayText
+		{
+			get => this.displayText;
+			set
+			{
+				this.displayText = value;
+				this.PropertyChanged?.Invoke(this, new(nameof(this.DisplayText)));
+			}
+		}
+
+		/// <summary>実画像基準の倍率。Fit の場合は null。</summary>
+		public double? Scale { get; } = scale;
+
+		/// <summary>ドロップダウンに表示せず、現在倍率の表示専用に使う項目かどうか。</summary>
+		public bool IsCustom { get; } = isCustom;
+	}
+
+	private readonly ZoomItem fitItem = new("全体", null);
+	private readonly ZoomItem currentItem = new(string.Empty, null, true);
+	private readonly ZoomItem[] zoomPresets = [new("100%", 1.0), new("125%", 1.25), new("150%", 1.5), new("200%", 2.0)];
 
 	/// <summary>Fit 表示かどうか。</summary>
 	private bool isFit = true;
@@ -105,10 +135,13 @@ public partial class ImageSplitterPreview : UserControl
 	{
 		InitializeComponent();
 
-		foreach (var preset in zoomPresets)
+		this.ZoomComboBox.Items.Add(this.fitItem);
+		foreach (var preset in this.zoomPresets)
 		{
 			this.ZoomComboBox.Items.Add(preset);
 		}
+
+		this.ZoomComboBox.Items.Add(this.currentItem);
 
 		foreach (var kind in Enum.GetValues<GuideKind>().Where(k => k != GuideKind.Split))
 		{
@@ -209,11 +242,38 @@ public partial class ImageSplitterPreview : UserControl
 	/// </summary>
 	private void updateZoomCombo(double scale)
 	{
-		var label = this.isFit ? "Fit" : $"{Math.Round(scale * 100)}%";
+		var percent = $"{Math.Round(scale * 100)}%";
+		ZoomItem selectedItem;
+		if (this.isFit)
+		{
+			this.currentItem.DisplayText = $"{percent}（全体）";
+			selectedItem = this.currentItem;
+		}
+		else
+		{
+			selectedItem = this.zoomPresets.FirstOrDefault(p => p.DisplayText == percent) ?? this.currentItem;
+			this.currentItem.DisplayText = percent;
+		}
+
 		this.updatingZoomCombo = true;
-		this.ZoomComboBox.SelectedItem = zoomPresets.Contains(label) ? label : null;
-		this.ZoomComboBox.Text = label;
+		this.ZoomComboBox.SelectedItem = selectedItem;
 		this.updatingZoomCombo = false;
+	}
+
+	private static Cursor loadCursor(string fileName)
+	{
+		var info = Application.GetResourceStream(new Uri($"pack://application:,,,/Resources/Cursors/{fileName}"));
+		return new Cursor(info.Stream);
+	}
+
+	/// <summary>
+	/// パン可否と操作状態に応じて、画像表示領域のカーソルを更新します。
+	/// </summary>
+	private void updateCursor()
+	{
+		this.RootGrid.Cursor = this.isPanning ? grabbingCursor
+			: (!this.isFit && this.Source is not null) ? grabCursor
+			: null;
 	}
 
 	/// <summary>
@@ -251,19 +311,18 @@ public partial class ImageSplitterPreview : UserControl
 
 	private void zoomComboBoxSelectionChanged(object sender, SelectionChangedEventArgs e)
 	{
-		if (this.updatingZoomCombo || this.ZoomComboBox.SelectedItem is not string item)
+		if (this.updatingZoomCombo || this.ZoomComboBox.SelectedItem is not ZoomItem item || item.IsCustom)
 		{
 			return;
 		}
 
-		if (item == "Fit")
+		if (item.Scale is not double value)
 		{
 			this.resetZoomPan();
 			this.updateGuides();
 			return;
 		}
 
-		var value = double.Parse(item.TrimEnd('%')) / 100;
 		this.applyZoom(value, new Point(this.RootGrid.ActualWidth / 2, this.RootGrid.ActualHeight / 2));
 	}
 
@@ -290,7 +349,19 @@ public partial class ImageSplitterPreview : UserControl
 		this.panStartX = this.panX;
 		this.panStartY = this.panY;
 		this.RootGrid.CaptureMouse();
+		this.updateCursor();
 		e.Handled = true;
+	}
+
+	private void rootGridLostMouseCapture(object sender, MouseEventArgs e)
+	{
+		if (!this.isPanning)
+		{
+			return;
+		}
+
+		this.isPanning = false;
+		this.updateCursor();
 	}
 
 	private void rootGridMouseMove(object sender, MouseEventArgs e)
@@ -315,6 +386,7 @@ public partial class ImageSplitterPreview : UserControl
 
 		this.isPanning = false;
 		this.RootGrid.ReleaseMouseCapture();
+		this.updateCursor();
 		e.Handled = true;
 	}
 
@@ -440,6 +512,7 @@ public partial class ImageSplitterPreview : UserControl
 		}
 
 		var visible = this.tryGetDisplay(out var ox, out var oy, out var scale, out var w, out var h);
+		this.updateCursor();
 		if (visible)
 		{
 			this.PreviewImage.Width = w;

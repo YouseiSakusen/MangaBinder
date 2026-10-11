@@ -235,6 +235,7 @@
                                 <controls:ImageSplitterPreview
                                     x:Name="SplitterPreview"
                                     Grid.Column="0"
+                                    Margin="0,0,8,0"
                                     Source="{Binding PreviewSource.Value}"
                                                                         SplitOffset="{Binding SplitTargetVolume.Value.SplitSettings.SplitOffset.Value, Mode=TwoWay}"
                                                                         TrimLeft="{Binding SplitTargetVolume.Value.SplitSettings.TrimLeft.Value, Mode=TwoWay}"
