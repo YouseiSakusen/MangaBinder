@@ -50,11 +50,14 @@ public class BindingRepository
 	/// <exception cref="InvalidOperationException">
 	/// <paramref name="series"/> の <see cref="MangaSeries.SeriesId"/> が 0 の場合にスローされます。
 	/// </exception>
-	public async ValueTask UpdateAfterBindingAsync(
+	public async ValueTask<BindingHistory> UpdateAfterBindingAsync(
 		MangaSeries series,
 		bool removeFromBindingQueue,
+		BindingHistory history,
 		CancellationToken cancellationToken = default)
 	{
+		ArgumentNullException.ThrowIfNull(history);
+
 		if (series.SeriesId == 0)
 			throw new InvalidOperationException("UpdateAfterBindingAsync は新規作品（SeriesId=0）では実行できません。");
 
@@ -62,6 +65,7 @@ public class BindingRepository
 		await connection.OpenAsync(cancellationToken);
 
 		using var transaction = connection.BeginTransaction();
+		BindingHistory savedHistory;
 		try
 		{
 			// 1. MangaSeries.BoundEndVolume の更新
@@ -97,13 +101,60 @@ public class BindingRepository
 					transaction);
 			}
 
-			// 3. 全処理成功後に Commit
-			transaction.Commit();
+			// 3. BindingHistory の INSERT（BoundAt は DB の DEFAULT 値を使用）
+			const string insertHistorySql = """
+				INSERT INTO BindingHistory (SeriesId, VolumeRange, OutputFileName, OutputFolderPath)
+				VALUES (:SeriesId, :VolumeRange, :OutputFileName, :OutputFolderPath);
+				""";
+
+			await connection.ExecuteAsync(
+				insertHistorySql,
+				new
+				{
+					SeriesId = series.SeriesId,
+					history.VolumeRange,
+					history.OutputFileName,
+					history.OutputFolderPath,
+				},
+				transaction);
+
+			const string selectHistorySql = """
+				SELECT HistoryId, SeriesId, BoundAt, VolumeRange, OutputFileName, OutputFolderPath
+				FROM BindingHistory
+				WHERE HistoryId = last_insert_rowid();
+				""";
+
+			savedHistory = await connection.QuerySingleAsync<BindingHistory>(
+				selectHistorySql,
+				transaction: transaction);
+
+			// 4. 最新3件以外の履歴を削除
+			const string deleteOldHistorySql = """
+				DELETE FROM BindingHistory
+				WHERE SeriesId = :SeriesId
+				AND HistoryId NOT IN (
+					SELECT HistoryId FROM BindingHistory
+					WHERE SeriesId = :SeriesId
+					ORDER BY HistoryId DESC
+					LIMIT 3
+				);
+				""";
+
+			await connection.ExecuteAsync(
+				deleteOldHistorySql,
+				new { SeriesId = series.SeriesId },
+				transaction);
 		}
 		catch
 		{
+			// Commit 前の例外のみ Rollback する
 			transaction.Rollback();
 			throw;
 		}
+
+		// 5. 全処理成功後に Commit（Commit 失敗時は Dispose により破棄される。Commit 成功後の Rollback は行わない）
+		transaction.Commit();
+
+		return savedHistory;
 	}
 }

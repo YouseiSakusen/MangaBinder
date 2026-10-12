@@ -119,6 +119,9 @@ public class MangaSeries
     /// <summary>作品の所在情報リストです。</summary>
     public List<MangaSource> Sources { get; set; } = new();
 
+    /// <summary>製本履歴です。HistoryId 降順で最新3件まで保持します。</summary>
+    public List<BindingHistory> BindingHistories { get; set; } = new();
+
     /// <summary>素材フォルダ（<see cref="FolderRole.Material"/>）の所在情報一覧を取得します。</summary>
     public IReadOnlyList<MangaSource> MaterialSources
         => this.Sources.Where(s => s.Role == Settings.FolderRole.Material).ToList();
