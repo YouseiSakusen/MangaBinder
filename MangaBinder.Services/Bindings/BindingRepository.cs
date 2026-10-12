@@ -90,25 +90,33 @@ public class BindingRepository
 			// 2. BindingQueue の削除
 			if (removeFromBindingQueue)
 			{
-				const string deleteBindingQueueSql = """
-					DELETE FROM BindingQueue
-					WHERE SeriesId = :SeriesId;
-					""";
+				var deleteBindingQueueSql = new StringBuilder();
+				deleteBindingQueueSql.AppendLine(" DELETE FROM BindingQueue ");
+				deleteBindingQueueSql.AppendLine(" WHERE ");
+				deleteBindingQueueSql.AppendLine(" 	SeriesId = :SeriesId; ");
 
 				await connection.ExecuteAsync(
-					deleteBindingQueueSql,
+					deleteBindingQueueSql.ToString(),
 					new { SeriesId = series.SeriesId },
 					transaction);
 			}
 
 			// 3. BindingHistory の INSERT（BoundAt は DB の DEFAULT 値を使用）
-			const string insertHistorySql = """
-				INSERT INTO BindingHistory (SeriesId, VolumeRange, OutputFileName, OutputFolderPath)
-				VALUES (:SeriesId, :VolumeRange, :OutputFileName, :OutputFolderPath);
-				""";
+			var insertHistorySql = new StringBuilder();
+			insertHistorySql.AppendLine(" INSERT INTO BindingHistory ( ");
+			insertHistorySql.AppendLine(" 	  SeriesId ");
+			insertHistorySql.AppendLine(" 	, VolumeRange ");
+			insertHistorySql.AppendLine(" 	, OutputFileName ");
+			insertHistorySql.AppendLine(" 	, OutputFolderPath ");
+			insertHistorySql.AppendLine(" ) VALUES ( ");
+			insertHistorySql.AppendLine(" 	  :SeriesId ");
+			insertHistorySql.AppendLine(" 	, :VolumeRange ");
+			insertHistorySql.AppendLine(" 	, :OutputFileName ");
+			insertHistorySql.AppendLine(" 	, :OutputFolderPath ");
+			insertHistorySql.AppendLine(" ); ");
 
 			await connection.ExecuteAsync(
-				insertHistorySql,
+				insertHistorySql.ToString(),
 				new
 				{
 					SeriesId = series.SeriesId,
@@ -118,30 +126,37 @@ public class BindingRepository
 				},
 				transaction);
 
-			const string selectHistorySql = """
-				SELECT HistoryId, SeriesId, BoundAt, VolumeRange, OutputFileName, OutputFolderPath
-				FROM BindingHistory
-				WHERE HistoryId = last_insert_rowid();
-				""";
+			var selectHistorySql = new StringBuilder();
+			selectHistorySql.AppendLine(" SELECT ");
+			selectHistorySql.AppendLine(" 	  HistoryId ");
+			selectHistorySql.AppendLine(" 	, SeriesId ");
+			selectHistorySql.AppendLine(" 	, BoundAt ");
+			selectHistorySql.AppendLine(" 	, VolumeRange ");
+			selectHistorySql.AppendLine(" 	, OutputFileName ");
+			selectHistorySql.AppendLine(" 	, OutputFolderPath ");
+			selectHistorySql.AppendLine(" FROM ");
+			selectHistorySql.AppendLine(" 	BindingHistory ");
+			selectHistorySql.AppendLine(" WHERE ");
+			selectHistorySql.AppendLine(" 	HistoryId = last_insert_rowid(); ");
 
 			savedHistory = await connection.QuerySingleAsync<BindingHistory>(
-				selectHistorySql,
+				selectHistorySql.ToString(),
 				transaction: transaction);
 
 			// 4. 最新3件以外の履歴を削除
-			const string deleteOldHistorySql = """
-				DELETE FROM BindingHistory
-				WHERE SeriesId = :SeriesId
-				AND HistoryId NOT IN (
-					SELECT HistoryId FROM BindingHistory
-					WHERE SeriesId = :SeriesId
-					ORDER BY HistoryId DESC
-					LIMIT 3
-				);
-				""";
+			var deleteOldHistorySql = new StringBuilder();
+			deleteOldHistorySql.AppendLine(" DELETE FROM BindingHistory ");
+			deleteOldHistorySql.AppendLine(" WHERE ");
+			deleteOldHistorySql.AppendLine(" 		SeriesId = :SeriesId ");
+			deleteOldHistorySql.AppendLine(" 	AND HistoryId NOT IN ( ");
+			deleteOldHistorySql.AppendLine(" 		SELECT HistoryId FROM BindingHistory ");
+			deleteOldHistorySql.AppendLine(" 		WHERE SeriesId = :SeriesId ");
+			deleteOldHistorySql.AppendLine(" 		ORDER BY HistoryId DESC ");
+			deleteOldHistorySql.AppendLine(" 		LIMIT 3 ");
+			deleteOldHistorySql.AppendLine(" 	); ");
 
 			await connection.ExecuteAsync(
-				deleteOldHistorySql,
+				deleteOldHistorySql.ToString(),
 				new { SeriesId = series.SeriesId },
 				transaction);
 		}

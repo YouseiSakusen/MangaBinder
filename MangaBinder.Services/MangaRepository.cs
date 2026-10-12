@@ -114,85 +114,88 @@ public class MangaRepository
 		string whereClause,
 		object? parameters)
 	{
-		const string selectSql = """
-			SELECT
-				  s.SeriesId
-				, s.NormalizedTitleInternal
-				, s.Title
-				, s.ShortTitle
-				, s.ThumbnailFileName
-				, s.Author
-				, s.Description
-				, s.SeriesCompleted
-				, s.IsOwnedCompleted
-				, s.IsSourceMissing
-				, s.StartVolume
-				, s.EndVolume
-				, s.BoundEndVolume
-				, s.OwnedMaxVolume
-				, s.NormalizedTitleExternal
-				, s.UpdatedAt
-				, s.ThumbnailStatus
-				, s.Publisher
-				, s.GoogleBooksImportStatus
-				, s.GoogleBooksImportedAt
-				, s.GoogleBooksImportMessage
-				, s.DescriptionSource
-				, s.DescriptionSourceTitle
-				, s.HasNestedArchive
-				, s.Memo
-				, s.ManuallyEditedAt
-				, s.IsOwnedMaxVolumeManuallyEdited
-				, s.IsIncomplete
-				, s.MaterialFolderCreatedAt
-				, s.UpdateSource
-				, src.SourceId
-				, src.SeriesId
-				, src.Path
-				, src.Role
-				, t.TagId
-				, t.Name
-				, t.DisplayOrder
-				, t.ShowOnSeriesCard
-				, h.HistoryId
-				, h.SeriesId
-				, h.BoundAt
-				, h.VolumeRange
-				, h.OutputFileName
-				, h.OutputFolderPath
-			FROM
-				MangaSeries s
-			LEFT JOIN MangaSources src ON
-				src.SeriesId = s.SeriesId
-			LEFT JOIN MangaSeriesTags st ON
-				st.SeriesId = s.SeriesId
-			LEFT JOIN MangaTags t ON
-				t.TagId = st.TagId
-			LEFT JOIN (
-				SELECT
-					bh.HistoryId, bh.SeriesId, bh.BoundAt, bh.VolumeRange, bh.OutputFileName, bh.OutputFolderPath
-				FROM
-					BindingHistory bh
-				WHERE
-					bh.HistoryId IN (
-						SELECT x.HistoryId FROM BindingHistory x
-						WHERE x.SeriesId = bh.SeriesId
-						ORDER BY x.HistoryId DESC
-						LIMIT 3
-					)
-			) h ON
-				h.SeriesId = s.SeriesId
-			""";
+		var selectSql = new StringBuilder();
+		selectSql.AppendLine(" SELECT ");
+		selectSql.AppendLine(" 	  s.SeriesId ");
+		selectSql.AppendLine(" 	, s.NormalizedTitleInternal ");
+		selectSql.AppendLine(" 	, s.Title ");
+		selectSql.AppendLine(" 	, s.ShortTitle ");
+		selectSql.AppendLine(" 	, s.ThumbnailFileName ");
+		selectSql.AppendLine(" 	, s.Author ");
+		selectSql.AppendLine(" 	, s.Description ");
+		selectSql.AppendLine(" 	, s.SeriesCompleted ");
+		selectSql.AppendLine(" 	, s.IsOwnedCompleted ");
+		selectSql.AppendLine(" 	, s.IsSourceMissing ");
+		selectSql.AppendLine(" 	, s.StartVolume ");
+		selectSql.AppendLine(" 	, s.EndVolume ");
+		selectSql.AppendLine(" 	, s.BoundEndVolume ");
+		selectSql.AppendLine(" 	, s.OwnedMaxVolume ");
+		selectSql.AppendLine(" 	, s.NormalizedTitleExternal ");
+		selectSql.AppendLine(" 	, s.UpdatedAt ");
+		selectSql.AppendLine(" 	, s.ThumbnailStatus ");
+		selectSql.AppendLine(" 	, s.Publisher ");
+		selectSql.AppendLine(" 	, s.GoogleBooksImportStatus ");
+		selectSql.AppendLine(" 	, s.GoogleBooksImportedAt ");
+		selectSql.AppendLine(" 	, s.GoogleBooksImportMessage ");
+		selectSql.AppendLine(" 	, s.DescriptionSource ");
+		selectSql.AppendLine(" 	, s.DescriptionSourceTitle ");
+		selectSql.AppendLine(" 	, s.HasNestedArchive ");
+		selectSql.AppendLine(" 	, s.Memo ");
+		selectSql.AppendLine(" 	, s.ManuallyEditedAt ");
+		selectSql.AppendLine(" 	, s.IsOwnedMaxVolumeManuallyEdited ");
+		selectSql.AppendLine(" 	, s.IsIncomplete ");
+		selectSql.AppendLine(" 	, s.MaterialFolderCreatedAt ");
+		selectSql.AppendLine(" 	, s.UpdateSource ");
+		selectSql.AppendLine(" 	, src.SourceId ");
+		selectSql.AppendLine(" 	, src.SeriesId ");
+		selectSql.AppendLine(" 	, src.Path ");
+		selectSql.AppendLine(" 	, src.Role ");
+		selectSql.AppendLine(" 	, t.TagId ");
+		selectSql.AppendLine(" 	, t.Name ");
+		selectSql.AppendLine(" 	, t.DisplayOrder ");
+		selectSql.AppendLine(" 	, t.ShowOnSeriesCard ");
+		selectSql.AppendLine(" 	, h.HistoryId ");
+		selectSql.AppendLine(" 	, h.SeriesId ");
+		selectSql.AppendLine(" 	, h.BoundAt ");
+		selectSql.AppendLine(" 	, h.VolumeRange ");
+		selectSql.AppendLine(" 	, h.OutputFileName ");
+		selectSql.AppendLine(" 	, h.OutputFolderPath ");
+		selectSql.AppendLine(" FROM ");
+		selectSql.AppendLine(" 	MangaSeries s ");
+		selectSql.AppendLine(" LEFT JOIN MangaSources src ON ");
+		selectSql.AppendLine(" 	src.SeriesId = s.SeriesId ");
+		selectSql.AppendLine(" LEFT JOIN MangaSeriesTags st ON ");
+		selectSql.AppendLine(" 	st.SeriesId = s.SeriesId ");
+		selectSql.AppendLine(" LEFT JOIN MangaTags t ON ");
+		selectSql.AppendLine(" 	t.TagId = st.TagId ");
+		selectSql.AppendLine(" LEFT JOIN ( ");
+		selectSql.AppendLine(" 	SELECT ");
+		selectSql.AppendLine(" 		  bh.HistoryId ");
+		selectSql.AppendLine(" 		, bh.SeriesId ");
+		selectSql.AppendLine(" 		, bh.BoundAt ");
+		selectSql.AppendLine(" 		, bh.VolumeRange ");
+		selectSql.AppendLine(" 		, bh.OutputFileName ");
+		selectSql.AppendLine(" 		, bh.OutputFolderPath ");
+		selectSql.AppendLine(" 	FROM ");
+		selectSql.AppendLine(" 		BindingHistory bh ");
+		selectSql.AppendLine(" 	WHERE ");
+		selectSql.AppendLine(" 		bh.HistoryId IN ( ");
+		selectSql.AppendLine(" 			SELECT x.HistoryId FROM BindingHistory x ");
+		selectSql.AppendLine(" 			WHERE x.SeriesId = bh.SeriesId ");
+		selectSql.AppendLine(" 			ORDER BY x.HistoryId DESC ");
+		selectSql.AppendLine(" 			LIMIT 3 ");
+		selectSql.AppendLine(" 		) ");
+		selectSql.AppendLine(" ) h ON ");
+		selectSql.AppendLine(" 	h.SeriesId = s.SeriesId ");
 
-		const string orderBySql = """
-			 ORDER BY
-				  s.SeriesId
-				, src.Role
-				, src.Path
-				, t.DisplayOrder
-				, t.TagId
-				, h.HistoryId DESC;
-			""";
+		var orderBySql = new StringBuilder();
+		orderBySql.AppendLine(" ORDER BY ");
+		orderBySql.AppendLine(" 	  s.SeriesId ");
+		orderBySql.AppendLine(" 	, src.Role ");
+		orderBySql.AppendLine(" 	, src.Path ");
+		orderBySql.AppendLine(" 	, t.DisplayOrder ");
+		orderBySql.AppendLine(" 	, t.TagId ");
+		orderBySql.AppendLine(" 	, h.HistoryId DESC; ");
 
 		var seriesList = new List<MangaSeries>();
 		var seriesDict = new Dictionary<long, MangaSeries>();
@@ -201,7 +204,7 @@ public class MangaRepository
 		var historyIds = new HashSet<long>();
 
 		await connection.QueryAsync<MangaSeries, MangaSource, MangaTag, BindingHistory, MangaSeries>(
-			selectSql + whereClause + orderBySql,
+			selectSql.ToString() + whereClause + orderBySql.ToString(),
 			(row, source, tag, history) =>
 			{
 				if (!seriesDict.TryGetValue(row.SeriesId, out var series))
@@ -727,9 +730,12 @@ public class MangaRepository
             await connection.ExecuteAsync(deleteSourcesSql.ToString(), new { SeriesId = seriesId }, transaction);
 
             // 4.5. BindingHistory を削除（外部キー制約の自動削除には依存しない）
-            var deleteBindingHistorySql = " DELETE FROM BindingHistory WHERE SeriesId = :SeriesId; ";
+            var deleteBindingHistorySql = new StringBuilder();
+            deleteBindingHistorySql.AppendLine(" DELETE FROM BindingHistory ");
+            deleteBindingHistorySql.AppendLine(" WHERE ");
+            deleteBindingHistorySql.AppendLine(" SeriesId = :SeriesId; ");
 
-            await connection.ExecuteAsync(deleteBindingHistorySql, new { SeriesId = seriesId }, transaction);
+            await connection.ExecuteAsync(deleteBindingHistorySql.ToString(), new { SeriesId = seriesId }, transaction);
 
             // 5. MangaSeries を削除
             var deleteSeriesSql = new StringBuilder();
