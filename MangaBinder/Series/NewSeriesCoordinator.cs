@@ -38,8 +38,11 @@ public class NewSeriesCoordinator
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
+	/// <summary>共有 MangaSeriesViewModel を所有するストア。</summary>
+	private readonly MangaSeriesStore mangaSeriesStore;
+
 	/// <summary>
-	/// <see cref="NewSeriesCoordinator"/> の新しいインスタンスを初期化します。
+	/// <see cref="NewSeriesCoordinator"/>
 	/// </summary>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
@@ -49,8 +52,10 @@ public class NewSeriesCoordinator
 		INavigationService navigationService,
 		IContentDialogService contentDialogService,
 		EditStore editStore,
-		IServiceScopeFactory serviceScopeFactory)
+		IServiceScopeFactory serviceScopeFactory,
+		MangaSeriesStore mangaSeriesStore)
 	{
+		this.mangaSeriesStore = mangaSeriesStore;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
 		this.editStore = editStore;
@@ -226,6 +231,9 @@ public class NewSeriesCoordinator
 			{
 				// 編集対象を設定
 				this.editStore.EditTarget = confirmedSeries;
+				this.editStore.EditTargetViewModel =
+					this.mangaSeriesStore.All.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, confirmedSeries))
+					?? this.mangaSeriesStore.WorkSeries.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, confirmedSeries));
 
 				// EditorPage へ遷移
 				this.navigationService.NavigateWithHierarchy(typeof(EditorPage));

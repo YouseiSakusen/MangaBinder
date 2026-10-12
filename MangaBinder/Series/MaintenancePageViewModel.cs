@@ -216,6 +216,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	{
 		// 編集対象を指定作品に設定
 		this.editStore.EditTarget = series;
+		this.editStore.EditTargetViewModel =
+			this.mangaSeriesStore.All.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series))
+			?? this.mangaSeriesStore.WorkSeries.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series));
 
 		// NavigationHierarchy を設定
 		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));

@@ -39,6 +39,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private bool suppressMaterialSizeCalculation;
 	private bool disposed;
 	private double? editingStartOwnedMaxVolume;
+	private MangaSeriesViewModel? ownedSeriesViewModel;
 
 	/// <summary>編集対象の Series を取得します。</summary>
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
@@ -560,6 +561,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 			// MangaSeriesCard: 作品サムネイルカード用ViewModel
 			this.MangaSeriesCard = new MangaSeriesCardViewModel()
+			{
+				IsEditMode = true
+			}
 				.AddTo(ref this.disposableBag);
 
 			// MangaSeriesCard の Header を "作品サムネイル" に初期設定
@@ -642,16 +646,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 					this.MaterialFolderCreatedAtViewModel.Value.Series.ForceNotify();
 				}
 
-				// MangaSeriesCard の Series へ接続
-				if (this.MangaSeriesCard.Series.Value != editingSeries)
-				{
-					this.MangaSeriesCard.Series.Value = editingSeries;
-				}
-				else if (this.MangaSeriesCard.Series.Value == editingSeries)
-				{
-					// 同一インスタンスの場合は ForceNotify() で再通知させる
-					this.MangaSeriesCard.Series.ForceNotify();
-				}
+				// MangaSeriesCard へ共有 MangaSeriesViewModel を接続
+				this.connectSeriesViewModel(editingSeries);
 			})
 			.AddTo(ref this.disposableBag);
 
@@ -662,6 +658,48 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		{
 			await this.showDeleteSeriesDialogAsync();
 		});
+	}
+
+	/// <summary>
+	/// 作品カードへ渡す MangaSeriesViewModel を決定して接続します。
+	/// Store 所有のVMがあればそれを使用し、無い場合（新規作品）のみ編集画面で生成・所有します。
+	/// </summary>
+	private void connectSeriesViewModel(MangaSeries? editingSeries)
+	{
+		if (editingSeries is null)
+		{
+			this.MangaSeriesCard.SeriesViewModel.Value = null;
+			this.MangaSeriesCard.Series.Value = null;
+			this.ownedSeriesViewModel?.Dispose();
+			this.ownedSeriesViewModel = null;
+			return;
+		}
+
+		var shared = this.editStore.EditTargetViewModel;
+		if (shared is not null && ReferenceEquals(shared.Series.Value, editingSeries))
+		{
+			this.MangaSeriesCard.SeriesViewModel.Value = shared;
+			this.disposeOwnedSeriesViewModel();
+			return;
+		}
+
+		if (this.ownedSeriesViewModel is not null && ReferenceEquals(this.ownedSeriesViewModel.Series.Value, editingSeries))
+		{
+			this.MangaSeriesCard.SeriesViewModel.Value = this.ownedSeriesViewModel;
+			this.MangaSeriesCard.Series.ForceNotify();
+			return;
+		}
+
+		var created = new MangaSeriesViewModel(editingSeries);
+		this.MangaSeriesCard.SeriesViewModel.Value = created;
+		this.disposeOwnedSeriesViewModel();
+		this.ownedSeriesViewModel = created;
+	}
+
+	private void disposeOwnedSeriesViewModel()
+	{
+		this.ownedSeriesViewModel?.Dispose();
+		this.ownedSeriesViewModel = null;
 	}
 
 	/// <summary>
@@ -1045,6 +1083,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		if (!request.PreserveState)
 		{
 			this.editStore.EditTarget = null;
+			this.editStore.EditTargetViewModel = null;
 		}
 
 		return ValueTask.CompletedTask;
@@ -2376,6 +2415,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			this.tagSelector.Dispose();
 			this.materialSizeCancellationTokenSource?.Dispose();
 			this.disposableBag.Dispose();
+			this.disposeOwnedSeriesViewModel();
 		}
 
 		this.disposed = true;

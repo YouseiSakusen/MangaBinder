@@ -218,6 +218,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         // EditTarget をクリア
         // 保存通知は ExistingSeriesSaveManager から MangaSeriesStore.NotifySeriesChanged() を通じて流れる
         this.editStore.EditTarget = null;
+        this.editStore.EditTargetViewModel = null;
     }
 
     /// <inheritdoc/>
@@ -277,8 +278,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     {
         // 編集対象を指定作品に設定
         this.editStore.EditTarget = series;
+        this.editStore.EditTargetViewModel = this.mangaSeriesStore.All.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series));
 
-        // NavigationHierarchy を使用して遷移
+        // NavigationHierarchy
         this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
     }
 

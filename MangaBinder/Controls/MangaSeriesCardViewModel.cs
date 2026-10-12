@@ -1,3 +1,4 @@
+using MangaBinder.Series;
 using R3;
 using System.Windows.Media;
 
@@ -41,6 +42,15 @@ public class MangaSeriesCardViewModel : IDisposable
 	/// LastUpdateStatus と MemoStatus の入力元です。
 	/// </summary>
 	public BindableReactiveProperty<MangaSeries?> Series { get; }
+
+	/// <summary>
+	/// Store 所有の共有 MangaSeriesViewModel を取得・設定します。
+	/// このVMの Series の変更通知を購読し、Series へ中継します。VM自体は Dispose しません。
+	/// </summary>
+	public BindableReactiveProperty<MangaSeriesViewModel?> SeriesViewModel { get; }
+
+	/// <summary>編集画面で使用されるかどうかを取得します。生成時に確定します。</summary>
+	public bool IsEditMode { get; init; }
 
 	/// <summary>
 	/// SeriesMemo を表示対象とするかどうかを取得・設定します。
@@ -103,6 +113,9 @@ public class MangaSeriesCardViewModel : IDisposable
 		this.ShowMemo = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
 
+		this.SeriesViewModel = new BindableReactiveProperty<MangaSeriesViewModel?>(null)
+			.AddTo(ref this.disposableBag);
+
 		// 子ViewModel の生成（MangaSeriesCardViewModel が所有）
 		var lastUpdateStatusViewModel = new SeriesLastUpdateViewModel()
 			.AddTo(ref this.disposableBag);
@@ -145,6 +158,25 @@ public class MangaSeriesCardViewModel : IDisposable
 				else
 				{
 					defaultVolumeStatus.Series.Value = series;
+				}
+			})
+			.AddTo(ref this.disposableBag);
+
+		// 共有 MangaSeriesViewModel の Series 通知を既存の Series へ中継する（VM切替時は以前の購読を解除）
+		this.SeriesViewModel
+			.Select(viewModel => viewModel is null
+				? Observable.Empty<MangaSeries?>()
+				: viewModel.Series.AsObservable())
+			.Switch()
+			.Subscribe(series =>
+			{
+				if (series != null && ReferenceEquals(this.Series.Value, series))
+				{
+					this.Series.ForceNotify();
+				}
+				else
+				{
+					this.Series.Value = series;
 				}
 			})
 			.AddTo(ref this.disposableBag);
