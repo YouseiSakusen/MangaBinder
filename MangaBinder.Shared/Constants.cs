@@ -14,6 +14,11 @@ public static class Constants
 		/// エディタページを表す文字列です。
 		/// </summary>
 		public const string EditorPage = "EditorPage";
+
+		/// <summary>
+		/// メモ編集ダイアログを表す文字列です。
+		/// </summary>
+		public const string MemoEditDialog = "MemoEditDialog";
 	}
 
 	/// <summary>

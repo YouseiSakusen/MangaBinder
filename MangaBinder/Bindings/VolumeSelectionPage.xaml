@@ -162,6 +162,8 @@
 						<ColumnDefinition Width="Auto" />
 						<ColumnDefinition Width="160" />
 						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition Width="160" />
+						<ColumnDefinition Width="Auto" />
 						<ColumnDefinition Width="*" />
 					</Grid.ColumnDefinitions>
 
@@ -175,9 +177,15 @@
 						Symbol="ColumnDoubleCompare20"
 						Command="{Binding ArchiveCompareCommand}" />
 
-					<!-- Column 3: 素材フォルダを開く -->
-					<controls:TopActionButton
+					<!-- Column 3: メモ編集 -->
+					<controls:MemoEditButton
 						Grid.Column="3"
+						HorizontalAlignment="Center"
+						Series="{Binding BindingSeries.MangaSeriesCard.Series.Value}" />
+
+					<!-- Column 5: 素材フォルダを開く -->
+					<controls:TopActionButton
+						Grid.Column="5"
 						HorizontalAlignment="Center"
 						PrimaryText="素材フォルダを開く"
 						SecondaryLabel="素材点数"

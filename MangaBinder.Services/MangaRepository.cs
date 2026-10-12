@@ -365,6 +365,45 @@ public class MangaRepository
     }
 
     /// <summary>
+    /// MangaSeries テーブルの Memo のみを更新します。
+    /// 手動編集日時と更新日時・更新元も併せて更新します。
+    /// </summary>
+    /// <param name="seriesId">更新対象の SeriesId。</param>
+    /// <param name="memo">新しいメモ。</param>
+    /// <param name="manuallyEditedAt">手動編集日時。</param>
+    /// <param name="updateSource">更新元を表す文字列。</param>
+    /// <returns>完了時にコンプリートする ValueTask。</returns>
+    public async ValueTask UpdateSeriesMemoAsync(
+        long seriesId,
+        string memo,
+        DateTime manuallyEditedAt,
+        string updateSource)
+    {
+        var sql = new StringBuilder();
+        sql.AppendLine(" UPDATE MangaSeries ");
+        sql.AppendLine(" SET ");
+        sql.AppendLine(" 	  Memo = :Memo ");
+        sql.AppendLine(" 	, ManuallyEditedAt = :ManuallyEditedAt ");
+        sql.AppendLine(" 	, UpdatedAt = DATETIME('now', 'localtime') ");
+        sql.AppendLine(" 	, UpdateSource = :UpdateSource ");
+        sql.AppendLine(" WHERE ");
+        sql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+        using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            sql.ToString(),
+            new
+            {
+                SeriesId = seriesId,
+                Memo = memo,
+                ManuallyEditedAt = manuallyEditedAt,
+                UpdateSource = updateSource,
+            });
+    }
+
+    /// <summary>
     /// MangaSources テーブルへ新規レコードを挿入します。
     /// トランザクション内での実行を想定しており、外部から接続とトランザクションを受け取ります。
     /// </summary>

@@ -3,6 +3,7 @@ using System.IO;
 using MangaBinder.Bindings;
 using MangaBinder.Bindings.Extraction;
 using MangaBinder.Bindings.Inspection;
+using MangaBinder.Controls;
 using MangaBinder.Converters;
 using MangaBinder.Helpers;
 using MangaBinder.Jobs;
@@ -104,6 +105,8 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<VolumeSelectionManager>();
 		services.AddScoped<ArchiveCompareCoordinator>();
+		services.AddScoped<SeriesMemoManager>();
+		services.AddTransient<MemoEditButtonViewModel>();
 		services.AddScoped<SeriesInspectionManager>();
 		services.AddScoped<SplitImageProcessor>();
 		services.AddScoped<ImageSplitterManager>();
