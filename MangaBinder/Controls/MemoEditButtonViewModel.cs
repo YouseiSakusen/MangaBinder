@@ -83,8 +83,9 @@ public class MemoEditButtonViewModel : IDisposable
 	/// </summary>
 	private async ValueTask editAsync()
 	{
-		var series = this.targetViewModel?.Series.Value;
-		if (series is null)
+		var targetViewModel = this.targetViewModel;
+		var series = targetViewModel?.Series.Value;
+		if (targetViewModel is null || series is null)
 			return;
 
 		using var dialogViewModel = new MemoEditDialogContentViewModel(series.Memo);
@@ -109,7 +110,7 @@ public class MemoEditButtonViewModel : IDisposable
 
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var manager = scope.ServiceProvider.GetRequiredService<SeriesMemoManager>();
-		await manager.SaveMemoAsync(series.SeriesId, dialogViewModel.Memo.Value);
+		SaveMemoAsync(targetViewModel, 
 	}
 
 	/// <summary>
