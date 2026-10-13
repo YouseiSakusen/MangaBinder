@@ -139,7 +139,7 @@
 	<!-- ================================================================================== -->
 	<bindings:BindingPageLayout
 		Margin="16,4,16,16"
-		SeriesTitle="{Binding BindingSeries.SeriesTitle.Value}">
+		SeriesTitle="{Binding BindingTargetViewModel.Value.Series.Value.Title}">
 
 		<!-- PageLayout：3カラム + Eyecatch + Footer -->
 		<controls:PageLayout
@@ -181,7 +181,7 @@
 					<controls:MemoEditButton
 						Grid.Column="3"
 						HorizontalAlignment="Center"
-						Series="{Binding BindingSeries.MangaSeriesCard.Series.Value}" />
+						SeriesViewModel="{Binding BindingTargetViewModel.Value}" />
 
 					<!-- Column 5: 素材フォルダを開く -->
 					<controls:TopActionButton
@@ -205,8 +205,7 @@
 					VerticalAlignment="Top">
 
 					<!-- 共通作品情報カード（MangaSeriesCard） -->
-					<controls:MangaSeriesCard DataContext="{Binding BindingSeries.MangaSeriesCard}" />
-
+					<controls:MangaSeriesCard DataContext="{Binding MangaSeriesCard}" />
 					<!-- 巻選択画面固有：素材内訳Card -->
 					<ui:Card
 						Margin="0,5,0,0"

@@ -1,5 +1,7 @@
-﻿using System.Windows;
+﻿using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
+using MangaBinder.Series;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace MangaBinder.Controls;
@@ -10,12 +12,12 @@ namespace MangaBinder.Controls;
 /// </summary>
 public partial class MemoEditButton : UserControl
 {
-	/// <summary>編集対象の作品（Store 正本インスタンス）を表す依存関係プロパティ。</summary>
-	public static readonly DependencyProperty SeriesProperty = DependencyProperty.Register(
-		nameof(Series),
-		typeof(MangaSeries),
+	/// <summary>編集対象の共有 MangaSeriesViewModel を表す依存関係プロパティ。</summary>
+	public static readonly DependencyProperty SeriesViewModelProperty = DependencyProperty.Register(
+		nameof(SeriesViewModel),
+		typeof(MangaSeriesViewModel),
 		typeof(MemoEditButton),
-		new PropertyMetadata(null, onSeriesChanged));
+		new PropertyMetadata(null, onSeriesViewModelChanged));
 
 	/// <summary>ViewModel を表す読み取り専用依存関係プロパティのキー。</summary>
 	private static readonly DependencyPropertyKey viewModelPropertyKey = DependencyProperty.RegisterReadOnly(
@@ -28,12 +30,12 @@ public partial class MemoEditButton : UserControl
 	public static readonly DependencyProperty ViewModelProperty = viewModelPropertyKey.DependencyProperty;
 
 	/// <summary>
-	/// 編集対象の作品を取得または設定します。
+	/// 編集対象の共有 MangaSeriesViewModel を取得または設定します。
 	/// </summary>
-	public MangaSeries? Series
+	public MangaSeriesViewModel? SeriesViewModel
 	{
-		get => (MangaSeries?)this.GetValue(SeriesProperty);
-		set => this.SetValue(SeriesProperty, value);
+		get => (MangaSeriesViewModel?)this.GetValue(SeriesViewModelProperty);
+		set => this.SetValue(SeriesViewModelProperty, value);
 	}
 
 	/// <summary>
@@ -52,12 +54,12 @@ public partial class MemoEditButton : UserControl
 	}
 
 	/// <summary>
-	/// Series 変更時に ViewModel へ反映します。
+	/// SeriesViewModel 変更時に ViewModel へ反映します。
 	/// </summary>
-	private static void onSeriesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+	private static void onSeriesViewModelChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
 	{
 		var button = (MemoEditButton)d;
-		button.ViewModel?.SetSeries((MangaSeries?)e.NewValue);
+		button.ViewModel?.SetSeriesViewModel((MangaSeriesViewModel?)e.NewValue);
 	}
 
 	/// <summary>
@@ -65,8 +67,11 @@ public partial class MemoEditButton : UserControl
 	/// </summary>
 	private void onLoaded(object sender, RoutedEventArgs e)
 	{
+		if (DesignerProperties.GetIsInDesignMode(this))
+			return;
+
 		var viewModel = App.Services.GetRequiredService<MemoEditButtonViewModel>();
-		viewModel.SetSeries(this.Series);
+		viewModel.SetSeriesViewModel(this.SeriesViewModel);
 		this.button.DataContext = viewModel;
 		this.SetValue(viewModelPropertyKey, viewModel);
 	}
@@ -76,6 +81,9 @@ public partial class MemoEditButton : UserControl
 	/// </summary>
 	private void onUnloaded(object sender, RoutedEventArgs e)
 	{
+		if (DesignerProperties.GetIsInDesignMode(this))
+			return;
+
 		this.button.DataContext = null;
 		this.ViewModel?.Dispose();
 		this.SetValue(viewModelPropertyKey, null);

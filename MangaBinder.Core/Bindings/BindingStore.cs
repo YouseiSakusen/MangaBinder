@@ -1,3 +1,4 @@
+using MangaBinder.Series;
 using ObservableCollections;
 using R3;
 
@@ -41,6 +42,13 @@ public class BindingStore : IDisposable
 	/// 現在の製本工程で扱っている BindingSeries を取得または設定します。
 	/// </summary>
 	public BindableReactiveProperty<BindingSeries?> BindingTarget { get; }
+
+	/// <summary>
+	/// 現在の製本対象作品に対応する、MangaSeriesStore 所有の共有 MangaSeriesViewModel を取得または設定します。
+	/// このプロパティは BindingStore が所有しますが、値の MangaSeriesViewModel は Dispose しません。
+	/// BindingTarget が null になると自動的に null へクリアされます。
+	/// </summary>
+	public BindableReactiveProperty<MangaSeriesViewModel?> BindingTargetViewModel { get; }
 
 	/// <summary>
 	/// 現在の見開き分割画面で扱う対象巻を取得または設定します。
@@ -264,6 +272,8 @@ public class BindingStore : IDisposable
 	{
 		this.BindingTarget = new BindableReactiveProperty<BindingSeries?>(null)
 			.AddTo(ref this.disposableBag);
+		this.BindingTargetViewModel = new BindableReactiveProperty<MangaSeriesViewModel?>(null)
+			.AddTo(ref this.disposableBag);
 		this.Materials = new ObservableList<MaterialItem>();
 		this.BindingVolumes = new ObservableList<BindingVolume>();
 		this.SplitVolumes = new ObservableList<BindingVolume>();
@@ -394,6 +404,13 @@ public class BindingStore : IDisposable
 		this.BindingTarget
 			.Skip(1)
 			.Subscribe(_ => this.clearCurrentBindingSession())
+			.AddTo(ref this.disposableBag);
+
+		// BindingTarget の解除に連動して共有 VM 参照をクリア（共有 VM 自体は Dispose しない）
+		this.BindingTarget
+			.Skip(1)
+			.Where(target => target is null)
+			.Subscribe(_ => this.BindingTargetViewModel.Value = null)
 			.AddTo(ref this.disposableBag);
 	}
 

@@ -39,11 +39,11 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 
 	private DisposableBag disposableBag;
 
-	/// <summary>作品タイトルと作品カードの共通 ViewModel を取得します。</summary>
-	public BindingSeriesViewModel BindingSeries { get; }
+	/// <summary>作品カード用 ViewModel を取得します。</summary>
+	public MangaSeriesCardViewModel MangaSeriesCard { get; }
 
-	/// <summary>選択中の作品著者を取得します。</summary>
-	public IReadOnlyBindableReactiveProperty<string> SeriesAuthor { get; }
+	/// <summary>BindingStore が所有する共有 MangaSeriesViewModel を取得します。</summary>
+	public BindableReactiveProperty<MangaBinder.Series.MangaSeriesViewModel?> BindingTargetViewModel => this.bindingStore.BindingTargetViewModel;
 
 	/// <summary>巻カード表示用の ViewModel 一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<VolumeCardViewModel> VolumeCards { get; }
@@ -114,13 +114,7 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.loadingService = loadingService;
 
-		this.BindingSeries = new BindingSeriesViewModel(this.bindingStore, thumbnailImageLoader)
-			.AddTo(ref this.disposableBag);
-
-		// SeriesAuthor: BindingTarget.Value?.Series.Author から Reactive に導出
-		this.SeriesAuthor = this.bindingStore.BindingTarget
-			.Select(bindingTarget => bindingTarget?.Series?.Author ?? string.Empty)
-			.ToReadOnlyBindableReactiveProperty(string.Empty)
+		this.MangaSeriesCard = new MangaSeriesCardViewModel(this.bindingStore.BindingTargetViewModel, thumbnailImageLoader)
 			.AddTo(ref this.disposableBag);
 
 		// 巻カード用の SynchronizedView を初期化

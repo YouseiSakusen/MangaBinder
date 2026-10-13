@@ -14,6 +14,7 @@ namespace MangaBinder.Bindings;
 public class BindingManager
 {
 	private readonly BindingStore bindingStore;
+	private readonly MangaSeriesStore mangaSeriesStore;
 	private readonly AppSettings appSettings;
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
@@ -25,10 +26,12 @@ public class BindingManager
 	/// <param name="serviceScopeFactory">サービススコープファクトリー。</param>
 	public BindingManager(
 		BindingStore bindingStore,
+		MangaSeriesStore mangaSeriesStore,
 		AppSettings appSettings,
 		IServiceScopeFactory serviceScopeFactory)
 	{
 		this.bindingStore = bindingStore ?? throw new ArgumentNullException(nameof(bindingStore));
+		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
 		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
 	}
@@ -66,10 +69,19 @@ public class BindingManager
 		// 1. 作品Workフォルダパスを生成
 		var workSeriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(bindingSeries.Series.Title);
 
-		// 2. BindingTarget を設定（この時点で clearCurrentBindingSession() が実行される）
-		this.bindingStore.BindingTarget.Value = bindingSeries;
+		// 2. 対応する Store 所有の共有 MangaSeriesViewModel を取得（同一インスタンスであることが必須）
+		var sharedViewModel = this.mangaSeriesStore.FindViewModelById(bindingSeries.Series.SeriesId)
+			?? throw new InvalidOperationException($"SeriesId {bindingSeries.Series.SeriesId} に対応する共有 MangaSeriesViewModel が見つかりません。");
+		if (!ReferenceEquals(sharedViewModel.Series.Value, bindingSeries.Series))
+		{
+			throw new InvalidOperationException($"SeriesId {bindingSeries.Series.SeriesId} の共有 MangaSeriesViewModel と BindingSeries.Series のインスタンスが一致しません。");
+		}
 
-		// 3. WorkSeriesFolderPath を設定
+		// 3. BindingTarget を設定（この時点で clearCurrentBindingSession() が実行される）
+		this.bindingStore.BindingTarget.Value = bindingSeries;
+		this.bindingStore.BindingTargetViewModel.Value = sharedViewModel;
+
+		// 4. WorkSeriesFolderPath を設定
 		this.bindingStore.WorkSeriesFolderPath.Value = workSeriesFolderPath;
 
 		return availabilityResult;

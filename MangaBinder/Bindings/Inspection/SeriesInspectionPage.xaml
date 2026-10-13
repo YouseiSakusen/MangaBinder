@@ -168,7 +168,7 @@
 	<!-- ════════════════════════════════════════════════════════════════ -->
 	<bindings:BindingPageLayout
 		Margin="16,4,16,16"
-		SeriesTitle="{Binding BindingSeries.SeriesTitle.Value}">
+		SeriesTitle="{Binding BindingTargetViewModel.Value.Series.Value.Title}">
 
 		<!-- PageLayout：3カラム + Eyecatch + Footer -->
 		<controls:PageLayout
@@ -211,7 +211,7 @@
 					VerticalAlignment="Top">
 
 					<!-- 共通作品情報カード（MangaSeriesCard） -->
-					<controls:MangaSeriesCard DataContext="{Binding BindingSeries.MangaSeriesCard}" />
+					<controls:MangaSeriesCard DataContext="{Binding MangaSeriesCard}" />
 				</StackPanel>
 			</controls:PageLayout.LeftContent>
 
@@ -288,7 +288,7 @@
 										FontSize="12"
 										IsReadOnly="True"
 										Margin="0,0,0,8"
-										Text="{Binding BindingSeries.SeriesTitle.Value, Mode=OneWay}" />
+										Text="{Binding BindingTargetViewModel.Value.Series.Value.Title, Mode=OneWay}" />
 
 									<!-- Row 1: 作者 -->
 									<TextBlock
@@ -304,7 +304,7 @@
 										FontSize="12"
 										IsReadOnly="True"
 										Margin="0,0,0,0"
-										Text="{Binding SeriesAuthor.Value, Mode=OneWay}" />
+										Text="{Binding BindingTargetViewModel.Value.Series.Value.Author, Mode=OneWay}" />
 								</Grid>
 							</ui:Card>
 

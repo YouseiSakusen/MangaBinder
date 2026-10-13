@@ -1,3 +1,4 @@
+using MangaBinder.Helpers;
 using MangaBinder.Series;
 using R3;
 using System.Windows.Media;
@@ -37,15 +38,15 @@ public class MangaSeriesCardViewModel : IDisposable
 	/// </summary>
 	public BindableReactiveProperty<SeriesVolumeStatusViewModel?> VolumeStatus { get; }
 
-	/// <summary>
-	/// カードが現在表示している MangaSeries を取得・設定します。
-	/// LastUpdateStatus と MemoStatus の入力元です。
-	/// </summary>
-	public BindableReactiveProperty<MangaSeries?> Series { get; }
+	/// <summary>子VMへ MangaSeries を中継する内部用 ReactiveProperty。</summary>
+	private readonly BindableReactiveProperty<MangaSeries?> series;
+
+	/// <summary>製本工程向けに、サムネイルを自動読み込みする場合のローダー。</summary>
+	private readonly ThumbnailImageLoader? thumbnailImageLoader;
 
 	/// <summary>
 	/// Store 所有の共有 MangaSeriesViewModel を取得・設定します。
-	/// このVMの Series の変更通知を購読し、Series へ中継します。VM自体は Dispose しません。
+	/// このVMの Series の変更通知を購読し、子VMへ中継します。VM自体は Dispose しません。
 	/// </summary>
 	public BindableReactiveProperty<MangaSeriesViewModel?> SeriesViewModel { get; }
 
@@ -85,7 +86,14 @@ public class MangaSeriesCardViewModel : IDisposable
 	/// <see cref="MangaSeriesCardViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	public MangaSeriesCardViewModel()
+		: this((ThumbnailImageLoader?)null)
 	{
+	}
+
+	private MangaSeriesCardViewModel(ThumbnailImageLoader? thumbnailImageLoader)
+	{
+		this.thumbnailImageLoader = thumbnailImageLoader;
+
 		this.Header = new BindableReactiveProperty<string?>(null)
 			.AddTo(ref this.disposableBag);
 
@@ -107,7 +115,7 @@ public class MangaSeriesCardViewModel : IDisposable
 		this.VolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel?>(defaultVolumeStatus)
 			.AddTo(ref this.disposableBag);
 
-		this.Series = new BindableReactiveProperty<MangaSeries?>(null)
+		this.series = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
 
 		this.ShowMemo = new BindableReactiveProperty<bool>(true)
@@ -127,7 +135,7 @@ public class MangaSeriesCardViewModel : IDisposable
 
 		// Series が変更された場合、その値を子ViewModelへ流す
 		// 同一インスタンスの場合は ForceNotify() で再通知させ、表示値を再評価させる
-		this.Series
+		this.series
 			.Subscribe(series =>
 			{
 				// SeriesLastUpdateViewModel への伝播
@@ -159,26 +167,49 @@ public class MangaSeriesCardViewModel : IDisposable
 				{
 					defaultVolumeStatus.Series.Value = series;
 				}
+
+				// 製本工程向け：ローダーが指定されている場合のみサムネイルを自動読み込み
+				if (this.thumbnailImageLoader is not null)
+				{
+					this.ThumbnailSource.Value = series is null ? null : this.thumbnailImageLoader.Load(series);
+				}
 			})
 			.AddTo(ref this.disposableBag);
 
 		// 共有 MangaSeriesViewModel の Series 通知を既存の Series へ中継する（VM切替時は以前の購読を解除）
 		this.SeriesViewModel
 			.Select(viewModel => viewModel is null
-				? Observable.Empty<MangaSeries?>()
-				: viewModel.Series.AsObservable())
+				? Observable.Return<MangaSeries?>(null)
+				: viewModel.Series.AsObservable().Select(s => (MangaSeries?)s))
 			.Switch()
 			.Subscribe(series =>
 			{
-				if (series != null && ReferenceEquals(this.Series.Value, series))
+				if (series != null && ReferenceEquals(this.series.Value, series))
 				{
-					this.Series.ForceNotify();
+					this.series.ForceNotify();
 				}
 				else
 				{
-					this.Series.Value = series;
+					this.series.Value = series;
 				}
 			})
+			.AddTo(ref this.disposableBag);
+	}
+
+	/// <summary>
+	/// 製本工程向けに、Store 所有の共有 VM の ReactiveProperty を入力ソースとして受け取り、
+	/// ThumbnailImageLoader でサムネイルを自動表示する <see cref="MangaSeriesCardViewModel"/> を初期化します。
+	/// 入力ソース自体は Dispose しません。
+	/// </summary>
+	/// <param name="seriesViewModelSource">Store が所有する共有 VM の入力ソース。</param>
+	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
+	public MangaSeriesCardViewModel(
+		BindableReactiveProperty<MangaSeriesViewModel?> seriesViewModelSource,
+		ThumbnailImageLoader thumbnailImageLoader)
+		: this(thumbnailImageLoader)
+	{
+		seriesViewModelSource
+			.Subscribe(viewModel => this.SeriesViewModel.Value = viewModel)
 			.AddTo(ref this.disposableBag);
 	}
 

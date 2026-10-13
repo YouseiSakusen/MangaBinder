@@ -18,17 +18,14 @@ public class MemoEditButtonViewModel : IDisposable
 	/// <summary>Scoped サービスを必要時に生成するためのファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
-	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
-	private readonly MangaSeriesStore mangaSeriesStore;
-
-	/// <summary>リソース管理用の DisposableBag。</summary>
-	private DisposableBag disposableBag;
-
 	/// <summary>共有 Series の購読。作品切り替え時に差し替えます。</summary>
 	private IDisposable? seriesSubscription;
 
-	/// <summary>編集対象の作品（Store 正本インスタンス）。</summary>
-	private MangaSeries? targetSeries;
+	/// <summary>編集対象の共有 MangaSeriesViewModel。</summary>
+	private MangaSeriesViewModel? targetViewModel;
+
+	/// <summary>リソース管理用の DisposableBag。</summary>
+	private DisposableBag disposableBag;
 
 	/// <summary>メモ表示テキスト（「メモ：未登録」「メモ：登録済み」）を取得します。</summary>
 	public BindableReactiveProperty<string> MemoStatusText { get; }
@@ -41,15 +38,12 @@ public class MemoEditButtonViewModel : IDisposable
 	/// </summary>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
 	/// <param name="serviceScopeFactory">Scoped サービスを生成するためのファクトリー。</param>
-	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	public MemoEditButtonViewModel(
 		IContentDialogService contentDialogService,
-		IServiceScopeFactory serviceScopeFactory,
-		MangaSeriesStore mangaSeriesStore)
+		IServiceScopeFactory serviceScopeFactory)
 	{
 		this.contentDialogService = contentDialogService;
 		this.serviceScopeFactory = serviceScopeFactory;
-		this.mangaSeriesStore = mangaSeriesStore;
 
 		this.MemoStatusText = new BindableReactiveProperty<string>(getStatusText(null))
 			.AddTo(ref this.disposableBag);
@@ -66,24 +60,21 @@ public class MemoEditButtonViewModel : IDisposable
 	/// 編集対象の作品を設定します。
 	/// 共有 MangaSeriesViewModel.Series の通知を購読し、表示を自動更新します。
 	/// </summary>
-	/// <param name="series">編集対象の作品。未設定の場合は null。</param>
-	public void SetSeries(MangaSeries? series)
+	/// <param name="seriesViewModel">編集対象の共有VM。未設定の場合は null。</param>
+	public void SetSeriesViewModel(MangaSeriesViewModel? seriesViewModel)
 	{
 		this.seriesSubscription?.Dispose();
 		this.seriesSubscription = null;
-		this.targetSeries = series;
+		this.targetViewModel = seriesViewModel;
 
-		if (series is null)
+		if (seriesViewModel is null)
 		{
 			this.MemoStatusText.Value = getStatusText(null);
 			return;
 		}
 
-		var storeViewModel = this.mangaSeriesStore.FindViewModelById(series.SeriesId)
-			?? throw new InvalidOperationException($"Store から SeriesId {series.SeriesId} の正式作品が見つかりません。");
-
 		// 共有 Series の通知（ForceNotify を含む）でメモ状態を更新する
-		this.seriesSubscription = storeViewModel.Series
+		this.seriesSubscription = seriesViewModel.Series
 			.Subscribe(current => this.MemoStatusText.Value = getStatusText(current));
 	}
 
@@ -92,7 +83,7 @@ public class MemoEditButtonViewModel : IDisposable
 	/// </summary>
 	private async ValueTask editAsync()
 	{
-		var series = this.targetSeries;
+		var series = this.targetViewModel?.Series.Value;
 		if (series is null)
 			return;
 

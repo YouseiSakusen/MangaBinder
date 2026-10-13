@@ -38,8 +38,11 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
 
     private DisposableBag disposableBag;
 
-    /// <summary>作品タイトルと作品カードの共通 ViewModel を取得します。</summary>
-    public BindingSeriesViewModel BindingSeries { get; }
+    /// <summary>作品カード用 ViewModel を取得します。</summary>
+    public MangaSeriesCardViewModel MangaSeriesCard { get; }
+
+    /// <summary>BindingStore が所有する共有 MangaSeriesViewModel を取得します。</summary>
+    public BindableReactiveProperty<MangaBinder.Series.MangaSeriesViewModel?> BindingTargetViewModel => this.bindingStore.BindingTargetViewModel;
 
     /// <summary>作品中間フォルダが既に存在するかどうかを取得します。</summary>
     public BindableReactiveProperty<bool> HasExistingWorkFolder => this.bindingStore.HasExistingWorkFolder;
@@ -151,7 +154,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         this.snackbarService = snackbarService;
         this.loadingService = loadingService;
 
-        this.BindingSeries = new BindingSeriesViewModel(this.bindingStore, thumbnailImageLoader)
+        this.MangaSeriesCard = new MangaSeriesCardViewModel(this.bindingStore.BindingTargetViewModel, thumbnailImageLoader)
             .AddTo(ref this.disposableBag);
 
         this.GoNextCommand = new ReactiveCommand()

@@ -669,16 +669,30 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		if (editingSeries is null)
 		{
 			this.MangaSeriesCard.SeriesViewModel.Value = null;
-			this.MangaSeriesCard.Series.Value = null;
-			this.ownedSeriesViewModel?.Dispose();
-			this.ownedSeriesViewModel = null;
+			this.disposeOwnedSeriesViewModel();
 			return;
 		}
 
-		var shared = this.editStore.EditTargetViewModel;
-		if (shared is not null && ReferenceEquals(shared.Series.Value, editingSeries))
+		if (editingSeries.SeriesId != 0)
 		{
+			var shared = this.editStore.EditTargetViewModel
+				?? throw new InvalidOperationException($"SeriesId {editingSeries.SeriesId} の共有 MangaSeriesViewModel が EditStore.EditTargetViewModel にありません。");
+			if (!ReferenceEquals(shared.Series.Value, editingSeries))
+			{
+				throw new InvalidOperationException($"SeriesId {editingSeries.SeriesId} の共有 MangaSeriesViewModel と編集対象の MangaSeries インスタンスが一致しません。");
+			}
+
 			this.MangaSeriesCard.SeriesViewModel.Value = shared;
+			this.disposeOwnedSeriesViewModel();
+			return;
+		}
+
+		if (editingSeries.WorkId != 0)
+		{
+			var workShared = this.mangaSeriesStore.WorkSeries.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, editingSeries))
+				?? throw new InvalidOperationException($"WorkId {editingSeries.WorkId} の共有 MangaSeriesViewModel が MangaSeriesStore.WorkSeries にありません。");
+
+			this.MangaSeriesCard.SeriesViewModel.Value = workShared;
 			this.disposeOwnedSeriesViewModel();
 			return;
 		}
@@ -686,7 +700,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		if (this.ownedSeriesViewModel is not null && ReferenceEquals(this.ownedSeriesViewModel.Series.Value, editingSeries))
 		{
 			this.MangaSeriesCard.SeriesViewModel.Value = this.ownedSeriesViewModel;
-			this.MangaSeriesCard.Series.ForceNotify();
+			this.ownedSeriesViewModel.Series.ForceNotify();
 			return;
 		}
 

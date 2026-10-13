@@ -1,4 +1,5 @@
 using HalationGhost.Wpf.Ui.Navigation;
+using MangaBinder.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
 using System.Windows.Media.Imaging;
@@ -33,8 +34,11 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 
 	private DisposableBag disposableBag;
 
-	/// <summary>作品タイトルと作品カードの共通 ViewModel を取得します。</summary>
-	public BindingSeriesViewModel BindingSeries { get; }
+	/// <summary>作品カード用 ViewModel を取得します。</summary>
+	public MangaSeriesCardViewModel MangaSeriesCard { get; }
+
+	/// <summary>BindingStore が所有する共有 MangaSeriesViewModel を取得します。</summary>
+	public BindableReactiveProperty<MangaBinder.Series.MangaSeriesViewModel?> BindingTargetViewModel => this.bindingStore.BindingTargetViewModel;
 
 	/// <summary>
 	/// 現在の編集用対象巻を取得します。View は Value.SplitSettings の ReactiveProperty へ直接 Binding します。
@@ -106,7 +110,7 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
-		this.BindingSeries = new BindingSeriesViewModel(bindingStore, thumbnailImageLoader)
+		this.MangaSeriesCard = new MangaSeriesCardViewModel(bindingStore.BindingTargetViewModel, thumbnailImageLoader)
 			.AddTo(ref this.disposableBag);
 
 		this.CurrentItem = new BindableReactiveProperty<ImageSplitterThumbnailItemViewModel?>(null)
