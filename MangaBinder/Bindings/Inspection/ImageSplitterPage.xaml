@@ -162,8 +162,14 @@
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
                                                         </Grid.RowDefinitions>
-                                                        Symbol="TableImage20"
-                                                        <TextBlock Grid.Column="1" Grid.Row="0" Text="画像一覧" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
+									                        <ui:SymbolIcon
+                                                                Grid.Column="0"
+                                                                Grid.RowSpan="2"
+                                                                Symbol="TableImage20"
+                                                                FontSize="16"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,10,0" />
+									<TextBlock Grid.Column="1" Grid.Row="0" Text="画像一覧" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
                                                         <TextBlock Grid.Column="1" Grid.Row="1" Text="分割対象の画像を選択" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                     </Grid>
                                                 </Grid>
