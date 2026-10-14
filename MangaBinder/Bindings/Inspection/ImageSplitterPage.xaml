@@ -15,7 +15,7 @@
       behaviors:ImageSplitterPageInitializeBehavior.IsEnabled="True"
       d:DesignHeight="800" d:DesignWidth="1200"
       Title="見開き分割"
-      ui:NavigationView.HeaderContent="見開き分割"
+      ui:NavigationView.HeaderContent="{Binding HeaderText.Value}"
       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
       ScrollViewer.CanContentScroll="False">
 
@@ -75,14 +75,20 @@
                             <ContentPresenter
                                 x:Name="ContentSite"
                                 ContentSource="Header"
-                                HorizontalAlignment="Center"
+                                HorizontalAlignment="Stretch"
                                 VerticalAlignment="Center"
                                 Margin="{TemplateBinding Padding}"
                                 RecognizesAccessKey="True" />
+                            <Rectangle x:Name="ActiveLine" Height="3" VerticalAlignment="Top"
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}" Visibility="Collapsed" />
+                            <Rectangle x:Name="InactiveLine" Height="2" VerticalAlignment="Bottom"
+                                       Fill="{DynamicResource ControlStrokeColorDefaultBrush}" />
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                <Setter TargetName="ActiveLine" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="InactiveLine" Property="Visibility" Value="Collapsed" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="False">
                                 <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
@@ -91,7 +97,7 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Setter Property="Height" Value="32" />
+            <Setter Property="Height" Value="56" />
         </Style>
     </Page.Resources>
 
@@ -110,7 +116,9 @@
             RightColumnWidth="0"
             RightColumnMinWidth="0"
             IsMainRightSplitterEnabled="False"
-            EyecatchSymbol="BookOpen24">
+            EyecatchSymbol="BookOpen24"
+            EyecatchTitle="分割画像数 / 総画像数"
+            EyecatchValueText="{Binding SplitTargetCountText.Value}">
 
             <!-- ─────────────────────────────────────────────────────────────────── -->
             <!-- LeftContent: 左パネル（作品情報） -->
@@ -137,7 +145,29 @@
                     Margin="0,0,0,0">
 
                     <!-- タブ 1: 一覧 -->
-                    <TabItem Header="一覧" IsSelected="True" Style="{StaticResource ImageSplitterTabItemStyle}">
+                    <TabItem IsSelected="True" Style="{StaticResource ImageSplitterTabItemStyle}">
+                                            <TabItem.Header>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="15*" />
+                                                        <ColumnDefinition Width="70*" />
+                                                        <ColumnDefinition Width="15*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        Symbol="TableImage20"
+                                                        <TextBlock Grid.Column="1" Grid.Row="0" Text="画像一覧" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Grid.Row="1" Text="分割対象の画像を選択" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    </Grid>
+                                                </Grid>
+                                            </TabItem.Header>
                         <Grid
                             Background="{DynamicResource ControlFillColorDefaultBrush}"
                             Margin="0,4,0,0">
@@ -215,7 +245,29 @@
                     </TabItem>
 
                     <!-- タブ 2: プレビュー -->
-                    <TabItem Header="プレビュー" Style="{StaticResource ImageSplitterTabItemStyle}">
+                    <TabItem Style="{StaticResource ImageSplitterTabItemStyle}">
+                                            <TabItem.Header>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="15*" />
+                                                        <ColumnDefinition Width="70*" />
+                                                        <ColumnDefinition Width="15*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <ui:SymbolIcon Grid.Column="0" Grid.RowSpan="2" Symbol="Options16" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                                        <TextBlock Grid.Column="1" Grid.Row="0" Text="分割設定・プレビュー" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Grid.Row="1" Text="トリミング等を設定" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    </Grid>
+                                                </Grid>
+                                            </TabItem.Header>
                         <Grid
                             Background="{DynamicResource ControlFillColorDefaultBrush}"
                             Margin="0,4,0,0">
@@ -244,10 +296,10 @@
                                                                         TrimBottom="{Binding SplitTargetVolume.Value.SplitSettings.TrimBottom.Value, Mode=TwoWay}">
                                     <controls:ImageSplitterPreview.Style>
                                         <Style TargetType="controls:ImageSplitterPreview">
-                                            <Setter Property="Opacity" Value="1.0" />
+                                            <Setter Property="PreviewCardOpacity" Value="1.0" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding CurrentItem.Value.Image.IsSpreadSplitTarget.Value}" Value="False">
-                                                    <Setter Property="Opacity" Value="0.45" />
+                                                    <Setter Property="PreviewCardOpacity" Value="0.45" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>

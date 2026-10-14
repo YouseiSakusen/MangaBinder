@@ -79,6 +79,17 @@ public partial class ImageSplitterPreview : UserControl
 		DependencyProperty.Register(nameof(Source), typeof(BitmapSource), typeof(ImageSplitterPreview),
 			new PropertyMetadata(null, onSourceChanged));
 
+	public static readonly DependencyProperty PreviewCardOpacityProperty =
+		DependencyProperty.Register(nameof(PreviewCardOpacity), typeof(double), typeof(ImageSplitterPreview),
+			new PropertyMetadata(1.0));
+
+	/// <summary>プレビュー画像 Card のみに適用する不透明度。</summary>
+	public double PreviewCardOpacity
+	{
+		get => (double)GetValue(PreviewCardOpacityProperty);
+		set => SetValue(PreviewCardOpacityProperty, value);
+	}
+
 	public static readonly DependencyProperty SplitOffsetProperty = registerPosition(nameof(SplitOffset));
 	public static readonly DependencyProperty TrimLeftProperty = registerPosition(nameof(TrimLeft));
 	public static readonly DependencyProperty TrimTopProperty = registerPosition(nameof(TrimTop));

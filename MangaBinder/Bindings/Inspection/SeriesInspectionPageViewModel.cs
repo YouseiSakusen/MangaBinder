@@ -160,7 +160,7 @@ public class SeriesInspectionPageViewModel : IDisposable, IDataInitializable
 			this.bindingStore.SplitTargetVolume.Value = volume;
 
 			// ImageSplitterPage へ遷移
-			this.navigationService.NavigateWithHierarchy(typeof(ImageSplitterPage));
+			this.navigationService.Navigate(typeof(ImageSplitterPage));
 		}).AddTo(ref this.disposableBag);
 
 		this.OpenBindingFolderCommand = new ReactiveCommand()

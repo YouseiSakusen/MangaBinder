@@ -58,6 +58,12 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 	/// <summary>SplitOffset Maximum。BindingStore の状態を中継します。</summary>
 	public BindableReactiveProperty<int> SplitOffsetMaximum => this.bindingStore.SplitOffsetMaximum;
 
+	/// <summary>パンくず表示（例：見開き分割（5巻））を取得します。</summary>
+	public BindableReactiveProperty<string> HeaderText { get; }
+
+	/// <summary>分割対象画像数 / 総画像数の表示（例：108 / 108）を取得します。</summary>
+	public BindableReactiveProperty<string> SplitTargetCountText { get; }
+
 	/// <summary>キャンセルコマンドを取得します。</summary>
 	public ReactiveCommand CancelCommand { get; }
 
@@ -155,6 +161,30 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 			.AddTo(ref this.disposableBag);
 		this.NextImageCommand
 			.Subscribe(_ => this.CurrentItem.Value = this.thumbnailItemList[this.CurrentIndex.Value + 1])
+			.AddTo(ref this.disposableBag);
+
+		this.HeaderText = this.bindingStore.SplitTargetVolume
+			.AsObservable()
+			.Select(volume => volume is null
+				? Observable.Return("見開き分割")
+				: volume.VolumeNumber.AsObservable().Select(number => $"見開き分割（{number:0.#}巻）"))
+			.Switch()
+			.ToBindableReactiveProperty("見開き分割")
+			.AddTo(ref this.disposableBag);
+
+		this.SplitTargetCountText = this.bindingStore.SplitTargetVolume
+			.AsObservable()
+			.Select(volume => volume is null
+				? Observable.Return("0 / 0")
+				: volume.Images
+					.ObserveCountChanged(notifyCurrentCount: true)
+					.Select(_ => Observable
+						.Merge(volume.Images.Select(image => image.IsSpreadSplitTarget.AsObservable().Select(_ => Unit.Default)))
+						.Prepend(Unit.Default))
+					.Switch()
+					.Select(_ => $"{volume.Images.Count(image => image.IsSpreadSplitTarget.Value)} / {volume.Images.Count}"))
+			.Switch()
+			.ToBindableReactiveProperty("0 / 0")
 			.AddTo(ref this.disposableBag);
 
 		this.CancelCommand = new ReactiveCommand()
