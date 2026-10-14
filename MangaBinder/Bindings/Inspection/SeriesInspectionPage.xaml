@@ -8,8 +8,10 @@
 	  xmlns:app="clr-namespace:MangaBinder"
 	  xmlns:bindings="clr-namespace:MangaBinder.Bindings"
 	  xmlns:controls="clr-namespace:MangaBinder.Controls"
+	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
 	  mc:Ignorable="d"
 	  x:Name="ThisPage"
+	  behaviors:SeriesInspectionPageInitializeBehavior.IsEnabled="True"
 	  d:DesignHeight="800" d:DesignWidth="1200"
 	  Title="製本前確認"
 	  ui:NavigationView.HeaderContent="製本前確認"
@@ -220,6 +222,7 @@
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<controls:PageLayout.MainContent>
 				<ListView
+					x:Name="VolumeCardsListView"
 					ItemsSource="{Binding VolumeCards}"
 					ItemTemplate="{StaticResource VolumeCardTemplate}"
 					Background="Transparent"
@@ -252,6 +255,7 @@
 				<!-- ─────────────────────────────────────────────────────────────────── -->
 				<controls:PageLayout.RightContent>
 					<ScrollViewer
+						x:Name="SettingsScrollViewer"
 						Height="Auto"
 						VerticalAlignment="Top"
 						VerticalScrollBarVisibility="Auto"

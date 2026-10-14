@@ -58,6 +58,11 @@ public static class ImageSplitterPageInitializeBehavior
 			return;
 		}
 
+		if (System.ComponentModel.DesignerProperties.GetIsInDesignMode(page))
+		{
+			return;
+		}
+
 		var tabControl = (TabControl)page.FindName("MainTabControl");
 		tabControl.SelectedIndex = 0;
 
