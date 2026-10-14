@@ -16,7 +16,7 @@
 			<RowDefinition Height="Auto" />
 		</Grid.RowDefinitions>
 
-		<Grid x:Name="RootGrid" Grid.Row="0" ClipToBounds="True" Background="Transparent"
+		<Grid x:Name="RootGrid" Grid.Row="0" ClipToBounds="True" Background="{DynamicResource ControlStrongFillColorDefaultBrush}"
 			  MouseWheel="rootGridMouseWheel"
 			  MouseLeftButtonDown="rootGridMouseLeftButtonDown"
 			  MouseMove="rootGridMouseMove"

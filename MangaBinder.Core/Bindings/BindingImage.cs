@@ -136,6 +136,14 @@ public class BindingImage : IDisposable
 	public bool HasSuspectedMojibake { get; set; }
 
 	/// <summary>
+	/// ファイル名の連番（主番号）部分の直前1文字を取得または設定します。
+	/// 解析失敗または直前文字が存在しない場合は string.Empty です。
+	/// ファイル名から取得した事実のみを保持し、正規化の成否は示しません。
+	/// 初期値は string.Empty です。
+	/// </summary>
+	public string SerialNumberPrecedingCharacter { get; set; } = string.Empty;
+
+	/// <summary>
 	/// ファイルを正規化ファイル名にリネーム可能かどうかを取得します。
 	/// FileNameNormalizationStatus == Ready の場合のみ true です。
 	/// </summary>
@@ -289,6 +297,7 @@ public class BindingImage : IDisposable
 		clone.FileNameNormalizationStatus = this.FileNameNormalizationStatus;
 		clone.FileNameNormalizationErrorMessage = this.FileNameNormalizationErrorMessage;
 		clone.HasSuspectedMojibake = this.HasSuspectedMojibake;
+		clone.SerialNumberPrecedingCharacter = this.SerialNumberPrecedingCharacter;
 		clone.IsSpreadSplitTarget.Value = this.IsSpreadSplitTarget.Value;
 		return clone;
 	}

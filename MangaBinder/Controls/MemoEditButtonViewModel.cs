@@ -110,7 +110,7 @@ public class MemoEditButtonViewModel : IDisposable
 
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var manager = scope.ServiceProvider.GetRequiredService<SeriesMemoManager>();
-		SaveMemoAsync(targetViewModel, 
+		await manager.SaveMemoAsync(targetViewModel, dialogViewModel.Memo.Value);
 	}
 
 	/// <summary>

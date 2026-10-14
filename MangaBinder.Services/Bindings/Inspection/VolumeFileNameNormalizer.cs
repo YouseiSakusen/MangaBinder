@@ -38,6 +38,12 @@ public sealed class VolumeFileNameNormalizer
 	/// <param name="volume">対象巻。</param>
 	public void Simulate(BindingVolume volume)
 	{
+		// 以前の検査結果が残らないよう、全画像の連番直前文字を初期化
+		foreach (var image in volume.Images)
+		{
+			image.SerialNumberPrecedingCharacter = string.Empty;
+		}
+
 		// Simulation 対象の BindingImage を決定
 		// 画像処理が正常終了して Work 側に実体化された画像のみが対象
 		var targetImages = volume.Images
@@ -72,6 +78,13 @@ public sealed class VolumeFileNameNormalizer
 
 		// 解析失敗の場合は各 BindingImage へ反映
 		var successAnalyses = analyses.Where(a => a.ErrorMessage == null).ToList();
+
+		foreach (var success in successAnalyses)
+		{
+			success.Image.SerialNumberPrecedingCharacter = success.Prefix!.Length > 0
+				? success.Prefix[^1].ToString()
+				: string.Empty;
+		}
 		var failedAnalyses = analyses.Where(a => a.ErrorMessage != null).ToList();
 
 		foreach (var failed in failedAnalyses)

@@ -143,7 +143,8 @@ public class VolumeCardViewModel : IDisposable
 
 				return !hasError
 					&& (v.HasImageFileNameConflict
-						|| v.EpubExtractionWarnings != EpubExtractionWarning.None);
+						|| v.EpubExtractionWarnings != EpubExtractionWarning.None
+						|| v.HasMixedSerialNumberPrecedingCharacters);
 			})
 			.ToReadOnlyBindableReactiveProperty(false)
 			.AddTo(ref this.disposableBag);
@@ -248,8 +249,27 @@ public class VolumeCardViewModel : IDisposable
 			volume.EpubExtractionWarnings);
 		messages.AddRange(epubWarnings);
 
+		// ③ 連番直前文字の混在
+		if (volume.HasMixedSerialNumberPrecedingCharacters)
+		{
+			var details = volume.SerialNumberPrecedingCharacterCounts
+				.OrderByDescending(kvp => kvp.Value)
+				.Select(kvp => $"{FormatPrecedingCharacter(kvp.Key)}：{kvp.Value}");
+			messages.Add($"連番直前文字が混在（{string.Join(" / ", details)}）");
+		}
+
 		// 複数警告は " / " で連結
 		return string.Join(" / ", messages);
+	}
+
+	private static string FormatPrecedingCharacter(string character)
+	{
+		return character switch
+		{
+			"" => "未取得",
+			" " => "空白",
+			_ => character,
+		};
 	}
 
 	/// <summary>

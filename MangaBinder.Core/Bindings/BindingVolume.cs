@@ -74,6 +74,18 @@ public class BindingVolume : IDisposable
 	public bool HasImageProcessingError { get; private set; }
 
 	/// <summary>
+	/// Images の SerialNumberPrecedingCharacter が複数種類に分かれている場合 true です。
+	/// Inspect() により設定されます。初期値は false です。
+	/// </summary>
+	public bool HasMixedSerialNumberPrecedingCharacters { get; private set; }
+
+	/// <summary>
+	/// Inspect() が集計した、連番直前文字ごとの画像件数を取得します。
+	/// 正本は各 BindingImage が保持する値です。
+	/// </summary>
+	public IReadOnlyList<KeyValuePair<string, int>> SerialNumberPrecedingCharacterCounts { get; private set; } = [];
+
+	/// <summary>
 	/// FolderMaterialExtractor が処理した元素材フォルダの直下に、
 	/// 1つ以上のサブフォルダが存在することを表すフラグを取得または設定します。
 	/// 初期値は false です。
@@ -166,6 +178,8 @@ public class BindingVolume : IDisposable
 		clone.WorkFolderPath = this.WorkFolderPath;
 		clone.HasImageFileNameConflict = this.HasImageFileNameConflict;
 		clone.HasImageProcessingError = this.HasImageProcessingError;
+		clone.HasMixedSerialNumberPrecedingCharacters = this.HasMixedSerialNumberPrecedingCharacters;
+		clone.SerialNumberPrecedingCharacterCounts = this.SerialNumberPrecedingCharacterCounts;
 		clone.HasSubFolder = this.HasSubFolder;
 		clone.ImageFileCount = this.ImageFileCount;
 		clone.LandscapeImageCount = this.LandscapeImageCount;
@@ -327,6 +341,17 @@ public class BindingVolume : IDisposable
 			img.ProcessStatus == BindingImageProcessStatus.ImageOpenFailed ||
 			img.ProcessStatus == BindingImageProcessStatus.ConversionFailed ||
 			img.ProcessStatus == BindingImageProcessStatus.OutputFailed);
+
+		// ⑤ 連番直前文字の種類ごとの件数を集計し、複数種類に分かれる場合は混在とする
+		var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+		foreach (var image in this.Images)
+		{
+			var key = image.SerialNumberPrecedingCharacter;
+			counts[key] = counts.GetValueOrDefault(key) + 1;
+		}
+
+		this.SerialNumberPrecedingCharacterCounts = counts.ToList();
+		this.HasMixedSerialNumberPrecedingCharacters = counts.Count > 1;
 	}
 
 	/// <summary>
