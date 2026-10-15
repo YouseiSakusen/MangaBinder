@@ -64,6 +64,23 @@ public class SplitSettings : IDisposable
 		return clone;
 	}
 
+	/// <summary>
+	/// 現在値を製本設定保存用の DTO へ変換します。
+	/// </summary>
+	/// <returns>現在値を持つ SplitSettingsDto。</returns>
+	public SplitSettingsDto CreateDto()
+	{
+		return new SplitSettingsDto
+		{
+			SplitOffset = this.SplitOffset.Value,
+			PageOrder = this.PageOrder.Value,
+			TrimLeft = this.TrimLeft.Value,
+			TrimTop = this.TrimTop.Value,
+			TrimRight = this.TrimRight.Value,
+			TrimBottom = this.TrimBottom.Value,
+		};
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{

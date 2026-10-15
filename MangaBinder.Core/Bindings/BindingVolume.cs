@@ -290,6 +290,45 @@ public class BindingVolume : IDisposable
 		return (maxWidth, maxHeight);
 	}
 
+	/// <summary>
+	/// 製本設定保存用の DTO へ変換します。
+	/// Material は子素材を含まない素材情報のみをコピーします。
+	/// WorkFolderPath 等の Work 側の実行時パスは含みません。
+	/// </summary>
+	/// <returns>この巻の DTO。</returns>
+	public BindingVolumeDto CreateDto()
+	{
+		return new BindingVolumeDto
+		{
+			VolumeNumber = this.VolumeNumber.Value,
+			Material = new MaterialItemDto
+			{
+				ItemType = this.Material.ItemType,
+				Name = this.Material.Name,
+				FullPath = this.Material.FullPath,
+				FileSizeText = this.Material.FileSizeText,
+				FileSizeBytes = this.Material.FileSizeBytes,
+				FileCount = this.Material.FileCount,
+				TotalImageBytes = this.Material.TotalImageBytes,
+				SourcePath = this.Material.SourcePath,
+				ArchiveEntryPrefix = this.Material.ArchiveEntryPrefix,
+				IsSelectableByDefault = this.Material.IsSelectableByDefault,
+				SelectionDisabledReason = this.Material.SelectionDisabledReason,
+			},
+			HasImageFileNameConflict = this.HasImageFileNameConflict,
+			HasImageProcessingError = this.HasImageProcessingError,
+			HasMixedSerialNumberPrecedingCharacters = this.HasMixedSerialNumberPrecedingCharacters,
+			HasSubFolder = this.HasSubFolder,
+			ImageFileCount = this.ImageFileCount,
+			LandscapeImageCount = this.LandscapeImageCount,
+			EpubExtractionError = this.EpubExtractionError,
+			EpubExtractionWarnings = this.EpubExtractionWarnings,
+			EpubExtractionErrorMessage = this.EpubExtractionErrorMessage,
+			SplitSettings = this.SplitSettings.CreateDto(),
+			Images = this.Images.Select(image => image.CreateDto()).ToList(),
+		};
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{

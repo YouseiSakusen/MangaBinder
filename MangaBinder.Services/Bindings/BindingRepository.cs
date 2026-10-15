@@ -34,7 +34,9 @@ public class BindingRepository
 	/// 1つの SQLite Transaction 内で以下を処理します：
 	/// 1. MangaSeries.BoundEndVolume の更新（DB保存値より大きい場合のみ）
 	/// 2. removeFromBindingQueue が true の場合、BindingQueue から該当行を削除
-	/// 3. 全処理成功後に Commit
+	/// 3. BindingHistory の登録と古い履歴の削除
+	/// 4. BindingSettings の保存（作品単位で1件のみ。既存の場合は SettingsJson と UpdatedAt を上書き）
+	/// 5. 全処理成功後に Commit
 	/// 
 	/// 途中で例外が発生した場合は Rollback し、例外を呼び出し元へ伝播します。
 	/// </remarks>
@@ -46,14 +48,17 @@ public class BindingRepository
 	/// true の場合、BindingQueue から該当行を削除します。
 	/// false の場合、BindingQueue は変更されません。
 	/// </param>
+	/// <param name="history">登録する製本履歴。</param>
+	/// <param name="bindingSettingsJson">BindingSettings へ保存する製本設定の JSON 文字列。</param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <exception cref="InvalidOperationException">
-	/// <paramref name="series"/> の <see cref="MangaSeries.SeriesId"/> が 0 の場合にスローされます。
+	/// <paramref name="series"/> の
 	/// </exception>
 	public async ValueTask<BindingHistory> UpdateAfterBindingAsync(
 		MangaSeries series,
 		bool removeFromBindingQueue,
 		BindingHistory history,
+		string bindingSettingsJson,
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(history);
@@ -159,6 +164,30 @@ public class BindingRepository
 				deleteOldHistorySql.ToString(),
 				new { SeriesId = series.SeriesId },
 				transaction);
+
+			// 5. BindingSettings の UPSERT（作品単位で最新の1件のみ保持し、既存の場合は JSON 全体を上書きする）
+			var upsertBindingSettingsSql = new StringBuilder();
+			upsertBindingSettingsSql.AppendLine(" INSERT INTO BindingSettings ( ");
+			upsertBindingSettingsSql.AppendLine(" 	  SeriesId ");
+			upsertBindingSettingsSql.AppendLine(" 	, SettingsJson ");
+			upsertBindingSettingsSql.AppendLine(" 	, UpdatedAt ");
+			upsertBindingSettingsSql.AppendLine(" ) VALUES ( ");
+			upsertBindingSettingsSql.AppendLine(" 	  :SeriesId ");
+			upsertBindingSettingsSql.AppendLine(" 	, :SettingsJson ");
+			upsertBindingSettingsSql.AppendLine(" 	, DATETIME('now', 'localtime') ");
+			upsertBindingSettingsSql.AppendLine(" ) ");
+			upsertBindingSettingsSql.AppendLine(" ON CONFLICT(SeriesId) DO UPDATE SET ");
+			upsertBindingSettingsSql.AppendLine(" 	  SettingsJson = excluded.SettingsJson ");
+			upsertBindingSettingsSql.AppendLine(" 	, UpdatedAt = DATETIME('now', 'localtime'); ");
+
+			await connection.ExecuteAsync(
+				upsertBindingSettingsSql.ToString(),
+				new
+				{
+					SeriesId = series.SeriesId,
+					SettingsJson = bindingSettingsJson,
+				},
+				transaction);
 		}
 		catch
 		{
@@ -167,7 +196,7 @@ public class BindingRepository
 			throw;
 		}
 
-		// 5. 全処理成功後に Commit（Commit 失敗時は Dispose により破棄される。Commit 成功後の Rollback は行わない）
+		// 6. 全処理成功後に Commit（
 		transaction.Commit();
 
 		return savedHistory;

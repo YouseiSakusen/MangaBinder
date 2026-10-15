@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Helpers;
@@ -244,7 +245,7 @@ public class BindingManager
 	/// 
 	/// CreateZip が true の場合、ZIP ファイルを作成します。
 	/// CreateZip が false の場合、ZIP 作成をスキップします。
-	/// いずれの場合も BoundEndVolume を更新し、DB を更新し、Store を更新します。
+	/// いずれの場合も BoundEndVolume を更新し、製本設定を保存し、DB を更新し、Store を更新します。
 	/// 途中で例外が発生した場合は、その例外を呼び出し元へ伝播させます。
 	/// </summary>
 	/// <param name="allowOverwrite">
@@ -352,10 +353,15 @@ public class BindingManager
 			OutputFolderPath = openFolderPath,
 		};
 
+		// 製本設定を BindingVolumeDto の配列として JSON 化し、DB 更新と同一 Transaction で保存する
+		var bindingSettingsJson = JsonSerializer.Serialize(
+			volumes.Select(volume => volume.CreateDto()).ToList());
+
 		var savedHistory = await bindingRepository.UpdateAfterBindingAsync(
 			clonedSeries,
 			this.bindingStore.RemoveFromBindingQueueAfterCompletion.Value,
 			newHistory,
+			bindingSettingsJson,
 			cancellationToken);
 
 		// 8. BindingRepository の DB 更新が正常終了した後でのみ、正本 MangaSeries を更新する

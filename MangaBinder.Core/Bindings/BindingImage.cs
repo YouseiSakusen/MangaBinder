@@ -302,6 +302,39 @@ public class BindingImage : IDisposable
 		return clone;
 	}
 
+	/// <summary>
+	/// 製本設定保存用の DTO へ変換します。
+	/// 親 BindingVolume・MaterialItem への参照、Work 側のパス・ファイル情報、TemporaryImageStream は含みません。
+	/// SplitSettings は巻共通と別インスタンスの場合のみ個別設定として含みます。
+	/// </summary>
+	/// <returns>この画像の DTO。</returns>
+	public BindingImageDto CreateDto()
+	{
+		var hasIndividualSplitSettings = this.SplitSettings is not null
+			&& !ReferenceEquals(this.SplitSettings, this.BindingVolume.SplitSettings);
+
+		return new BindingImageDto
+		{
+			SourceImagePath = this.MaterialImage.SourceImagePath,
+			MaterialFileName = this.MaterialImage.FileName,
+			FileName = this.FileName,
+			IsSpreadSplitTarget = this.IsSpreadSplitTarget.Value,
+			Width = this.Width,
+			Height = this.Height,
+			SimulatedFileName = this.SimulatedFileName,
+			SkipImageProcessing = this.SkipImageProcessing,
+			ProcessStatus = this.ProcessStatus,
+			ProcessErrorMessage = this.ProcessErrorMessage,
+			SimulatedNormalizedFileName = this.SimulatedNormalizedFileName,
+			FileNameNormalizationStatus = this.FileNameNormalizationStatus,
+			FileNameNormalizationErrorMessage = this.FileNameNormalizationErrorMessage,
+			HasSuspectedMojibake = this.HasSuspectedMojibake,
+			SerialNumberPrecedingCharacter = this.SerialNumberPrecedingCharacter,
+			SplitSide = this.SplitSide,
+			SplitSettings = hasIndividualSplitSettings ? this.SplitSettings!.CreateDto() : null,
+		};
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{
