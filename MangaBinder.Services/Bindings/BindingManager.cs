@@ -354,8 +354,10 @@ public class BindingManager
 		};
 
 		// 製本設定を BindingVolumeDto の配列として JSON 化し、DB 更新と同一 Transaction で保存する
-		var bindingSettingsJson = JsonSerializer.Serialize(
-			volumes.Select(volume => volume.CreateDto()).ToList());
+		// ObservableList はバックグラウンドで列挙せず、呼び出し元スレッドで配列化して渡す
+		var bindingSettingsJson = await this.serializeBindingSettingsAsync(
+			this.bindingStore.BindingVolumes.ToArray(),
+			cancellationToken);
 
 		var savedHistory = await bindingRepository.UpdateAfterBindingAsync(
 			clonedSeries,
@@ -388,6 +390,20 @@ public class BindingManager
 		// 11. 全処理正常終了後、BindingCompletionResult を生成して返す
 		return new BindingCompletionResult(bindingSeries, outputFilePath, openFolderPath, selectFilePath);
 	}
+
+	/// <summary>
+	/// 製本設定の DTO 生成と JSON シリアライズをバックグラウンドで実行し、JSON 文字列を返します。
+	/// </summary>
+	/// <param name="volumes">対象の BindingVolume 一覧。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	/// <returns>製本設定の JSON 文字列。</returns>
+	private Task<string> serializeBindingSettingsAsync(
+		IReadOnlyList<BindingVolume> volumes,
+		CancellationToken cancellationToken)
+		=> Task.Run(
+			() => JsonSerializer.Serialize(
+				volumes.Select(volume => volume.CreateDto()).ToList()),
+			cancellationToken);
 
 	/// <summary>
 	/// 巡番号を範囲・カンマ区切りの文字列にします。（例：01-03,05,07）
