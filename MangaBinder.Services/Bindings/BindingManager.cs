@@ -318,6 +318,7 @@ public class BindingManager
 		string outputFilePath = string.Empty;
 		string openFolderPath;
 		string selectFilePath = string.Empty;
+		DateTime boundAt;
 
 		if (this.bindingStore.CreateZip.Value)
 		{
@@ -332,6 +333,10 @@ public class BindingManager
 			// BindingArchiver.CreateAsync() を呼び出して ZIP を作成する
 			await bindingArchiver.CreateAsync(volumes, outputFilePath, allowOverwrite, cancellationToken);
 
+			// 上書き時に既存 ZIP の作成日時が残らないよう、今回の作成日時へ更新してから実際の値を読み取る
+			File.SetCreationTime(outputFilePath, DateTime.Now);
+			boundAt = File.GetCreationTime(outputFilePath);
+
 			// OpenFolderPath は ZIP作成先フォルダ
 			openFolderPath = Path.GetDirectoryName(outputFilePath) ?? string.Empty;
 			// SelectFilePath は作成したZIPファイルのフルパス
@@ -342,12 +347,16 @@ public class BindingManager
 			// CreateZip == false: ZIP を作成しない
 			// OpenFolderPath は BindingStore.WorkSeriesFolderPath から取得した Work 作品フォルダ
 			openFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
+			boundAt = DateTime.Now;
 		}
 
 		// 7. BindingRepository.UpdateAfterBindingAsync() を呼び出す
 		var newHistory = new BindingHistory
 		{
 			SeriesId = clonedSeries.SeriesId,
+			BoundAt = boundAt,
+			StartVolume = volumeNumbers.Min(),
+			EndVolume = maxVolumeNumber,
 			VolumeRange = formatVolumeRange(volumeNumbers, this.bindingStore.VolumeFolderDigits.Value),
 			OutputFileName = this.bindingStore.CreateZip.Value ? Path.GetFileName(outputFilePath) : string.Empty,
 			OutputFolderPath = openFolderPath,
@@ -372,10 +381,15 @@ public class BindingManager
 		var histories = bindingSeries.Series.BindingHistories;
 		histories.Add(savedHistory);
 		histories.Sort((x, y) => y.HistoryId.CompareTo(x.HistoryId));
-		if (histories.Count > 3)
+
+		// StartVolume ごとに HistoryId 降順で最新3件のみ保持する（開始巻が異なる履歴は削除しない）
+		var startVolumeCounts = new Dictionary<decimal, int>();
+		histories.RemoveAll(history =>
 		{
-			histories.RemoveRange(3, histories.Count - 3);
-		}
+			startVolumeCounts.TryGetValue(history.StartVolume, out var count);
+			startVolumeCounts[history.StartVolume] = count + 1;
+			return count >= 3;
+		});
 
 		// 9. MangaSeriesStore.NotifySeriesChanged(seriesId) を呼び出す
 		mangaSeriesStore.NotifySeriesChanged(bindingSeries.Series.SeriesId);
