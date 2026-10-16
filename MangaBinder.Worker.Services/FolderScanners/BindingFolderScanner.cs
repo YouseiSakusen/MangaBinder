@@ -243,12 +243,34 @@ public class BindingFolderScanner : FolderScannerBase
         // Step 6: SeriesId/新規グループ単位で集約
         var aggregatedBySeriesId = new Dictionary<long, MangaSeries>();
         var aggregatedByNewGroup = new Dictionary<string, MangaSeries>();
+        var historyFilesBySeriesId = new Dictionary<long, List<(MangaSeries series, FileInfo fileInfo)>>();
+        var historyFilesByNewGroup = new Dictionary<string, List<(MangaSeries series, FileInfo fileInfo)>>();
 
         foreach (var (series, fileInfo, seriesId, newGroupKey) in fileAssignments)
         {
             // 曖昧判定で除外されたファイルはスキップ
             if (!seriesId.HasValue && string.IsNullOrEmpty(newGroupKey))
                 continue;
+
+            // BindingHistory 登録用にアーカイブ個別の情報を保持
+            if (seriesId.HasValue)
+            {
+                if (!historyFilesBySeriesId.TryGetValue(seriesId.Value, out var historyFiles))
+                {
+                    historyFiles = new List<(MangaSeries, FileInfo)>();
+                    historyFilesBySeriesId[seriesId.Value] = historyFiles;
+                }
+                historyFiles.Add((series, fileInfo));
+            }
+            else
+            {
+                if (!historyFilesByNewGroup.TryGetValue(newGroupKey!, out var historyFiles))
+                {
+                    historyFiles = new List<(MangaSeries, FileInfo)>();
+                    historyFilesByNewGroup[newGroupKey!] = historyFiles;
+                }
+                historyFiles.Add((series, fileInfo));
+            }
 
             if (seriesId.HasValue)
             {

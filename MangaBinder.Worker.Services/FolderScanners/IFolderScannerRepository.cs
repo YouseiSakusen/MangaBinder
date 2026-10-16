@@ -110,4 +110,14 @@ public interface IFolderScannerRepository
     /// <param name="ct">キャンセルトークン。</param>
     /// <returns>NormalizedTitleInternal をキーとした、候補 MangaSeries の辞書。キーに存在しないタイトルは空リストに対応。</returns>
     ValueTask<IReadOnlyDictionary<string, IReadOnlyList<MangaBinder.MangaSeries>>> GetCandidateSeriesByNormalizedTitlesAsync(IEnumerable<string> normalizedTitles, CancellationToken ct);
+
+    /// <summary>
+    /// 製本済みアーカイブの BindingHistory を登録します。
+    /// SeriesId + OutputFileName が一致する履歴が存在する場合は登録しません。
+    /// 登録後、SeriesId + StartVolume ごとに HistoryId 降順で最新3件を保持し、それ以前の履歴と BindingSettings を削除します。
+    /// </summary>
+    /// <param name="seriesId">対象作品ID。</param>
+    /// <param name="histories">登録候補の履歴一覧。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    ValueTask InsertBindingHistoriesAsync(long seriesId, IReadOnlyList<BindingHistory> histories, CancellationToken ct);
 }

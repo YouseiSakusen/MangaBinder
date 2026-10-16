@@ -791,4 +791,123 @@ public class FolderScannerRepository : IFolderScannerRepository
 
         return dict.AsReadOnly();
     }
+
+    /// <summary>
+    /// 製本済みアーカイブの BindingHistory を登録します。
+    /// </summary>
+    /// <param name="seriesId">対象作品ID。</param>
+    /// <param name="histories">登録候補の履歴一覧。</param>
+    /// <param name="ct">キャンセルトークン。</param>
+    public async ValueTask InsertBindingHistoriesAsync(long seriesId, IReadOnlyList<BindingHistory> histories, CancellationToken ct)
+    {
+        var existsSql = new StringBuilder();
+        existsSql.AppendLine(" SELECT ");
+        existsSql.AppendLine(" 	COUNT(*) ");
+        existsSql.AppendLine(" FROM ");
+        existsSql.AppendLine(" 	BindingHistory ");
+        existsSql.AppendLine(" WHERE ");
+        existsSql.AppendLine(" 		SeriesId = :SeriesId ");
+        existsSql.AppendLine(" 	AND OutputFileName = :OutputFileName; ");
+
+        var insertSql = new StringBuilder();
+        insertSql.AppendLine(" INSERT INTO BindingHistory ( ");
+        insertSql.AppendLine(" 	  SeriesId ");
+        insertSql.AppendLine(" 	, BoundAt ");
+        insertSql.AppendLine(" 	, StartVolume ");
+        insertSql.AppendLine(" 	, EndVolume ");
+        insertSql.AppendLine(" 	, VolumeRange ");
+        insertSql.AppendLine(" 	, OutputFileName ");
+        insertSql.AppendLine(" 	, OutputFolderPath ");
+        insertSql.AppendLine(" ) VALUES ( ");
+        insertSql.AppendLine(" 	  :SeriesId ");
+        insertSql.AppendLine(" 	, :BoundAt ");
+        insertSql.AppendLine(" 	, :StartVolume ");
+        insertSql.AppendLine(" 	, :EndVolume ");
+        insertSql.AppendLine(" 	, :VolumeRange ");
+        insertSql.AppendLine(" 	, :OutputFileName ");
+        insertSql.AppendLine(" 	, :OutputFolderPath ");
+        insertSql.AppendLine(" ); ");
+
+        var deleteSettingsSql = new StringBuilder();
+        deleteSettingsSql.AppendLine(" DELETE FROM BindingSettings ");
+        deleteSettingsSql.AppendLine(" WHERE ");
+        deleteSettingsSql.AppendLine(" 	HistoryId IN ( ");
+        deleteSettingsSql.AppendLine(" 		SELECT HistoryId FROM BindingHistory ");
+        deleteSettingsSql.AppendLine(" 		WHERE ");
+        deleteSettingsSql.AppendLine(" 				SeriesId = :SeriesId ");
+        deleteSettingsSql.AppendLine(" 			AND StartVolume = :StartVolume ");
+        deleteSettingsSql.AppendLine(" 			AND HistoryId NOT IN ( ");
+        deleteSettingsSql.AppendLine(" 				SELECT HistoryId FROM BindingHistory ");
+        deleteSettingsSql.AppendLine(" 				WHERE ");
+        deleteSettingsSql.AppendLine(" 						SeriesId = :SeriesId ");
+        deleteSettingsSql.AppendLine(" 					AND StartVolume = :StartVolume ");
+        deleteSettingsSql.AppendLine(" 				ORDER BY HistoryId DESC ");
+        deleteSettingsSql.AppendLine(" 				LIMIT 3 ");
+        deleteSettingsSql.AppendLine(" 			) ");
+        deleteSettingsSql.AppendLine(" 	); ");
+
+        var deleteHistorySql = new StringBuilder();
+        deleteHistorySql.AppendLine(" DELETE FROM BindingHistory ");
+        deleteHistorySql.AppendLine(" WHERE ");
+        deleteHistorySql.AppendLine(" 		SeriesId = :SeriesId ");
+        deleteHistorySql.AppendLine(" 	AND StartVolume = :StartVolume ");
+        deleteHistorySql.AppendLine(" 	AND HistoryId NOT IN ( ");
+        deleteHistorySql.AppendLine(" 		SELECT HistoryId FROM BindingHistory ");
+        deleteHistorySql.AppendLine(" 		WHERE ");
+        deleteHistorySql.AppendLine(" 				SeriesId = :SeriesId ");
+        deleteHistorySql.AppendLine(" 			AND StartVolume = :StartVolume ");
+        deleteHistorySql.AppendLine(" 		ORDER BY HistoryId DESC ");
+        deleteHistorySql.AppendLine(" 		LIMIT 3 ");
+        deleteHistorySql.AppendLine(" 	); ");
+
+        using var conn = new SQLiteConnection(this.connectionString);
+        await conn.OpenAsync(ct);
+        using var tx = conn.BeginTransaction();
+
+        try
+        {
+            var insertedStartVolumes = new HashSet<decimal>();
+
+            foreach (var history in histories)
+            {
+                var count = await conn.ExecuteScalarAsync<long>(
+                    existsSql.ToString(),
+                    new { SeriesId = seriesId, history.OutputFileName },
+                    tx);
+
+                if (count > 0)
+                    continue;
+
+                await conn.ExecuteAsync(
+                    insertSql.ToString(),
+                    new
+                    {
+                        SeriesId = seriesId,
+                        history.BoundAt,
+                        history.StartVolume,
+                        history.EndVolume,
+                        history.VolumeRange,
+                        history.OutputFileName,
+                        history.OutputFolderPath,
+                    },
+                    tx);
+
+                insertedStartVolumes.Add(history.StartVolume);
+            }
+
+            foreach (var startVolume in insertedStartVolumes)
+            {
+                var param = new { SeriesId = seriesId, StartVolume = startVolume };
+                await conn.ExecuteAsync(deleteSettingsSql.ToString(), param, tx);
+                await conn.ExecuteAsync(deleteHistorySql.ToString(), param, tx);
+            }
+
+            tx.Commit();
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+    }
 }

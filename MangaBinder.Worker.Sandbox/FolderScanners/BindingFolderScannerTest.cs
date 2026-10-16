@@ -119,6 +119,10 @@ file class StubFolderRepository : IFolderScannerRepository
     public ValueTask DeleteSourcesByIdAsync(IEnumerable<long> sourceIds, CancellationToken ct)
         => ValueTask.CompletedTask;
 
+    /// <summary>このテストでは履歴登録は行いません。</summary>
+    public ValueTask InsertBindingHistoriesAsync(long seriesId, IReadOnlyList<BindingHistory> histories, CancellationToken ct)
+        => ValueTask.CompletedTask;
+
     /// <summary>このテストでは複数候補検索は使用しません。</summary>
     public ValueTask<IReadOnlyDictionary<string, IReadOnlyList<MangaSeries>>> GetCandidateSeriesByNormalizedTitlesAsync(IEnumerable<string> normalizedTitles, CancellationToken ct)
         => throw new NotImplementedException();

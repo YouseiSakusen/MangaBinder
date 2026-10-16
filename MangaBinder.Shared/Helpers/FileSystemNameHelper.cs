@@ -103,6 +103,9 @@ public static class FileSystemNameHelper
 
 			if (volMatch.Groups["start"].Value is { Length: > 0 } startStr)
 				startVolume = int.Parse(startStr);
+			else
+				// 全n巻形式は開始巻を1とする
+				startVolume = 1;
 
 			if (volMatch.Groups["bound"].Value is { Length: > 0 } boundStr)
 				boundEndVolume = int.Parse(boundStr);

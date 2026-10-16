@@ -199,6 +199,9 @@ file class StubMaterialRepository : IFolderScannerRepository
     public ValueTask<IReadOnlyDictionary<string, IReadOnlyList<MangaSeries>>> GetCandidateSeriesByNormalizedTitlesAsync(IEnumerable<string> normalizedTitles, CancellationToken ct)
         => throw new NotImplementedException();
 
+    public ValueTask InsertBindingHistoriesAsync(long seriesId, IReadOnlyList<BindingHistory> histories, CancellationToken ct)
+        => ValueTask.CompletedTask;
+
     /// <summary>サムネイル更新はこのテストでは記録しません。</summary>
     public ValueTask UpdateThumbnailAsync(long seriesId, string thumbnailFileName, ThumbnailStatus thumbnailStatus, CancellationToken ct)
         => ValueTask.CompletedTask;
