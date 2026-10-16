@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using MangaBinder.Bindings;
 using MangaBinder.Helpers;
 using MangaBinder.Jobs.Contexts;
 using MangaBinder.Settings;
@@ -144,6 +145,36 @@ public class BindingFolderScanner : FolderScannerBase
             this.logger.ZLogInformation($"MangaSource 削除完了");
         }
     }
+
+    private static List<BindingHistory> CreateBindingHistories(long seriesId, List<(MangaSeries series, FileInfo fileInfo)> files)
+    {
+        return files
+            .GroupBy(f => f.fileInfo.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderBy(f => f.fileInfo.CreationTime).First())
+            .OrderBy(f => f.series.StartVolume)
+            .ThenBy(f => f.fileInfo.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(f => new BindingHistory
+            {
+                SeriesId = seriesId,
+                StartVolume = f.series.StartVolume,
+                EndVolume = f.series.BoundEndVolume,
+                BoundAt = f.fileInfo.CreationTime,
+                VolumeRange = FormatHistoryVolumeRange(f.series.StartVolume, f.series.BoundEndVolume),
+                OutputFileName = f.fileInfo.Name,
+                OutputFolderPath = f.fileInfo.DirectoryName!,
+            })
+            .ToList();
+    }
+
+    private static string FormatHistoryVolumeRange(decimal start, decimal end)
+    {
+        var startText = FormatHistoryVolume(start);
+        return start == end ? startText : $"{startText}-{FormatHistoryVolume(end)}";
+    }
+
+    private static string FormatHistoryVolume(decimal volume)
+        => volume == Math.Floor(volume) ? ((long)volume).ToString().PadLeft(2, '0') : volume.ToString("G29");
+
 
     /// <summary>
     /// 全ルートパスを走査し、以下の流れで処理します：
@@ -340,6 +371,9 @@ public class BindingFolderScanner : FolderScannerBase
 
                 this.logger.ZLogInformation($"作品情報保存完了（既存更新）: {savedSeries.Title}");
 
+                var histories = CreateBindingHistories(savedSeries.SeriesId, historyFilesBySeriesId[seriesId]);
+                await repository.InsertBindingHistoriesAsync(savedSeries.SeriesId, histories, token);
+
                 if (this.HasCompletedThumbnail(savedSeries))
                 {
                     this.logger.ZLogInformation($"サムネイル生成済みのためスキップ");
@@ -353,10 +387,11 @@ public class BindingFolderScanner : FolderScannerBase
 
         // 新規グループ用：InsertBindingSeriesAsync
         await Parallel.ForEachAsync(
-            aggregatedByNewGroup.Values,
+            aggregatedByNewGroup,
             new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
-            async (series, token) =>
+            async (groupKvp, token) =>
             {
+                var series = groupKvp.Value;
                 var savedSeries = await repository.InsertBindingSeriesAsync(
                     series,
                     nameof(BindingFolderScanner),
@@ -376,6 +411,9 @@ public class BindingFolderScanner : FolderScannerBase
                 }
 
                 this.logger.ZLogInformation($"作品情報保存完了（新規作成）: {savedSeries.Title}");
+
+                var histories = CreateBindingHistories(savedSeries.SeriesId, historyFilesByNewGroup[groupKvp.Key]);
+                await repository.InsertBindingHistoriesAsync(savedSeries.SeriesId, histories, token);
 
                 if (this.HasCompletedThumbnail(savedSeries))
                 {
