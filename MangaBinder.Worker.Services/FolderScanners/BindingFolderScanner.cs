@@ -159,21 +159,11 @@ public class BindingFolderScanner : FolderScannerBase
                 StartVolume = f.series.StartVolume,
                 EndVolume = f.series.BoundEndVolume,
                 BoundAt = f.fileInfo.CreationTime,
-                VolumeRange = FormatHistoryVolumeRange(f.series.StartVolume, f.series.BoundEndVolume),
                 OutputFileName = f.fileInfo.Name,
                 OutputFolderPath = f.fileInfo.DirectoryName!,
             })
             .ToList();
     }
-
-    private static string FormatHistoryVolumeRange(decimal start, decimal end)
-    {
-        var startText = FormatHistoryVolume(start);
-        return start == end ? startText : $"{startText}-{FormatHistoryVolume(end)}";
-    }
-
-    private static string FormatHistoryVolume(decimal volume)
-        => volume == Math.Floor(volume) ? ((long)volume).ToString().PadLeft(2, '0') : volume.ToString("G29");
 
 
     /// <summary>

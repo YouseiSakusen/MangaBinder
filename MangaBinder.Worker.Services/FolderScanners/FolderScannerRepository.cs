@@ -815,7 +815,6 @@ public class FolderScannerRepository : IFolderScannerRepository
         insertSql.AppendLine(" 	, BoundAt ");
         insertSql.AppendLine(" 	, StartVolume ");
         insertSql.AppendLine(" 	, EndVolume ");
-        insertSql.AppendLine(" 	, VolumeRange ");
         insertSql.AppendLine(" 	, OutputFileName ");
         insertSql.AppendLine(" 	, OutputFolderPath ");
         insertSql.AppendLine(" ) VALUES ( ");
@@ -823,7 +822,6 @@ public class FolderScannerRepository : IFolderScannerRepository
         insertSql.AppendLine(" 	, :BoundAt ");
         insertSql.AppendLine(" 	, :StartVolume ");
         insertSql.AppendLine(" 	, :EndVolume ");
-        insertSql.AppendLine(" 	, :VolumeRange ");
         insertSql.AppendLine(" 	, :OutputFileName ");
         insertSql.AppendLine(" 	, :OutputFolderPath ");
         insertSql.AppendLine(" ); ");
@@ -886,7 +884,6 @@ public class FolderScannerRepository : IFolderScannerRepository
                         history.BoundAt,
                         history.StartVolume,
                         history.EndVolume,
-                        history.VolumeRange,
                         history.OutputFileName,
                         history.OutputFolderPath,
                     },

@@ -114,7 +114,6 @@ public class BindingRepository
 			insertHistorySql.AppendLine(" 	, BoundAt ");
 			insertHistorySql.AppendLine(" 	, StartVolume ");
 			insertHistorySql.AppendLine(" 	, EndVolume ");
-			insertHistorySql.AppendLine(" 	, VolumeRange ");
 			insertHistorySql.AppendLine(" 	, OutputFileName ");
 			insertHistorySql.AppendLine(" 	, OutputFolderPath ");
 			insertHistorySql.AppendLine(" ) VALUES ( ");
@@ -122,7 +121,6 @@ public class BindingRepository
 			insertHistorySql.AppendLine(" 	, :BoundAt ");
 			insertHistorySql.AppendLine(" 	, :StartVolume ");
 			insertHistorySql.AppendLine(" 	, :EndVolume ");
-			insertHistorySql.AppendLine(" 	, :VolumeRange ");
 			insertHistorySql.AppendLine(" 	, :OutputFileName ");
 			insertHistorySql.AppendLine(" 	, :OutputFolderPath ");
 			insertHistorySql.AppendLine(" ); ");
@@ -135,7 +133,6 @@ public class BindingRepository
 					history.BoundAt,
 					history.StartVolume,
 					history.EndVolume,
-					history.VolumeRange,
 					history.OutputFileName,
 					history.OutputFolderPath,
 				},
@@ -148,7 +145,6 @@ public class BindingRepository
 			selectHistorySql.AppendLine(" 	, BoundAt ");
 			selectHistorySql.AppendLine(" 	, StartVolume ");
 			selectHistorySql.AppendLine(" 	, EndVolume ");
-			selectHistorySql.AppendLine(" 	, VolumeRange ");
 			selectHistorySql.AppendLine(" 	, OutputFileName ");
 			selectHistorySql.AppendLine(" 	, OutputFolderPath ");
 			selectHistorySql.AppendLine(" FROM ");

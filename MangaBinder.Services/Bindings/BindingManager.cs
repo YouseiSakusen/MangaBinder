@@ -357,7 +357,6 @@ public class BindingManager
 			BoundAt = boundAt,
 			StartVolume = volumeNumbers.Min(),
 			EndVolume = maxVolumeNumber,
-			VolumeRange = formatVolumeRange(volumeNumbers, this.bindingStore.VolumeFolderDigits.Value),
 			OutputFileName = this.bindingStore.CreateZip.Value ? Path.GetFileName(outputFilePath) : string.Empty,
 			OutputFolderPath = openFolderPath,
 		};
@@ -418,44 +417,6 @@ public class BindingManager
 			() => JsonSerializer.Serialize(
 				volumes.Select(volume => volume.CreateDto()).ToList()),
 			cancellationToken);
-
-	/// <summary>
-	/// 巡番号を範囲・カンマ区切りの文字列にします。（例：01-03,05,07）
-	/// 連続する整数巻は範囲表記、小数巻は単独表記とします。
-	/// </summary>
-	private static string formatVolumeRange(IEnumerable<decimal> volumeNumbers, int digits)
-	{
-		static string format(decimal volume, int digits)
-			=> volume != Math.Floor(volume)
-				? volume.ToString("G29", System.Globalization.CultureInfo.InvariantCulture)
-				: ((long)volume).ToString().PadLeft(digits, '0');
-
-		var sorted = volumeNumbers.Distinct().OrderBy(v => v).ToList();
-		var parts = new List<string>();
-		var i = 0;
-		while (i < sorted.Count)
-		{
-			var start = sorted[i];
-			var j = i;
-
-			if (start == Math.Floor(start))
-			{
-				while (j + 1 < sorted.Count
-					&& sorted[j + 1] == Math.Floor(sorted[j + 1])
-					&& sorted[j + 1] == sorted[j] + 1)
-				{
-					j++;
-				}
-			}
-
-			parts.Add(j == i
-				? format(start, digits)
-				: $"{format(start, digits)}-{format(sorted[j], digits)}");
-			i = j + 1;
-		}
-
-		return string.Join(",", parts);
-	}
 
 	/// <summary>
 	/// 出力先フォルダと出力ファイル名からフルパスを組み立てます。

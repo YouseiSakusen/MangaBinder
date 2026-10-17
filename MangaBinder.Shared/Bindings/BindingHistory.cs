@@ -23,9 +23,6 @@ public class BindingHistory
 	/// <summary>製本した巻の最大巻番号です。小数巻に対応するため decimal です。</summary>
 	public decimal EndVolume { get; set; }
 
-	/// <summary>製本した巻番号の文字列表現です。（例：01-03,05）</summary>
-	public string VolumeRange { get; set; } = string.Empty;
-
 	/// <summary>出力 ZIP ファイル名です。ZIP を作成していない場合は空文字列です。</summary>
 	public string OutputFileName { get; set; } = string.Empty;
 
