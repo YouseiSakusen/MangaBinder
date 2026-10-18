@@ -170,10 +170,7 @@
 	<!-- ════════════════════════════════════════════════════════════════ -->
 	<bindings:BindingPageLayout
 		Margin="16,4,16,16"
-		SeriesTitle="{Binding BindingTargetViewModel.Value.Series.Value.Title}">
-
-		<!-- PageLayout：3カラム + Eyecatch + Footer -->
-		<controls:PageLayout
+		SeriesTitle="{Binding BindingTargetViewModel.Value.Series.Value.Title}"
 			LeftColumnWidth="250"
 			LeftColumnMinWidth="250"
 			MainColumnWidth="2*"
@@ -183,7 +180,7 @@
 			EyecatchTitle="製本対象"
 			EyecatchValueText="{Binding SelectedVolumeCountText.Value}">
 
-			<controls:PageLayout.TopContent>
+			<bindings:BindingPageLayout.TopContent>
 				<Grid>
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="300" />
@@ -201,26 +198,12 @@
 						Symbol="{x:Static app:AppSymbols.OpenBindingFolder}"
 						Command="{Binding OpenBindingFolderCommand}" />
 				</Grid>
-			</controls:PageLayout.TopContent>
-
-			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<!-- LeftContent: 左パネル（作品情報） -->
-			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.LeftContent>
-				<StackPanel
-					Width="240"
-					HorizontalAlignment="Center"
-					VerticalAlignment="Top">
-
-					<!-- 共通作品情報カード（MangaSeriesCard） -->
-					<controls:MangaSeriesCard DataContext="{Binding MangaSeriesCard}" />
-				</StackPanel>
-			</controls:PageLayout.LeftContent>
+			</bindings:BindingPageLayout.TopContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- MainContent: 中央パネル（検査結果一覧） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.MainContent>
+			<bindings:BindingPageLayout.MainContent>
 				<ListView
 					x:Name="VolumeCardsListView"
 					ItemsSource="{Binding VolumeCards}"
@@ -248,12 +231,12 @@
 						</Style>
 					</ListView.ItemContainerStyle>
 				</ListView>
-			</controls:PageLayout.MainContent>
+			</bindings:BindingPageLayout.MainContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 				<!-- RightContent: 右パネル（製本後zipファイル設定） -->
 				<!-- ─────────────────────────────────────────────────────────────────── -->
-				<controls:PageLayout.RightContent>
+				<bindings:BindingPageLayout.RightContent>
 					<ScrollViewer
 						x:Name="SettingsScrollViewer"
 						Height="Auto"
@@ -539,43 +522,42 @@
 						</StackPanel>
 
 					</ScrollViewer>
-				</controls:PageLayout.RightContent>
+				</bindings:BindingPageLayout.RightContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- FooterLeftContent: 戻るボタン -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.FooterLeftContent>
+			<bindings:BindingPageLayout.FooterLeftContent>
 				<ui:Button
 					Style="{StaticResource FooterButtonStyle}"
 					HorizontalAlignment="Left"
 					Content="戻る"
 					Command="{Binding GoBackCommand}" />
-			</controls:PageLayout.FooterLeftContent>
+			</bindings:BindingPageLayout.FooterLeftContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- FooterContent: 製本をキャンセルボタン（UI確認用） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.FooterContent>
+			<bindings:BindingPageLayout.FooterContent>
 				<StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
 					<ui:Button
 						Style="{StaticResource FooterButtonStyle}"
 						Content="製本をキャンセル"
 						Command="{Binding CancelCommand}" />
 				</StackPanel>
-			</controls:PageLayout.FooterContent>
+			</bindings:BindingPageLayout.FooterContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- FooterRightContent: 製本を完了ボタン -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.FooterRightContent>
+			<bindings:BindingPageLayout.FooterRightContent>
 				<ui:Button
 					Style="{StaticResource FooterPrimaryButtonStyle}"
 					HorizontalAlignment="Right"
 					Content="製本を完了"
 					Command="{Binding StartBindingCommand}" />
-			</controls:PageLayout.FooterRightContent>
+			</bindings:BindingPageLayout.FooterRightContent>
 
-		</controls:PageLayout>
 
 	</bindings:BindingPageLayout>
 

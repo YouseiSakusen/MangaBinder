@@ -164,8 +164,6 @@
 	<!-- ─────────────────────────────────────────────────────────────────── -->
 	<Style TargetType="{x:Type local:BindingPageLayout}"
 		   xmlns:local="clr-namespace:MangaBinder.Bindings">
-		<Setter Property="HorizontalContentAlignment" Value="Stretch" />
-		<Setter Property="VerticalContentAlignment" Value="Stretch" />
 		<Setter Property="Template">
 			<Setter.Value>
 				<ControlTemplate TargetType="{x:Type local:BindingPageLayout}">
@@ -185,12 +183,43 @@
 							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 							Margin="0,0,0,12" />
 
-						<!-- Row 1: Content -->
-						<ContentPresenter
+						<!-- Row 1: PageLayout -->
+						<controls:PageLayout
 							Grid.Row="1"
-							Content="{TemplateBinding Content}"
-							HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-							VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+							LeftColumnWidth="{TemplateBinding LeftColumnWidth}"
+							LeftColumnMinWidth="{TemplateBinding LeftColumnMinWidth}"
+							MainColumnWidth="{TemplateBinding MainColumnWidth}"
+							RightColumnWidth="{TemplateBinding RightColumnWidth}"
+							RightColumnMinWidth="{TemplateBinding RightColumnMinWidth}"
+							IsMainRightSplitterEnabled="{TemplateBinding IsMainRightSplitterEnabled}"
+							EyecatchSymbol="{TemplateBinding EyecatchSymbol}"
+							EyecatchTitle="{TemplateBinding EyecatchTitle}"
+							EyecatchValueText="{TemplateBinding EyecatchValueText}"
+							TopContent="{TemplateBinding TopContent}"
+							MainContent="{TemplateBinding MainContent}"
+							RightContent="{TemplateBinding RightContent}"
+							FooterLeftContent="{TemplateBinding FooterLeftContent}"
+							FooterContent="{TemplateBinding FooterContent}"
+							FooterRightContent="{TemplateBinding FooterRightContent}">
+							<controls:PageLayout.LeftContent>
+								<Grid
+									Width="240"
+									HorizontalAlignment="Center"
+									VerticalAlignment="Top">
+									<Grid.RowDefinitions>
+										<!-- Row 0: 作品情報カード -->
+										<RowDefinition Height="Auto" />
+										<!-- Row 1: 画面固有の追加コンテンツ -->
+										<RowDefinition Height="Auto" />
+										<!-- Row 2: 製本履歴（予定） -->
+										<RowDefinition Height="Auto" />
+									</Grid.RowDefinitions>
+
+									<controls:MangaSeriesCard Grid.Row="0" DataContext="{Binding MangaSeriesCard}" />
+									<ContentPresenter Grid.Row="1" Content="{TemplateBinding AdditionalLeftContent}" />
+								</Grid>
+							</controls:PageLayout.LeftContent>
+						</controls:PageLayout>
 					</Grid>
 				</ControlTemplate>
 			</Setter.Value>

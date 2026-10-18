@@ -139,10 +139,7 @@
 	<!-- ================================================================================== -->
 	<bindings:BindingPageLayout
 		Margin="16,4,16,16"
-		SeriesTitle="{Binding BindingTargetViewModel.Value.Series.Value.Title}">
-
-		<!-- PageLayout：3カラム + Eyecatch + Footer -->
-		<controls:PageLayout
+		SeriesTitle="{Binding BindingTargetViewModel.Value.Series.Value.Title}"
 			LeftColumnWidth="250"
 			LeftColumnMinWidth="250"
 			MainColumnWidth="3*"
@@ -155,7 +152,7 @@
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- TopContent: 上部アクションボタン -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.TopContent>
+			<bindings:BindingPageLayout.TopContent>
 				<Grid>
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="100" />
@@ -193,19 +190,12 @@
 						Symbol="{x:Static app:AppSymbols.OpenMaterialFolder}"
 						Command="{Binding OpenMaterialFolderCommand}" />
 				</Grid>
-			</controls:PageLayout.TopContent>
+			</bindings:BindingPageLayout.TopContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<!-- LeftContent: 左パネル（作品情報 + 素材内訳） -->
+			<!-- AdditionalLeftContent: 左パネル（素材内訳） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.LeftContent>
-				<StackPanel
-					Width="240"
-					HorizontalAlignment="Center"
-					VerticalAlignment="Top">
-
-					<!-- 共通作品情報カード（MangaSeriesCard） -->
-					<controls:MangaSeriesCard DataContext="{Binding MangaSeriesCard}" />
+			<bindings:BindingPageLayout.AdditionalLeftContent>
 					<!-- 巻選択画面固有：素材内訳Card -->
 					<ui:Card
 						Margin="0,5,0,0"
@@ -284,13 +274,12 @@
 							</Grid>
 						</StackPanel>
 					</ui:Card>
-				</StackPanel>
-			</controls:PageLayout.LeftContent>
+			</bindings:BindingPageLayout.AdditionalLeftContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- MainContent: 中央パネル（素材一覧ヘッダー + 素材TreeView） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.MainContent>
+			<bindings:BindingPageLayout.MainContent>
 				<Grid>
 					<Grid.RowDefinitions>
 						<RowDefinition Height="Auto" />
@@ -340,12 +329,12 @@
 						dd:DragDrop.UseDefaultEffectDataTemplate="True"
 						dd:DragDrop.DragHandler="{Binding MaterialItemDragHandler}" />
 				</Grid>
-			</controls:PageLayout.MainContent>
+			</bindings:BindingPageLayout.MainContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- RightContent: 右パネル（2行1列: 選択巻一覧 + 設定領域） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.RightContent>
+			<bindings:BindingPageLayout.RightContent>
 				<Border Margin="12,0,0,0" Padding="0">
 					<Grid>
 						<Grid.RowDefinitions>
@@ -640,43 +629,41 @@
 						</ScrollViewer>
 					</Grid>
 				</Border>
-			</controls:PageLayout.RightContent>
+			</bindings:BindingPageLayout.RightContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- FooterLeftContent: 戻るボタン -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.FooterLeftContent>
+			<bindings:BindingPageLayout.FooterLeftContent>
 				<ui:Button
 					Style="{StaticResource FooterButtonStyle}"
 					HorizontalAlignment="Left"
 					Content="戻る"
 					Command="{Binding GoBackCommand}" />
-			</controls:PageLayout.FooterLeftContent>
+			</bindings:BindingPageLayout.FooterLeftContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- FooterContent: 製本をキャンセルボタン（UI確認用） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.FooterContent>
+			<bindings:BindingPageLayout.FooterContent>
 				<ui:Button
 					Style="{StaticResource FooterButtonStyle}"
 					HorizontalAlignment="Right" 
 					Content="製本をキャンセル"
 					Command="{Binding CancelCommand}" />
-			</controls:PageLayout.FooterContent>
+			</bindings:BindingPageLayout.FooterContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<!-- FooterRightContent: 次へボタン -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<controls:PageLayout.FooterRightContent>
+			<bindings:BindingPageLayout.FooterRightContent>
 				<ui:Button
 					Style="{StaticResource FooterPrimaryButtonStyle}"
 					HorizontalAlignment="Right"
 					Content="次へ"
 					IsEnabled="{Binding CanGoNext.Value}"
 					Command="{Binding GoNextCommand}" />
-			</controls:PageLayout.FooterRightContent>
-		</controls:PageLayout>
-
+			</bindings:BindingPageLayout.FooterRightContent>
 	</bindings:BindingPageLayout>
 
 </Page>

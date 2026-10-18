@@ -106,10 +106,7 @@
     <!-- ════════════════════════════════════════════════════════════════ -->
     <bindings:BindingPageLayout
         Margin="16,4,16,16"
-        SeriesTitle="{Binding BindingTargetViewModel.Value.Series.Value.Title}">
-
-        <!-- PageLayout：3カラム + Eyecatch + Footer -->
-        <controls:PageLayout
+        SeriesTitle="{Binding BindingTargetViewModel.Value.Series.Value.Title}"
             LeftColumnWidth="250"
             LeftColumnMinWidth="250"
             MainColumnWidth="*"
@@ -121,23 +118,9 @@
             EyecatchValueText="{Binding SplitTargetCountText.Value}">
 
             <!-- ─────────────────────────────────────────────────────────────────── -->
-            <!-- LeftContent: 左パネル（作品情報） -->
-            <!-- ─────────────────────────────────────────────────────────────────── -->
-            <controls:PageLayout.LeftContent>
-                <StackPanel
-                    Width="240"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Top">
-
-                    <!-- 共通作品情報カード（MangaSeriesCard） -->
-                    <controls:MangaSeriesCard DataContext="{Binding MangaSeriesCard}" />
-                </StackPanel>
-            </controls:PageLayout.LeftContent>
-
-            <!-- ─────────────────────────────────────────────────────────────────── -->
             <!-- MainContent: 中央パネル（見開き分割操作） -->
             <!-- ─────────────────────────────────────────────────────────────────── -->
-            <controls:PageLayout.MainContent>
+            <bindings:BindingPageLayout.MainContent>
                 <!-- TabControl：「一覧」「プレビュー」の2タブ -->
                 <TabControl
                     x:Name="MainTabControl"
@@ -480,12 +463,12 @@
                         </Grid>
                     </TabItem>
                 </TabControl>
-            </controls:PageLayout.MainContent>
+            </bindings:BindingPageLayout.MainContent>
 
             <!-- ─────────────────────────────────────────────────────────────────── -->
             <!-- FooterContent: フッター（キャンセル・分割実行ボタン） -->
             <!-- ─────────────────────────────────────────────────────────────────── -->
-            <controls:PageLayout.FooterContent>
+            <bindings:BindingPageLayout.FooterContent>
                 <Grid Margin="0,0,8,0">
                     <Grid.ColumnDefinitions>
                         <!-- Column 0: 可変スペース -->
@@ -512,9 +495,8 @@
                         Content="分割実行"
                         Command="{Binding ExecuteSplitCommand}" />
                 </Grid>
-            </controls:PageLayout.FooterContent>
+            </bindings:BindingPageLayout.FooterContent>
 
-        </controls:PageLayout>
 
     </bindings:BindingPageLayout>
 
