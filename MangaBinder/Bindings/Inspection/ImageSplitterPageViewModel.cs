@@ -14,10 +14,8 @@ namespace MangaBinder.Bindings.Inspection;
 /// 見開き分割画面の ViewModel です。
 /// 編集用 Clone の準備は ImageSplitterManager、サムネイル・プレビューの BitmapSource 生成は本 ViewModel が担当します。
 /// </summary>
-public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializable
+public class ImageSplitterPageViewModel : BindingPageViewModelBase, INavigationDisposable, IDataInitializable
 {
-	private readonly BindingStore bindingStore;
-
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
 	private readonly LoadingService loadingService;
@@ -29,16 +27,7 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 	/// <summary>一覧表示用のサムネイル項目を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<ImageSplitterThumbnailItemViewModel> ThumbnailItems { get; }
 
-	/// <summary>ナビゲーションサービス。</summary>
-	private readonly INavigationService navigationService;
-
 	private DisposableBag disposableBag;
-
-	/// <summary>作品カード用 ViewModel を取得します。</summary>
-	public MangaSeriesCardViewModel MangaSeriesCard { get; }
-
-	/// <summary>BindingStore が所有する共有 MangaSeriesViewModel を取得します。</summary>
-	public BindableReactiveProperty<MangaBinder.Series.MangaSeriesViewModel?> BindingTargetViewModel => this.bindingStore.BindingTargetViewModel;
 
 	/// <summary>
 	/// 現在の編集用対象巻を取得します。View は Value.SplitSettings の ReactiveProperty へ直接 Binding します。
@@ -104,19 +93,16 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 		IServiceScopeFactory serviceScopeFactory,
 		LoadingService loadingService,
 		ISnackbarService snackbarService)
+		: base(bindingStore, navigationService, thumbnailImageLoader)
 	{
+		this.IsMouseBackEnabled = false;
 		this.snackbarService = snackbarService;
-		this.navigationService = navigationService;
-		this.bindingStore = bindingStore;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.loadingService = loadingService;
 
 		this.ThumbnailItems = this.thumbnailItemList
 			.CreateView(item => item)
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
-			.AddTo(ref this.disposableBag);
-
-		this.MangaSeriesCard = new MangaSeriesCardViewModel(bindingStore.BindingTargetViewModel, thumbnailImageLoader)
 			.AddTo(ref this.disposableBag);
 
 		this.CurrentItem = new BindableReactiveProperty<ImageSplitterThumbnailItemViewModel?>(null)
@@ -325,7 +311,7 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 	/// <summary>
 	/// ナビゲーション時に、1セッションで保持しているUI用画像参照とReactiveリソースを解放します。
 	/// </summary>
-	public void Dispose()
+	public override void Dispose()
 	{
 		this.PreviewSource.Value = null;
 		this.CurrentItem.Value = null;
@@ -338,6 +324,7 @@ public class ImageSplitterPageViewModel : INavigationDisposable, IDataInitializa
 		this.thumbnailItemList.Clear();
 
 		this.disposableBag.Dispose();
+		base.Dispose();
 		GC.Collect();
 	}
 }

@@ -16,16 +16,10 @@ namespace MangaBinder.Bindings;
 /// <summary>
 /// 製本工程-巻選択画面の ViewModel です。
 /// </summary>
-public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBackRequestHandler
+public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataInitializable
 {
-    /// <summary>製本工程の正本状態ストア。</summary>
-    private readonly BindingStore bindingStore;
-
     /// <summary>スコープファクトリー。</summary>
     private readonly IServiceScopeFactory serviceScopeFactory;
-
-    /// <summary>ナビゲーションサービス。</summary>
-    private readonly INavigationService navigationService;
 
     /// <summary>コンテントダイアログサービス。</summary>
     private readonly IContentDialogService contentDialogService;
@@ -37,12 +31,6 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     private readonly LoadingService loadingService;
 
     private DisposableBag disposableBag;
-
-    /// <summary>作品カード用 ViewModel を取得します。</summary>
-    public MangaSeriesCardViewModel MangaSeriesCard { get; }
-
-    /// <summary>BindingStore が所有する共有 MangaSeriesViewModel を取得します。</summary>
-    public BindableReactiveProperty<MangaBinder.Series.MangaSeriesViewModel?> BindingTargetViewModel => this.bindingStore.BindingTargetViewModel;
 
     /// <summary>作品中間フォルダが既に存在するかどうかを取得します。</summary>
     public BindableReactiveProperty<bool> HasExistingWorkFolder => this.bindingStore.HasExistingWorkFolder;
@@ -146,16 +134,12 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         ISnackbarService snackbarService,
         ThumbnailImageLoader thumbnailImageLoader,
         LoadingService loadingService)
+        : base(bindingStore, navigationService, thumbnailImageLoader)
     {
-        this.bindingStore = bindingStore;
         this.serviceScopeFactory = serviceScopeFactory;
-        this.navigationService = navigationService;
         this.contentDialogService = contentDialogService;
         this.snackbarService = snackbarService;
         this.loadingService = loadingService;
-
-        this.MangaSeriesCard = new MangaSeriesCardViewModel(this.bindingStore.BindingTargetViewModel, thumbnailImageLoader)
-            .AddTo(ref this.disposableBag);
 
         this.GoNextCommand = new ReactiveCommand()
             .AddTo(ref this.disposableBag);
@@ -277,7 +261,7 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
     /// 素材フォルダを非同期で読み込みます。
     /// </summary>
 	/// <inheritdoc/>
-	public void Dispose()
+	public override void Dispose()
 	{
 		// MaterialItems の全子 ViewModel を破棄
 		foreach (var viewModel in this.MaterialItems)
@@ -294,10 +278,11 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
 		this.bindingVolumesView = null;
 
 		this.disposableBag.Dispose();
+		base.Dispose();
 	}
 
 	/// <summary>
-	/// 圧縮ファイル比較Dialog を非同期で開きます。
+	/// 圧縮ファイル比較Dialog
 	/// </summary>
 	private async Task openArchiveCompareAsync()
 	{
@@ -736,11 +721,4 @@ public class VolumeSelectionPageViewModel : IDisposable, IDataInitializable, IBa
         var viewModel = scope.ServiceProvider.GetRequiredService<BindingCancelViewModel>();
         await viewModel.ShowAsync();
     }
-
-    /// <inheritdoc/>
-    public async ValueTask OnBackRequestedAsync()
-    {
-        await ValueTask.CompletedTask;
-        this.executeGoBack();
     }
-}
