@@ -178,7 +178,7 @@
 						<!-- Row 0: 作品タイトル -->
 						<controls:SelectableTextBlock
 							Grid.Row="0"
-							Text="{TemplateBinding SeriesTitle}"
+							Text="{Binding BindingTargetViewModel.Value.Series.Value.Title, Mode=OneWay}"
 							FontSize="17"
 							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 							Margin="0,0,0,12" />

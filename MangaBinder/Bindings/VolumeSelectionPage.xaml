@@ -139,7 +139,6 @@
 	<!-- ================================================================================== -->
 	<bindings:BindingPageLayout
 		Margin="16,4,16,16"
-		SeriesTitle="{Binding BindingTargetViewModel.Value.Series.Value.Title}"
 			LeftColumnWidth="250"
 			LeftColumnMinWidth="250"
 			MainColumnWidth="3*"

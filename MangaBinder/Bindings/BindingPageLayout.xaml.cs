@@ -18,15 +18,6 @@ public class BindingPageLayout : PageLayout
 		typeof(BindingPageLayout),
 		new PropertyMetadata(null));
 
-	/// <summary>
-	/// 製本対象作品のタイトルを取得または設定します。
-	/// </summary>
-	public static readonly DependencyProperty SeriesTitleProperty = DependencyProperty.Register(
-		nameof(SeriesTitle),
-		typeof(string),
-		typeof(BindingPageLayout),
-		new PropertyMetadata(null));
-
 	static BindingPageLayout()
 	{
 		DefaultStyleKeyProperty.OverrideMetadata(
