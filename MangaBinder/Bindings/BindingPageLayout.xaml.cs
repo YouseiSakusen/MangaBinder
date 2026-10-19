@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using MangaBinder.Controls;
 
 namespace MangaBinder.Bindings;
@@ -32,14 +32,5 @@ public class BindingPageLayout : PageLayout
 	{
 		get => (UIElement?)this.GetValue(AdditionalLeftContentProperty);
 		set => this.SetValue(AdditionalLeftContentProperty, value);
-	}
-
-	/// <summary>
-	/// 製本対象作品のタイトルを取得または設定します。
-	/// </summary>
-	public string SeriesTitle
-	{
-		get => (string)this.GetValue(SeriesTitleProperty);
-		set => this.SetValue(SeriesTitleProperty, value);
 	}
 }
