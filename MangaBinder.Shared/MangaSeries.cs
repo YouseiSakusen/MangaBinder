@@ -122,6 +122,9 @@ public class MangaSeries
     /// <summary>製本履歴です。HistoryId 降順で最新3件まで保持します。</summary>
     public List<BindingHistory> BindingHistories { get; set; } = new();
 
+    /// <summary>DB に製本設定（BindingSettings）が存在するかを示します。設定内容は保持しません。</summary>
+    public bool HasBindingSettings { get; set; }
+
     /// <summary>素材フォルダ（<see cref="FolderRole.Material"/>）の所在情報一覧を取得します。</summary>
     public IReadOnlyList<MangaSource> MaterialSources
         => this.Sources.Where(s => s.Role == Settings.FolderRole.Material).ToList();

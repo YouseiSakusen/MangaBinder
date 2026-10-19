@@ -104,7 +104,8 @@ public class MangaRepository
 
 	/// <summary>
 	/// 作品・素材所在・タグ・製本履歴を1回の JOIN クエリで取得し、同一 SeriesId を同一インスタンスへ集約します。
-	/// 製本履歴は作品ごとに HistoryId 降順で最新3件までです。
+	/// 製本履歴は StartVolume ごとに HistoryId 降順で最新3件までで、C# 側で HistoryId 降順に並べます。
+	/// 製本設定は存在有無のみを <see cref="MangaSeries.HasBindingSettings"/> に設定し、SettingsJson は読み込みません。
 	/// </summary>
 	/// <param name="connection">オープン済みの接続。</param>
 	/// <param name="whereClause">WHERE 句（不要な場合は空文字列）。</param>
@@ -146,6 +147,7 @@ public class MangaRepository
 		selectSql.AppendLine(" 	, s.IsIncomplete ");
 		selectSql.AppendLine(" 	, s.MaterialFolderCreatedAt ");
 		selectSql.AppendLine(" 	, s.UpdateSource ");
+		selectSql.AppendLine(" 	, CASE WHEN bs.SeriesId IS NULL THEN 0 ELSE 1 END AS HasBindingSettings ");
 		selectSql.AppendLine(" 	, src.SourceId ");
 		selectSql.AppendLine(" 	, src.SeriesId ");
 		selectSql.AppendLine(" 	, src.Path ");
@@ -153,7 +155,13 @@ public class MangaRepository
 		selectSql.AppendLine(" 	, t.TagId ");
 		selectSql.AppendLine(" 	, t.Name ");
 		selectSql.AppendLine(" 	, t.DisplayOrder ");
-		selectSql.AppendLine(" 	, t.ShowOnSeriesCard ");
+		selectSql.AppendLine(" 	, bh.HistoryId ");
+		selectSql.AppendLine(" 	, bh.SeriesId ");
+		selectSql.AppendLine(" 	, bh.BoundAt ");
+		selectSql.AppendLine(" 	, bh.StartVolume ");
+		selectSql.AppendLine(" 	, bh.EndVolume ");
+		selectSql.AppendLine(" 	, bh.OutputFileName ");
+		selectSql.AppendLine(" 	, bh.OutputFolderPath ");
 		selectSql.AppendLine(" FROM ");
 		selectSql.AppendLine(" 	MangaSeries s ");
 		selectSql.AppendLine(" LEFT JOIN MangaSources src ON ");
@@ -162,6 +170,16 @@ public class MangaRepository
 		selectSql.AppendLine(" 	st.SeriesId = s.SeriesId ");
 		selectSql.AppendLine(" LEFT JOIN MangaTags t ON ");
 		selectSql.AppendLine(" 	t.TagId = st.TagId ");
+		selectSql.AppendLine(" LEFT JOIN BindingSettings bs ON ");
+		selectSql.AppendLine(" 	bs.SeriesId = s.SeriesId ");
+		selectSql.AppendLine(" LEFT JOIN ( ");
+		selectSql.AppendLine(" 	SELECT ");
+		selectSql.AppendLine(" 		  HistoryId, SeriesId, BoundAt, StartVolume, EndVolume, OutputFileName, OutputFolderPath ");
+		selectSql.AppendLine(" 		, ROW_NUMBER() OVER (PARTITION BY SeriesId, StartVolume ORDER BY HistoryId DESC) AS RowNo ");
+		selectSql.AppendLine(" 	FROM BindingHistory ");
+		selectSql.AppendLine(" ) bh ON ");
+		selectSql.AppendLine(" 		bh.SeriesId = s.SeriesId ");
+		selectSql.AppendLine(" 	AND bh.RowNo <= 3 ");
 
 		var orderBySql = new StringBuilder();
 		orderBySql.AppendLine(" ORDER BY ");
@@ -175,10 +193,11 @@ public class MangaRepository
 		var seriesDict = new Dictionary<long, MangaSeries>();
 		var sourceIds = new HashSet<long>();
 		var tagKeys = new HashSet<(long SeriesId, long TagId)>();
+		var historyIds = new HashSet<long>();
 
-		await connection.QueryAsync<MangaSeries, MangaSource, MangaTag, MangaSeries>(
+		await connection.QueryAsync<MangaSeries, MangaSource, MangaTag, BindingHistory, MangaSeries>(
 			selectSql.ToString() + whereClause + orderBySql.ToString(),
-			(row, source, tag) =>
+			(row, source, tag, history) =>
 			{
 				if (!seriesDict.TryGetValue(row.SeriesId, out var series))
 				{
@@ -193,10 +212,16 @@ public class MangaRepository
 				if (tag is not null && tagKeys.Add((series.SeriesId, tag.TagId)))
 					series.Tags.Add(tag);
 
+				if (history is not null && historyIds.Add(history.HistoryId))
+					series.BindingHistories.Add(history);
+
 				return series;
 			},
 			parameters,
-			splitOn: "SourceId,TagId");
+			splitOn: "SourceId,TagId,HistoryId");
+
+		foreach (var series in seriesList)
+			series.BindingHistories.Sort((x, y) => y.HistoryId.CompareTo(x.HistoryId));
 
 		return seriesList;
 	}
@@ -745,6 +770,14 @@ public class MangaRepository
             deleteBindingHistorySql.AppendLine(" SeriesId = :SeriesId; ");
 
             await connection.ExecuteAsync(deleteBindingHistorySql.ToString(), new { SeriesId = seriesId }, transaction);
+
+            // 4.6. BindingSettings を削除
+            var deleteBindingSettingsSql = new StringBuilder();
+            deleteBindingSettingsSql.AppendLine(" DELETE FROM BindingSettings ");
+            deleteBindingSettingsSql.AppendLine(" WHERE ");
+            deleteBindingSettingsSql.AppendLine(" SeriesId = :SeriesId; ");
+
+            await connection.ExecuteAsync(deleteBindingSettingsSql.ToString(), new { SeriesId = seriesId }, transaction);
 
             // 5. MangaSeries を削除
             var deleteSeriesSql = new StringBuilder();

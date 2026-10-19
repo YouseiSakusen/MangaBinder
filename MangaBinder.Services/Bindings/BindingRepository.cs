@@ -35,8 +35,8 @@ public class BindingRepository
 	/// 1. MangaSeries.BoundEndVolume の更新（DB保存値より大きい場合のみ）
 	/// 2. removeFromBindingQueue が true の場合、BindingQueue から該当行を削除
 	/// 3. BindingHistory の登録（StartVolume / EndVolume / BoundAt を含む）
-	/// 4. 新しい HistoryId に紐付く BindingSettings の登録
-	/// 5. SeriesId + StartVolume ごとに最新3件（HistoryId 降順）以外の BindingSettings と BindingHistory を削除
+	/// 4. BindingSettings を SeriesId 単位で UPSERT（最新の HistoryId・SettingsJson・UpdatedAt を保存）
+	/// 5. SeriesId + StartVolume ごとに最新3件（HistoryId 降順）以外の BindingHistory を削除
 	/// 6. 全処理成功後に Commit
 	/// 
 	/// 途中で例外が発生した場合は Rollback し、例外を呼び出し元へ伝播します。
@@ -156,50 +156,31 @@ public class BindingRepository
 				selectHistorySql.ToString(),
 				transaction: transaction);
 
-			// 4. 新しい HistoryId に紐付く BindingSettings の INSERT（UpdatedAt は DB の DEFAULT 値を使用）
-			var insertBindingSettingsSql = new StringBuilder();
-			insertBindingSettingsSql.AppendLine(" INSERT INTO BindingSettings ( ");
-			insertBindingSettingsSql.AppendLine(" 	  HistoryId ");
-			insertBindingSettingsSql.AppendLine(" 	, SettingsJson ");
-			insertBindingSettingsSql.AppendLine(" ) VALUES ( ");
-			insertBindingSettingsSql.AppendLine(" 	  :HistoryId ");
-			insertBindingSettingsSql.AppendLine(" 	, :SettingsJson ");
-			insertBindingSettingsSql.AppendLine(" ); ");
+			// 4. BindingSettings の UPSERT（SeriesId 単位で1件。UpdatedAt は INSERT・UPDATE とも保存時点）
+			var upsertBindingSettingsSql = new StringBuilder();
+			upsertBindingSettingsSql.AppendLine(" INSERT INTO BindingSettings ( ");
+			upsertBindingSettingsSql.AppendLine(" 	  SeriesId ");
+			upsertBindingSettingsSql.AppendLine(" 	, HistoryId ");
+			upsertBindingSettingsSql.AppendLine(" 	, SettingsJson ");
+			upsertBindingSettingsSql.AppendLine(" 	, UpdatedAt ");
+			upsertBindingSettingsSql.AppendLine(" ) VALUES ( ");
+			upsertBindingSettingsSql.AppendLine(" 	  :SeriesId ");
+			upsertBindingSettingsSql.AppendLine(" 	, :HistoryId ");
+			upsertBindingSettingsSql.AppendLine(" 	, :SettingsJson ");
+			upsertBindingSettingsSql.AppendLine(" 	, DATETIME('now', 'localtime') ");
+			upsertBindingSettingsSql.AppendLine(" ) ");
+			upsertBindingSettingsSql.AppendLine(" ON CONFLICT(SeriesId) DO UPDATE SET ");
+			upsertBindingSettingsSql.AppendLine(" 	  HistoryId = excluded.HistoryId ");
+			upsertBindingSettingsSql.AppendLine(" 	, SettingsJson = excluded.SettingsJson ");
+			upsertBindingSettingsSql.AppendLine(" 	, UpdatedAt = excluded.UpdatedAt; ");
 
 			await connection.ExecuteAsync(
-				insertBindingSettingsSql.ToString(),
-				new
-				{
-					savedHistory.HistoryId,
-					SettingsJson = bindingSettingsJson,
-				},
-				transaction);
-
-			// 5. SeriesId + StartVolume ごとに最新3件以外となる履歴の BindingSettings を削除
-			var deleteOldSettingsSql = new StringBuilder();
-			deleteOldSettingsSql.AppendLine(" DELETE FROM BindingSettings ");
-			deleteOldSettingsSql.AppendLine(" WHERE ");
-			deleteOldSettingsSql.AppendLine(" 	HistoryId IN ( ");
-			deleteOldSettingsSql.AppendLine(" 		SELECT HistoryId FROM BindingHistory ");
-			deleteOldSettingsSql.AppendLine(" 		WHERE ");
-			deleteOldSettingsSql.AppendLine(" 				SeriesId = :SeriesId ");
-			deleteOldSettingsSql.AppendLine(" 			AND StartVolume = :StartVolume ");
-			deleteOldSettingsSql.AppendLine(" 			AND HistoryId NOT IN ( ");
-			deleteOldSettingsSql.AppendLine(" 				SELECT HistoryId FROM BindingHistory ");
-			deleteOldSettingsSql.AppendLine(" 				WHERE ");
-			deleteOldSettingsSql.AppendLine(" 						SeriesId = :SeriesId ");
-			deleteOldSettingsSql.AppendLine(" 					AND StartVolume = :StartVolume ");
-			deleteOldSettingsSql.AppendLine(" 				ORDER BY HistoryId DESC ");
-			deleteOldSettingsSql.AppendLine(" 				LIMIT 3 ");
-			deleteOldSettingsSql.AppendLine(" 			) ");
-			deleteOldSettingsSql.AppendLine(" 	); ");
-
-			await connection.ExecuteAsync(
-				deleteOldSettingsSql.ToString(),
+				upsertBindingSettingsSql.ToString(),
 				new
 				{
 					SeriesId = series.SeriesId,
-					savedHistory.StartVolume,
+					savedHistory.HistoryId,
+					SettingsJson = bindingSettingsJson,
 				},
 				transaction);
 

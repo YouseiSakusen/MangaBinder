@@ -324,11 +324,13 @@ public class BindingManager
 		{
 			// CreateZip == true: ZIP を作成
 			// 出力 ZIP ファイルのフルパスを決定する
-			outputFilePath = this.buildOutputFilePath();
-			if (string.IsNullOrEmpty(outputFilePath))
+			var builtOutputFilePath = this.buildOutputFilePath();
+			if (string.IsNullOrEmpty(builtOutputFilePath))
 			{
 				throw new InvalidOperationException("出力ファイルパスを決定できません。DefaultBindingFolderPath または ZipOutputFileName が未設定です。");
 			}
+
+			outputFilePath = builtOutputFilePath;
 
 			// BindingArchiver.CreateAsync() を呼び出して ZIP を作成する
 			await bindingArchiver.CreateAsync(volumes, outputFilePath, allowOverwrite, cancellationToken);
@@ -376,6 +378,7 @@ public class BindingManager
 
 		// 8. BindingRepository の DB 更新が正常終了した後でのみ、正本 MangaSeries を更新する
 		bindingSeries.Series.BoundEndVolume = clonedSeries.BoundEndVolume;
+		bindingSeries.Series.HasBindingSettings = true;
 
 		var histories = bindingSeries.Series.BindingHistories;
 		histories.Add(savedHistory);
