@@ -1,12 +1,82 @@
-﻿<UserControl x:Class="MangaBinder.Controls.BindingHistoryList"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:local="clr-namespace:MangaBinder.Controls"
-             mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
-    <Grid>
-            
-    </Grid>
+<UserControl x:Class="MangaBinder.Controls.BindingHistoryList"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+			 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+			 xmlns:hg="clr-namespace:HalationGhost.Wpf.Ui.Controls;assembly=HalationGhost.Wpf.Ui"
+			 xmlns:local="clr-namespace:MangaBinder.Controls"
+			 mc:Ignorable="d" 
+			 d:DesignHeight="450" d:DesignWidth="240">
+	<ui:Card x:Name="HistoryCard"
+			 Margin="0,5,0,0"
+			 Padding="12,12"
+			 VerticalAlignment="Top">
+		<ui:Card.Style>
+			<Style TargetType="ui:Card" BasedOn="{StaticResource {x:Type ui:Card}}">
+				<Setter Property="Visibility" Value="Collapsed" />
+				<Style.Triggers>
+					<DataTrigger Binding="{Binding HasHistory.Value}" Value="True">
+						<Setter Property="Visibility" Value="Visible" />
+					</DataTrigger>
+				</Style.Triggers>
+			</Style>
+		</ui:Card.Style>
+		<StackPanel>
+			<TextBlock
+				Text="製本履歴"
+				FontSize="12"
+				FontWeight="SemiBold"
+				Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+				Margin="0,0,0,8" />
+			<ListView x:Name="HistoryListView"
+					  ItemsSource="{Binding HistoryView.Value}"
+					  BorderThickness="0"
+					  Background="Transparent"
+					  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+					  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+					  ScrollViewer.VerticalScrollBarVisibility="Auto">
+				<ListView.ItemContainerStyle>
+					<Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
+						<Setter Property="Focusable" Value="False" />
+					</Style>
+				</ListView.ItemContainerStyle>
+				<ListView.GroupStyle>
+					<GroupStyle>
+						<GroupStyle.HeaderTemplate>
+							<DataTemplate>
+								<TextBlock Text="{Binding Name}"
+										   FontSize="11"
+										   FontWeight="SemiBold"
+										   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+										   Margin="0,4,0,2" />
+							</DataTemplate>
+						</GroupStyle.HeaderTemplate>
+					</GroupStyle>
+				</ListView.GroupStyle>
+				<ListView.View>
+					<GridView>
+						<GridViewColumn Header="ファイル名" Width="200">
+							<GridViewColumn.CellTemplate>
+								<DataTemplate>
+									<hg:ElfEllipsisTextBlock
+										SourceText="{Binding FileName}"
+										EllipsisMode="Start"
+										FontSize="11"
+										ToolTip="{Binding FileName}" />
+								</DataTemplate>
+							</GridViewColumn.CellTemplate>
+						</GridViewColumn>
+						<GridViewColumn Header="製本日時" Width="110">
+							<GridViewColumn.CellTemplate>
+								<DataTemplate>
+									<TextBlock Text="{Binding BoundAtText}" FontSize="11" />
+								</DataTemplate>
+							</GridViewColumn.CellTemplate>
+						</GridViewColumn>
+					</GridView>
+				</ListView.View>
+			</ListView>
+		</StackPanel>
+	</ui:Card>
 </UserControl>

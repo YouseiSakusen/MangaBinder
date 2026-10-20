@@ -82,6 +82,10 @@ public static class ImageSplitterPageInitializeBehavior
 		var listScrollViewer = FindDescendant<ScrollViewer>(listView);
 		listScrollViewer?.ScrollToVerticalOffset(0);
 		listScrollViewer?.ScrollToHorizontalOffset(0);
+
+		page.Dispatcher.InvokeAsync(
+			() => FindDescendant<BindingHistoryList>(page)?.ResetScrollPosition(),
+			System.Windows.Threading.DispatcherPriority.ContextIdle);
 	}
 
 	/// <summary>

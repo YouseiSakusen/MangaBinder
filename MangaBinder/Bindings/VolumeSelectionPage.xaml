@@ -19,6 +19,7 @@
 	  Title="巻選択"
 	  ui:NavigationView.HeaderContent="巻選択"
 	  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+	  behaviors:VolumeSelectionInitializeBehavior.IsEnabled="True"
 	  ScrollViewer.CanContentScroll="False">
 
 	<Page.Resources>
@@ -307,6 +308,7 @@
 
 					<!-- Row 1: 素材TreeView -->
 					<TreeView
+						x:Name="MaterialTreeView"
 						Grid.Row="1"
 						ItemsSource="{Binding MaterialItems}"
 						ItemTemplate="{StaticResource NodeTemplate}"
@@ -317,7 +319,6 @@
 						VirtualizingPanel.IsVirtualizing="False"
 						ScrollViewer.VerticalScrollBarVisibility="Auto"
 						ScrollViewer.HorizontalScrollBarVisibility="Auto"
-						behaviors:VolumeSelectionInitializeBehavior.IsEnabled="True"
 						behaviors:TreeViewSpaceKeyBehavior.IsEnabled="True"
 						behaviors:TreeViewSpaceKeyBehavior.Command="{Binding ToggleMaterialSelectionCommand}"
 						behaviors:TreeViewNodeClickToggleCheckBehavior.IsEnabled="True"
@@ -385,13 +386,13 @@
 
 						<!-- ─ Row 2: ListViewデータ行 ─ -->
 						<ListView
+							x:Name="SelectedVolumesListView"
 							Grid.Row="2"
 							ItemsSource="{Binding BindingVolumes}"
 							SelectedItem="{Binding SelectedBindingVolume.Value, Mode=TwoWay}"
 							BorderThickness="0"
 							Background="Transparent"
 							Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-							behaviors:VolumeSelectionInitializeBehavior.IsEnabled="True"
 							dd:DragDrop.IsDragSource="True"
 							dd:DragDrop.IsDropTarget="True"
 							dd:DragDrop.DropHandler="{Binding BindingVolumeDropHandler}"

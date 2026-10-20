@@ -70,6 +70,10 @@ public static class SeriesInspectionPageInitializeBehavior
 		var scrollViewer = (ScrollViewer)page.FindName("SettingsScrollViewer");
 		scrollViewer.ScrollToVerticalOffset(0);
 		scrollViewer.ScrollToHorizontalOffset(0);
+
+		page.Dispatcher.InvokeAsync(
+			() => FindDescendant<MangaBinder.Controls.BindingHistoryList>(page)?.ResetScrollPosition(),
+			System.Windows.Threading.DispatcherPriority.ContextIdle);
 	}
 
 	/// <summary>

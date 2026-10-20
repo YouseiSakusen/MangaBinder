@@ -107,6 +107,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<ArchiveCompareCoordinator>();
 		services.AddScoped<SeriesMemoManager>();
 		services.AddTransient<MemoEditButtonViewModel>();
+		services.AddTransient<BindingHistoryListViewModel>();
 		services.AddScoped<SeriesInspectionManager>();
 		services.AddScoped<SplitImageProcessor>();
 		services.AddScoped<ImageSplitterManager>();

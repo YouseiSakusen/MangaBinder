@@ -211,16 +211,24 @@
 										<RowDefinition Height="Auto" />
 										<!-- Row 1: 画面固有の追加コンテンツ -->
 										<RowDefinition Height="Auto" />
-										<!-- Row 2: 製本履歴（予定） -->
+										<!-- Row 2: 製本履歴 -->
 										<RowDefinition Height="Auto" />
 									</Grid.RowDefinitions>
 
 									<controls:MangaSeriesCard Grid.Row="0" DataContext="{Binding MangaSeriesCard}" />
 									<ContentPresenter Grid.Row="1" Content="{TemplateBinding AdditionalLeftContent}" />
+									<Grid x:Name="BindingHistoryHost" Grid.Row="2">
+										<controls:BindingHistoryList SeriesViewModel="{Binding BindingTargetViewModel.Value}" />
+									</Grid>
 								</Grid>
 							</controls:PageLayout.LeftContent>
 						</controls:PageLayout>
 					</Grid>
+					<ControlTemplate.Triggers>
+						<Trigger Property="ShowBindingHistory" Value="False">
+							<Setter TargetName="BindingHistoryHost" Property="Visibility" Value="Collapsed" />
+						</Trigger>
+					</ControlTemplate.Triggers>
 				</ControlTemplate>
 			</Setter.Value>
 		</Setter>

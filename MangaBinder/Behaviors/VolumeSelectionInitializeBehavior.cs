@@ -1,3 +1,4 @@
+using MangaBinder.Controls;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -56,45 +57,45 @@ public static class VolumeSelectionInitializeBehavior
 	/// </summary>
 	private static void OnLoaded(object sender, RoutedEventArgs e)
 	{
-		if (sender is not FrameworkElement element)
+		if (sender is not FrameworkElement page)
 			return;
 
-		// Dispatcher.InvokeAsync で ScrollViewer が利用可能になったタイミングで初期化を実行
-		element.Dispatcher.InvokeAsync(() =>
-		{
-			var scrollViewer = FindScrollViewer(element);
-			if (scrollViewer == null)
-				return;
+		if (System.ComponentModel.DesignerProperties.GetIsInDesignMode(page))
+			return;
 
-			// スクロール位置を先頭へリセット
-			scrollViewer.ScrollToVerticalOffset(0);
-			scrollViewer.ScrollToHorizontalOffset(0);
+		// Dispatcher.InvokeAsync でテンプレート生成後のタイミングで初期化を実行
+		page.Dispatcher.InvokeAsync(() =>
+		{
+			resetScroll((DependencyObject)page.FindName("MaterialTreeView"));
+			resetScroll((DependencyObject)page.FindName("SelectedVolumesListView"));
+			FindDescendant<BindingHistoryList>(page)?.ResetScrollPosition();
 		}, DispatcherPriority.ContextIdle);
 	}
 
 	/// <summary>
-	/// Visual Tree から内部の ScrollViewer を探します。
+	/// 指定コントロール内部の ScrollViewer を先頭へ戻します。
 	/// </summary>
-	/// <param name="element">検索対象となる要素。</param>
-	/// <returns>見つかった ScrollViewer、見つからない場合は null。</returns>
-	private static ScrollViewer? FindScrollViewer(DependencyObject element)
+	private static void resetScroll(DependencyObject control)
 	{
-		// 子要素をたどって ScrollViewer を探す
-		for (int i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++)
+		var scrollViewer = FindDescendant<ScrollViewer>(control);
+		scrollViewer?.ScrollToVerticalOffset(0);
+		scrollViewer?.ScrollToHorizontalOffset(0);
+	}
+
+	/// <summary>
+	/// Visual Tree から最初に見つかった指定型の子孫を取得します。
+	/// </summary>
+	private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+	{
+		for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
 		{
-			var child = VisualTreeHelper.GetChild(element, i);
+			var child = VisualTreeHelper.GetChild(root, i);
+			if (child is T match)
+				return match;
 
-			if (child is ScrollViewer scrollViewer)
-			{
-				return scrollViewer;
-			}
-
-			// 子要素を再帰的に探索
-			var found = FindScrollViewer(child);
-			if (found != null)
-			{
-				return found;
-			}
+			var nested = FindDescendant<T>(child);
+			if (nested is not null)
+				return nested;
 		}
 
 		return null;
