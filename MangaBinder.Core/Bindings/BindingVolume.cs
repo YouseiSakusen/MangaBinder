@@ -11,8 +11,11 @@ public class BindingVolume : IDisposable
 {
 	private DisposableBag disposableBag;
 
+	/// <summary>Work側画像の合計ファイルサイズ（内部状態）。</summary>
+	private readonly BindableReactiveProperty<long> imageTotalBytes;
+
 	/// <summary>
-	/// BindingImage をファイル名でアルファベット順（OrdinalIgnoreCase）に比較するためのコンパレーターです。
+	/// BindingImage をファイル名
 	/// Inspect() メソッド内で Images の並び替えに使用します。
 	/// </summary>
 	private static readonly IComparer<BindingImage> fileNameComparer =
@@ -106,6 +109,12 @@ public class BindingVolume : IDisposable
 	public int LandscapeImageCount { get; private set; }
 
 	/// <summary>
+	/// この巻のWork側画像（BindingImage.WorkFileSize）の合計バイト数を取得します。
+	/// WorkFileSize が null の画像は 0 として集計されます。Inspect() が更新します。
+	/// </summary>
+	public IReadOnlyBindableReactiveProperty<long> ImageTotalBytes { get; }
+
+	/// <summary>
 	/// この巻の EPUB 展開時に発生した既知エラーを取得または設定します。
 	/// EPUB 素材でない場合、またはエラーが発生していない場合は None です。
 	/// 初期値は EpubExtractionError.None です。
@@ -159,6 +168,9 @@ public class BindingVolume : IDisposable
 		this.HasSubFolder = false;
 		this.ImageFileCount = 0;
 		this.LandscapeImageCount = 0;
+		this.imageTotalBytes = new BindableReactiveProperty<long>(0L)
+			.AddTo(ref this.disposableBag);
+		this.ImageTotalBytes = this.imageTotalBytes;
 		this.EpubExtractionError = EpubExtractionError.None;
 		this.EpubExtractionWarnings = EpubExtractionWarning.None;
 		this.EpubExtractionErrorMessage = null;
@@ -183,6 +195,7 @@ public class BindingVolume : IDisposable
 		clone.HasSubFolder = this.HasSubFolder;
 		clone.ImageFileCount = this.ImageFileCount;
 		clone.LandscapeImageCount = this.LandscapeImageCount;
+		clone.imageTotalBytes.Value = this.imageTotalBytes.Value;
 		clone.EpubExtractionError = this.EpubExtractionError;
 		clone.EpubExtractionWarnings = this.EpubExtractionWarnings;
 		clone.EpubExtractionErrorMessage = this.EpubExtractionErrorMessage;
@@ -374,6 +387,9 @@ public class BindingVolume : IDisposable
 		// ③ LandscapeImageCount: Images のうち IsLandscape == true の BindingImage 件数
 		this.LandscapeImageCount = this.Images
 			.Count(img => img.IsLandscape);
+
+		this.imageTotalBytes.Value =
+			this.Images.Sum(image => image.WorkFileSize ?? 0L);
 
 		// ④ HasImageProcessingError: エラー状態の画像が存在するか判定
 		this.HasImageProcessingError = this.Images.Any(img =>

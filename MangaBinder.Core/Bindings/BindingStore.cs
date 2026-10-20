@@ -176,6 +176,12 @@ public class BindingStore : IDisposable
 	public IReadOnlyBindableReactiveProperty<long> SelectedVolumeTotalImageBytes { get; }
 
 	/// <summary>
+	/// BindingVolumes に含まれる全巻のWork側画像合計サイズ（バイト）を取得します。
+	/// 各 BindingVolume.ImageTotalBytes と BindingVolumes の変更に追従して自動更新されます。
+	/// </summary>
+	public IReadOnlyBindableReactiveProperty<long> ImageTotalBytes { get; }
+
+	/// <summary>
 	/// 次工程へ進めるかどうかを取得します。
 	/// BindingVolumes に1件以上の要素が存在する場合に true になります。
 	/// BindingVolumes の変更に追従して自動更新されます。
@@ -348,6 +354,20 @@ public class BindingStore : IDisposable
 
 		// BindingVolumes の CollectionChanged を購読して自動更新
 		this.BindingVolumes.CollectionChanged += this.onBindingVolumesCollectionChangedForSize;
+
+		this.ImageTotalBytes = this.BindingVolumes
+			.ObserveChanged()
+			.Select(_ => Unit.Default)
+			.Prepend(Unit.Default)
+			.Select(_ => this.BindingVolumes.Count == 0
+				? Observable.Return(0L)
+				: Observable.CombineLatest(
+					this.BindingVolumes.Select(
+						volume => volume.ImageTotalBytes.AsObservable()))
+					.Select(sizes => sizes.Sum()))
+			.Switch()
+			.ToReadOnlyBindableReactiveProperty(0L)
+			.AddTo(ref this.disposableBag);
 
 		// 次へ進めるかどうかの派生状態を初期化（private フィールド経由）
 		this.canGoNext = new BindableReactiveProperty<bool>(false)

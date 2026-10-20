@@ -47,6 +47,9 @@ public class SeriesInspectionPageViewModel : BindingPageViewModelBase, IDataInit
 	/// <summary>選択済み巻数テキスト（「XX巻」形式）を取得します。</summary>
 	public IReadOnlyBindableReactiveProperty<string> SelectedVolumeCountText => this.bindingStore.SelectedVolumeCountText;
 
+	/// <summary>製本対象全巻のWork側画像合計サイズ（バイト）。</summary>
+	public IReadOnlyBindableReactiveProperty<long> ImageTotalBytes => this.bindingStore.ImageTotalBytes;
+
 	/// <summary>製本完了後に対象作品を製本待ちから削除するかどうかを取得します。</summary>
 	public BindableReactiveProperty<bool> RemoveFromBindingQueueAfterCompletion => this.bindingStore.RemoveFromBindingQueueAfterCompletion;
 

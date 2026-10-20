@@ -9,6 +9,7 @@
 	  xmlns:bindings="clr-namespace:MangaBinder.Bindings"
 	  xmlns:controls="clr-namespace:MangaBinder.Controls"
 	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
+	  xmlns:converters="clr-namespace:MangaBinder.Converters"
 	  mc:Ignorable="d"
 	  x:Name="ThisPage"
 	  behaviors:SeriesInspectionPageInitializeBehavior.IsEnabled="True"
@@ -22,6 +23,8 @@
 
 		<!-- BooleanToVisibilityConverter -->
 		<BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+		<converters:BytesToDisplaySizeConverter x:Key="BytesToDisplaySizeConverter" />
 
 		<!-- 巻カード ItemTemplate -->
 		<DataTemplate x:Key="VolumeCardTemplate" DataType="{x:Type local:VolumeCardViewModel}">
@@ -63,13 +66,32 @@
 						</Grid.RowDefinitions>
 
 						<!-- Row0：巻数 / 巻フォルダ名 -->
-						<TextBlock
+						<StackPanel
 							Grid.Row="0"
-							Text="{Binding VolumeFolderName.Value, Mode=OneWay}"
-							FontSize="13"
-							FontWeight="SemiBold"
+							Orientation="Horizontal"
 							VerticalAlignment="Center"
-							Margin="0,0,0,6" />
+							Margin="0,0,0,6">
+							<TextBlock
+								Text="{Binding VolumeFolderName.Value, Mode=OneWay}"
+								FontSize="13"
+								FontWeight="SemiBold"
+								VerticalAlignment="Center" />
+							<TextBlock
+								Text="（"
+								FontSize="13"
+								FontWeight="SemiBold"
+								VerticalAlignment="Center" />
+							<TextBlock
+								Text="{Binding Volume.Value.ImageTotalBytes.Value, Converter={StaticResource BytesToDisplaySizeConverter}, Mode=OneWay}"
+								FontSize="13"
+								FontWeight="SemiBold"
+								VerticalAlignment="Center" />
+							<TextBlock
+								Text="）"
+								FontSize="13"
+								FontWeight="SemiBold"
+								VerticalAlignment="Center" />
+						</StackPanel>
 
 						<!-- Row1：画像数 -->
 						<StackPanel
@@ -176,8 +198,8 @@
 			RightColumnWidth="*"
 			IsMainRightSplitterEnabled="True"
 			EyecatchSymbol="ClipboardCheckmark24"
-			EyecatchTitle="製本対象"
-			EyecatchValueText="{Binding SelectedVolumeCountText.Value}">
+			EyecatchTitle="製本対象サイズ"
+			EyecatchValueText="{Binding ImageTotalBytes.Value, Converter={StaticResource BytesToDisplaySizeConverter}, Mode=OneWay}">
 
 			<bindings:BindingPageLayout.TopContent>
 				<Grid>
