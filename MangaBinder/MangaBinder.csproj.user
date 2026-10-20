@@ -17,6 +17,9 @@
     <Compile Update="Controls\BindingCancelDialogContent.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="Controls\BindingHistoryList.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Update="Controls\DeveloperMaintenanceDialogContent.xaml.cs">
       <SubType>Code</SubType>
     </Compile>

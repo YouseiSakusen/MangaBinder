@@ -111,10 +111,13 @@ public class ElfEllipsisTextBlock : TextBlock
 	private void updateText()
 	{
 		var source = this.SourceText ?? string.Empty;
-		var available = this.ActualWidth - this.Padding.Left - this.Padding.Right;
 
-		// レイアウト前は全文を設定し、SizeChanged で再計算する
-		var result = this.ActualWidth > 0 ? this.buildText(source, available) : source;
+		var width = double.IsNaN(this.Width) ? this.ActualWidth : this.Width;
+		var available = width - this.Padding.Left - this.Padding.Right;
+
+		var result = width > 0
+			? this.buildText(source, available)
+			: source;
 
 		if (this.Text != result)
 		{
