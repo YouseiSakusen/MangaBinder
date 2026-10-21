@@ -2,6 +2,7 @@ using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Helpers;
 using MangaBinder.Settings;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MangaBinder.Bindings;
 
@@ -14,18 +15,22 @@ public class VolumeSelectionManager
 	private readonly BindingStore bindingStore;
 	private readonly SeriesMaterialFolderLoader materialFolderLoader;
 	private readonly AppSettings appSettings;
+	private readonly IServiceScopeFactory serviceScopeFactory;
 
 	/// <summary>
-	/// <see cref="VolumeSelectionManager"/> の新しいインスタンスを初期化します。
+	/// <see cref="VolumeSelectionManager"/>
 	/// </summary>
 	/// <param name="bindingStore">製本工程の正本状態ストア。</param>
 	/// <param name="materialFolderLoader">素材フォルダ解析サービス。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
+	/// <param name="serviceScopeFactory">選択解除時に BindingManager を取得するためのスコープファクトリー。</param>
 	public VolumeSelectionManager(
 		BindingStore bindingStore,
 		SeriesMaterialFolderLoader materialFolderLoader,
-		AppSettings appSettings)
+		AppSettings appSettings,
+		IServiceScopeFactory serviceScopeFactory)
 	{
+		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
 		this.bindingStore = bindingStore ?? throw new ArgumentNullException(nameof(bindingStore));
 		this.materialFolderLoader = materialFolderLoader ?? throw new ArgumentNullException(nameof(materialFolderLoader));
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
@@ -176,49 +181,10 @@ public class VolumeSelectionManager
 			throw new ArgumentNullException(nameof(material));
 		}
 
-		// BindingVolume を検索
-		var volume = this.FindBindingVolumeByMaterial(material);
-
-		// BindingVolume が存在する場合は削除・破棄
-		if (volume is not null)
-		{
-			// 展開済みの場合は、論理状態の変更前に Work 巻フォルダを削除する（失敗時は例外で論理状態を維持）
-			if (volume.RequiresUnselectCleanup)
-			{
-				await this.deleteWorkVolumeFolderAsync(volume);
-			}
-
-			this.bindingStore.BindingVolumes.Remove(volume);
-			volume.Dispose();
-			this.invalidateCompletedState();
-		}
-
-		// IsChecked を false に設定（Store内の不整合を残さない）
-		material.IsChecked.Value = false;
-	}
-
-	/// <summary>
-	/// 展開済み BindingVolume の Work 巻フォルダを削除します。
-	/// フォルダが既に存在しない場合は削除済みとして扱います。
-	/// </summary>
-	/// <param name="volume">対象の BindingVolume。</param>
-	/// <exception cref="InvalidOperationException">WorkFolderPath が未設定の場合。</exception>
-	private async ValueTask deleteWorkVolumeFolderAsync(BindingVolume volume)
-	{
-		if (string.IsNullOrWhiteSpace(volume.WorkFolderPath))
-		{
-			throw new InvalidOperationException(
-				"展開済みの BindingVolume に WorkFolderPath が設定されていないため、削除対象の Work 巻フォルダを特定できません。");
-		}
-
-		var workFolderPath = volume.WorkFolderPath;
-		await Task.Run(() =>
-		{
-			if (Directory.Exists(workFolderPath))
-			{
-				Directory.Delete(workFolderPath, recursive: true);
-			}
-		});
+		// 選択解除時のみ Scope を生成して BindingManager へ委譲する
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var bindingManager = scope.ServiceProvider.GetRequiredService<BindingManager>();
+		await bindingManager.UnselectMaterialAsync(material, true);
 	}
 
 	/// <summary>

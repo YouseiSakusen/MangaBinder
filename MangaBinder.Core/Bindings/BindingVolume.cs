@@ -35,6 +35,11 @@ public class BindingVolume : IDisposable
 	public BindableReactiveProperty<decimal?> VolumeNumber { get; }
 
 	/// <summary>
+	/// 今回の製本でこの巻を使用するかを取得または設定します。初期値は true です。
+	/// </summary>
+	public BindableReactiveProperty<bool> IsBinding { get; }
+
+	/// <summary>
 	/// 今回の製本で実際に使用する入力元パスを取得します。
 	/// Material.EffectiveSourceType が WorkFolder の場合は this.WorkFolderPath を返し、
 	/// それ以外の場合は Material.SourcePath を返します。
@@ -161,10 +166,11 @@ public class BindingVolume : IDisposable
 		this.Material = material ?? throw new ArgumentNullException(nameof(material));
 		this.VolumeNumber = new BindableReactiveProperty<decimal?>(null)
 			.AddTo(ref this.disposableBag);
+		this.IsBinding = new BindableReactiveProperty<bool>(true)
+			.AddTo(ref this.disposableBag);
 		this.WorkFolderPath = null;
 		this.Images = new ObservableList<BindingImage>();
-		this.HasImageFileNameConflict = false;
-		this.HasImageProcessingError = false;
+		this.HasImageFileNameConflict = false;		this.HasImageProcessingError = false;
 		this.HasSubFolder = false;
 		this.ImageFileCount = 0;
 		this.LandscapeImageCount = 0;
@@ -187,6 +193,7 @@ public class BindingVolume : IDisposable
 	{
 		var clone = new BindingVolume(this.Material, this.SplitSettings.CloneForImageSplitter());
 		clone.VolumeNumber.Value = this.VolumeNumber.Value;
+		clone.IsBinding.Value = this.IsBinding.Value;
 		clone.WorkFolderPath = this.WorkFolderPath;
 		clone.HasImageFileNameConflict = this.HasImageFileNameConflict;
 		clone.HasImageProcessingError = this.HasImageProcessingError;
@@ -314,6 +321,7 @@ public class BindingVolume : IDisposable
 		return new BindingVolumeDto
 		{
 			VolumeNumber = this.VolumeNumber.Value,
+			IsBinding = this.IsBinding.Value,
 			Material = new MaterialItemDto
 			{
 				ItemType = this.Material.ItemType,

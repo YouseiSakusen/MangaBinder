@@ -89,7 +89,70 @@ public class BindingManager
 	}
 
 	/// <summary>
-	/// ZIP ファイル名の初期値を生成して BindingStore に設定します。
+	/// 指定した MaterialItem に対応する BindingVolume を BindingStore.BindingVolumes から削除し、
+	/// Material.IsChecked を false に設定します。
+	/// BindingVolume が存在しない場合でも IsChecked は false に設定します。
+	/// </summary>
+	/// <param name="material">選択解除対象の MaterialItem。</param>
+	/// <param name="invalidateCompletedState">
+	/// true の場合、BindingVolume を削除したときに VolumeSelectionCompleted / SeriesInspectionCompleted を false にします。
+	/// </param>
+	/// <exception cref="ArgumentNullException">material が null の場合。</exception>
+	public async ValueTask UnselectMaterialAsync(MaterialItem material, bool invalidateCompletedState)
+	{
+		ArgumentNullException.ThrowIfNull(material);
+
+		var volume = this.bindingStore.BindingVolumes
+			.FirstOrDefault(v => ReferenceEquals(v.Material, material));
+
+		if (volume is not null)
+		{
+			// 展開済みの場合は、論理状態の変更前に Work 巻フォルダを削除する（失敗時は例外で論理状態を維持）
+			if (volume.RequiresUnselectCleanup)
+			{
+				await this.deleteWorkVolumeFolderAsync(volume);
+			}
+
+			this.bindingStore.BindingVolumes.Remove(volume);
+			volume.Dispose();
+
+			if (invalidateCompletedState)
+			{
+				this.bindingStore.VolumeSelectionCompleted.Value = false;
+				this.bindingStore.SeriesInspectionCompleted.Value = false;
+			}
+		}
+
+		// IsChecked を false に設定（Store内の不整合を残さない）
+		material.IsChecked.Value = false;
+	}
+
+	/// <summary>
+	/// 展開済み BindingVolume の Work 巻フォルダを削除します。
+	/// フォルダが既に存在しない場合は削除済みとして扱います。
+	/// </summary>
+	/// <param name="volume">対象の BindingVolume。</param>
+	/// <exception cref="InvalidOperationException">WorkFolderPath が未設定の場合。</exception>
+	private async ValueTask deleteWorkVolumeFolderAsync(BindingVolume volume)
+	{
+		if (string.IsNullOrWhiteSpace(volume.WorkFolderPath))
+		{
+			throw new InvalidOperationException(
+				"展開済みの BindingVolume に WorkFolderPath が設定されていないため、削除対象の Work 巻フォルダを特定できません。");
+		}
+
+		var workFolderPath = volume.WorkFolderPath;
+		await Task.Run(() =>
+		{
+			if (Directory.Exists(workFolderPath))
+			{
+				Directory.Delete(workFolderPath, recursive: true);
+			}
+		});
+	}
+
+	/// <summary>
+	/// ZIP ファイル名の初期値を生成して
 	/// 既に ZipOutputFileName が空ではない場合は上書きしません。
 	/// </summary>
 	public void InitializeZipOutputFileName()

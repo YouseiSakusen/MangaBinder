@@ -29,17 +29,35 @@
 		<!-- 巻カード ItemTemplate -->
 		<DataTemplate x:Key="VolumeCardTemplate" DataType="{x:Type local:VolumeCardViewModel}">
 			<ui:Card Margin="0,0,0,6" Padding="12,8">
-				<!-- 3列 × 1行 Grid -->
+				<!-- 4列 × 1行 Grid -->
 				<Grid>
 					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="44" />
 						<ColumnDefinition Width="Auto" />
 						<ColumnDefinition Width="*" />
 						<ColumnDefinition Width="Auto" />
 					</Grid.ColumnDefinitions>
 
-					<!-- Column0：左列 - サムネイル領域 -->
-					<Border
+					<!-- Column0：製本チェックボックス -->
+					<StackPanel
 						Grid.Column="0"
+						VerticalAlignment="Center"
+						HorizontalAlignment="Center">
+						<TextBlock
+							Text="製本"
+							FontSize="10"
+							Opacity="0.6"
+							HorizontalAlignment="Center"
+							Margin="0,0,0,4" />
+						<CheckBox
+							IsChecked="{Binding Volume.Value.IsBinding.Value, Mode=TwoWay}"
+							HorizontalAlignment="Center"
+							ToolTip="製本対象に含める" />
+					</StackPanel>
+
+					<!-- Column1：サムネイル領域 -->
+					<Border
+						Grid.Column="1"
 						Width="80"
 						Height="112"
 						CornerRadius="4"
@@ -53,9 +71,9 @@
 							RenderOptions.BitmapScalingMode="LowQuality" />
 					</Border>
 
-					<!-- Column1：中央列 - Inspection情報 -->
+					<!-- Column2：中央列 - Inspection情報 -->
 					<Grid
-						Grid.Column="1"
+						Grid.Column="2"
 						Margin="0,0,12,0">
 						<Grid.RowDefinitions>
 							<RowDefinition Height="Auto" />
@@ -173,9 +191,9 @@
 						</StackPanel>
 					</Grid>
 
-					<!-- Column2：右列 - 見開き分割へ進むボタン -->
+					<!-- Column3：右列 - 見開き分割へ進むボタン -->
 					<ui:Button
-						Grid.Column="2"
+						Grid.Column="3"
 						Style="{StaticResource CardNavigateButtonStyle}"
 						VerticalAlignment="Center"
 						ToolTip="見開き分割"
