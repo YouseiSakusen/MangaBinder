@@ -234,26 +234,8 @@ public class SeriesInspectionManager
 			.Where(v => !(v.Material.EffectiveSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None))
 			.ToList();
 
-		await this.ExecuteFileNameNormalizationAsync(normalizationTargets, pipelineCancellationToken)
+		await this.ExecuteFileNameNormalizationAsync(normalizationTargets, pipelineImages, pipelineCancellationToken)
 			.ConfigureAwait(false);
-
-		// 正規化まで完了し最終状態が確定した Work 実ファイルのサイズ・最終更新日時を記録する
-		await Task.Run(
-			() =>
-			{
-				foreach (var image in pipelineImages)
-				{
-					pipelineCancellationToken.ThrowIfCancellationRequested();
-
-					if (image.ProcessStatus != BindingImageProcessStatus.Succeeded || image.FilePath is null)
-					{
-						continue;
-					}
-
-					image.RecordWorkFileState(new FileInfo(image.FilePath));
-				}
-			},
-			pipelineCancellationToken).ConfigureAwait(false);
 
 		// ⑫ EPUB エラー巻について、後段処理前に検査を実行
 		var epubErrorVolumes = this.bindingStore.BindingVolumes
@@ -295,9 +277,10 @@ public class SeriesInspectionManager
 	/// 各巻の処理単位でスコープを作成し、Scoped なサービスのライフサイクルを管理します。
 	/// </summary>
 	/// <param name="volumes">正規化対象の BindingVolume リスト。</param>
+	/// <param name="pipelineImages">今回の画像処理パイプラインへ投入された画像。</param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <returns>非同期処理のタスク。</returns>
-	private async ValueTask ExecuteFileNameNormalizationAsync(List<BindingVolume> volumes, CancellationToken cancellationToken)
+	private async ValueTask ExecuteFileNameNormalizationAsync(List<BindingVolume> volumes, ConcurrentBag<BindingImage> pipelineImages, CancellationToken cancellationToken)
 	{
 		if (volumes.Count == 0)
 			return;
@@ -323,7 +306,22 @@ public class SeriesInspectionManager
 				// BindingImage の状態へ保持し、想定外例外のみ伝播させる設計
 				await normalizer.NormalizeAsync(volume, ct).ConfigureAwait(false);
 
-				// 正規化完了後、巻の検査を実行して集計結果を保持
+				// 正規化完了後、今回処理した画像の Work 実ファイルのサイズ・最終更新日時を記録
+				foreach (var image in pipelineImages)
+				{
+					ct.ThrowIfCancellationRequested();
+
+					if (!ReferenceEquals(image.BindingVolume, volume)
+						|| image.ProcessStatus != BindingImageProcessStatus.Succeeded
+						|| image.FilePath is null)
+					{
+						continue;
+					}
+
+					image.RecordWorkFileState(new FileInfo(image.FilePath));
+				}
+
+				// 記録後、巻の検査を実行して集計結果を保持
 				volume.Inspect();
 
 				// Inspect() が完了したことを通知
