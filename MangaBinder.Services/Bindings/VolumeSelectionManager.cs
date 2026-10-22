@@ -3,6 +3,7 @@ using MangaBinder.Bindings;
 using MangaBinder.Helpers;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace MangaBinder.Bindings;
 
@@ -16,6 +17,8 @@ public class VolumeSelectionManager
 	private readonly SeriesMaterialFolderLoader materialFolderLoader;
 	private readonly AppSettings appSettings;
 	private readonly IServiceScopeFactory serviceScopeFactory;
+	private readonly MaterialArchiveRepository archiveRepository;
+	private readonly ILogger<VolumeSelectionManager> logger;
 
 	/// <summary>
 	/// <see cref="VolumeSelectionManager"/> の新しいインスタンスを初期化します。
@@ -28,8 +31,12 @@ public class VolumeSelectionManager
 		BindingStore bindingStore,
 		SeriesMaterialFolderLoader materialFolderLoader,
 		AppSettings appSettings,
-		IServiceScopeFactory serviceScopeFactory)
+		IServiceScopeFactory serviceScopeFactory,
+		MaterialArchiveRepository archiveRepository,
+		ILogger<VolumeSelectionManager> logger)
 	{
+		this.archiveRepository = archiveRepository ?? throw new ArgumentNullException(nameof(archiveRepository));
+		this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
 		this.bindingStore = bindingStore ?? throw new ArgumentNullException(nameof(bindingStore));
 		this.materialFolderLoader = materialFolderLoader ?? throw new ArgumentNullException(nameof(materialFolderLoader));
@@ -458,6 +465,33 @@ public class VolumeSelectionManager
 		{
 			// 物理削除失敗時は Store を一切変更しない
 			return false;
+		}
+
+		// アーカイブの場合は DB キャッシュも削除する
+		if (material.ItemType == MaterialItemType.Archive)
+		{
+			var bindingTarget = this.bindingStore.BindingTarget.Value
+				?? throw new InvalidOperationException("アーカイブキャッシュの削除には BindingStore.BindingTarget が必要です。");
+			var materialSource = bindingTarget.Series.Sources.FirstOrDefault(s => s.Role == FolderRole.Material)
+				?? throw new InvalidOperationException("素材フォルダ(FolderRole.Material)の MangaSource が見つかりません。");
+
+			try
+			{
+				await this.archiveRepository.DeleteArchiveAsync(materialSource.SourceId, material.SourcePath, CancellationToken.None);
+				this.logger.LogInformation(
+					"アーカイブキャッシュを削除しました。SourceId={SourceId}, ArchivePath={ArchivePath}",
+					materialSource.SourceId,
+					material.SourcePath);
+			}
+			catch (Exception ex)
+			{
+				this.logger.LogError(
+					ex,
+					"アーカイブキャッシュの削除に失敗しました。SourceId={SourceId}, ArchivePath={ArchivePath}",
+					materialSource.SourceId,
+					material.SourcePath);
+				throw;
+			}
 		}
 
 		// 物理削除成功後、BindingStore を更新
