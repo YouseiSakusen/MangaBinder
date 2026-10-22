@@ -2,7 +2,8 @@ namespace MangaBinder.Bindings;
 
 /// <summary>
 /// 製本設定として保存する1画像のDTOです。
-/// 親の BindingVolume や素材への参照、Work 側の実行時パスは保持しません。
+/// 親の BindingVolume や素材への参照は保持しません。
+/// 次回
 /// </summary>
 public class BindingImageDto
 {
@@ -59,4 +60,13 @@ public class BindingImageDto
 	/// 未設定、または巻共通の設定を使用していた場合は null です。
 	/// </summary>
 	public SplitSettingsDto? SplitSettings { get; set; }
+
+	/// <summary>Work 側に実体化された画像ファイルのフルパスを取得または設定します。</summary>
+	public string? FilePath { get; set; }
+
+	/// <summary>前回正常に確認・処理した Work 実ファイルのサイズ（バイト）を取得または設定します。</summary>
+	public long? WorkFileSize { get; set; }
+
+	/// <summary>前回正常に確認・処理した Work 実ファイルの最終更新日時（UTC）を取得または設定します。</summary>
+	public DateTime? WorkFileLastWriteTimeUtc { get; set; }
 }

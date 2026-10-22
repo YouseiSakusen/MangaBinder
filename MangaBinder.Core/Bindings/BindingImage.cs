@@ -304,7 +304,8 @@ public class BindingImage : IDisposable
 
 	/// <summary>
 	/// 製本設定保存用の DTO へ変換します。
-	/// 親 BindingVolume・MaterialItem への参照、Work 側のパス・ファイル情報、TemporaryImageStream は含みません。
+	/// Work 側の実ファイル情報（FilePath・WorkFileSize・WorkFileLastWriteTimeUtc）を含みます。
+	/// 親 BindingVolume・MaterialItem への参照、TemporaryImageStream は含みません。
 	/// SplitSettings は巻共通と別インスタンスの場合のみ個別設定として含みます。
 	/// </summary>
 	/// <returns>この画像の DTO。</returns>
@@ -332,6 +333,9 @@ public class BindingImage : IDisposable
 			SerialNumberPrecedingCharacter = this.SerialNumberPrecedingCharacter,
 			SplitSide = this.SplitSide,
 			SplitSettings = hasIndividualSplitSettings ? this.SplitSettings!.CreateDto() : null,
+			FilePath = this.FilePath,
+			WorkFileSize = this.WorkFileSize,
+			WorkFileLastWriteTimeUtc = this.WorkFileLastWriteTimeUtc,
 		};
 	}
 
