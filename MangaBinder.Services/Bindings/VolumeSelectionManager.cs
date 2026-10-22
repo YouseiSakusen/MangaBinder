@@ -432,6 +432,16 @@ public class VolumeSelectionManager
 				"指定された MaterialItem は BindingStore.Materials の Root 直下に存在しません。");
 		}
 
+		// アーカイブの場合は、物理削除前にキャッシュ削除用のキーを取得する
+		MangaSource? materialSource = null;
+		if (material.ItemType == MaterialItemType.Archive)
+		{
+			var bindingTarget = this.bindingStore.BindingTarget.Value
+				?? throw new InvalidOperationException("アーカイブキャッシュの削除には BindingStore.BindingTarget が必要です。");
+			materialSource = bindingTarget.Series.Sources.FirstOrDefault(s => s.Role == FolderRole.Material)
+				?? throw new InvalidOperationException("素材フォルダ(FolderRole.Material)の MangaSource が見つかりません。");
+		}
+
 		// 物理削除（完全削除またはごみ箱）
 		try
 		{
@@ -468,13 +478,8 @@ public class VolumeSelectionManager
 		}
 
 		// アーカイブの場合は DB キャッシュも削除する
-		if (material.ItemType == MaterialItemType.Archive)
+		if (materialSource is not null)
 		{
-			var bindingTarget = this.bindingStore.BindingTarget.Value
-				?? throw new InvalidOperationException("アーカイブキャッシュの削除には BindingStore.BindingTarget が必要です。");
-			var materialSource = bindingTarget.Series.Sources.FirstOrDefault(s => s.Role == FolderRole.Material)
-				?? throw new InvalidOperationException("素材フォルダ(FolderRole.Material)の MangaSource が見つかりません。");
-
 			try
 			{
 				await this.archiveRepository.DeleteArchiveAsync(materialSource.SourceId, material.SourcePath, CancellationToken.None);
