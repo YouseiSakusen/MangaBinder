@@ -23,6 +23,34 @@ public class BindingRepository
 	}
 
 	/// <summary>
+	/// 指定した作品の製本設定 JSON を取得します。
+	/// </summary>
+	/// <param name="seriesId">作品ID。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	/// <returns>SettingsJson。レコードが存在しない場合は null。</returns>
+	public async ValueTask<string?> GetBindingSettingsJsonAsync(
+		long seriesId,
+		CancellationToken cancellationToken = default)
+	{
+		var sql = new StringBuilder();
+		sql.AppendLine(" SELECT ");
+		sql.AppendLine(" 	SettingsJson ");
+		sql.AppendLine(" FROM ");
+		sql.AppendLine(" 	BindingSettings ");
+		sql.AppendLine(" WHERE ");
+		sql.AppendLine(" 	SeriesId = :SeriesId; ");
+
+		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
+		await connection.OpenAsync(cancellationToken);
+
+		return await connection.QuerySingleOrDefaultAsync<string?>(
+			new CommandDefinition(
+				sql.ToString(),
+				new { SeriesId = seriesId },
+				cancellationToken: cancellationToken));
+	}
+
+	/// <summary>
 	/// 製本完了後の情報として BoundEndVolume のみを更新します。
 	/// </summary>
 	/// <remarks>

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Helpers;
@@ -121,6 +122,12 @@ public class VolumeSelectionManager
 				this.bindingStore.Materials.Add(materialItem);
 			}
 
+			// 保存済みの製本設定がある場合のみ、DB から取得して復元する
+			if (bindingTarget.Series.HasBindingSettings)
+			{
+				await this.restoreBindingSettingsAsync(bindingTarget.Series, cancellationToken);
+			}
+
 			// ⑦ 巻選択の初期化が正常完了したことを記録
 			this.bindingStore.VolumeSelectionInitialized.Value = true;
 
@@ -192,6 +199,179 @@ public class VolumeSelectionManager
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var bindingManager = scope.ServiceProvider.GetRequiredService<BindingManager>();
 		await bindingManager.UnselectMaterialAsync(material, true);
+	}
+
+	/// <summary>
+	/// 保存済みの製本設定を DB から取得し、BindingStore へ復元します。
+	/// JSON のデシリアライズはバックグラウンド、BindingStore への反映は呼び出し元コンテキストで行います。
+	/// 取得・解析に失敗した場合はログを記録し、保存済み設定なしとして扱います。
+	/// </summary>
+	/// <param name="series">対象作品。</param>
+	/// <param name="cancellationToken">キャンセルトークン。</param>
+	private async ValueTask restoreBindingSettingsAsync(MangaSeries series, CancellationToken cancellationToken)
+	{
+		BindingSettingsDto? settings;
+		try
+		{
+			string? settingsJson;
+			using (var scope = this.serviceScopeFactory.CreateScope())
+			{
+				var repository = scope.ServiceProvider.GetRequiredService<BindingRepository>();
+				settingsJson = await repository.GetBindingSettingsJsonAsync(series.SeriesId, cancellationToken);
+			}
+
+			if (string.IsNullOrEmpty(settingsJson))
+			{
+				return;
+			}
+
+			settings = await Task.Run(
+				() => JsonSerializer.Deserialize<BindingSettingsDto>(settingsJson),
+				cancellationToken);
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			this.logger.LogError(ex, "製本設定の取得または解析に失敗しました。SeriesId={SeriesId}", series.SeriesId);
+			return;
+		}
+
+		if (settings is null)
+		{
+			return;
+		}
+
+		var materialMap = new Dictionary<(MaterialItemType, string, string, string), MaterialItem>();
+		foreach (var root in this.bindingStore.Materials)
+		{
+			this.collectMaterials(root, materialMap);
+		}
+
+		var restoredVolumes = new List<BindingVolume>();
+		var usedMaterials = new HashSet<MaterialItem>(ReferenceEqualityComparer.Instance);
+		try
+		{
+			foreach (var volumeDto in settings.Volumes)
+			{
+				var key = createMaterialKey(volumeDto.Material);
+				if (!materialMap.TryGetValue(key, out var material))
+				{
+					this.logger.LogWarning(
+						"保存済みの素材が現在の素材ツリーに存在しないため復元しませんでした。ItemType={ItemType}, FullPath={FullPath}, SourcePath={SourcePath}, ArchiveEntryPrefix={ArchiveEntryPrefix}",
+						volumeDto.Material.ItemType,
+						volumeDto.Material.FullPath,
+						volumeDto.Material.SourcePath,
+						volumeDto.Material.ArchiveEntryPrefix);
+					continue;
+				}
+
+				if (!usedMaterials.Add(material))
+				{
+					this.logger.LogWarning(
+						"同一素材が重複して保存されているため2件目以降を復元しませんでした。FullPath={FullPath}",
+						volumeDto.Material.FullPath);
+					continue;
+				}
+
+				restoredVolumes.Add(this.createBindingVolume(material, volumeDto));
+			}
+		}
+		catch
+		{
+			foreach (var volume in restoredVolumes)
+			{
+				volume.Dispose();
+			}
+
+			throw;
+		}
+
+		this.bindingStore.VolumeFolderDigits.Value = settings.VolumeFolderDigits;
+		foreach (var volume in restoredVolumes)
+		{
+			volume.Material.IsChecked.Value = true;
+			this.bindingStore.BindingVolumes.Add(volume);
+		}
+	}
+
+	private static (MaterialItemType, string, string, string) createMaterialKey(MaterialItemDto dto)
+		=> (dto.ItemType, dto.FullPath, dto.SourcePath, dto.ArchiveEntryPrefix);
+
+	private void collectMaterials(
+		MaterialItem item,
+		Dictionary<(MaterialItemType, string, string, string), MaterialItem> map)
+	{
+		if (item.ItemType != MaterialItemType.Root)
+		{
+			map.TryAdd((item.ItemType, item.FullPath, item.SourcePath, item.ArchiveEntryPrefix), item);
+		}
+
+		foreach (var child in item.Children)
+		{
+			this.collectMaterials(child, map);
+		}
+	}
+
+	private BindingVolume createBindingVolume(MaterialItem material, BindingVolumeDto dto)
+	{
+		var volume = new BindingVolume(material);
+		try
+		{
+			volume.VolumeNumber.Value = dto.VolumeNumber;
+			volume.IsBinding.Value = dto.IsBinding;
+			volume.HasImageFileNameConflict = dto.HasImageFileNameConflict;
+			volume.HasSubFolder = dto.HasSubFolder;
+			volume.EpubExtractionError = dto.EpubExtractionError;
+			volume.EpubExtractionWarnings = dto.EpubExtractionWarnings;
+			volume.EpubExtractionErrorMessage = dto.EpubExtractionErrorMessage;
+			applySplitSettings(volume.SplitSettings, dto.SplitSettings);
+
+			foreach (var imageDto in dto.Images)
+			{
+				var image = volume.AddImage(imageDto.SourceImagePath, imageDto.MaterialFileName);
+				image.FileName = imageDto.FileName;
+				image.IsSpreadSplitTarget.Value = imageDto.IsSpreadSplitTarget;
+				image.Width = imageDto.Width;
+				image.Height = imageDto.Height;
+				image.SimulatedFileName = imageDto.SimulatedFileName;
+				image.SkipImageProcessing = imageDto.SkipImageProcessing;
+				image.ProcessStatus = imageDto.ProcessStatus;
+				image.ProcessErrorMessage = imageDto.ProcessErrorMessage;
+				image.SimulatedNormalizedFileName = imageDto.SimulatedNormalizedFileName;
+				image.FileNameNormalizationStatus = imageDto.FileNameNormalizationStatus;
+				image.FileNameNormalizationErrorMessage = imageDto.FileNameNormalizationErrorMessage;
+				image.HasSuspectedMojibake = imageDto.HasSuspectedMojibake;
+				image.SerialNumberPrecedingCharacter = imageDto.SerialNumberPrecedingCharacter;
+				image.SplitSide = imageDto.SplitSide;
+				image.FilePath = imageDto.FilePath;
+				image.WorkFileSize = imageDto.WorkFileSize;
+				image.WorkFileLastWriteTimeUtc = imageDto.WorkFileLastWriteTimeUtc;
+
+				if (imageDto.SplitSettings is not null)
+				{
+					var individual = new SplitSettings();
+					applySplitSettings(individual, imageDto.SplitSettings);
+					image.SplitSettings = individual;
+				}
+			}
+
+			volume.Inspect();
+			return volume;
+		}
+		catch
+		{
+			volume.Dispose();
+			throw;
+		}
+	}
+
+	private static void applySplitSettings(SplitSettings target, SplitSettingsDto dto)
+	{
+		target.SplitOffset.Value = dto.SplitOffset;
+		target.PageOrder.Value = dto.PageOrder;
+		target.TrimLeft.Value = dto.TrimLeft;
+		target.TrimTop.Value = dto.TrimTop;
+		target.TrimRight.Value = dto.TrimRight;
+		target.TrimBottom.Value = dto.TrimBottom;
 	}
 
 	/// <summary>

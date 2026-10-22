@@ -626,9 +626,10 @@ public class BindingManager
 			OutputFolderPath = openFolderPath,
 		};
 
-		// 製本設定を BindingVolumeDto の配列として JSON 化し、DB 更新と同一 Transaction で保存する
+		// 製本設定を BindingSettingsDto として JSON 化し、DB 更新と同一 Transaction で保存する
 		// ObservableList はバックグラウンドで列挙せず、呼び出し元スレッドで配列化して渡す
 		var bindingSettingsJson = await this.serializeBindingSettingsAsync(
+			this.bindingStore.VolumeFolderDigits.Value,
 			this.bindingStore.BindingVolumes.ToArray(),
 			cancellationToken);
 
@@ -673,15 +674,21 @@ public class BindingManager
 	/// <summary>
 	/// 製本設定の DTO 生成と JSON シリアライズをバックグラウンドで実行し、JSON 文字列を返します。
 	/// </summary>
+	/// <param name="volumeFolderDigits">Work巻フォルダの巻番号桁数。</param>
 	/// <param name="volumes">対象の BindingVolume 一覧。</param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <returns>製本設定の JSON 文字列。</returns>
 	private Task<string> serializeBindingSettingsAsync(
+		int volumeFolderDigits,
 		IReadOnlyList<BindingVolume> volumes,
 		CancellationToken cancellationToken)
 		=> Task.Run(
 			() => JsonSerializer.Serialize(
-				volumes.Select(volume => volume.CreateDto()).ToList()),
+				new BindingSettingsDto
+				{
+					VolumeFolderDigits = volumeFolderDigits,
+					Volumes = volumes.Select(volume => volume.CreateDto()).ToList(),
+				}),
 			cancellationToken);
 
 	/// <summary>

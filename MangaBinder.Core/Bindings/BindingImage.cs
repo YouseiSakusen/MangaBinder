@@ -46,13 +46,13 @@ public class BindingImage : IDisposable
 	/// 前回正常に確認・処理したWork側の実ファイルのファイルサイズ（バイト）を取得します。
 	/// 未確認の場合は null です。元素材のファイル情報ではありません。
 	/// </summary>
-	public long? WorkFileSize { get; private set; }
+	public long? WorkFileSize { get; set; }
 
 	/// <summary>
 	/// 前回正常に確認・処理したWork側の実ファイルの最終更新日時（UTC）を取得します。
 	/// 未確認の場合は null です。元素材のファイル情報ではありません。
 	/// </summary>
-	public DateTime? WorkFileLastWriteTimeUtc { get; private set; }
+	public DateTime? WorkFileLastWriteTimeUtc { get; set; }
 
 	/// <summary>
 	/// 画像の幅（ピクセル）を取得または設定します。
