@@ -152,7 +152,208 @@ public class BindingManager
 	}
 
 	/// <summary>
-	/// ZIP ファイル名の初期値を生成して
+	/// 巻選択の検証を行います。
+	/// </summary>
+	/// <param name="bindingVolumesOnly">true の場合は IsBinding が true の巻のみ、false の場合は BindingVolumes 全件を対象にします。</param>
+	/// <returns>検証結果。</returns>
+	public VolumeSelectionValidationResult ValidateVolumeSelection(bool bindingVolumesOnly)
+	{
+		// ① Work フォルダ設定の確認
+		if (!this.appSettings.HasValidWorkFolder)
+		{
+			return new VolumeSelectionValidationResult(
+				error: VolumeSelectionValidationError.WorkFolderUnavailable);
+		}
+
+		var targetVolumes = this.getTargetVolumes(bindingVolumesOnly);
+
+		// ② 製本対象0件
+		if (targetVolumes.Count == 0)
+		{
+			return new VolumeSelectionValidationResult(
+				error: VolumeSelectionValidationError.NoVolumes);
+		}
+
+		// ③ 巻番号未入力
+		if (targetVolumes.Any(volume => volume.VolumeNumber.Value == null))
+		{
+			return new VolumeSelectionValidationResult(
+				error: VolumeSelectionValidationError.VolumeNumberMissing);
+		}
+
+		// ④ 巻番号重複
+		var duplicateVolumeNumbers = targetVolumes
+			.GroupBy(volume => volume.VolumeNumber.Value)
+			.Where(group => group.Count() > 1)
+			.Select(group => group.Key!.Value)
+			.OrderBy(x => x)
+			.ToList();
+
+		if (duplicateVolumeNumbers.Count > 0)
+		{
+			return new VolumeSelectionValidationResult(
+				error: VolumeSelectionValidationError.DuplicateVolumeNumbers,
+				duplicateVolumeNumbers: duplicateVolumeNumbers.AsReadOnly());
+		}
+
+		// ⑤ 抜け巻
+		var sortedVolumeNumbers = targetVolumes
+			.Select(volume => volume.VolumeNumber.Value!.Value)
+			.OrderBy(x => x)
+			.ToList();
+
+		for (int i = 0; i < sortedVolumeNumbers.Count - 1; i++)
+		{
+			if (sortedVolumeNumbers[i + 1] - sortedVolumeNumbers[i] > 1)
+			{
+				return new VolumeSelectionValidationResult(
+					warning: VolumeSelectionValidationWarning.MissingVolume);
+			}
+		}
+
+		// ⑥ 問題なし
+		return new VolumeSelectionValidationResult();
+	}
+
+	/// <summary>
+	/// 今回製本する巻（IsBinding が true）が存在するかどうかを取得します。
+	/// </summary>
+	/// <returns>製本対象の巻が1件以上ある場合は true。</returns>
+	public bool HasBindingVolumes()
+		=> this.bindingStore.BindingVolumes.Any(volume => volume.IsBinding.Value);
+
+	/// <summary>
+	/// 製本対象から除外された巻（IsBinding が false）が存在するかどうかを取得します。
+	/// </summary>
+	/// <returns>除外された巻が1件以上ある場合は true。</returns>
+	public bool HasExcludedVolumes()
+		=> this.bindingStore.BindingVolumes.Any(volume => !volume.IsBinding.Value);
+
+	/// <summary>
+	/// 製本完了前の警告（抜け巻、ZIPファイル名の巻数表記不一致）を判定します。
+	/// </summary>
+	/// <returns>警告の判定結果。</returns>
+	public BindingCompletionWarning GetCompletionWarning()
+	{
+		var validationResult = this.ValidateVolumeSelection(bindingVolumesOnly: true);
+		var hasMissingVolume = validationResult.Warning == VolumeSelectionValidationWarning.MissingVolume;
+
+		return new BindingCompletionWarning(hasMissingVolume, this.hasZipFileNameVolumeMismatch());
+	}
+
+	/// <summary>
+	/// ZIPファイル名の巻数表記が、既定の巻数表記と異なるかどうかを判定します。
+	/// CreateZip が false、または巻数表記として認識できない場合は false を返します。
+	/// </summary>
+	private bool hasZipFileNameVolumeMismatch()
+	{
+		if (!this.bindingStore.CreateZip.Value)
+		{
+			return false;
+		}
+
+		var series = this.bindingStore.BindingTarget.Value?.Series;
+		var userFileName = this.bindingStore.ZipOutputFileName.Value;
+		if (series is null || string.IsNullOrEmpty(userFileName))
+		{
+			return false;
+		}
+
+		if (!this.tryGetBindingVolumeRange(out var startVolume, out var endVolume))
+		{
+			return false;
+		}
+
+		var defaultFileName = this.appSettings.CreateBindingZipFileName(
+			series,
+			startVolume,
+			endVolume,
+			this.bindingStore.VolumeFolderDigits.Value);
+
+		var separator = this.appSettings.BindingZipNameSeparator.Value;
+		var defaultVolumeText = getTrailingText(defaultFileName, separator);
+		var userVolumeText = getTrailingText(userFileName, separator);
+		if (defaultVolumeText is null || userVolumeText is null)
+		{
+			return false;
+		}
+
+		if (!this.isVolumeText(userVolumeText))
+		{
+			return false;
+		}
+
+		return !string.Equals(defaultVolumeText, userVolumeText, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// 拡張子を除いたファイル名から、区切り文字以降の末尾部分を取得します。
+	/// </summary>
+	private static string? getTrailingText(string fileName, string separator)
+	{
+		if (string.IsNullOrEmpty(separator))
+		{
+			return null;
+		}
+
+		var nameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+		var index = nameWithoutExtension.LastIndexOf(separator, StringComparison.Ordinal);
+		if (index < 0)
+		{
+			return null;
+		}
+
+		return nameWithoutExtension[(index + separator.Length)..];
+	}
+
+	/// <summary>
+	/// 文字列が AppSettings の設定に基づく巻数表記（全巻／途中から完結／通常）として認識できるかを判定します。
+	/// </summary>
+	private bool isVolumeText(string text)
+	{
+		var s = this.appSettings;
+		bool matches(string prefix, string suffix)
+			=> text.Length > prefix.Length + suffix.Length
+				&& text.StartsWith(prefix, StringComparison.Ordinal)
+				&& text.EndsWith(suffix, StringComparison.Ordinal);
+
+		return matches(s.BindingZipCompleteVolumePrefix.Value, s.BindingZipCompleteVolumeSuffix.Value)
+			|| matches(s.BindingZipPartialCompleteVolumePrefix.Value, s.BindingZipPartialCompleteVolumeSuffix.Value)
+			|| matches(s.BindingZipNormalVolumePrefix.Value, s.BindingZipNormalVolumeSuffix.Value);
+	}
+
+	/// <summary>
+	/// 対象の BindingVolume 一覧を取得します。
+	/// </summary>
+	private List<BindingVolume> getTargetVolumes(bool bindingVolumesOnly)
+		=> this.bindingStore.BindingVolumes
+			.Where(volume => !bindingVolumesOnly || volume.IsBinding.Value)
+			.ToList();
+
+	/// <summary>
+	/// IsBinding が true の巻番号から最小・最大巻番号を取得します。
+	/// </summary>
+	private bool tryGetBindingVolumeRange(out decimal startVolume, out decimal endVolume)
+	{
+		var numbers = this.bindingStore.BindingVolumes
+			.Where(v => v.IsBinding.Value && v.VolumeNumber.Value.HasValue)
+			.Select(v => v.VolumeNumber.Value!.Value)
+			.ToList();
+
+		if (numbers.Count == 0)
+		{
+			startVolume = 0;
+			endVolume = 0;
+			return false;
+		}
+
+		startVolume = numbers.Min();
+		endVolume = numbers.Max();
+		return true;
+	}
+
+	/// <summary>
+	/// ZIP ファイル名の初期値を、製本対象（IsBinding が true）の巻範囲から生成します。
 	/// 既に ZipOutputFileName が空ではない場合は上書きしません。
 	/// </summary>
 	public void InitializeZipOutputFileName()
@@ -171,28 +372,11 @@ public class BindingManager
 			return;
 		}
 
-		// BindingStore.BindingVolumes から今回選択されている巻範囲の開始巻・終了巻を取得
-		var volumes = this.bindingStore.BindingVolumes;
-		if (volumes.Count == 0)
+		// IsBinding が true の巻の開始巻・終了巻を取得（対象が無い場合は何もしない）
+		if (!this.tryGetBindingVolumeRange(out var startVolume, out var endVolume))
 		{
-			// 選択巻が無い場合は何もしない
 			return;
 		}
-
-		// VolumeNumber.Value が null でない値のみを対象にして Min/Max を計算
-		var volumeNumbers = volumes
-			.Where(v => v.VolumeNumber.Value.HasValue)
-			.Select(v => v.VolumeNumber.Value!.Value)
-			.ToList();
-
-		if (volumeNumbers.Count == 0)
-		{
-			// 有効な巻番号が無い場合は何もしない
-			return;
-		}
-
-		var startVolume = volumeNumbers.Min();
-		var endVolume = volumeNumbers.Max();
 
 		// ZIPファイル名を生成して BindingStore.ZipOutputFileName.Value に設定
 		var zipFileName = this.appSettings.CreateBindingZipFileName(
@@ -229,9 +413,10 @@ public class BindingManager
 		// 出力ファイルのフルパスを取得できた場合、同名ファイルが既に存在するか確認
 		var outputFileExists = outputFilePath is not null && File.Exists(outputFilePath);
 
-		// BindingVolumes に含まれる全ファイルのサイズ合計を計算（UIスレッドをブロックしない）
+		// IsBinding が true の巻に含まれる全ファイルのサイズ合計を計算（UIスレッドをブロックしない）
+		var targetVolumes = this.getTargetVolumes(bindingVolumesOnly: true);
 		var totalSizeBytes = await Task.Run(
-			() => this.calculateTotalFileSizeBytes(),
+			() => this.calculateTotalFileSizeBytes(targetVolumes),
 			cancellationToken);
 
 		return new BindingStartableStatus(outputFilePath, outputFileExists, totalSizeBytes);
@@ -330,6 +515,7 @@ public class BindingManager
 	/// </exception>
 	public async ValueTask<BindingCompletionResult> CompleteAsync(
 		bool allowOverwrite = false,
+		bool deleteExcludedVolumes = false,
 		CancellationToken cancellationToken = default)
 	{
 		// 1. BindingStore.BindingTarget.Value から現在の BindingSeries を取得する
@@ -339,11 +525,25 @@ public class BindingManager
 			throw new InvalidOperationException("BindingTarget が設定されていません。");
 		}
 
-		// 2. BindingStore.BindingVolumes から今回製本する最大巻番号を取得する
-		var volumes = this.bindingStore.BindingVolumes;
+		// 2. ZIP 作成OFFで削除が選択された場合、除外巻（IsBinding == false）を削除する（失敗時は例外で中止し、設定は保存しない）
+		if (deleteExcludedVolumes && !this.bindingStore.CreateZip.Value)
+		{
+			var excludedMaterials = this.bindingStore.BindingVolumes
+				.Where(v => !v.IsBinding.Value)
+				.Select(v => v.Material)
+				.ToList();
+
+			foreach (var material in excludedMaterials)
+			{
+				await this.UnselectMaterialAsync(material, false);
+			}
+		}
+
+		// 3. IsBinding が true の巻から開始・終了巻番号を取得する
+		var volumes = this.getTargetVolumes(bindingVolumesOnly: true);
 		if (volumes.Count == 0)
 		{
-			throw new InvalidOperationException("BindingVolumes が空です。");
+			throw new InvalidOperationException("製本対象の BindingVolume が存在しません。");
 		}
 
 		var volumeNumbers = volumes
@@ -506,15 +706,16 @@ public class BindingManager
 	}
 
 	/// <summary>
-	/// BindingVolumes に含まれる全 BindingVolume のWorkフォルダ配下の実ファイルを再帰的に列挙し、
+	/// 指定された BindingVolume のWorkフォルダ配下の実ファイルを再帰的に列挙し、
 	/// 合計サイズを計算します。
 	/// </summary>
+	/// <param name="volumes">集計対象の BindingVolume 一覧。</param>
 	/// <returns>合計ファイルサイズ（バイト）。</returns>
-	private long calculateTotalFileSizeBytes()
+	private long calculateTotalFileSizeBytes(IReadOnlyList<BindingVolume> volumes)
 	{
 		long totalSize = 0L;
 
-		foreach (var volume in this.bindingStore.BindingVolumes)
+		foreach (var volume in volumes)
 		{
 			// WorkFolderPath が null の場合はスキップ
 			if (string.IsNullOrEmpty(volume.WorkFolderPath))

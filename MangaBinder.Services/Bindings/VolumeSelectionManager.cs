@@ -18,7 +18,7 @@ public class VolumeSelectionManager
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
 	/// <summary>
-	/// <see cref="VolumeSelectionManager"/>
+	/// <see cref="VolumeSelectionManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="bindingStore">製本工程の正本状態ストア。</param>
 	/// <param name="materialFolderLoader">素材フォルダ解析サービス。</param>
@@ -679,65 +679,9 @@ public class VolumeSelectionManager
 	/// <returns>検証結果。</returns>
 	public VolumeSelectionValidationResult ValidateVolumeSelection()
 	{
-		// ① Work フォルダ設定の確認
-		if (!this.appSettings.HasValidWorkFolder)
-		{
-			return new VolumeSelectionValidationResult(
-				error: VolumeSelectionValidationError.WorkFolderUnavailable);
-		}
-
-		// ② 製本対象0件
-		if (this.bindingStore.BindingVolumes.Count == 0)
-		{
-			return new VolumeSelectionValidationResult(
-				error: VolumeSelectionValidationError.NoVolumes);
-		}
-
-		// ③ 巻番号未入力
-		if (this.bindingStore.BindingVolumes.Any(volume => volume.VolumeNumber.Value == null))
-		{
-			return new VolumeSelectionValidationResult(
-				error: VolumeSelectionValidationError.VolumeNumberMissing);
-		}
-
-		// ④ 巻番号重複
-		var duplicateVolumeNumbers = this.bindingStore.BindingVolumes
-			.GroupBy(volume => volume.VolumeNumber.Value)
-			.Where(group => group.Count() > 1)
-			.Select(group => group.Key!.Value)
-			.OrderBy(x => x)
-			.ToList();
-
-		if (duplicateVolumeNumbers.Count > 0)
-		{
-			return new VolumeSelectionValidationResult(
-				error: VolumeSelectionValidationError.DuplicateVolumeNumbers,
-				duplicateVolumeNumbers: duplicateVolumeNumbers.AsReadOnly());
-		}
-
-		// ⑤ 抜け巻
-		var sortedVolumeNumbers = this.bindingStore.BindingVolumes
-			.Select(volume => volume.VolumeNumber.Value!.Value)
-			.OrderBy(x => x)
-			.ToList();
-
-		var hasMissingVolume = false;
-		for (int i = 0; i < sortedVolumeNumbers.Count - 1; i++)
-		{
-			if (sortedVolumeNumbers[i + 1] - sortedVolumeNumbers[i] > 1)
-			{
-				hasMissingVolume = true;
-				break;
-			}
-		}
-
-		if (hasMissingVolume)
-		{
-			return new VolumeSelectionValidationResult(
-				warning: VolumeSelectionValidationWarning.MissingVolume);
-		}
-
-		// ⑥ 問題なし
-		return new VolumeSelectionValidationResult();
+		// 呼び出し時だけ Scope を生成して BindingManager へ委譲する
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var bindingManager = scope.ServiceProvider.GetRequiredService<BindingManager>();
+		return bindingManager.ValidateVolumeSelection(bindingVolumesOnly: false);
 	}
 }

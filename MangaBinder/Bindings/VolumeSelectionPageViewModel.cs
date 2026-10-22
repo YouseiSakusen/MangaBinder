@@ -383,7 +383,7 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
 					var confirmed = await ContentDialogHelper.ShowConfirmAsync(
 						this.contentDialogService,
 						"確認",
-						"抜け巻があります。\nこのまま続行しますか？",
+						$"{Constants.Messages.MissingVolume}\n{Constants.Messages.ContinueConfirmation}",
 						"続行");
 					if (!confirmed)
 						return;

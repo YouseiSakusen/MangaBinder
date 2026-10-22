@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using MangaBinder.Controls;
+using MangaBinder.Helpers;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using ObservableCollections;
@@ -327,10 +328,45 @@ public class SeriesInspectionPageViewModel : BindingPageViewModelBase, IDataInit
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var bindingManager = scope.ServiceProvider.GetRequiredService<BindingManager>();
 
-			// 2. 製本完了処理を開始する前の事前確認情報を取得
+			// 1. 今回製本する巻が0件でないことを確認
+			if (!bindingManager.HasBindingVolumes())
+			{
+				await ContentDialogHelper.ShowErrorAsync(
+					this.contentDialogService,
+					Constants.Messages.NoBindingVolumes);
+				return;
+			}
+
+			// 2. 抜け巻・ZIPファイル名不一致の警告
+			var warning = bindingManager.GetCompletionWarning();
+			if (warning.HasAny)
+			{
+				var warningLines = new List<string>();
+				if (warning.HasMissingVolume)
+				{
+					warningLines.Add(Constants.Messages.MissingVolume);
+				}
+
+				if (warning.HasZipFileNameVolumeMismatch)
+				{
+					warningLines.Add(Constants.Messages.ZipFileNameVolumeMismatch);
+				}
+
+				var confirmed = await ContentDialogHelper.ShowConfirmAsync(
+					this.contentDialogService,
+					"確認",
+					string.Join("\n", warningLines) + "\n" + Constants.Messages.ContinueConfirmation,
+					"続行");
+				if (!confirmed)
+				{
+					return;
+				}
+			}
+
+			// 3. 製本完了処理を開始する前の事前確認情報を取得
 			var startableStatus = await bindingManager.GetStartableStatusAsync();
 
-			// 3. 確認が必要かどうかを判定
+			// 確認が必要かどうかを判定
 			if (startableStatus.RequiresConfirmation)
 			{
 				// ContentDialog を表示
@@ -343,17 +379,34 @@ public class SeriesInspectionPageViewModel : BindingPageViewModelBase, IDataInit
 				}
 			}
 
-			// 4. 同名ファイルの上書き許可フラグを決定
+			// 4. ZIP作成OFFで除外巻がある場合、削除確認を表示（どちらを選んでも続行）
+			var deleteExcludedVolumes = false;
+			if (!this.bindingStore.CreateZip.Value && bindingManager.HasExcludedVolumes())
+			{
+				var deleteDialog = new ContentDialog
+				{
+					Title = "除外巻の確認",
+					Content = "製本対象から除外した巻を展開先フォルダから削除しますか？",
+					PrimaryButtonText = "削除する",
+					CloseButtonText = "削除しない",
+					DefaultButton = ContentDialogButton.Close
+				};
+
+				deleteExcludedVolumes = await this.contentDialogService.ShowAsync(deleteDialog, CancellationToken.None)
+					== ContentDialogResult.Primary;
+			}
+
+			// 5. 同名ファイルの上書き許可フラグを決定
 			bool allowOverwrite = startableStatus.OutputFileExists;
 
-			// 5. Loading 表示中に CompleteAsync を実行
+			// 6. Loading 表示中に CompleteAsync を実行
 			BindingCompletionResult completionResult;
 			using (this.loadingService.Begin("製本中..."))
 			{
-				completionResult = await bindingManager.CompleteAsync(allowOverwrite);
+				completionResult = await bindingManager.CompleteAsync(allowOverwrite, deleteExcludedVolumes);
 			}
 
-			// 6. OpenOutputAfterCompletion が true ならExplorerを起動
+			// 7. OpenOutputAfterCompletion が true ならExplorerを起動
 			if (this.bindingStore.OpenOutputAfterCompletion.Value)
 			{
 				try

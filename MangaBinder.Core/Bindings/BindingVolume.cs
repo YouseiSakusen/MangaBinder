@@ -170,7 +170,8 @@ public class BindingVolume : IDisposable
 			.AddTo(ref this.disposableBag);
 		this.WorkFolderPath = null;
 		this.Images = new ObservableList<BindingImage>();
-		this.HasImageFileNameConflict = false;		this.HasImageProcessingError = false;
+		this.HasImageFileNameConflict = false;
+		this.HasImageProcessingError = false;
 		this.HasSubFolder = false;
 		this.ImageFileCount = 0;
 		this.LandscapeImageCount = 0;

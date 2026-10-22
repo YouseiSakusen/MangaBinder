@@ -12,7 +12,7 @@ public class BindingVolumeDto
 	/// <summary>今回の製本でこの巻を使用するかを取得または設定します。JSON に存在しない場合は true です。</summary>
 	public bool IsBinding { get; set; } = true;
 
-	/// <summary>この巻に紐づく素材の情報
+	/// <summary>この巻に紐づく素材の情報を取得または設定します。</summary>
 	public MaterialItemDto Material { get; set; } = new();
 
 	/// <summary>画像処理後に同一ファイル名になる画像が存在するかを取得または設定します。</summary>
