@@ -79,6 +79,24 @@ public class VolumeNumberHelperTests
 
 	#endregion
 
+	#region 末尾【～】直前の巻番号
+
+	/// <summary>
+	/// 末尾の【～】直前の数字が巻番号として取得されることを確認します。
+	/// </summary>
+	[Theory]
+	[InlineData("タイトル4【電子版特典】", 4)]
+	[InlineData("タイトル（ポルカコミックス）5【電子版特典イラスト付き】", 5)]
+	[InlineData("タイトル！3【電子版特典イラスト付き】.epub", 3)]
+	[InlineData("タイトル 6【特典付き】", 6)]
+	public void Parse_NumberBeforeTrailingBracket_ReturnsSingle(string input, int expected)
+	{
+		AssertSingle(input, VolumeNumberSourceType.Epub, expected);
+		AssertSingle(input.Replace(".epub", ""), VolumeNumberSourceType.Folder, expected);
+	}
+
+	#endregion
+
 	#region 1. 明確に巻ではない表記
 
 	/// <summary>

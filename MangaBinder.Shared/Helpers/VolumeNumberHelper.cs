@@ -482,6 +482,29 @@ public static partial class VolumeNumberHelper
 			}
 		}
 
+		return tryParseNumberBeforeTrailingBracket(normalized);
+	}
+
+	/// <summary>
+	/// 末尾の【～】直前の巻番号を解析します。
+	/// </summary>
+	private static VolumeNumberParseResult? tryParseNumberBeforeTrailingBracket(string normalized)
+	{
+		var match = RegexNumberBeforeTrailingBracket().Match(normalized);
+		if (match.Success && isValidWeakVolumeNumber(match.Groups["num"].Value))
+		{
+			var numStr = match.Groups["num"].Value.Replace('_', '.');
+			if (TryParseVolumeNumber(numStr, out var number))
+			{
+				return new VolumeNumberParseResult
+				{
+					Kind = VolumeNumberParseKind.Single,
+					SingleVolume = number,
+					MatchedPattern = "NumberBeforeTrailingBracket",
+				};
+			}
+		}
+
 		return null;
 	}
 
@@ -605,7 +628,7 @@ public static partial class VolumeNumberHelper
 			}
 		}
 
-		return null;
+		return tryParseNumberBeforeTrailingBracket(withoutExtension);
 	}
 
 	/// <summary>
@@ -800,6 +823,14 @@ public static partial class VolumeNumberHelper
 	/// </summary>
 	[GeneratedRegex(@"(?<=[\p{Ll}\p{Lo}])(?<num>XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)$")]
 	private static partial Regex RegexAttachedRomanNumeral();
+
+	/// <summary>
+	/// 末尾の【～】直前にある巻番号。
+	/// タイトル4【電子版特典】 のように、末尾の特典表記の直前に数字が続くケースに対応。
+	/// 【】が複数連続するケースは対象外。
+	/// </summary>
+	[GeneratedRegex(@"(?<num>\d+(?:[._]\d+)?)【[^【】]*】$")]
+	private static partial Regex RegexNumberBeforeTrailingBracket();
 
 	/// <summary>
 	/// YYYY-MM-DD 形式の日付を除去します。

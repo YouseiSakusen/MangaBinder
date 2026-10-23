@@ -204,7 +204,8 @@ public class VolumeSelectionManager
 	/// <summary>
 	/// 保存済みの製本設定を DB から取得し、BindingStore へ復元します。
 	/// JSON のデシリアライズはバックグラウンド、BindingStore への反映は呼び出し元コンテキストで行います。
-	/// 取得・解析に失敗した場合はログを記録し、保存済み設定なしとして扱います。
+	/// 取得・解析に失敗した場合はログを記録し、例外を再送出します。
+	/// DB に設定レコードが存在しない場合は、保存済み設定なしとして扱います。
 	/// </summary>
 	/// <param name="series">対象作品。</param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
@@ -232,7 +233,7 @@ public class VolumeSelectionManager
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
 			this.logger.LogError(ex, "製本設定の取得または解析に失敗しました。SeriesId={SeriesId}", series.SeriesId);
-			return;
+			throw;
 		}
 
 		if (settings is null)
@@ -247,7 +248,6 @@ public class VolumeSelectionManager
 		}
 
 		var restoredVolumes = new List<BindingVolume>();
-		var usedMaterials = new HashSet<MaterialItem>(ReferenceEqualityComparer.Instance);
 		try
 		{
 			foreach (var volumeDto in settings.Volumes)
@@ -261,14 +261,6 @@ public class VolumeSelectionManager
 						volumeDto.Material.FullPath,
 						volumeDto.Material.SourcePath,
 						volumeDto.Material.ArchiveEntryPrefix);
-					continue;
-				}
-
-				if (!usedMaterials.Add(material))
-				{
-					this.logger.LogWarning(
-						"同一素材が重複して保存されているため2件目以降を復元しませんでした。FullPath={FullPath}",
-						volumeDto.Material.FullPath);
 					continue;
 				}
 
