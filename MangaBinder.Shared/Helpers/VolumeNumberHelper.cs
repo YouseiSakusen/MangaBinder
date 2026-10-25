@@ -25,6 +25,9 @@ public static partial class VolumeNumberHelper
 		// FormKC 正規化：全角数字→半角、全角英字→半角、互換文字→標準形
 		var normalized = materialName.Normalize(NormalizationForm.FormKC);
 
+		// 先頭の数字だけを囲んだ括弧表記（素材提供元の管理番号等）を除外
+		normalized = RegexLeadingBracketedNumbers().Replace(normalized, string.Empty);
+
 		// 1. 最初に「巻ではない」表現を判定
 		var notVolumeResult = tryParseNotVolume(normalized);
 		if (notVolumeResult != null)
@@ -766,6 +769,12 @@ public static partial class VolumeNumberHelper
 		};
 
 	// ---- 正規表現パターン ----
+
+	/// <summary>
+	/// 先頭に連続する数字だけを囲んだ括弧表記：[123] / 【123】 / (123) / （123）。
+	/// </summary>
+	[GeneratedRegex(@"^\s*(?:(?:\[\d+\]|【\d+】|\(\d+\)|（\d+）)\s*)+")]
+	private static partial Regex RegexLeadingBracketedNumbers();
 
 	/// <summary>
 	/// 「巻ではない」表現（Chapter / Chap / 話 等）。

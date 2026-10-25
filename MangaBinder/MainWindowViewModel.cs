@@ -143,7 +143,11 @@ public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 		this.logger.ZLogInformation($"MainWindowViewModel 初期化開始");
 
 		var assemblyName = Assembly.GetEntryAssembly()?.GetName();
-		var title = $"{assemblyName?.Name ?? "MangaBinder"} Ver.{assemblyName?.Version?.ToString() ?? "?"}";
+		var informationalVersion = Assembly.GetEntryAssembly()!
+			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+			.InformationalVersion;
+		var productVersion = informationalVersion.Split('+')[0];
+		var title = $"{assemblyName?.Name ?? "MangaBinder"} Ver.{productVersion}";
 
 		this.ApplicationTitle = Observable.Return(title)
 			.ToReadOnlyReactiveProperty(title)

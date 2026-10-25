@@ -97,6 +97,36 @@ public class VolumeNumberHelperTests
 
 	#endregion
 
+	#region 先頭の括弧付き数字の除外
+
+	/// <summary>
+	/// 先頭の括弧付き数字のみの場合に Unknown となることを確認します。
+	/// </summary>
+	[Theory]
+	[InlineData("[118081] 美咲の器-それからの緋が走る-")]
+	[InlineData("[03] タイトル")]
+	public void Parse_LeadingBracketedNumberOnly_ReturnsUnknown(string input)
+	{
+		AssertUnknown(input);
+	}
+
+	/// <summary>
+	/// 先頭の括弧付き数字を除外したうえで巻番号が解析されることを確認します。
+	/// </summary>
+	[Theory]
+	[InlineData("【12345】タイトル 第03巻", 3)]
+	[InlineData("[111][222] タイトル 5", 5)]
+	[InlineData("(123) タイトル vol02", 2)]
+	[InlineData("（123）タイトル vol02", 2)]
+	[InlineData("タイトル [03]", 3)]
+	[InlineData("タイトル (03)", 3)]
+	public void Parse_LeadingBracketedNumber_IsExcluded(string input, int expected)
+	{
+		AssertSingle(input, expected);
+	}
+
+	#endregion
+
 	#region 1. 明確に巻ではない表記
 
 	/// <summary>
