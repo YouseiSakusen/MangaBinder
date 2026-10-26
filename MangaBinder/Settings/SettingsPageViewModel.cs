@@ -23,6 +23,12 @@ public class SettingsPageViewModel : IDisposable, ISavable
 	/// <summary>スキャン対象フォルダの一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> ScanFolders { get; }
 
+	/// <summary>素材フォルダの一覧を取得します。</summary>
+	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> MaterialFolders { get; }
+
+	/// <summary>製本済みフォルダ（既定を含む）の一覧を取得します。</summary>
+	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> BindingFolders { get; }
+
 	/// <summary>新規追加フォルダの表示名を取得します。</summary>
 	public BindableReactiveProperty<string> NewFolderDisplayName { get; }
 
@@ -49,6 +55,18 @@ public class SettingsPageViewModel : IDisposable, ISavable
 		this.serviceScope = serviceScopeFactory.CreateScope();
 
 		this.ScanFolders = this.appSettings.SourceFolders
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
+
+		var materialView = this.appSettings.SourceFolders.CreateView(folder => folder);
+		materialView.AttachFilter(folder => folder.Role.Value == FolderRole.Material);
+		this.MaterialFolders = materialView
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
+			.AddTo(ref this.disposableBag);
+
+		var bindingView = this.appSettings.SourceFolders.CreateView(folder => folder);
+		bindingView.AttachFilter(folder => folder.Role.Value is FolderRole.Binding or FolderRole.DefaultBinding);
+		this.BindingFolders = bindingView
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
@@ -117,10 +135,13 @@ public class SettingsPageViewModel : IDisposable, ISavable
 	/// <returns>保存結果を表す <see cref="ISaveResult"/>。</returns>
 	public async ValueTask<ISaveResult> SaveAsync()
 	{
-		var appSettingsService = this.serviceScope.ServiceProvider.GetRequiredService<AppSettingsService>();
-		await appSettingsService.SaveAppSettingsAsync();
-		await appSettingsService.InitializeSourceFoldersAsync();
-		return SaveResult.Success("設定を保存しました");
+		// 設定画面改修中のため保存を一時停止
+		return SaveResult.Success("保存停止中");
+
+		//var appSettingsService = this.serviceScope.ServiceProvider.GetRequiredService<AppSettingsService>();
+		//await appSettingsService.SaveAppSettingsAsync();
+		//await appSettingsService.InitializeSourceFoldersAsync();
+		//return SaveResult.Success("設定を保存しました");
 	}
 
 	/// <summary>リソースを解放します。</summary>
