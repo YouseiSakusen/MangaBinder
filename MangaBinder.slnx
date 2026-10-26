@@ -20,5 +20,6 @@
   </Folder>
   <Folder Name="/ソリューション項目/">
     <File Path=".agent.md" />
+    <File Path="Publish.ps1" />
   </Folder>
 </Solution>

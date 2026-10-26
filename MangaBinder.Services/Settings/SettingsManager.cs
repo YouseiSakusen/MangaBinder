@@ -10,7 +10,7 @@ namespace MangaBinder.Settings;
 /// <summary>
 /// アプリケーション設定の読み込み・保存・素材フォルダ初期化を担うサービスクラスです。
 /// </summary>
-public class AppSettingsService
+public class SettingsManager
 {
 	/// <summary>アプリケーション設定インスタンス。</summary>
 	private readonly AppSettings appSettings;
@@ -22,20 +22,20 @@ public class AppSettingsService
 	private readonly SharedSettingsRepository sharedSettingsRepository;
 
 	/// <summary>ロガー。</summary>
-	private readonly ILogger<AppSettingsService> logger;
+	private readonly ILogger<SettingsManager> logger;
 
 	/// <summary>
-	/// <see cref="AppSettingsService"/> の新しいインスタンスを初期化します。
+	/// <see cref="SettingsManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="appSettings">アプリケーション設定インスタンス。</param>
 	/// <param name="jobRepository">ジョブリポジトリ。</param>
 	/// <param name="sharedSettingsRepository">共用設定リポジトリ。</param>
 	/// <param name="logger">ロガー。</param>
-	public AppSettingsService(
+	public SettingsManager(
 		AppSettings appSettings,
 		JobRepository jobRepository,
 		SharedSettingsRepository sharedSettingsRepository,
-		ILogger<AppSettingsService> logger)
+		ILogger<SettingsManager> logger)
 	{
 		this.appSettings = appSettings;
 		this.jobRepository = jobRepository;

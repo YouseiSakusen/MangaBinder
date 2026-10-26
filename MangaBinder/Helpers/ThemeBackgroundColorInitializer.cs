@@ -17,7 +17,7 @@ public class ThemeBackgroundColorInitializer
 	private readonly AppSettings appSettings;
 
 	/// <summary>アプリケーション設定サービス。</summary>
-	private readonly AppSettingsService appSettingsService;
+	private readonly SettingsManager appSettingsService;
 
 	/// <summary>
 	/// <see cref="ThemeBackgroundColorInitializer"/> の新しいインスタンスを初期化します。
@@ -28,7 +28,7 @@ public class ThemeBackgroundColorInitializer
 	public ThemeBackgroundColorInitializer(
 		ILogger<ThemeBackgroundColorInitializer> logger,
 		AppSettings appSettings,
-		AppSettingsService appSettingsService)
+		SettingsManager appSettingsService)
 	{
 		this.logger = logger;
 		this.appSettings = appSettings;

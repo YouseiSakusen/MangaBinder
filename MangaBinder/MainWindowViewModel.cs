@@ -282,7 +282,7 @@ public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 
 		// 作品一覧のスクロール位置を AppSettings へ反映してDB保存する
 		this.appSettings.SeriesListVerticalOffset.Value = this.homePageViewModel.SavedSeriesListVerticalOffset.Value;
-		var appSettingsService = scope.ServiceProvider.GetRequiredService<AppSettingsService>();
+		var appSettingsService = scope.ServiceProvider.GetRequiredService<SettingsManager>();
 		await appSettingsService.SaveAppSettingsAsync();
 	}
 

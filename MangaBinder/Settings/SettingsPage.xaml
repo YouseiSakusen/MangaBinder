@@ -91,7 +91,7 @@
 		</DataTemplate>
 
 		<!-- フォルダ一覧ListViewのStyle（約3件で内部スクロール、横スクロール禁止） -->
-		<Style x:Key="SourceFolderListViewStyle" TargetType="ListView" BasedOn="{StaticResource {x:Type ListView}}">
+		<Style x:Key="SourceFolderListViewStyle" TargetType="ListView">
 			<Setter Property="MaxHeight" Value="168" />
 			<Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
 			<Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
@@ -103,11 +103,6 @@
 
 	<controls:PageLayout
 		Margin="16,4,16,16"
-		LeftColumnWidth="0"
-		LeftColumnMinWidth="0"
-		MainColumnWidth="*"
-		RightColumnWidth="0"
-		RightColumnMinWidth="0"
 		EyecatchSymbol="Wrench24"
 		EyecatchTitle="設定"
 		EyecatchValueText="">

@@ -93,7 +93,7 @@ public partial class App
 		host = this.createHost();
 		await host.StartAsync();
 
-		var appSettingsService = host.Services.GetRequiredService<AppSettingsService>();
+		var appSettingsService = host.Services.GetRequiredService<SettingsManager>();
 		await appSettingsService.LoadAsync();
 
 		var appSettings = host.Services.GetRequiredService<AppSettings>();
