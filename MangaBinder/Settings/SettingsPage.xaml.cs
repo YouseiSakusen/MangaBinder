@@ -10,7 +10,6 @@ public partial class SettingsPage : Page
 	/// <summary>
 	/// <see cref="SettingsPage"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="viewModel">設定ページの ViewModel。</param>
 	public SettingsPage()
 	{
 		InitializeComponent();

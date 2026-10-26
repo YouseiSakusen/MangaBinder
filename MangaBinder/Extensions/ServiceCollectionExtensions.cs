@@ -76,6 +76,7 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPage<ImageSplitterPage, ImageSplitterPageViewModel>(ServiceLifetime.Transient);
 		services.AddNavigationPage<MaintenancePage, MaintenancePageViewModel>(ServiceLifetime.Singleton);
 		services.AddNavigationPage<EditorPage, EditorPageViewModel>(ServiceLifetime.Transient);
+		services.AddNavigationPage<SettingsPage, SettingsPageViewModel>(ServiceLifetime.Singleton);
 		services.AddTransient<EditingSession>();
 		services.AddScoped<ThumbnailPicker>();
 		services.AddScoped<IThumbnailImageProcessor, ThumbnailImageProcessor>();

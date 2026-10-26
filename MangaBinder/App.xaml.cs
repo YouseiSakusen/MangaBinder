@@ -68,8 +68,6 @@ public partial class App
 				services.AddSingleton<ISnackbarService, SnackbarService>();
 				services.AddSingleton<LoadingService>();
 				services.AddNavigationWindow<MainWindow, MainWindowViewModel>();
-				services.AddTransient<SettingsPageViewModel>();
-				services.AddTransient<SettingsPage>();
 			})
 			.Build();
 	}

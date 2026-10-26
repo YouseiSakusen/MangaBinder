@@ -104,6 +104,12 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>スキャン対象フォルダの一覧を取得します。</summary>
 	public ObservableList<SourceFolder> SourceFolders { get; }
 
+	/// <summary>素材フォルダのみを抽出した派生 View を取得します。所有者は <see cref="AppSettings"/> です。</summary>
+	public ISynchronizedView<SourceFolder, SourceFolder> MaterialFolders { get; }
+
+	/// <summary>製本済みフォルダ（既定を含む）のみを抽出した派生 View を取得します。所有者は <see cref="AppSettings"/> です。</summary>
+	public ISynchronizedView<SourceFolder, SourceFolder> BindingFolders { get; }
+
 	/// <summary>
 	/// 既定の製本先フォルダのパスを取得します。
 	/// SourceFolders に登録されている FolderRole.DefaultBinding のフォルダパスを返します。
@@ -211,6 +217,17 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 			.AddTo(ref this.disposableBag);
 
 		this.SourceFolders = new ObservableList<SourceFolder>();
+
+		this.MaterialFolders = this.SourceFolders
+			.CreateView(folder => folder);
+		this.MaterialFolders.AttachFilter(
+			folder => folder.Role.Value == FolderRole.Material);
+
+		this.BindingFolders = this.SourceFolders
+			.CreateView(folder => folder);
+		this.BindingFolders.AttachFilter(
+			folder => folder.Role.Value is
+				FolderRole.Binding or FolderRole.DefaultBinding);
 	}
 
 	/// <summary>
@@ -397,6 +414,9 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>リソースを解放します。</summary>
 	public void Dispose()
 	{
+		this.MaterialFolders.Dispose();
+		this.BindingFolders.Dispose();
+
 		foreach (var folder in this.SourceFolders)
 			folder.Dispose();
 

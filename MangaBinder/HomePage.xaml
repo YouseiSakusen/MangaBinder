@@ -69,6 +69,20 @@
 
 				<!-- タイトルジャンプCard -->
 				<ui:Card Grid.Column="1" Padding="14,10">
+					<ui:Card.Style>
+						<Style
+							TargetType="{x:Type ui:Card}"
+							BasedOn="{StaticResource {x:Type ui:Card}}">
+							<Setter Property="IsEnabled" Value="True" />
+							<Style.Triggers>
+								<DataTrigger
+									Binding="{Binding RegisteredSeriesCount.Value}"
+									Value="0">
+									<Setter Property="IsEnabled" Value="False" />
+								</DataTrigger>
+							</Style.Triggers>
+						</Style>
+					</ui:Card.Style>
 					<Grid VerticalAlignment="Center">
 						<Grid.ColumnDefinitions>
 							<ColumnDefinition Width="*" />

@@ -14,9 +14,6 @@ public class SettingsPageViewModel : IDisposable, ISavable
 	private readonly IServiceScope serviceScope;
 	private DisposableBag disposableBag;
 
-	/// <summary>アプリケーション設定を取得します。</summary>
-	public AppSettings AppSettings => this.appSettings;
-
 	/// <summary>作業用一時フォルダのパスを取得します。</summary>
 	public BindableReactiveProperty<string> WorkFolderPath => this.appSettings.WorkFolderPath;
 
@@ -58,15 +55,11 @@ public class SettingsPageViewModel : IDisposable, ISavable
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
-		var materialView = this.appSettings.SourceFolders.CreateView(folder => folder);
-		materialView.AttachFilter(folder => folder.Role.Value == FolderRole.Material);
-		this.MaterialFolders = materialView
+		this.MaterialFolders = this.appSettings.MaterialFolders
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
-		var bindingView = this.appSettings.SourceFolders.CreateView(folder => folder);
-		bindingView.AttachFilter(folder => folder.Role.Value is FolderRole.Binding or FolderRole.DefaultBinding);
-		this.BindingFolders = bindingView
+		this.BindingFolders = this.appSettings.BindingFolders
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 

@@ -7,9 +7,11 @@
 	  xmlns:local="clr-namespace:MangaBinder.Settings"
 	  xmlns:shared="clr-namespace:MangaBinder.Settings;assembly=MangaBinder.Shared"
 	  xmlns:controls="clr-namespace:MangaBinder.Controls"
+	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
 	  mc:Ignorable="d"
 	  d:DesignHeight="700" d:DesignWidth="900"
 	  Title="SettingsPage"
+	  behaviors:SettingsPageInitializeBehavior.IsEnabled="True"
 	  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 	  ScrollViewer.CanContentScroll="False">
 
@@ -159,6 +161,7 @@
 										Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
 										Margin="0,8,0,0"
 										Style="{StaticResource SourceFolderListViewStyle}"
+										x:Name="MaterialFoldersListView"
 										ItemsSource="{Binding MaterialFolders}" />
 								</Grid>
 							</ui:Card>
@@ -190,6 +193,7 @@
 										Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
 										Margin="0,8,0,0"
 										Style="{StaticResource SourceFolderListViewStyle}"
+										x:Name="BindingFoldersListView"
 										ItemsSource="{Binding BindingFolders}" />
 								</Grid>
 							</ui:Card>
