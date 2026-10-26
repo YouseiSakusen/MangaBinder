@@ -496,6 +496,18 @@ namespace MangaBinder.Settings
 		/// <summary>既定の発刊先フォルダです。発刊先が未指定の場合に使用されます。</summary>
 		DefaultBinding,
 	}
+
+	/// <summary>
+	/// 製本後ファイル名で、完結を表す文字を巻数のどこへ追加するかを表す列挙型です。
+	/// </summary>
+	public enum CompleteMarkerPosition
+	{
+		/// <summary>巻数の前に追加します。</summary>
+		BeforeVolume,
+
+		/// <summary>巻数の後に追加します。</summary>
+		AfterVolume,
+	}
 }
 
 namespace MangaBinder.Series

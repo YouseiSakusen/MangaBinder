@@ -17,6 +17,42 @@ public class SettingsPageViewModel : IDisposable, ISavable
 	/// <summary>作業用一時フォルダのパスを取得します。</summary>
 	public BindableReactiveProperty<string> WorkFolderPath => this.appSettings.WorkFolderPath;
 
+	/// <summary>製本後ファイル名の著者名左括弧を取得します。</summary>
+	public BindableReactiveProperty<string> BindingZipAuthorLeftBracket => this.appSettings.BindingZipAuthorLeftBracket;
+
+	/// <summary>製本後ファイル名の著者名右括弧を取得します。</summary>
+	public BindableReactiveProperty<string> BindingZipAuthorRightBracket => this.appSettings.BindingZipAuthorRightBracket;
+
+	/// <summary>製本後ファイル名の著者名とタイトルの区切り文字を取得します。</summary>
+	public BindableReactiveProperty<string> BindingZipNameSeparator => this.appSettings.BindingZipNameSeparator;
+
+	/// <summary>製本後ファイル名の通常巻数の接頭辞を取得します。</summary>
+	public BindableReactiveProperty<string> BindingZipNormalVolumePrefix => this.appSettings.BindingZipNormalVolumePrefix;
+
+	/// <summary>製本後ファイル名の通常巻数の区切り文字を取得します。</summary>
+	public BindableReactiveProperty<string> BindingZipNormalVolumeSeparator => this.appSettings.BindingZipNormalVolumeSeparator;
+
+	/// <summary>製本後ファイル名の通常巻数の接尾辞を取得します。</summary>
+	public BindableReactiveProperty<string> BindingZipNormalVolumeSuffix => this.appSettings.BindingZipNormalVolumeSuffix;
+
+	/// <summary>製本後ファイル名の完結を表す文字を取得します。</summary>
+	public BindableReactiveProperty<string> BindingZipCompleteVolumePrefix => this.appSettings.BindingZipCompleteVolumePrefix;
+
+	/// <summary>製本後ファイル名の完結巻数の接尾辞を取得します。</summary>
+	public BindableReactiveProperty<string> BindingZipCompleteVolumeSuffix => this.appSettings.BindingZipCompleteVolumeSuffix;
+
+	/// <summary>完結を表す文字の位置を取得します。</summary>
+	public BindableReactiveProperty<CompleteMarkerPosition> BindingZipCompleteMarkerPosition => this.appSettings.BindingZipCompleteMarkerPosition;
+
+	/// <summary>開始巻～完結表記を使用するかどうかを取得します。</summary>
+	public BindableReactiveProperty<bool> BindingZipUsePartialCompleteMarker => this.appSettings.BindingZipUsePartialCompleteMarker;
+
+	/// <summary>完結巻数をゼロ埋めするかどうかを取得します。</summary>
+	public BindableReactiveProperty<bool> BindingZipCompleteVolumeZeroPadding => this.appSettings.BindingZipCompleteVolumeZeroPadding;
+
+	/// <summary>製本後アーカイブの既定拡張子を取得します。</summary>
+	public BindableReactiveProperty<string> BindingDefaultArchiveExtension => this.appSettings.BindingDefaultArchiveExtension;
+
 	/// <summary>スキャン対象フォルダの一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> ScanFolders { get; }
 

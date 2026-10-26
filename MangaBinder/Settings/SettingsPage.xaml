@@ -8,6 +8,7 @@
 	  xmlns:shared="clr-namespace:MangaBinder.Settings;assembly=MangaBinder.Shared"
 	  xmlns:controls="clr-namespace:MangaBinder.Controls"
 	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
+	  xmlns:converters="clr-namespace:MangaBinder.Converters"
 	  mc:Ignorable="d"
 	  d:DesignHeight="700" d:DesignWidth="900"
 	  Title="SettingsPage"
@@ -17,9 +18,27 @@
 
 	<Page.Resources>
 
+		<converters:BindingZipFileNameSampleConverter x:Key="BindingZipFileNameSampleConverter" />
+
+		<!-- ファイル名構成の入力用TextBox Style -->
+		<Style x:Key="FileNameTokenTextBoxStyle" TargetType="{x:Type ui:TextBox}" BasedOn="{StaticResource {x:Type ui:TextBox}}">
+			<Setter Property="MinWidth" Value="48" />
+			<Setter Property="Margin" Value="2,0" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+			<Setter Property="TextAlignment" Value="Center" />
+		</Style>
+
+		<!-- ファイル名構成の固定表示TextBlock Style -->
+		<Style x:Key="FileNameFixedTextStyle" TargetType="{x:Type TextBlock}">
+			<Setter Property="Margin" Value="2,0" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+			<Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+		</Style>
+
 		<!-- フォルダ一覧の行テンプレート（素材・製本済み共通） -->
 		<DataTemplate x:Key="SourceFolderRowTemplate">
-			<Grid Margin="0,4">
+			<ui:Card Style="{StaticResource SettingsItemCardStyle}" Margin="0" HorizontalAlignment="Stretch">
+			<Grid>
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="Auto" />
 					<ColumnDefinition Width="*" />
@@ -28,10 +47,10 @@
 
 				<ui:SymbolIcon
 					Grid.Column="0"
-					Symbol="Folder24"
-					FontSize="24"
+					Symbol="Folder16"
+					FontSize="16"
 					VerticalAlignment="Center"
-					Margin="0,0,12,0" />
+					Margin="0,0,8,0" />
 
 				<Grid Grid.Column="1" VerticalAlignment="Center">
 					<Grid.RowDefinitions>
@@ -85,6 +104,7 @@
 					ToolTip="フォルダ設定を編集"
 					IsEnabled="False" />
 			</Grid>
+			</ui:Card>
 			<DataTemplate.Triggers>
 				<DataTrigger Binding="{Binding Role.Value}" Value="{x:Static shared:FolderRole.DefaultBinding}">
 					<Setter TargetName="DefaultBadge" Property="Visibility" Value="Visible" />
@@ -98,7 +118,21 @@
 			<Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
 			<Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
 			<Setter Property="HorizontalContentAlignment" Value="Stretch" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Padding" Value="0" />
 			<Setter Property="ItemTemplate" Value="{StaticResource SourceFolderRowTemplate}" />
+			<Setter Property="ItemContainerStyle">
+				<Setter.Value>
+					<Style TargetType="ListViewItem">
+						<Setter Property="BorderThickness" Value="0" />
+						<Setter Property="Background" Value="Transparent" />
+						<Setter Property="Padding" Value="0" />
+						<Setter Property="Margin" Value="0,0,0,4" />
+						<Setter Property="HorizontalContentAlignment" Value="Stretch" />
+					</Style>
+				</Setter.Value>
+			</Setter>
 		</Style>
 
 	</Page.Resources>
@@ -117,12 +151,14 @@
 				<Grid>
 					<Grid.RowDefinitions>
 						<RowDefinition Height="Auto" />
+						<RowDefinition Height="Auto" />
 					</Grid.RowDefinitions>
 
 					<!-- 各種フォルダ -->
 					<ui:Card Grid.Row="0" Style="{StaticResource SettingsGroupCardStyle}">
 						<Grid>
 							<Grid.RowDefinitions>
+								<RowDefinition Height="Auto" />
 								<RowDefinition Height="Auto" />
 								<RowDefinition Height="Auto" />
 								<RowDefinition Height="Auto" />
@@ -134,10 +170,17 @@
 								Text="各種フォルダ"
 								Style="{StaticResource SettingsGroupTitleStyle}" />
 
+							<TextBlock
+								Grid.Row="1"
+								Margin="0,0,0,8"
+								Text="アプリで使用するフォルダを設定します。"
+								Style="{StaticResource SettingsGroupDescriptionStyle}" />
+
 							<!-- 素材フォルダ -->
-							<ui:Card Grid.Row="1" Style="{StaticResource SettingsItemCardStyle}">
+							<ui:Card Grid.Row="2" Style="{StaticResource SettingsItemCardStyle}">
 								<Grid>
 									<Grid.RowDefinitions>
+										<RowDefinition Height="Auto" />
 										<RowDefinition Height="Auto" />
 										<RowDefinition Height="Auto" />
 									</Grid.RowDefinitions>
@@ -157,8 +200,13 @@
 										Icon="{ui:SymbolIcon Add20}"
 										IsEnabled="False" />
 
-									<ListView
+									<TextBlock
 										Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+										Text="漫画の素材を検索するフォルダを設定します。"
+										Style="{StaticResource SettingsItemDescriptionStyle}" />
+
+									<ListView
+										Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
 										Margin="0,8,0,0"
 										Style="{StaticResource SourceFolderListViewStyle}"
 										x:Name="MaterialFoldersListView"
@@ -167,9 +215,10 @@
 							</ui:Card>
 
 							<!-- 製本済みフォルダ -->
-							<ui:Card Grid.Row="2" Style="{StaticResource SettingsItemCardStyle}">
+							<ui:Card Grid.Row="3" Style="{StaticResource SettingsItemCardStyle}">
 								<Grid>
 									<Grid.RowDefinitions>
+										<RowDefinition Height="Auto" />
 										<RowDefinition Height="Auto" />
 										<RowDefinition Height="Auto" />
 									</Grid.RowDefinitions>
@@ -189,8 +238,13 @@
 										Icon="{ui:SymbolIcon Add20}"
 										IsEnabled="False" />
 
-									<ListView
+									<TextBlock
 										Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+										Text="製本済み作品を検索するフォルダを設定します。"
+										Style="{StaticResource SettingsItemDescriptionStyle}" />
+
+									<ListView
+										Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
 										Margin="0,8,0,0"
 										Style="{StaticResource SourceFolderListViewStyle}"
 										x:Name="BindingFoldersListView"
@@ -199,7 +253,7 @@
 							</ui:Card>
 
 							<!-- 展開先フォルダ -->
-							<ui:Card Grid.Row="3" Style="{StaticResource SettingsItemCardStyle}">
+							<ui:Card Grid.Row="4" Style="{StaticResource SettingsItemCardStyle}">
 								<Grid>
 									<Grid.RowDefinitions>
 										<RowDefinition Height="Auto" />
@@ -229,6 +283,275 @@
 								</Grid>
 							</ui:Card>
 						</Grid>
+					</ui:Card>
+
+					<!-- 製本後ファイル名 -->
+					<ui:Card Grid.Row="1" Style="{StaticResource SettingsGroupCardStyle}">
+						<StackPanel>
+							<TextBlock
+								Text="製本後ファイル名"
+								Style="{StaticResource SettingsGroupTitleStyle}" />
+							<TextBlock
+								Margin="0,0,0,8"
+								Text="著者名・タイトル・巻数の表記や、完結時の命名規則を設定します。"
+								Style="{StaticResource SettingsGroupDescriptionStyle}" />
+
+							<!-- 範囲製本 -->
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}">
+								<StackPanel>
+									<TextBlock
+										Style="{StaticResource SettingsItemTitleStyle}"
+										Text="範囲製本" />
+									<WrapPanel Margin="0,8,0,0">
+										<ui:TextBox
+											Style="{StaticResource FileNameTokenTextBoxStyle}"
+											Text="{Binding BindingZipAuthorLeftBracket.Value, UpdateSourceTrigger=PropertyChanged}" />
+										<TextBlock Style="{StaticResource FileNameFixedTextStyle}" Text="作者名" />
+										<ui:TextBox
+											Style="{StaticResource FileNameTokenTextBoxStyle}"
+											Text="{Binding BindingZipAuthorRightBracket.Value, UpdateSourceTrigger=PropertyChanged}" />
+										<ui:TextBox
+											Style="{StaticResource FileNameTokenTextBoxStyle}"
+											Text="{Binding BindingZipNameSeparator.Value, UpdateSourceTrigger=PropertyChanged}" />
+										<TextBlock Style="{StaticResource FileNameFixedTextStyle}" Text="タイトル" />
+										<TextBlock
+											Style="{StaticResource FileNameFixedTextStyle}"
+											Text="{Binding BindingZipNameSeparator.Value, Mode=OneWay}" />
+										<ui:TextBox
+											Style="{StaticResource FileNameTokenTextBoxStyle}"
+											Text="{Binding BindingZipNormalVolumePrefix.Value, UpdateSourceTrigger=PropertyChanged}" />
+										<TextBlock Style="{StaticResource FileNameFixedTextStyle}" Text="01" />
+										<ui:TextBox
+											Style="{StaticResource FileNameTokenTextBoxStyle}"
+											Text="{Binding BindingZipNormalVolumeSeparator.Value, UpdateSourceTrigger=PropertyChanged}" />
+										<TextBlock Style="{StaticResource FileNameFixedTextStyle}" Text="20" />
+										<ui:TextBox
+											Style="{StaticResource FileNameTokenTextBoxStyle}"
+											Text="{Binding BindingZipNormalVolumeSuffix.Value, UpdateSourceTrigger=PropertyChanged}" />
+									</WrapPanel>
+								</StackPanel>
+							</ui:Card>
+
+							<!-- 全巻製本 -->
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}">
+								<StackPanel>
+									<TextBlock
+										Style="{StaticResource SettingsItemTitleStyle}"
+										Text="全巻製本" />
+									<WrapPanel Margin="0,8,0,0">
+										<TextBlock
+											Style="{StaticResource FileNameFixedTextStyle}"
+											Text="{Binding BindingZipAuthorLeftBracket.Value, Mode=OneWay}" />
+										<TextBlock Style="{StaticResource FileNameFixedTextStyle}" Text="作者名" />
+										<TextBlock
+											Style="{StaticResource FileNameFixedTextStyle}"
+											Text="{Binding BindingZipAuthorRightBracket.Value, Mode=OneWay}" />
+										<TextBlock
+											Style="{StaticResource FileNameFixedTextStyle}"
+											Text="{Binding BindingZipNameSeparator.Value, Mode=OneWay}" />
+										<TextBlock Style="{StaticResource FileNameFixedTextStyle}" Text="タイトル" />
+										<TextBlock
+											Style="{StaticResource FileNameFixedTextStyle}"
+											Text="{Binding BindingZipNameSeparator.Value, Mode=OneWay}" />
+
+										<!-- 完結文字が巻数の前 -->
+										<StackPanel Orientation="Horizontal">
+											<StackPanel.Style>
+												<Style TargetType="StackPanel">
+													<Setter Property="Visibility" Value="Collapsed" />
+													<Style.Triggers>
+														<DataTrigger Binding="{Binding BindingZipCompleteMarkerPosition.Value}" Value="{x:Static shared:CompleteMarkerPosition.BeforeVolume}">
+															<Setter Property="Visibility" Value="Visible" />
+														</DataTrigger>
+													</Style.Triggers>
+												</Style>
+											</StackPanel.Style>
+											<ui:TextBox
+												Style="{StaticResource FileNameTokenTextBoxStyle}"
+												Text="{Binding BindingZipCompleteVolumePrefix.Value, UpdateSourceTrigger=PropertyChanged}" />
+											<TextBlock Style="{StaticResource FileNameFixedTextStyle}" Text="38" />
+											<ui:TextBox
+												Style="{StaticResource FileNameTokenTextBoxStyle}"
+												Text="{Binding BindingZipCompleteVolumeSuffix.Value, UpdateSourceTrigger=PropertyChanged}" />
+										</StackPanel>
+
+										<!-- 完結文字が巻数の後 -->
+										<StackPanel Orientation="Horizontal">
+											<StackPanel.Style>
+												<Style TargetType="StackPanel">
+													<Setter Property="Visibility" Value="Collapsed" />
+													<Style.Triggers>
+														<DataTrigger Binding="{Binding BindingZipCompleteMarkerPosition.Value}" Value="{x:Static shared:CompleteMarkerPosition.AfterVolume}">
+															<Setter Property="Visibility" Value="Visible" />
+														</DataTrigger>
+													</Style.Triggers>
+												</Style>
+											</StackPanel.Style>
+											<TextBlock Style="{StaticResource FileNameFixedTextStyle}" Text="38" />
+											<ui:TextBox
+												Style="{StaticResource FileNameTokenTextBoxStyle}"
+												Text="{Binding BindingZipCompleteVolumeSuffix.Value, UpdateSourceTrigger=PropertyChanged}" />
+											<ui:TextBox
+												Style="{StaticResource FileNameTokenTextBoxStyle}"
+												Text="{Binding BindingZipCompleteVolumePrefix.Value, UpdateSourceTrigger=PropertyChanged}" />
+										</StackPanel>
+									</WrapPanel>
+								</StackPanel>
+							</ui:Card>
+
+							<!-- 完結文字の位置 -->
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}">
+								<Grid>
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
+									<TextBlock
+										VerticalAlignment="Center"
+										Style="{StaticResource SettingsItemTitleStyle}"
+										Text="完結を表す文字の位置" />
+									<ComboBox
+										Grid.Column="1"
+										Width="180"
+										SelectedValuePath="Tag"
+										SelectedValue="{Binding BindingZipCompleteMarkerPosition.Value, Mode=TwoWay}">
+										<ComboBoxItem Tag="{x:Static shared:CompleteMarkerPosition.BeforeVolume}">巻数の前に追加</ComboBoxItem>
+										<ComboBoxItem Tag="{x:Static shared:CompleteMarkerPosition.AfterVolume}">巻数の後に追加</ComboBoxItem>
+									</ComboBox>
+								</Grid>
+							</ui:Card>
+
+							<!-- 開始巻～完結表記 -->
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}">
+								<Grid>
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
+									<StackPanel VerticalAlignment="Center">
+										<TextBlock
+											Style="{StaticResource SettingsItemTitleStyle}"
+											Text="開始巻～完結表記" />
+										<TextBlock
+											Style="{StaticResource SettingsItemDescriptionStyle}"
+											Text="範囲製本の最終巻が完結巻の場合に、完結を表す文字を追加します。" />
+									</StackPanel>
+									<ComboBox
+										Grid.Column="1"
+										Width="180"
+										SelectedValuePath="Tag"
+										SelectedValue="{Binding BindingZipUsePartialCompleteMarker.Value, Mode=TwoWay}">
+										<ComboBoxItem Tag="True">使用する</ComboBoxItem>
+										<ComboBoxItem Tag="False">使用しない</ComboBoxItem>
+									</ComboBox>
+								</Grid>
+							</ui:Card>
+
+							<!-- ゼロ埋め -->
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}">
+								<Grid>
+									<Grid.ColumnDefinitions>
+										<ColumnDefinition Width="*" />
+										<ColumnDefinition Width="Auto" />
+									</Grid.ColumnDefinitions>
+									<TextBlock
+										VerticalAlignment="Center"
+										Style="{StaticResource SettingsItemTitleStyle}"
+										Text="完結巻数をゼロ埋めする" />
+									<ui:ToggleSwitch
+										Grid.Column="1"
+										IsChecked="{Binding BindingZipCompleteVolumeZeroPadding.Value, Mode=TwoWay}" />
+								</Grid>
+							</ui:Card>
+
+							<!-- サンプル -->
+							<ui:Card Style="{StaticResource SettingsItemCardStyle}">
+								<StackPanel>
+									<TextBlock
+										Style="{StaticResource SettingsItemTitleStyle}"
+										Text="ファイル名サンプル" />
+									<ItemsControl Margin="0,8,0,0">
+										<ItemsControl.Resources>
+											<Style TargetType="TextBlock">
+												<Setter Property="Margin" Value="0,2" />
+											</Style>
+										</ItemsControl.Resources>
+										<TextBlock>
+											<TextBlock.Text>
+												<MultiBinding Converter="{StaticResource BindingZipFileNameSampleConverter}" ConverterParameter="Range">
+													<Binding Path="BindingZipAuthorLeftBracket.Value" />
+													<Binding Path="BindingZipAuthorRightBracket.Value" />
+													<Binding Path="BindingZipNameSeparator.Value" />
+													<Binding Path="BindingZipNormalVolumePrefix.Value" />
+													<Binding Path="BindingZipNormalVolumeSeparator.Value" />
+													<Binding Path="BindingZipNormalVolumeSuffix.Value" />
+													<Binding Path="BindingZipCompleteVolumePrefix.Value" />
+													<Binding Path="BindingZipCompleteVolumeSuffix.Value" />
+													<Binding Path="BindingZipCompleteMarkerPosition.Value" />
+													<Binding Path="BindingZipUsePartialCompleteMarker.Value" />
+													<Binding Path="BindingZipCompleteVolumeZeroPadding.Value" />
+													<Binding Path="BindingDefaultArchiveExtension.Value" />
+												</MultiBinding>
+											</TextBlock.Text>
+										</TextBlock>
+										<TextBlock>
+											<TextBlock.Text>
+												<MultiBinding Converter="{StaticResource BindingZipFileNameSampleConverter}" ConverterParameter="Complete">
+													<Binding Path="BindingZipAuthorLeftBracket.Value" />
+													<Binding Path="BindingZipAuthorRightBracket.Value" />
+													<Binding Path="BindingZipNameSeparator.Value" />
+													<Binding Path="BindingZipNormalVolumePrefix.Value" />
+													<Binding Path="BindingZipNormalVolumeSeparator.Value" />
+													<Binding Path="BindingZipNormalVolumeSuffix.Value" />
+													<Binding Path="BindingZipCompleteVolumePrefix.Value" />
+													<Binding Path="BindingZipCompleteVolumeSuffix.Value" />
+													<Binding Path="BindingZipCompleteMarkerPosition.Value" />
+													<Binding Path="BindingZipUsePartialCompleteMarker.Value" />
+													<Binding Path="BindingZipCompleteVolumeZeroPadding.Value" />
+													<Binding Path="BindingDefaultArchiveExtension.Value" />
+												</MultiBinding>
+											</TextBlock.Text>
+										</TextBlock>
+										<TextBlock>
+											<TextBlock.Text>
+												<MultiBinding Converter="{StaticResource BindingZipFileNameSampleConverter}" ConverterParameter="CompleteSingleDigit">
+													<Binding Path="BindingZipAuthorLeftBracket.Value" />
+													<Binding Path="BindingZipAuthorRightBracket.Value" />
+													<Binding Path="BindingZipNameSeparator.Value" />
+													<Binding Path="BindingZipNormalVolumePrefix.Value" />
+													<Binding Path="BindingZipNormalVolumeSeparator.Value" />
+													<Binding Path="BindingZipNormalVolumeSuffix.Value" />
+													<Binding Path="BindingZipCompleteVolumePrefix.Value" />
+													<Binding Path="BindingZipCompleteVolumeSuffix.Value" />
+													<Binding Path="BindingZipCompleteMarkerPosition.Value" />
+													<Binding Path="BindingZipUsePartialCompleteMarker.Value" />
+													<Binding Path="BindingZipCompleteVolumeZeroPadding.Value" />
+													<Binding Path="BindingDefaultArchiveExtension.Value" />
+												</MultiBinding>
+											</TextBlock.Text>
+										</TextBlock>
+										<TextBlock>
+											<TextBlock.Text>
+												<MultiBinding Converter="{StaticResource BindingZipFileNameSampleConverter}" ConverterParameter="RangeToComplete">
+													<Binding Path="BindingZipAuthorLeftBracket.Value" />
+													<Binding Path="BindingZipAuthorRightBracket.Value" />
+													<Binding Path="BindingZipNameSeparator.Value" />
+													<Binding Path="BindingZipNormalVolumePrefix.Value" />
+													<Binding Path="BindingZipNormalVolumeSeparator.Value" />
+													<Binding Path="BindingZipNormalVolumeSuffix.Value" />
+													<Binding Path="BindingZipCompleteVolumePrefix.Value" />
+													<Binding Path="BindingZipCompleteVolumeSuffix.Value" />
+													<Binding Path="BindingZipCompleteMarkerPosition.Value" />
+													<Binding Path="BindingZipUsePartialCompleteMarker.Value" />
+													<Binding Path="BindingZipCompleteVolumeZeroPadding.Value" />
+													<Binding Path="BindingDefaultArchiveExtension.Value" />
+												</MultiBinding>
+											</TextBlock.Text>
+										</TextBlock>
+									</ItemsControl>
+								</StackPanel>
+							</ui:Card>
+						</StackPanel>
 					</ui:Card>
 				</Grid>
 			</ScrollViewer>

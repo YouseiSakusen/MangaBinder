@@ -101,6 +101,12 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>製本後 zip ファイル名で、完結巻数を巻数桁数に合わせて 0 埋めするかどうかを取得します。</summary>
 	public BindableReactiveProperty<bool> BindingZipCompleteVolumeZeroPadding { get; }
 
+	/// <summary>製本後 zip ファイル名で、完結を表す文字を巻数の前後どちらへ追加するかを取得します。</summary>
+	public BindableReactiveProperty<CompleteMarkerPosition> BindingZipCompleteMarkerPosition { get; }
+
+	/// <summary>製本後 zip ファイル名で、開始巻～完結表記（第31-全38巻 形式）を使用するかどうかを取得します。</summary>
+	public BindableReactiveProperty<bool> BindingZipUsePartialCompleteMarker { get; }
+
 	/// <summary>スキャン対象フォルダの一覧を取得します。</summary>
 	public ObservableList<SourceFolder> SourceFolders { get; }
 
@@ -214,6 +220,12 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 			.AddTo(ref this.disposableBag);
 
 		this.BindingZipCompleteVolumeZeroPadding = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
+		this.BindingZipCompleteMarkerPosition = new BindableReactiveProperty<CompleteMarkerPosition>(CompleteMarkerPosition.BeforeVolume)
+			.AddTo(ref this.disposableBag);
+
+		this.BindingZipUsePartialCompleteMarker = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
 
 		this.SourceFolders = new ObservableList<SourceFolder>();
