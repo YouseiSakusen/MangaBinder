@@ -1,6 +1,8 @@
 using System.Windows;
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
+using MangaBinder.Helpers;
+using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using R3;
 using Wpf.Ui;
@@ -41,6 +43,9 @@ public class NewSeriesCoordinator
 	/// <summary>共有 MangaSeriesViewModel を所有するストア。</summary>
 	private readonly MangaSeriesStore mangaSeriesStore;
 
+	/// <summary>アプリケーション設定。</summary>
+	private readonly AppSettings appSettings;
+
 	/// <summary>
 	/// <see cref="NewSeriesCoordinator"/>
 	/// </summary>
@@ -53,8 +58,10 @@ public class NewSeriesCoordinator
 		IContentDialogService contentDialogService,
 		EditStore editStore,
 		IServiceScopeFactory serviceScopeFactory,
-		MangaSeriesStore mangaSeriesStore)
+		MangaSeriesStore mangaSeriesStore,
+		AppSettings appSettings)
 	{
+		this.appSettings = appSettings;
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
@@ -69,6 +76,24 @@ public class NewSeriesCoordinator
 	/// <returns>非同期操作を表す ValueTask。</returns>
 	public async ValueTask StartAsync()
 	{
+		// 素材フォルダ未登録の場合は設定画面へ案内する
+		if (!this.appSettings.HasMaterialFolder.Value)
+		{
+			var openSettings = await ContentDialogHelper.ShowConfirmAsync(
+				this.contentDialogService,
+				"素材フォルダが登録されていません",
+				"作品を登録するには、素材フォルダの設定が必要です。\n設定画面で素材フォルダを登録してください。",
+				"設定を開く",
+				"閉じる");
+
+			if (openSettings)
+			{
+				this.navigationService.Navigate(typeof(SettingsPage));
+			}
+
+			return;
+		}
+
 		// Dialog 表示期間用の Scope を作成
 		using var scope = this.serviceScopeFactory.CreateScope();
 

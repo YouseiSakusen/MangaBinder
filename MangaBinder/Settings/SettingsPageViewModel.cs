@@ -53,6 +53,18 @@ public class SettingsPageViewModel : IDisposable, ISavable
 	/// <summary>製本後アーカイブの既定拡張子を取得します。</summary>
 	public BindableReactiveProperty<string> BindingDefaultArchiveExtension => this.appSettings.BindingDefaultArchiveExtension;
 
+	/// <summary>素材フォルダが1件以上登録されているかどうかを取得します。</summary>
+	public IReadOnlyBindableReactiveProperty<bool> HasMaterialFolder
+		=> this.appSettings.HasMaterialFolder;
+
+	/// <summary>製本済みフォルダが1件以上登録されているかどうかを取得します。</summary>
+	public IReadOnlyBindableReactiveProperty<bool> HasBindingFolder
+		=> this.appSettings.HasBindingFolder;
+
+	/// <summary>素材フォルダと製本済みフォルダが両方登録されているかどうかを取得します。</summary>
+	public IReadOnlyBindableReactiveProperty<bool> HasRequiredFolders
+		=> this.appSettings.HasRequiredFolders;
+
 	/// <summary>スキャン対象フォルダの一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> ScanFolders { get; }
 

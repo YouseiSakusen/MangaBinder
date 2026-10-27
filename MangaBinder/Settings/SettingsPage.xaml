@@ -19,6 +19,7 @@
 	<Page.Resources>
 
 		<converters:BindingZipFileNameSampleConverter x:Key="BindingZipFileNameSampleConverter" />
+		<converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
 		<!-- ファイル名構成の入力用TextBox Style -->
 		<Style x:Key="FileNameTokenTextBoxStyle" TargetType="{x:Type ui:TextBox}" BasedOn="{StaticResource {x:Type ui:TextBox}}">
@@ -210,7 +211,35 @@
 										Margin="0,8,0,0"
 										Style="{StaticResource SourceFolderListViewStyle}"
 										x:Name="MaterialFoldersListView"
+										Visibility="{Binding HasMaterialFolder.Value, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
 										ItemsSource="{Binding MaterialFolders}" />
+
+									<StackPanel
+										Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+										Margin="0,12,0,4"
+										HorizontalAlignment="Center"
+										Visibility="{Binding HasMaterialFolder.Value, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+										<ui:SymbolIcon
+											Symbol="FolderAdd24"
+											FontSize="32"
+											Foreground="{DynamicResource BindingAccentBrush}" />
+										<TextBlock
+											Margin="0,8,0,4"
+											HorizontalAlignment="Center"
+											FontSize="15"
+											FontWeight="SemiBold"
+											Text="素材フォルダが登録されていません" />
+										<TextBlock
+											HorizontalAlignment="Center"
+											FontSize="13"
+											Opacity="0.7"
+											TextAlignment="Center"
+											TextWrapping="Wrap">
+											<Run Text="作品を登録するには素材フォルダが必要です。" />
+											<LineBreak />
+											<Run Text="右上の「追加」からフォルダを登録してください。" />
+										</TextBlock>
+									</StackPanel>
 								</Grid>
 							</ui:Card>
 
@@ -248,7 +277,35 @@
 										Margin="0,8,0,0"
 										Style="{StaticResource SourceFolderListViewStyle}"
 										x:Name="BindingFoldersListView"
+										Visibility="{Binding HasBindingFolder.Value, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
 										ItemsSource="{Binding BindingFolders}" />
+
+									<StackPanel
+										Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+										Margin="0,12,0,4"
+										HorizontalAlignment="Center"
+										Visibility="{Binding HasBindingFolder.Value, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+										<ui:SymbolIcon
+											Symbol="FolderAdd24"
+											FontSize="32"
+											Foreground="{DynamicResource BindingAccentBrush}" />
+										<TextBlock
+											Margin="0,8,0,4"
+											HorizontalAlignment="Center"
+											FontSize="15"
+											FontWeight="SemiBold"
+											Text="製本済みフォルダが登録されていません" />
+										<TextBlock
+											HorizontalAlignment="Center"
+											FontSize="13"
+											Opacity="0.7"
+											TextAlignment="Center"
+											TextWrapping="Wrap">
+											<Run Text="製本するには製本済みフォルダが必要です。" />
+											<LineBreak />
+											<Run Text="右上の「追加」からフォルダを登録してください。" />
+										</TextBlock>
+									</StackPanel>
 								</Grid>
 							</ui:Card>
 
@@ -277,6 +334,7 @@
 										Grid.Row="2" Grid.Column="0"
 										Margin="0,8,8,0"
 										VerticalAlignment="Center"
+										PlaceholderText="製本する画像の展開先フォルダを指定してください。"
 										Text="{Binding WorkFolderPath.Value, UpdateSourceTrigger=PropertyChanged}" />
 									<ui:Button
 										Grid.Row="2" Grid.Column="1"
@@ -290,7 +348,10 @@
 					</ui:Card>
 
 					<!-- 製本後ファイル名 -->
-					<ui:Card Grid.Row="1" Style="{StaticResource SettingsGroupCardStyle}">
+					<ui:Card
+						Grid.Row="1"
+						Style="{StaticResource SettingsGroupCardStyle}"
+						Visibility="{Binding HasBindingFolder.Value, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
 						<StackPanel>
 							<TextBlock
 								Text="製本後ファイル名"

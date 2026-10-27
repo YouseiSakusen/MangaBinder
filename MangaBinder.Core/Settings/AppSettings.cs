@@ -116,6 +116,15 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>製本済みフォルダ（既定を含む）のみを抽出した派生 View を取得します。所有者は <see cref="AppSettings"/> です。</summary>
 	public ISynchronizedView<SourceFolder, SourceFolder> BindingFolders { get; }
 
+	/// <summary>素材フォルダが1件以上登録されているかどうかを取得します。</summary>
+	public IReadOnlyBindableReactiveProperty<bool> HasMaterialFolder { get; }
+
+	/// <summary>製本済みフォルダが1件以上登録されているかどうかを取得します。</summary>
+	public IReadOnlyBindableReactiveProperty<bool> HasBindingFolder { get; }
+
+	/// <summary>素材フォルダと製本済みフォルダが両方登録されているかどうかを取得します。</summary>
+	public IReadOnlyBindableReactiveProperty<bool> HasRequiredFolders { get; }
+
 	/// <summary>
 	/// 既定の製本先フォルダのパスを取得します。
 	/// SourceFolders に登録されている FolderRole.DefaultBinding のフォルダパスを返します。
@@ -240,6 +249,25 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 		this.BindingFolders.AttachFilter(
 			folder => folder.Role.Value is
 				FolderRole.Binding or FolderRole.DefaultBinding);
+
+		this.HasMaterialFolder = this.MaterialFolders
+			.ObserveCountChanged(notifyCurrentCount: true)
+			.Select(count => count > 0)
+			.ToReadOnlyBindableReactiveProperty(false)
+			.AddTo(ref this.disposableBag);
+
+		this.HasBindingFolder = this.BindingFolders
+			.ObserveCountChanged(notifyCurrentCount: true)
+			.Select(count => count > 0)
+			.ToReadOnlyBindableReactiveProperty(false)
+			.AddTo(ref this.disposableBag);
+
+		this.HasRequiredFolders = Observable.CombineLatest(
+				this.HasMaterialFolder.AsObservable(),
+				this.HasBindingFolder.AsObservable(),
+				(hasMaterial, hasBinding) => hasMaterial && hasBinding)
+			.ToReadOnlyBindableReactiveProperty(false)
+			.AddTo(ref this.disposableBag);
 	}
 
 	/// <summary>
