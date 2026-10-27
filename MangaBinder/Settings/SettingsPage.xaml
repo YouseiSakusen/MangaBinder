@@ -202,7 +202,7 @@
 
 									<TextBlock
 										Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-										Text="漫画の素材を検索するフォルダを設定します。"
+										Text="漫画の素材を置いているフォルダを設定します。"
 										Style="{StaticResource SettingsItemDescriptionStyle}" />
 
 									<ListView
@@ -240,7 +240,7 @@
 
 									<TextBlock
 										Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-										Text="製本済み作品を検索するフォルダを設定します。"
+										Text="製本済zipを置いているフォルダを設定します。"
 										Style="{StaticResource SettingsItemDescriptionStyle}" />
 
 									<ListView
@@ -258,6 +258,7 @@
 									<Grid.RowDefinitions>
 										<RowDefinition Height="Auto" />
 										<RowDefinition Height="Auto" />
+										<RowDefinition Height="Auto" />
 									</Grid.RowDefinitions>
 									<Grid.ColumnDefinitions>
 										<ColumnDefinition Width="*" />
@@ -268,14 +269,17 @@
 										Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
 										Style="{StaticResource SettingsItemTitleStyle}"
 										Text="展開先フォルダ" />
-
+									<TextBlock
+										Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+										Text="製本時に素材の画像を展開するフォルダを設定します。"
+										Style="{StaticResource SettingsItemDescriptionStyle}" />
 									<ui:TextBox
-										Grid.Row="1" Grid.Column="0"
+										Grid.Row="2" Grid.Column="0"
 										Margin="0,8,8,0"
 										VerticalAlignment="Center"
 										Text="{Binding WorkFolderPath.Value, UpdateSourceTrigger=PropertyChanged}" />
 									<ui:Button
-										Grid.Row="1" Grid.Column="1"
+										Grid.Row="2" Grid.Column="1"
 										Margin="0,8,0,0"
 										Content="参照"
 										Icon="{ui:SymbolIcon FolderOpen24}"
@@ -293,7 +297,7 @@
 								Style="{StaticResource SettingsGroupTitleStyle}" />
 							<TextBlock
 								Margin="0,0,0,8"
-								Text="著者名・タイトル・巻数の表記や、完結時の命名規則を設定します。"
+								Text="製本して作成するファイル名の命名規則を設定します。"
 								Style="{StaticResource SettingsGroupDescriptionStyle}" />
 
 							<!-- 範囲製本 -->
