@@ -45,9 +45,16 @@ public class MangaBinderInitializer
 
         if (!File.Exists(dbPath))
         {
-            Directory.CreateDirectory(dbDir);
-            var templatePath = Path.Combine(AppContext.BaseDirectory, "template.db");
-            File.Copy(templatePath, dbPath);
+            try
+            {
+                Directory.CreateDirectory(dbDir);
+                var templatePath = Path.Combine(AppContext.BaseDirectory, "template.db");
+                File.Copy(templatePath, dbPath);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw new DatabaseCreationPermissionException(dbPath, ex);
+            }
         }
 
         return new SQLiteConnectionStringBuilder

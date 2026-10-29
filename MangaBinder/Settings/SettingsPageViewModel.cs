@@ -1,16 +1,21 @@
+﻿using System.IO;
+using HalationGhost.Wpf.Ui;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using ObservableCollections;
 using R3;
+using Wpf.Ui;
+using Wpf.Ui.Controls;
 
 namespace MangaBinder.Settings;
 
 /// <summary>
 /// 設定ページの ViewModel です。
 /// </summary>
-public class SettingsPageViewModel : IDisposable, ISavable
+public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 {
 	private readonly AppSettings appSettings;
+	private readonly IContentDialogService contentDialogService;
 	private readonly IServiceScope serviceScope;
 	private DisposableBag disposableBag;
 
@@ -53,6 +58,9 @@ public class SettingsPageViewModel : IDisposable, ISavable
 	/// <summary>製本後アーカイブの既定拡張子を取得します。</summary>
 	public BindableReactiveProperty<string> BindingDefaultArchiveExtension => this.appSettings.BindingDefaultArchiveExtension;
 
+	/// <summary>初回設定の自動保存案内 InfoBar を表示するかどうかを取得します。</summary>
+	public bool ShowInitialSetupInfoBar { get; }
+
 	/// <summary>素材フォルダが1件以上登録されているかどうかを取得します。</summary>
 	public IReadOnlyBindableReactiveProperty<bool> HasMaterialFolder
 		=> this.appSettings.HasMaterialFolder;
@@ -94,9 +102,15 @@ public class SettingsPageViewModel : IDisposable, ISavable
 	/// </summary>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
-	public SettingsPageViewModel(AppSettings appSettings, IServiceScopeFactory serviceScopeFactory)
+	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
+	public SettingsPageViewModel(
+		AppSettings appSettings,
+		IServiceScopeFactory serviceScopeFactory,
+		IContentDialogService contentDialogService)
 	{
 		this.appSettings = appSettings;
+		this.contentDialogService = contentDialogService;
+		this.ShowInitialSetupInfoBar = !appSettings.AppStatus.IsInitialFolderSetupCompleted;
 		this.serviceScope = serviceScopeFactory.CreateScope();
 
 		this.ScanFolders = this.appSettings.SourceFolders
@@ -185,6 +199,68 @@ public class SettingsPageViewModel : IDisposable, ISavable
 		//return SaveResult.Success("設定を保存しました");
 	}
 
+	/// <summary>
+	/// 必須フォルダの設定状況を確認し、画面から離れてよいかを返します。
+	/// 未設定の場合はダイアログを表示し、「デフォルトを使用」選択時に不足フォルダを作成・登録します。
+	/// </summary>
+	/// <returns>離れてよい場合は true、設定画面に留まる場合は false。</returns>
+	public async ValueTask<bool> CanLeaveAsync()
+	{
+		if (!this.appSettings.HasRequiredFolders.Value)
+		{
+			var dialog = new ContentDialog
+			{
+				Title = "必須フォルダ未設定",
+				Content = "素材フォルダまたは製本済みフォルダが設定されていません。\n\n"
+					+ "設定するまで別の画面に移動できません。\n\n"
+					+ "アプリのインストールフォルダに、デフォルトのフォルダを作成しますか？",
+				PrimaryButtonText = "デフォルトを使用",
+				CloseButtonText = "自分で設定する",
+				DefaultButton = ContentDialogButton.Primary,
+			};
+
+			var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+			if (result != ContentDialogResult.Primary)
+				return false;
+
+			this.createDefaultFolders();
+		}
+
+		if (string.IsNullOrWhiteSpace(this.appSettings.WorkFolderPath.Value))
+			this.appSettings.WorkFolderPath.Value = AppSettings.DefaultWorkPath;
+
+		this.appSettings.AppStatus.IsInitialFolderSetupCompleted = true;
+		return true;
+	}
+
+	/// <summary>不足している必須フォルダと未設定の展開先フォルダを既定の場所へ作成し、設定へ登録します。</summary>
+	private void createDefaultFolders()
+	{
+		if (!this.appSettings.HasMaterialFolder.Value)
+			this.addDefaultFolder("素材", AppSettings.DefaultMaterialPath, FolderRole.Material);
+
+		if (!this.appSettings.HasBindingFolder.Value)
+			this.addDefaultFolder("製本済み", AppSettings.DefaultBindingPath, FolderRole.DefaultBinding);
+
+		if (string.IsNullOrWhiteSpace(this.appSettings.WorkFolderPath.Value))
+		{
+			Directory.CreateDirectory(AppSettings.DefaultWorkPath);
+			this.appSettings.WorkFolderPath.Value = AppSettings.DefaultWorkPath;
+		}
+	}
+
+	/// <summary>フォルダを作成し、指定の役割で設定へ登録します。</summary>
+	private void addDefaultFolder(string displayName, string path, FolderRole role)
+	{
+		Directory.CreateDirectory(path);
+
+		var folder = new SourceFolder();
+		folder.DisplayName.Value = displayName;
+		folder.FolderPath.Value = path;
+		folder.Role.Value = role;
+		this.appSettings.SourceFolders.Add(folder);
+	}
+
 	/// <summary>リソースを解放します。</summary>
 	public void Dispose()
 	{
@@ -192,3 +268,5 @@ public class SettingsPageViewModel : IDisposable, ISavable
 		this.serviceScope.Dispose();
 	}
 }
+
+

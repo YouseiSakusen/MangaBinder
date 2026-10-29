@@ -80,6 +80,7 @@ public class SettingsManager
 
 		using var transaction = connection.BeginTransaction();
 		await this.persistAppSettingsToDbAsync(connection, transaction);
+		await this.persistApplicationStatusIfChangedAsync(connection, transaction);
 		transaction.Commit();
 
 		this.appSettings.UpdateSnapshot();
@@ -197,7 +198,38 @@ public class SettingsManager
 	}
 
 	/// <summary>
-	/// DatabaseVersion テーブル（Id = 1）からバージョンを非同期で読み込みます。レコードが無い場合は例外とします。
+	/// AppStatus テーブル（Id = 1）の現在値とメモリ上の値を比較し、差異がある場合のみ更新します。
+	/// </summary>
+	private async ValueTask persistApplicationStatusIfChangedAsync(SQLiteConnection connection, SQLiteTransaction transaction)
+	{
+		var selectSql = new StringBuilder();
+		selectSql.AppendLine(" SELECT ");
+		selectSql.AppendLine(" 	  IsInitialFolderSetupCompleted ");
+		selectSql.AppendLine(" FROM ");
+		selectSql.AppendLine(" 	AppStatus ");
+		selectSql.AppendLine(" WHERE ");
+		selectSql.AppendLine(" 	Id = :Id; ");
+
+		var dbValue = await connection.QuerySingleAsync<long>(selectSql.ToString(), new { Id = 1 }, transaction) != 0;
+		var currentValue = this.appSettings.AppStatus.IsInitialFolderSetupCompleted;
+		if (dbValue == currentValue)
+			return;
+
+		var updateSql = new StringBuilder();
+		updateSql.AppendLine(" UPDATE AppStatus ");
+		updateSql.AppendLine(" SET ");
+		updateSql.AppendLine(" 	  IsInitialFolderSetupCompleted = :IsInitialFolderSetupCompleted ");
+		updateSql.AppendLine(" WHERE ");
+		updateSql.AppendLine(" 	Id = :Id; ");
+
+		await connection.ExecuteAsync(
+			updateSql.ToString(),
+			new { Id = 1, IsInitialFolderSetupCompleted = currentValue ? 1 : 0 },
+			transaction);
+	}
+
+	/// <summary>
+	/// DatabaseVersion テーブル（Id = 1）からバージョンを非同期で読み込みます。
 	/// </summary>
 	private async ValueTask loadDatabaseVersionAsync(SQLiteConnection connection)
 	{

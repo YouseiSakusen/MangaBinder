@@ -1,4 +1,4 @@
-using ObservableCollections;
+﻿using ObservableCollections;
 using R3;
 using System.Data.SQLite;
 using System.IO;
@@ -15,6 +15,15 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 
 	/// <summary>変更検知の基準となる初期フォルダ一覧を保持するフィールドです。</summary>
 	private List<SourceFolderRecord> initialFolders = [];
+
+	/// <summary>素材フォルダの既定パス（exe 配置フォルダ直下の Material）を取得します。</summary>
+	public static string DefaultMaterialPath => Path.Combine(AppContext.BaseDirectory, "Material");
+
+	/// <summary>製本済みフォルダの既定パス（exe 配置フォルダ直下の Binding）を取得します。</summary>
+	public static string DefaultBindingPath => Path.Combine(AppContext.BaseDirectory, "Binding");
+
+	/// <summary>展開先フォルダの既定パス（exe 配置フォルダ直下の Work）を取得します。</summary>
+	public static string DefaultWorkPath => Path.Combine(AppContext.BaseDirectory, "Work");
 
 	/// <summary>ワークサムネイルフォルダ名の定数です。</summary>
 	public const string WorkThumbnailFolderName = "wk";
@@ -469,3 +478,4 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 		this.disposableBag.Dispose();
 	}
 }
+

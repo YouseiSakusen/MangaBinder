@@ -153,10 +153,21 @@
 					<Grid.RowDefinitions>
 						<RowDefinition Height="Auto" />
 						<RowDefinition Height="Auto" />
+						<RowDefinition Height="Auto" />
 					</Grid.RowDefinitions>
 
+					<!-- 初回設定時の自動保存案内 -->
+					<ui:InfoBar
+						Grid.Row="0"
+						Margin="0,0,0,8"
+						Title="設定は自動保存されます"
+						Message="設定画面から別の画面へ移動すると、変更内容が自動的に保存されます。"
+						Severity="Informational"
+						IsClosable="True"
+						IsOpen="{Binding ShowInitialSetupInfoBar, Mode=OneWay}" />
+
 					<!-- 各種フォルダ -->
-					<ui:Card Grid.Row="0" Style="{StaticResource SettingsGroupCardStyle}">
+					<ui:Card Grid.Row="1" Style="{StaticResource SettingsGroupCardStyle}">
 						<Grid>
 							<Grid.RowDefinitions>
 								<RowDefinition Height="Auto" />
@@ -349,7 +360,7 @@
 
 					<!-- 製本後ファイル名 -->
 					<ui:Card
-						Grid.Row="1"
+						Grid.Row="2"
 						Style="{StaticResource SettingsGroupCardStyle}"
 						Visibility="{Binding HasBindingFolder.Value, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
 						<StackPanel>

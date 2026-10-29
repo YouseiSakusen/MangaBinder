@@ -38,6 +38,12 @@ public abstract class ElfWindowViewModel : IDisposable
 	/// <summary>現在表示中のページの ViewModel を保持するフィールドです。ナビゲーションライフサイクル管理に使用します。</summary>
 	private object? currentViewModel;
 
+	/// <summary>確認済みの再遷移中かどうかを示します。true の間は <see cref="ILeavable"/> の確認をスキップします。</summary>
+	private bool isConfirmedNavigation;
+
+	/// <summary><see cref="ILeavable.CanLeaveAsync"/> の確認処理中かどうかを示します。</summary>
+	private bool isLeaveConfirming;
+
 	/// <summary>現在表示中のページの ViewModel を取得します。</summary>
 	protected object? CurrentViewModel => this.currentViewModel;
 
@@ -81,6 +87,7 @@ public abstract class ElfWindowViewModel : IDisposable
 			this.NavigationService.SetNavigationControl(navigationView);
 
 			// NavigationView が利用可能になった時点で Navigated イベントを購読
+			navigationView.Navigating += this.OnNavigatingHandler;
 			navigationView.Navigated += this.OnNavigatedHandler;
 
 			// SnackbarPresenter を SnackbarService に設定
@@ -94,6 +101,66 @@ public abstract class ElfWindowViewModel : IDisposable
 			// INavigationViewPageProvider を NavigationView に設定
 			navigationView.SetPageProviderService(navigationViewPageProvider);
 		});
+	}
+
+	/// <summary>
+	/// Navigating イベントのハンドラー。
+	/// 遷移元 ViewModel が <see cref="ILeavable"/> を実装している場合、遷移を同期的にキャンセルし、
+	/// 確認結果が true のときに当初要求された遷移を再実行します。
+	/// </summary>
+	private void OnNavigatingHandler(INavigationView sender, NavigatingCancelEventArgs args)
+	{
+		if (this.isConfirmedNavigation)
+		{
+			this.isConfirmedNavigation = false;
+			return;
+		}
+
+		if (this.currentViewModel is not ILeavable leavable)
+		{
+			return;
+		}
+
+		// Navigating は非同期処理の完了を待たないため、await より前にキャンセルする
+		args.Cancel = true;
+
+		if (this.isLeaveConfirming)
+		{
+			return;
+		}
+
+		var pageType = args.Page?.GetType();
+		if (pageType == null)
+		{
+			return;
+		}
+
+		_ = this.confirmLeaveAndNavigateAsync(leavable, pageType);
+	}
+
+	/// <summary>
+	/// 遷移可否を確認し、許可された場合に元の遷移を再実行します。
+	/// </summary>
+	private async Task confirmLeaveAndNavigateAsync(ILeavable leavable, Type pageType)
+	{
+		this.isLeaveConfirming = true;
+		try
+		{
+			if (!await leavable.CanLeaveAsync())
+			{
+				return;
+			}
+		}
+		finally
+		{
+			this.isLeaveConfirming = false;
+		}
+
+		this.isConfirmedNavigation = true;
+		if (!this.NavigationService.Navigate(pageType))
+		{
+			this.isConfirmedNavigation = false;
+		}
 	}
 
 	/// <summary>

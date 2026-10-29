@@ -86,7 +86,20 @@ public partial class App
 		var builtConfig = config.Build();
 
 		var initializer = new MangaBinderInitializer(builtConfig);
-		await initializer.InitializeAsync();
+		try
+		{
+			await initializer.InitializeAsync();
+		}
+		catch (DatabaseCreationPermissionException)
+		{
+			System.Windows.MessageBox.Show(
+				"データベースファイルの作成に失敗しました。\n\nアプリケーションを、書き込み可能なフォルダに展開してから再度、起動し直してください。",
+				"MangaBinderを起動できません",
+				MessageBoxButton.OK,
+				MessageBoxImage.Error);
+			this.Shutdown();
+			return;
+		}
 
 		host = this.createHost();
 		await host.StartAsync();
@@ -116,6 +129,9 @@ public partial class App
 	/// </summary>
 	private async void OnExit(object sender, ExitEventArgs e)
 	{
+		if (host == null)
+			return;
+
 		await host!.StopAsync();
 		host!.Dispose();
 	}
