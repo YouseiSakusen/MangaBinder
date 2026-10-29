@@ -55,6 +55,8 @@ public class SettingsManager
 		await connection.OpenAsync();
 
 		await this.loadAppSettingsAsync(connection);
+		await this.loadApplicationStatusAsync(connection);
+		await this.loadDatabaseVersionAsync(connection);
 		await this.loadSourceFoldersAsync();
 		await this.loadSupportedExtensionsAsync();
 
@@ -175,6 +177,39 @@ public class SettingsManager
 			})
 			.ToList();
 		await connection.ExecuteAsync(insertSqlStr, rows, transaction);
+	}
+
+	/// <summary>
+	/// AppStatus テーブル（Id = 1）から状態を非同期で読み込みます。レコードが無い場合は例外とします。
+	/// </summary>
+	private async ValueTask loadApplicationStatusAsync(SQLiteConnection connection)
+	{
+		var sql = new StringBuilder();
+		sql.AppendLine(" SELECT ");
+		sql.AppendLine(" 	  IsInitialFolderSetupCompleted ");
+		sql.AppendLine(" FROM ");
+		sql.AppendLine(" 	AppStatus ");
+		sql.AppendLine(" WHERE ");
+		sql.AppendLine(" 	Id = :Id; ");
+
+		var value = await connection.QuerySingleAsync<long>(sql.ToString(), new { Id = 1 });
+		this.appSettings.AppStatus.IsInitialFolderSetupCompleted = value != 0;
+	}
+
+	/// <summary>
+	/// DatabaseVersion テーブル（Id = 1）からバージョンを非同期で読み込みます。レコードが無い場合は例外とします。
+	/// </summary>
+	private async ValueTask loadDatabaseVersionAsync(SQLiteConnection connection)
+	{
+		var sql = new StringBuilder();
+		sql.AppendLine(" SELECT ");
+		sql.AppendLine(" 	  Version ");
+		sql.AppendLine(" FROM ");
+		sql.AppendLine(" 	DatabaseVersion ");
+		sql.AppendLine(" WHERE ");
+		sql.AppendLine(" 	Id = :Id; ");
+
+		this.appSettings.DatabaseVersion = await connection.QuerySingleAsync<string>(sql.ToString(), new { Id = 1 });
 	}
 
 	/// <summary>

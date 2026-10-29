@@ -25,6 +25,12 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>DBファイルの物理パスを取得します。</summary>
 	public string DatabasePath => new SQLiteConnectionStringBuilder(this.ConnectionString).DataSource;
 
+	/// <summary>アプリケーション全体の状態を取得します。</summary>
+	public ApplicationStatus AppStatus { get; } = new();
+
+	/// <summary>データベースのバージョンを取得または設定します。</summary>
+	public string DatabaseVersion { get; set; } = string.Empty;
+
 	/// <summary>作業用一時フォルダのパスを取得します。</summary>
 	public BindableReactiveProperty<string> WorkFolderPath { get; }
 
