@@ -50,7 +50,7 @@ public sealed class BindingZipFileNameSampleConverter : IMultiValueConverter
 				: $"{number}{completeSuffix}{completeMarker}";
 		}
 
-		var volumeText = parameter as string switch
+		var volumeText = (parameter as string) switch
 		{
 			"Range" => $"{normalPrefix}01{normalSeparator}20{normalSuffix}",
 			"Complete" => completeText(38),
