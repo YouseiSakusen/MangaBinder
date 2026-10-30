@@ -335,6 +335,135 @@ public class SettingsManager
 		var extensions = await this.sharedSettingsRepository.GetSupportedFileExtensionsAsync();
 		this.appSettings.ReloadSupportedExtensions(extensions);
 	}
+
+	/// <summary>
+	/// 追加用の <see cref="SourceFolder"/> を生成し、<see cref="AppSettings.TargetSourceFolder"/> へ設定します。
+	/// </summary>
+	/// <param name="role">追加するフォルダの役割。</param>
+	/// <returns>追加用の <see cref="SourceFolder"/>。</returns>
+	public SourceFolder BeginAdd(FolderRole role)
+	{
+		var folder = new SourceFolder();
+		folder.Role.Value = role;
+		this.appSettings.TargetSourceFolder = folder;
+		return folder;
+	}
+
+	/// <summary>
+	/// 編集元の複製を生成し、<see cref="AppSettings.TargetSourceFolder"/> へ設定します。編集元は変更しません。
+	/// </summary>
+	/// <param name="original">編集元の <see cref="SourceFolder"/>。</param>
+	/// <returns>編集用の <see cref="SourceFolder"/>。</returns>
+	public SourceFolder BeginEdit(SourceFolder original)
+	{
+		var folder = original.Clone();
+		this.appSettings.TargetSourceFolder = folder;
+		return folder;
+	}
+
+	/// <summary>
+	/// 追加を確定し、編集中の <see cref="SourceFolder"/> を <see cref="AppSettings.SourceFolders"/> へ登録します。
+	/// </summary>
+	public void CommitAdd()
+	{
+		var target = this.appSettings.TargetSourceFolder!;
+		this.switchDefaultBinding(target, null);
+		this.appSettings.SourceFolders.Add(target);
+		this.appSettings.TargetSourceFolder = null;
+	}
+
+	/// <summary>
+	/// 編集を確定し、編集元を編集用の <see cref="SourceFolder"/> へ置き換えます。
+	/// </summary>
+	/// <param name="original">編集元の <see cref="SourceFolder"/>。</param>
+	public void CommitEdit(SourceFolder original)
+	{
+		var target = this.appSettings.TargetSourceFolder!;
+		this.switchDefaultBinding(target, original);
+
+		var index = this.appSettings.SourceFolders.IndexOf(original);
+		this.appSettings.SourceFolders[index] = target;
+		original.Dispose();
+		this.appSettings.TargetSourceFolder = null;
+	}
+
+	/// <summary>
+	/// 追加・編集をキャンセルし、編集用の <see cref="SourceFolder"/> を破棄します。
+	/// </summary>
+	public void CancelEdit()
+	{
+		this.appSettings.TargetSourceFolder?.Dispose();
+		this.appSettings.TargetSourceFolder = null;
+	}
+
+	/// <summary>
+	/// 編集用フォルダが既定の製本先の場合、他の既定の製本先を通常の製本済みフォルダへ変更します。
+	/// </summary>
+	private void switchDefaultBinding(SourceFolder target, SourceFolder? original)
+	{
+		if (target.Role.Value != FolderRole.DefaultBinding)
+			return;
+
+		foreach (var folder in this.appSettings.SourceFolders)
+		{
+			if (folder != original && folder.Role.Value == FolderRole.DefaultBinding)
+				folder.Role.Value = FolderRole.Binding;
+		}
+	}
+
+	/// <summary>
+	/// 指定フォルダの削除可否を判定します。
+	/// </summary>
+	/// <param name="folder">削除対象のフォルダ。</param>
+	/// <returns>削除不可の理由。削除可能な場合は <see cref="FolderDeleteBlockReason.None"/>。</returns>
+	public async ValueTask<FolderDeleteBlockReason> GetDeleteBlockReasonAsync(SourceFolder folder)
+	{
+		var isMaterial = folder.Role.Value == FolderRole.Material;
+		var sameKindCount = this.appSettings.SourceFolders
+			.Count(f => (f.Role.Value == FolderRole.Material) == isMaterial);
+		if (sameKindCount <= 1)
+			return isMaterial ? FolderDeleteBlockReason.LastMaterialFolder : FolderDeleteBlockReason.LastBindingFolder;
+
+		if (folder.Role.Value == FolderRole.DefaultBinding)
+			return FolderDeleteBlockReason.DefaultBinding;
+
+		var jobType = isMaterial ? JobType.MaterialScan : JobType.BindingScan;
+		if (await this.jobRepository.ExistsPendingOrRunningAsync(jobType))
+			return FolderDeleteBlockReason.ScanJobActive;
+
+		return FolderDeleteBlockReason.None;
+	}
+
+	/// <summary>
+	/// 指定フォルダの登録を <see cref="AppSettings.SourceFolders"/> から削除します。実フォルダは削除しません。
+	/// </summary>
+	/// <param name="folder">削除対象のフォルダ。</param>
+	public void DeleteFolder(SourceFolder folder)
+	{
+		this.appSettings.SourceFolders.Remove(folder);
+		folder.Dispose();
+	}
+}
+
+/// <summary>
+/// フォルダを削除できない理由を表す列挙型です。
+/// </summary>
+public enum FolderDeleteBlockReason
+{
+	/// <summary>削除可能です。</summary>
+	None,
+
+	/// <summary>最後の1件の素材フォルダです。</summary>
+	LastMaterialFolder,
+
+	/// <summary>最後の1件の製本済みフォルダです。</summary>
+	LastBindingFolder,
+
+	/// <summary>既定の製本先フォルダです。</summary>
+	DefaultBinding,
+
+	/// <summary>該当するスキャンジョブが待機中または実行中です。</summary>
+	ScanJobActive,
 }
 
 

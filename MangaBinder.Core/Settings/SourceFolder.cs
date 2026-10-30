@@ -64,6 +64,17 @@ public class SourceFolder : IDisposable
 			.AddTo(ref this.disposableBag);
 	}
 
+	/// <summary>表示名・パス・役割の値をコピーした新しいインスタンスを生成します。</summary>
+	/// <returns>複製した <see cref="SourceFolder"/>。</returns>
+	public SourceFolder Clone()
+	{
+		var clone = new SourceFolder();
+		clone.DisplayName.Value = this.DisplayName.Value;
+		clone.FolderPath.Value = this.FolderPath.Value;
+		clone.Role.Value = this.Role.Value;
+		return clone;
+	}
+
 	/// <summary>リソースを解放します。</summary>
 	public void Dispose() => this.disposableBag.Dispose();
 }

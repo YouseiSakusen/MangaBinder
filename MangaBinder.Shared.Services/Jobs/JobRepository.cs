@@ -213,6 +213,18 @@ public class JobRepository
     }
 
     /// <summary>
+    /// 指定タイプで待機中または実行中のジョブが存在するか確認します。
+    /// </summary>
+    /// <param name="type">確認するジョブタイプ。</param>
+    public async ValueTask<bool> ExistsPendingOrRunningAsync(JobType type)
+    {
+        using var connection = new SQLiteConnection(this.config.ConnectionString);
+        await connection.OpenAsync();
+
+        return await this.existsPendingOrRunningAsync(connection, null, type);
+    }
+
+    /// <summary>
     /// 同一タイプで待機中または実行中のジョブが存在するか確認します。
     /// </summary>
     private async ValueTask<bool> existsPendingOrRunningAsync(SQLiteConnection connection, SQLiteTransaction? transaction, JobType type)

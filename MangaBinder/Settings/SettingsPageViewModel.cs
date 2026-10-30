@@ -1,5 +1,7 @@
 ﻿using System.IO;
 using HalationGhost.Wpf.Ui;
+using MangaBinder.Controls;
+using MangaBinder.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using ObservableCollections;
@@ -16,7 +18,7 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 {
 	private readonly AppSettings appSettings;
 	private readonly IContentDialogService contentDialogService;
-	private readonly IServiceScope serviceScope;
+	private readonly IServiceScopeFactory serviceScopeFactory;
 	private DisposableBag disposableBag;
 
 	/// <summary>作業用一時フォルダのパスを取得します。</summary>
@@ -82,16 +84,13 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 	/// <summary>製本済みフォルダ（既定を含む）の一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> BindingFolders { get; }
 
-	/// <summary>新規追加フォルダの表示名を取得します。</summary>
-	public BindableReactiveProperty<string> NewFolderDisplayName { get; }
+	/// <summary>フォルダを追加するコマンドです。パラメーターは追加するフォルダの <see cref="FolderRole"/> です。</summary>
+	public ReactiveCommand<FolderRole> AddFolderCommand { get; }
 
-	/// <summary>新規追加フォルダの役割インデックスを取得します。</summary>
-	public BindableReactiveProperty<int> NewFolderRoleIndex { get; }
+	/// <summary>フォルダを編集するコマンドです。</summary>
+	public ReactiveCommand<SourceFolder> EditFolderCommand { get; }
 
-	/// <summary>スキャン対象フォルダを追加するコマンドです。</summary>
-	public ReactiveCommand<Unit> AddFolderCommand { get; }
-
-	/// <summary>スキャン対象フォルダを削除するコマンドです。</summary>
+	/// <summary>フォルダの登録を削除するコマンドです。</summary>
 	public ReactiveCommand<SourceFolder> DeleteFolderCommand { get; }
 
 	/// <summary>作業用フォルダのパスを参照するコマンドです。</summary>
@@ -111,7 +110,7 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 		this.appSettings = appSettings;
 		this.contentDialogService = contentDialogService;
 		this.ShowInitialSetupInfoBar = !appSettings.AppStatus.IsInitialFolderSetupCompleted;
-		this.serviceScope = serviceScopeFactory.CreateScope();
+		this.serviceScopeFactory = serviceScopeFactory;
 
 		this.ScanFolders = this.appSettings.SourceFolders
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
@@ -125,54 +124,95 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
-		this.NewFolderDisplayName = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
-
-		this.NewFolderRoleIndex = new BindableReactiveProperty<int>(0)
-			.AddTo(ref this.disposableBag);
-
-		// 表示名が空白でなく、かつ役割インデックスが有効な場合のみ追加コマンドを実行可能にする
-		var canAdd = Observable.CombineLatest(
-			this.NewFolderDisplayName,
-			this.NewFolderRoleIndex,
-			(name, roleIdx) => !string.IsNullOrWhiteSpace(name) && Enum.IsDefined((FolderRole)roleIdx));
-
-		this.AddFolderCommand = new ReactiveCommand<Unit>(canAdd, initialCanExecute: false)
+		this.AddFolderCommand = new ReactiveCommand<FolderRole>()
 			.AddTo(ref this.disposableBag);
 		this.AddFolderCommand
-			.Subscribe(_ => this.addFolder())
+			.SubscribeAwait(async (role, cancellationToken) => await this.addFolderAsync(role), AwaitOperation.Drop)
 			.AddTo(ref this.disposableBag);
 
-		this.DeleteFolderCommand = new ReactiveCommand<SourceFolder>(config => this.deleteFolder(config))
+		this.EditFolderCommand = new ReactiveCommand<SourceFolder>()
+			.AddTo(ref this.disposableBag);
+		this.EditFolderCommand
+			.SubscribeAwait(async (folder, cancellationToken) => await this.editFolderAsync(folder), AwaitOperation.Drop)
+			.AddTo(ref this.disposableBag);
+
+		this.DeleteFolderCommand = new ReactiveCommand<SourceFolder>()
+			.AddTo(ref this.disposableBag);
+		this.DeleteFolderCommand
+			.SubscribeAwait(async (folder, cancellationToken) => await this.deleteFolderAsync(folder), AwaitOperation.Drop)
 			.AddTo(ref this.disposableBag);
 
 		this.BrowseWorkFolderCommand = new ReactiveCommand<Unit>(_ => this.browseWorkFolder())
 			.AddTo(ref this.disposableBag);
 	}
 
-	/// <summary>フォルダ選択ダイアログを表示し、選択されたパスで新規フォルダ設定を一覧へ追加します。</summary>
-	private void addFolder()
+	/// <summary>フォルダ追加 Dialog を表示します。</summary>
+	/// <param name="role">追加するフォルダの役割。</param>
+	private async ValueTask addFolderAsync(FolderRole role)
 	{
-		var dialog = new OpenFolderDialog { Title = "追加するフォルダを選択してください" };
-		if (dialog.ShowDialog() != true)
-			return;
-
-		var config = new SourceFolder();
-		config.DisplayName.Value = this.NewFolderDisplayName.Value;
-		config.FolderPath.Value = dialog.FolderName;
-		config.Role.Value = (FolderRole)this.NewFolderRoleIndex.Value;
-		this.appSettings.SourceFolders.Add(config);
-
-		this.NewFolderDisplayName.Value = string.Empty;
-		this.NewFolderRoleIndex.Value = 0;
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var manager = scope.ServiceProvider.GetRequiredService<SettingsManager>();
+		using var dialogViewModel = new FolderEditDialogContentViewModel(manager, role);
+		await this.showFolderEditDialogAsync(dialogViewModel, "フォルダの追加");
 	}
 
-	/// <summary>指定されたフォルダ設定を一覧から削除します。</summary>
-	/// <param name="config">削除するフォルダ設定。</param>
-	private void deleteFolder(SourceFolder config)
+	/// <summary>フォルダ編集 Dialog を表示します。</summary>
+	/// <param name="folder">編集元のフォルダ。</param>
+	private async ValueTask editFolderAsync(SourceFolder folder)
 	{
-		if (this.appSettings.SourceFolders.Remove(config))
-			config.Dispose();
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var manager = scope.ServiceProvider.GetRequiredService<SettingsManager>();
+		using var dialogViewModel = new FolderEditDialogContentViewModel(manager, folder);
+		await this.showFolderEditDialogAsync(dialogViewModel, "フォルダの編集");
+	}
+
+	/// <summary>フォルダ追加・編集 Dialog を表示し、結果を Dialog 用 ViewModel へ渡します。</summary>
+	private async ValueTask showFolderEditDialogAsync(FolderEditDialogContentViewModel dialogViewModel, string title)
+	{
+		var dialog = new ContentDialog
+		{
+			Title = title,
+			Content = new FolderEditDialogContent { DataContext = dialogViewModel },
+			PrimaryButtonText = "確定",
+			CloseButtonText = "キャンセル",
+			DefaultButton = ContentDialogButton.Primary,
+		};
+
+		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+		dialogViewModel.Complete(result == ContentDialogResult.Primary);
+	}
+
+	/// <summary>削除可否を確認し、確認後にフォルダの登録を削除します。</summary>
+	/// <param name="folder">削除対象のフォルダ。</param>
+	private async ValueTask deleteFolderAsync(SourceFolder folder)
+	{
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var manager = scope.ServiceProvider.GetRequiredService<SettingsManager>();
+
+		var reason = await manager.GetDeleteBlockReasonAsync(folder);
+		if (reason != FolderDeleteBlockReason.None)
+		{
+			var (title, message) = reason switch
+			{
+				FolderDeleteBlockReason.LastMaterialFolder => ("指定したフォルダを削除できません", "素材フォルダは最低1件必要です。最後の1件は削除できません。"),
+				FolderDeleteBlockReason.LastBindingFolder => ("指定したフォルダを削除できません", "製本済みフォルダは最低1件必要です。最後の1件は削除できません。"),
+				FolderDeleteBlockReason.DefaultBinding => ("指定したフォルダを削除できません", "既定の製本先は削除できません。別のフォルダを既定の製本先に設定してから削除してください。"),
+				FolderDeleteBlockReason.ScanJobActive => ("指定したフォルダを削除できません", "指定したフォルダをスキャンする処理が実行中又は、実行待ちのため削除できません。\n\n時間を空けて、再度実行してください。"),
+				_ => throw new InvalidOperationException(),
+			};
+			await ContentDialogHelper.ShowErrorAsync(this.contentDialogService, message, title);
+			return;
+		}
+
+		var confirmed = await ContentDialogHelper.ShowConfirmAsync(
+			this.contentDialogService,
+			"フォルダの登録を削除",
+			$"「{folder.DisplayName.Value}」の登録を削除します。\n\nフォルダ内のファイルは削除されません。",
+			"削除");
+		if (!confirmed)
+			return;
+
+		manager.DeleteFolder(folder);
 	}
 
 	/// <summary>フォルダ選択ダイアログを表示して作業用フォルダパスを設定します。</summary>
@@ -193,10 +233,6 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 		// 設定画面改修中のため保存を一時停止
 		return SaveResult.Success("保存停止中");
 
-		//var appSettingsService = this.serviceScope.ServiceProvider.GetRequiredService<AppSettingsService>();
-		//await appSettingsService.SaveAppSettingsAsync();
-		//await appSettingsService.InitializeSourceFoldersAsync();
-		//return SaveResult.Success("設定を保存しました");
 	}
 
 	/// <summary>
@@ -265,7 +301,6 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 	public void Dispose()
 	{
 		this.disposableBag.Dispose();
-		this.serviceScope.Dispose();
 	}
 }
 

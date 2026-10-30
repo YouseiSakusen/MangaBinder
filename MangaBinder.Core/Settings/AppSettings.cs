@@ -125,7 +125,10 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>スキャン対象フォルダの一覧を取得します。</summary>
 	public ObservableList<SourceFolder> SourceFolders { get; }
 
-	/// <summary>素材フォルダのみを抽出した派生 View を取得します。所有者は <see cref="AppSettings"/> です。</summary>
+	/// <summary>追加・編集 Dialog で編集中の一時的なフォルダ設定を取得または設定します。正本は <see cref="SourceFolders"/> です。</summary>
+	public SourceFolder? TargetSourceFolder { get; set; }
+
+	/// <summary>素材フォルダのみを抽出した派生 View を取得します。
 	public ISynchronizedView<SourceFolder, SourceFolder> MaterialFolders { get; }
 
 	/// <summary>製本済みフォルダ（既定を含む）のみを抽出した派生 View を取得します。所有者は <see cref="AppSettings"/> です。</summary>
