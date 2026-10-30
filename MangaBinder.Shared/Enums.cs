@@ -498,27 +498,6 @@ namespace MangaBinder.Settings
 	}
 
 	/// <summary>
-	/// フォルダ登録を削除できない理由を表す列挙型です。
-	/// </summary>
-	public enum FolderDeleteBlockReason
-	{
-		/// <summary>削除可能です。</summary>
-		None,
-
-		/// <summary>最後の素材フォルダのため削除できません。</summary>
-		LastMaterialFolder,
-
-		/// <summary>最後の製本済みフォルダのため削除できません。</summary>
-		LastBindingFolder,
-
-		/// <summary>既定の製本先のため削除できません。</summary>
-		DefaultBindingFolder,
-
-		/// <summary>対応するスキャンジョブが実行待ち又は実行中のため削除できません。</summary>
-		ScanJobActive,
-	}
-
-	/// <summary>
 	/// 製本後ファイル名で、完結を表す文字を巻数のどこへ追加するかを表す列挙型です。
 	/// </summary>
 	public enum CompleteMarkerPosition

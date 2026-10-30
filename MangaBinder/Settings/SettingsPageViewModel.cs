@@ -1,6 +1,5 @@
 ﻿using System.IO;
 using HalationGhost.Wpf.Ui;
-using MangaBinder.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using ObservableCollections;
@@ -83,26 +82,17 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 	/// <summary>製本済みフォルダ（既定を含む）の一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> BindingFolders { get; }
 
-	/// <summary>追加・編集中のフォルダ（編集用インスタンス）を取得します。</summary>
-	public SourceFolder? TargetSourceFolder => this.appSettings.TargetSourceFolder;
+	/// <summary>新規追加フォルダの表示名を取得します。</summary>
+	public BindableReactiveProperty<string> NewFolderDisplayName { get; }
 
-	/// <summary>既定の製本先トグルを操作できるかどうかを取得します。</summary>
-	public bool CanChangeDefaultBinding => !this.appSettings.IsTargetDefaultBindingLocked;
+	/// <summary>新規追加フォルダの役割インデックスを取得します。</summary>
+	public BindableReactiveProperty<int> NewFolderRoleIndex { get; }
 
-	/// <summary>素材フォルダを追加するコマンドです。</summary>
-	public ReactiveCommand<Unit> AddMaterialFolderCommand { get; }
-
-	/// <summary>製本済みフォルダを追加するコマンドです。</summary>
-	public ReactiveCommand<Unit> AddBindingFolderCommand { get; }
-
-	/// <summary>スキャン対象フォルダを編集するコマンドです。</summary>
-	public ReactiveCommand<SourceFolder> EditFolderCommand { get; }
+	/// <summary>スキャン対象フォルダを追加するコマンドです。</summary>
+	public ReactiveCommand<Unit> AddFolderCommand { get; }
 
 	/// <summary>スキャン対象フォルダを削除するコマンドです。</summary>
 	public ReactiveCommand<SourceFolder> DeleteFolderCommand { get; }
-
-	/// <summary>編集中フォルダのパスを参照するコマンドです。</summary>
-	public ReactiveCommand<Unit> BrowseTargetFolderCommand { get; }
 
 	/// <summary>作業用フォルダのパスを参照するコマンドです。</summary>
 	public ReactiveCommand<Unit> BrowseWorkFolderCommand { get; }
@@ -135,87 +125,54 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
-		this.AddMaterialFolderCommand = new ReactiveCommand<Unit>(async (_, ct) => await this.showFolderDialogAsync(null, FolderRole.Material))
+		this.NewFolderDisplayName = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
-		this.AddBindingFolderCommand = new ReactiveCommand<Unit>(async (_, ct) => await this.showFolderDialogAsync(null, FolderRole.Binding))
+		this.NewFolderRoleIndex = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
-		this.EditFolderCommand = new ReactiveCommand<SourceFolder>(async (folder, ct) => await this.showFolderDialogAsync(folder, folder.Role.Value))
+		// 表示名が空白でなく、かつ役割インデックスが有効な場合のみ追加コマンドを実行可能にする
+		var canAdd = Observable.CombineLatest(
+			this.NewFolderDisplayName,
+			this.NewFolderRoleIndex,
+			(name, roleIdx) => !string.IsNullOrWhiteSpace(name) && Enum.IsDefined((FolderRole)roleIdx));
+
+		this.AddFolderCommand = new ReactiveCommand<Unit>(canAdd, initialCanExecute: false)
+			.AddTo(ref this.disposableBag);
+		this.AddFolderCommand
+			.Subscribe(_ => this.addFolder())
 			.AddTo(ref this.disposableBag);
 
-		this.DeleteFolderCommand = new ReactiveCommand<SourceFolder>(async (folder, ct) => await this.deleteFolderAsync(folder))
-			.AddTo(ref this.disposableBag);
-
-		this.BrowseTargetFolderCommand = new ReactiveCommand<Unit>(_ => this.browseTargetFolder())
+		this.DeleteFolderCommand = new ReactiveCommand<SourceFolder>(config => this.deleteFolder(config))
 			.AddTo(ref this.disposableBag);
 
 		this.BrowseWorkFolderCommand = new ReactiveCommand<Unit>(_ => this.browseWorkFolder())
 			.AddTo(ref this.disposableBag);
 	}
 
-	/// <summary>追加・編集共通ダイアログを表示し、確定時のみ Manager で正本へ反映します。</summary>
-	/// <param name="source">編集対象の正本。追加時は null。</param>
-	/// <param name="role">追加時の初期ロール。</param>
-	private async ValueTask showFolderDialogAsync(SourceFolder? source, FolderRole role)
+	/// <summary>フォルダ選択ダイアログを表示し、選択されたパスで新規フォルダ設定を一覧へ追加します。</summary>
+	private void addFolder()
 	{
-		var manager = this.serviceScope.ServiceProvider.GetRequiredService<SettingsManager>();
-		if (source is null)
-			manager.BeginAddFolder(role);
-		else
-			manager.BeginEditFolder(source);
-
-		var dialog = new ContentDialog
-		{
-			Title = source is null ? "フォルダの追加" : "フォルダの編集",
-			Content = new FolderEditDialogContent { DataContext = this },
-			PrimaryButtonText = "確定",
-			CloseButtonText = "キャンセル",
-			DefaultButton = ContentDialogButton.Primary,
-		};
-
-		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
-		if (result == ContentDialogResult.Primary)
-			manager.CommitTargetFolder();
-		else
-			manager.CancelTargetFolder();
-	}
-
-	/// <summary>削除可否を確認し、削除できない理由の表示または削除確認後の削除を行います。</summary>
-	/// <param name="folder">削除対象のフォルダ。</param>
-	private async ValueTask deleteFolderAsync(SourceFolder folder)
-	{
-		var manager = this.serviceScope.ServiceProvider.GetRequiredService<SettingsManager>();
-		var reason = await manager.GetDeleteBlockReasonAsync(folder);
-
-		if (reason != FolderDeleteBlockReason.None)
-		{
-			var message = reason switch
-			{
-				FolderDeleteBlockReason.LastMaterialFolder => "最後の素材フォルダは削除できません。",
-				FolderDeleteBlockReason.LastBindingFolder => "最後の製本済みフォルダは削除できません。",
-				FolderDeleteBlockReason.DefaultBindingFolder => "既定の製本先のフォルダは削除できません。\n\n別の製本済みフォルダを既定の製本先に変更してから削除してください。",
-				_ => "指定したフォルダをスキャンする処理が実行中又は、実行待ちのため削除できません。\n\n時間を空けて、再度実行してください。",
-			};
-			await ContentDialogHelper.ShowErrorAsync(this.contentDialogService, message, "指定したフォルダを削除できません");
+		var dialog = new OpenFolderDialog { Title = "追加するフォルダを選択してください" };
+		if (dialog.ShowDialog() != true)
 			return;
-		}
 
-		var confirmed = await ContentDialogHelper.ShowConfirmAsync(
-			this.contentDialogService,
-			"フォルダの登録を削除",
-			$"「{folder.DisplayName.Value}」の登録を削除します。よろしいですか？",
-			"削除");
-		if (confirmed)
-			manager.DeleteFolder(folder);
+		var config = new SourceFolder();
+		config.DisplayName.Value = this.NewFolderDisplayName.Value;
+		config.FolderPath.Value = dialog.FolderName;
+		config.Role.Value = (FolderRole)this.NewFolderRoleIndex.Value;
+		this.appSettings.SourceFolders.Add(config);
+
+		this.NewFolderDisplayName.Value = string.Empty;
+		this.NewFolderRoleIndex.Value = 0;
 	}
 
-	/// <summary>フォルダ選択ダイアログを表示して編集中フォルダのパスを設定します。</summary>
-	private void browseTargetFolder()
+	/// <summary>指定されたフォルダ設定を一覧から削除します。</summary>
+	/// <param name="config">削除するフォルダ設定。</param>
+	private void deleteFolder(SourceFolder config)
 	{
-		var dialog = new OpenFolderDialog { Title = "フォルダを選択してください" };
-		if (dialog.ShowDialog() == true)
-			this.appSettings.TargetSourceFolder!.FolderPath.Value = dialog.FolderName;
+		if (this.appSettings.SourceFolders.Remove(config))
+			config.Dispose();
 	}
 
 	/// <summary>フォルダ選択ダイアログを表示して作業用フォルダパスを設定します。</summary>

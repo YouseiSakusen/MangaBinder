@@ -125,12 +125,6 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>スキャン対象フォルダの一覧を取得します。</summary>
 	public ObservableList<SourceFolder> SourceFolders { get; }
 
-	/// <summary>追加・編集ダイアログで編集中のフォルダ（正本とは分離した編集用インスタンス）を取得または設定します。</summary>
-	public SourceFolder? TargetSourceFolder { get; set; }
-
-	/// <summary>編集開始時点で既定の製本先だったため、既定の製本先の切り替えを禁止するかどうかを取得または設定します。</summary>
-	public bool IsTargetDefaultBindingLocked { get; set; }
-
 	/// <summary>素材フォルダのみを抽出した派生 View を取得します。所有者は <see cref="AppSettings"/> です。</summary>
 	public ISynchronizedView<SourceFolder, SourceFolder> MaterialFolders { get; }
 

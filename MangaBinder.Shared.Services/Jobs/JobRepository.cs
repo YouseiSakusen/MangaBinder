@@ -213,18 +213,6 @@ public class JobRepository
     }
 
     /// <summary>
-    /// 指定タイプで待機中または実行中のジョブが存在するか確認します。
-    /// </summary>
-    /// <param name="type">ジョブ種別。</param>
-    /// <param name="ct">キャンセルトークン。</param>
-    public async ValueTask<bool> ExistsPendingOrRunningAsync(JobType type, CancellationToken ct = default)
-    {
-        using var connection = new SQLiteConnection(this.config.ConnectionString);
-        await connection.OpenAsync(ct);
-        return await this.existsPendingOrRunningAsync(connection, null, type);
-    }
-
-    /// <summary>
     /// 同一タイプで待機中または実行中のジョブが存在するか確認します。
     /// </summary>
     private async ValueTask<bool> existsPendingOrRunningAsync(SQLiteConnection connection, SQLiteTransaction? transaction, JobType type)

@@ -97,24 +97,13 @@
 						ToolTip="{Binding FolderPath.Value}" />
 				</Grid>
 
-				<StackPanel
+				<ui:Button
 					Grid.Column="2"
-					Orientation="Horizontal"
-					VerticalAlignment="Center">
-					<ui:Button
-						Icon="{ui:SymbolIcon Edit20}"
-						Appearance="Secondary"
-						ToolTip="フォルダ設定を編集"
-						Command="{Binding DataContext.EditFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-						CommandParameter="{Binding}" />
-					<ui:Button
-						Margin="4,0,0,0"
-						Icon="{ui:SymbolIcon Dismiss20}"
-						Appearance="Secondary"
-						ToolTip="フォルダの登録を削除"
-						Command="{Binding DataContext.DeleteFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-						CommandParameter="{Binding}" />
-				</StackPanel>
+					Icon="{ui:SymbolIcon Edit20}"
+					Appearance="Secondary"
+					VerticalAlignment="Center"
+					ToolTip="フォルダ設定を編集"
+					IsEnabled="False" />
 			</Grid>
 			</ui:Card>
 			<DataTemplate.Triggers>
@@ -221,7 +210,7 @@
 										Grid.Row="0" Grid.Column="1"
 										Content="追加"
 										Icon="{ui:SymbolIcon Add20}"
-										Command="{Binding AddMaterialFolderCommand}" />
+										IsEnabled="False" />
 
 									<TextBlock
 										Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
@@ -287,7 +276,7 @@
 										Grid.Row="0" Grid.Column="1"
 										Content="追加"
 										Icon="{ui:SymbolIcon Add20}"
-										Command="{Binding AddBindingFolderCommand}" />
+										IsEnabled="False" />
 
 									<TextBlock
 										Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
