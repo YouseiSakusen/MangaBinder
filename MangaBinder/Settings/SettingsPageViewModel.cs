@@ -14,12 +14,15 @@ namespace MangaBinder.Settings;
 /// <summary>
 /// 設定ページの ViewModel です。
 /// </summary>
-public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
+public class SettingsPageViewModel : IDisposable, ISavable, ILeavable, IDataInitializable
 {
 	private readonly AppSettings appSettings;
 	private readonly IContentDialogService contentDialogService;
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private DisposableBag disposableBag;
+
+	/// <summary>画面遷移前の <see cref="CanLeaveAsync"/> で保存済みかどうかを示します。true の場合、直後の <see cref="SaveAsync"/> は二重保存を避けて保存を行いません。</summary>
+	private bool isSavedOnLeave;
 
 	/// <summary>作業用一時フォルダのパスを取得します。</summary>
 	public BindableReactiveProperty<string> WorkFolderPath => this.appSettings.WorkFolderPath;
@@ -60,8 +63,9 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 	/// <summary>製本後アーカイブの既定拡張子を取得します。</summary>
 	public BindableReactiveProperty<string> BindingDefaultArchiveExtension => this.appSettings.BindingDefaultArchiveExtension;
 
-	/// <summary>初回設定の自動保存案内 InfoBar を表示するかどうかを取得します。</summary>
-	public bool ShowInitialSetupInfoBar { get; }
+	/// <summary>初回設定の自動保存案内 InfoBar を表示するかどうかを取得します。初回設定がDB保存されると自動的に閉じます。</summary>
+	public IReadOnlyBindableReactiveProperty<bool> ShowInitialSetupInfoBar
+		=> this.appSettings.AppStatus.IsInitialFolderSetupPending;
 
 	/// <summary>素材フォルダが1件以上登録されているかどうかを取得します。</summary>
 	public IReadOnlyBindableReactiveProperty<bool> HasMaterialFolder
@@ -74,9 +78,6 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 	/// <summary>素材フォルダと製本済みフォルダが両方登録されているかどうかを取得します。</summary>
 	public IReadOnlyBindableReactiveProperty<bool> HasRequiredFolders
 		=> this.appSettings.HasRequiredFolders;
-
-	/// <summary>スキャン対象フォルダの一覧を取得します。</summary>
-	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> ScanFolders { get; }
 
 	/// <summary>素材フォルダの一覧を取得します。</summary>
 	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> MaterialFolders { get; }
@@ -109,12 +110,7 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 	{
 		this.appSettings = appSettings;
 		this.contentDialogService = contentDialogService;
-		this.ShowInitialSetupInfoBar = !appSettings.AppStatus.IsInitialFolderSetupCompleted;
 		this.serviceScopeFactory = serviceScopeFactory;
-
-		this.ScanFolders = this.appSettings.SourceFolders
-			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
-			.AddTo(ref this.disposableBag);
 
 		this.MaterialFolders = this.appSettings.MaterialFolders
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
@@ -224,19 +220,46 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 	}
 
 	/// <summary>
+	/// 設定画面の表示ごとに新しいセッションを開始し、比較用の SourceFolders の Clone を作成します。
+	/// </summary>
+	public ValueTask InitializeDataAsync()
+	{
+		this.isSavedOnLeave = false;
+
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var manager = scope.ServiceProvider.GetRequiredService<SettingsManager>();
+		manager.BeginSettingsSession();
+		return default;
+	}
+
+	/// <summary>
 	/// 設定をデータベースへ非同期で保存します。
-	/// AppSettings テーブルを保存したのち、SourceFolders の初期化と Job 投入を行います。
+	/// 画面遷移時は <see cref="CanLeaveAsync"/> で保存済みのため、二重保存を行いません。
+	/// アプリ終了時など、遷移を伴わない場合に保存を実行します。
 	/// </summary>
 	/// <returns>保存結果を表す <see cref="ISaveResult"/>。</returns>
 	public async ValueTask<ISaveResult> SaveAsync()
 	{
-		// 設定画面改修中のため保存を一時停止
-		return SaveResult.Success("保存停止中");
+		if (this.isSavedOnLeave)
+		{
+			this.isSavedOnLeave = false;
+			return SaveResult.Success();
+		}
 
+		await this.saveSettingsAsync();
+		return SaveResult.Success();
+	}
+
+	/// <summary>Manager 経由で設定画面の内容を保存します。</summary>
+	private async ValueTask saveSettingsAsync()
+	{
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var manager = scope.ServiceProvider.GetRequiredService<SettingsManager>();
+		await manager.SaveSettingsAsync();
 	}
 
 	/// <summary>
-	/// 必須フォルダの設定状況を確認し、画面から離れてよいかを返します。
+	/// 必須フォルダの設定状況を確認し、遷移確定前に設定を保存して、画面から離れてよいかを返します。
 	/// 未設定の場合はダイアログを表示し、「デフォルトを使用」選択時に不足フォルダを作成・登録します。
 	/// </summary>
 	/// <returns>離れてよい場合は true、設定画面に留まる場合は false。</returns>
@@ -259,42 +282,14 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable
 			if (result != ContentDialogResult.Primary)
 				return false;
 
-			this.createDefaultFolders();
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var manager = scope.ServiceProvider.GetRequiredService<SettingsManager>();
+			manager.CreateDefaultFolders();
 		}
 
-		if (string.IsNullOrWhiteSpace(this.appSettings.WorkFolderPath.Value))
-			this.appSettings.WorkFolderPath.Value = AppSettings.DefaultWorkPath;
-
-		this.appSettings.AppStatus.IsInitialFolderSetupCompleted = true;
+		await this.saveSettingsAsync();
+		this.isSavedOnLeave = true;
 		return true;
-	}
-
-	/// <summary>不足している必須フォルダと未設定の展開先フォルダを既定の場所へ作成し、設定へ登録します。</summary>
-	private void createDefaultFolders()
-	{
-		if (!this.appSettings.HasMaterialFolder.Value)
-			this.addDefaultFolder("素材", AppSettings.DefaultMaterialPath, FolderRole.Material);
-
-		if (!this.appSettings.HasBindingFolder.Value)
-			this.addDefaultFolder("製本済み", AppSettings.DefaultBindingPath, FolderRole.DefaultBinding);
-
-		if (string.IsNullOrWhiteSpace(this.appSettings.WorkFolderPath.Value))
-		{
-			Directory.CreateDirectory(AppSettings.DefaultWorkPath);
-			this.appSettings.WorkFolderPath.Value = AppSettings.DefaultWorkPath;
-		}
-	}
-
-	/// <summary>フォルダを作成し、指定の役割で設定へ登録します。</summary>
-	private void addDefaultFolder(string displayName, string path, FolderRole role)
-	{
-		Directory.CreateDirectory(path);
-
-		var folder = new SourceFolder();
-		folder.DisplayName.Value = displayName;
-		folder.FolderPath.Value = path;
-		folder.Role.Value = role;
-		this.appSettings.SourceFolders.Add(folder);
 	}
 
 	/// <summary>リソースを解放します。</summary>

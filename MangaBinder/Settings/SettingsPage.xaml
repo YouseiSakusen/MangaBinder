@@ -174,7 +174,7 @@
 						Message="設定画面から別の画面へ移動すると、変更内容が自動的に保存されます。"
 						Severity="Informational"
 						IsClosable="True"
-						IsOpen="{Binding ShowInitialSetupInfoBar, Mode=OneWay}" />
+						IsOpen="{Binding ShowInitialSetupInfoBar.Value, Mode=OneWay}" />
 
 					<!-- 各種フォルダ -->
 					<ui:Card Grid.Row="1" Style="{StaticResource SettingsGroupCardStyle}">

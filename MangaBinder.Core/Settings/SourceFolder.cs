@@ -1,5 +1,4 @@
 using R3;
-using Wpf.Ui.Controls;
 
 namespace MangaBinder.Settings;
 
@@ -19,9 +18,6 @@ public class SourceFolder : IDisposable
 	/// <summary>フォルダの役割を取得します。</summary>
 	public BindableReactiveProperty<FolderRole> Role { get; }
 
-	/// <summary>役割に対応するアイコンシンボルを取得します。Role の変更に応じて自動更新されます。</summary>
-	public IReadOnlyBindableReactiveProperty<SymbolRegular> RoleIconSymbol { get; }
-
 	/// <summary>表示用テキストを取得します。「DisplayName（FolderPath）」の形式で、DisplayName と FolderPath の変更に応じて自動更新されます。</summary>
 	public IReadOnlyBindableReactiveProperty<string> DisplayText { get; }
 
@@ -37,17 +33,6 @@ public class SourceFolder : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		this.Role = new BindableReactiveProperty<FolderRole>(FolderRole.Material)
-			.AddTo(ref this.disposableBag);
-
-		this.RoleIconSymbol = this.Role
-			.Select(role => role switch
-			{
-				FolderRole.Material => SymbolRegular.FolderOpen24,
-				FolderRole.Binding => SymbolRegular.Book24,
-				FolderRole.DefaultBinding => SymbolRegular.Home24,
-				_ => SymbolRegular.FolderOpen24,
-			})
-			.ToReadOnlyBindableReactiveProperty(SymbolRegular.FolderOpen24)
 			.AddTo(ref this.disposableBag);
 
 		this.DisplayText = this.DisplayName

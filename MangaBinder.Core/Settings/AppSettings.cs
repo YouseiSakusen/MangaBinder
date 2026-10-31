@@ -1,4 +1,5 @@
 ﻿using ObservableCollections;
+using MangaBinder.Jobs;
 using R3;
 using System.Data.SQLite;
 using System.IO;
@@ -13,8 +14,8 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 {
 	private DisposableBag disposableBag;
 
-	/// <summary>変更検知の基準となる初期フォルダ一覧を保持するフィールドです。</summary>
-	private List<SourceFolderRecord> initialFolders = [];
+	/// <summary>設定画面のセッション開始時の <see cref="SourceFolders"/> の Clone を保持するフィールドです。</summary>
+	private List<SourceFolder> sessionFolders = [];
 
 	/// <summary>素材フォルダの既定パス（exe 配置フォルダ直下の Material）を取得します。</summary>
 	public static string DefaultMaterialPath => Path.Combine(AppContext.BaseDirectory, "Material");
@@ -442,22 +443,60 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	}
 
 	/// <summary>
-	/// 現在の <see cref="SourceFolders"/> の状態をスナップショットとして保存し、初期状態を確定します。
+	/// 設定画面の新しいセッションを開始し、現在の <see cref="SourceFolders"/> の Clone を比較用に保持します。
 	/// </summary>
-	public void UpdateSnapshot()
+	public void BeginSettingsSession()
 	{
-		this.initialFolders = this.SourceFolders
-			.Select(f => new SourceFolderRecord(f.FolderPath.Value, f.DisplayName.Value, f.Role.Value))
+		this.disposeSessionFolders();
+		this.sessionFolders = this.SourceFolders
+			.Select(f => f.Clone())
 			.ToList();
 	}
 
+	/// <summary>比較用に保持しているセッション開始時の Clone を破棄します。</summary>
+	private void disposeSessionFolders()
+	{
+		foreach (var folder in this.sessionFolders)
+			folder.Dispose();
+
+		this.sessionFolders = [];
+	}
+
 	/// <summary>
-	/// <see cref="SourceFolders"/> が初期状態から変更されているかどうかを取得します。
+	/// セッション開始時の <see cref="SourceFolders"/> と現在の <see cref="SourceFolders"/> を比較し、
+	/// 新しくスキャン対象になったフォルダパスが存在する Job 種別を返します。
+	/// 素材フォルダと製本済みフォルダ（Binding / DefaultBinding）は別々に判定します。
 	/// </summary>
-	public bool IsSourceFoldersChanged =>
-		!this.SourceFolders
-			.Select(f => new SourceFolderRecord(f.FolderPath.Value, f.DisplayName.Value, f.Role.Value))
-			.SequenceEqual(this.initialFolders);
+	/// <returns>登録が必要な <see cref="JobType"/> の一覧（0～2件、重複なし）。</returns>
+	public IReadOnlyList<JobType> GetRequiredScanJobTypes()
+	{
+		var jobTypes = new List<JobType>();
+
+		if (this.hasNewPath(folder => folder.Role.Value == FolderRole.Material))
+			jobTypes.Add(JobType.MaterialScan);
+
+		if (this.hasNewPath(folder => folder.Role.Value is FolderRole.Binding or FolderRole.DefaultBinding))
+			jobTypes.Add(JobType.BindingScan);
+
+		return jobTypes;
+	}
+
+	/// <summary>
+	/// 条件に合致するフォルダのうち、セッション開始時に存在しなかったパスがあるかどうかを判定します。
+	/// パスの比較は大文字・小文字を区別しません。
+	/// </summary>
+	/// <param name="predicate">対象フォルダの条件。</param>
+	private bool hasNewPath(Func<SourceFolder, bool> predicate)
+	{
+		var sessionPaths = this.sessionFolders
+			.Where(predicate)
+			.Select(f => Path.TrimEndingDirectorySeparator(f.FolderPath.Value))
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		return this.SourceFolders
+			.Where(predicate)
+			.Any(f => !sessionPaths.Contains(Path.TrimEndingDirectorySeparator(f.FolderPath.Value)));
+	}
 
 	/// <summary>
 	/// サポート対象拡張子一覧を <paramref name="extensions"/> で置き換えます。
@@ -478,6 +517,8 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 		foreach (var folder in this.SourceFolders)
 			folder.Dispose();
 
+		this.disposeSessionFolders();
+		this.AppStatus.Dispose();
 		this.disposableBag.Dispose();
 	}
 }

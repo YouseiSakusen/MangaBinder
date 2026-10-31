@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<IMangaBinderConfig>(appSettings);
 		services.AddScoped(sp => new SharedSettingsRepository(sp.GetRequiredService<AppSettings>().ConnectionString));
 		services.AddScoped<JobRepository>();
+		services.AddScoped<SettingsRepository>();
 		services.AddScoped<SettingsManager>();
 		services.AddScoped<MangaRepository>();
 		services.AddScoped<WorkMangaSeriesRepository>();

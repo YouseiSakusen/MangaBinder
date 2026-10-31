@@ -483,6 +483,27 @@ namespace MangaBinder.Jobs
 namespace MangaBinder.Settings
 {
 	/// <summary>
+	/// フォルダを削除できない理由を表す列挙型です。
+	/// </summary>
+	public enum FolderDeleteBlockReason
+	{
+		/// <summary>削除可能です。</summary>
+		None,
+
+		/// <summary>最後の1件の素材フォルダです。</summary>
+		LastMaterialFolder,
+
+		/// <summary>最後の1件の製本済みフォルダです。</summary>
+		LastBindingFolder,
+
+		/// <summary>既定の製本先フォルダです。</summary>
+		DefaultBinding,
+
+		/// <summary>該当するスキャンジョブが待機中または実行中です。</summary>
+		ScanJobActive,
+	}
+
+	/// <summary>
 	/// フォルダの役割を表す列挙型です。
 	/// </summary>
 	public enum FolderRole
