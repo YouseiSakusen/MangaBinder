@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MangaBinder.Extensions;
 using MangaBinder.Settings;
+using MangaBinder.Startup;
 using Wpf.Ui;
 using ZLogger;
 using ZLogger.Providers;
@@ -22,6 +23,9 @@ public partial class App
 {
 	// .NET 汎用ホスト。OnStartup で構築され、アプリケーション終了まで保持されます。
 	private static IHost? host;
+
+	// UI の多重起動防止 Mutex。プロセス稼働中は保持し、OnExit で解放します。
+	private readonly SingleInstanceGuard singleInstanceGuard = new();
 
 	/// <summary>
 	/// DI サービスプロバイダーを取得します。ホストが未初期化の場合は例外をスローします。
@@ -77,6 +81,13 @@ public partial class App
 	/// </summary>
 	private async void OnStartup(object sender, StartupEventArgs e)
 	{
+		if (!this.singleInstanceGuard.TryAcquire())
+		{
+			this.singleInstanceGuard.ActivateExistingWindow();
+			this.Shutdown();
+			return;
+		}
+
 		var config = new ConfigurationBuilder()
 			.SetBasePath(AppContext.BaseDirectory)
 			.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false);
@@ -120,6 +131,9 @@ public partial class App
 		// Worker は起動時にDBからThumbnailBackgroundColor等の設定を読み込むため、
 		// Workerの初回起動・スタートアップ登録処理は、
 		// テーマ依存初期設定のDB保存完了後に実行すること。
+#if !DEBUG
+		WorkerLauncher.EnsureWorkerRunning();
+#endif
 
 		mainWindow.Show();
 	}
@@ -129,6 +143,8 @@ public partial class App
 	/// </summary>
 	private async void OnExit(object sender, ExitEventArgs e)
 	{
+		this.singleInstanceGuard.Dispose();
+
 		if (host == null)
 			return;
 

@@ -15,10 +15,17 @@ using Microsoft.Extensions.Logging;
 using ZLogger;
 using ZLogger.Providers;
 
+// 多重起動防止：Generic Host 構築・JobQueue 初期化より前に判定する
+using var instanceMutex = WorkerStartup.TryAcquireInstance();
+if (instanceMutex is null)
+    return;
+
+var hostArgs = WorkerStartup.ApplyConsoleMode(args);
+
 Console.OutputEncoding = Encoding.UTF8;
 Console.InputEncoding = Encoding.UTF8;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = Host.CreateApplicationBuilder(hostArgs);
 
 builder.Services.AddMangaWorkerContext();
 builder.Services.AddScoped<IFolderScannerRepository, FolderScannerRepository>();
