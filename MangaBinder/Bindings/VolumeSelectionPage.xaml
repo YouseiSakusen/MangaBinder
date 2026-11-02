@@ -300,7 +300,7 @@
 							Margin="0,0,6,0" />
 						<TextBlock
 							Text="素材一覧"
-							FontSize="12"
+							FontSize="14"
 							FontWeight="SemiBold"
 							VerticalAlignment="Center"
 							Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -352,24 +352,39 @@
 							</Grid.RowDefinitions>
 
 						<!-- ─ Row 0: 製本対象巻ヘッダー ─ -->
-						<StackPanel
+						<Grid
 							Grid.Row="0"
-							Orientation="Horizontal"
 							VerticalAlignment="Center"
 							Margin="0,0,0,6">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="Auto" />
+								<ColumnDefinition Width="Auto" />
+								<ColumnDefinition Width="*" />
+							</Grid.ColumnDefinitions>
 							<ui:SymbolIcon
+								Grid.Column="0"
 								Symbol="BoxMultipleCheckmark20"
 								FontSize="18"
 								VerticalAlignment="Center"
 								Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 								Margin="0,0,6,0" />
 							<TextBlock
+								Grid.Column="1"
 								Text="製本対象巻"
-								FontSize="12"
+								FontSize="14"
 								FontWeight="SemiBold"
 								VerticalAlignment="Center"
 								Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-						</StackPanel>
+							<ui:Button
+								Grid.Column="2"
+								HorizontalAlignment="Right"
+								VerticalAlignment="Center"
+								Padding="8,3"
+								FontSize="12"
+								Content="展開済み巻を追加"
+								Icon="{ui:SymbolIcon {x:Static app:AppSymbols.OpenBindingFolder}}"
+								Command="{Binding AddExpandedVolumeCommand}" />
+						</Grid>
 
 						<!-- ─ Row 1: ヘッダー行 ─ -->
 						<Grid Grid.Row="1" Margin="0,0,0,2">

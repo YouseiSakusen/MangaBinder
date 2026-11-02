@@ -92,6 +92,9 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
     /// <summary>圧縮ファイル比較Dialogを開くコマンドを取得します。</summary>
     public ReactiveCommand<Unit> ArchiveCompareCommand { get; }
 
+    /// <summary>展開済み巻追加Dialogを開くコマンドを取得します。</summary>
+    public ReactiveCommand<Unit> AddExpandedVolumeCommand { get; }
+
     /// <summary>素材フォルダを開くコマンドを取得します。</summary>
     public ReactiveCommand<Unit> OpenMaterialFolderCommand { get; }
 
@@ -197,6 +200,13 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
             .Subscribe(async _ => await this.openArchiveCompareAsync())
             .AddTo(ref this.disposableBag);
 
+        this.AddExpandedVolumeCommand = new ReactiveCommand<Unit>()
+            .AddTo(ref this.disposableBag);
+
+        this.AddExpandedVolumeCommand
+            .Subscribe(async _ => await this.openExpandedVolumeSelectionAsync())
+            .AddTo(ref this.disposableBag);
+
         // OpenMaterialFolderCommand を初期化
         var canOpenMaterialFolder = this.bindingStore.BindingTarget
             .AsObservable()
@@ -291,6 +301,18 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
 			scope.ServiceProvider.GetRequiredService<ArchiveCompareCoordinator>();
 
 		await coordinator.StartAsync();
+	}
+
+	/// <summary>
+	/// 展開済み巻追加Dialogを表示します。
+	/// </summary>
+	private async Task openExpandedVolumeSelectionAsync()
+	{
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var coordinator =
+			scope.ServiceProvider.GetRequiredService<ExpandedVolumeSelectionCoordinator>();
+
+		await coordinator.ShowAsync();
 	}
 
 	/// <summary>

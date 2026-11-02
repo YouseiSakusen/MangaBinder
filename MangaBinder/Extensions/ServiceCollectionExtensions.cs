@@ -107,6 +107,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<SeriesMaterialFolderLoader>();
 		services.AddScoped<VolumeSelectionManager>();
 		services.AddScoped<ArchiveCompareCoordinator>();
+		services.AddScoped<ExpandedVolumeSelectionCoordinator>();
 		services.AddScoped<SeriesMemoManager>();
 		services.AddTransient<MemoEditButtonViewModel>();
 		services.AddTransient<BindingHistoryListViewModel>();

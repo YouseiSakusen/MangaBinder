@@ -269,7 +269,7 @@ public class FileSystemNameHelperTests
 		// Assert
 		Assert.Equal("Fate Zero", result.Title);
 		Assert.True(result.SeriesCompleted);
-		Assert.Equal(0, result.StartVolume);
+		Assert.Equal(1, result.StartVolume);
 		Assert.Equal(10, result.EndVolume);
 	}
 }
