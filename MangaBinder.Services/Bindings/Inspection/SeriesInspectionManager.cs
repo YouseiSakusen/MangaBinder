@@ -142,6 +142,14 @@ public class SeriesInspectionManager
 					"巻選択工程を通過した状態として不正です。");
 			}
 
+			// 展開先由来の巻は、スキャン済みの実フォルダをそのまま使用する
+			if (bindingVolume.Material.OriginalSourceType == MaterialSourceType.WorkFolder)
+			{
+				bindingVolume.WorkFolderPath = bindingVolume.Material.FullPath;
+				bindingVolume.Material.UseOriginalMaterial = false;
+				continue;
+			}
+
 			// 巻フォルダ名を生成
 			var volumeFolderName = this.appSettings.CreateWorkVolumeFolderName(
 				volumeNumber.Value,
