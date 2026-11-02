@@ -19,7 +19,18 @@ public static class ProcessHelper
 	/// <param name="executablePath">実行ファイルのフルパス。</param>
 	/// <returns>起動中の場合は true。</returns>
 	public static bool IsRunning(string executablePath)
-		=> FindProcesses(executablePath).Count > 0;
+	{
+		var processes = FindProcesses(executablePath);
+		try
+		{
+			return processes.Count > 0;
+		}
+		finally
+		{
+			foreach (var process in processes)
+				process.Dispose();
+		}
+	}
 
 	/// <summary>
 	/// 指定した実行ファイルのフルパスと一致する起動中のプロセスを取得します。

@@ -95,6 +95,15 @@ public class VolumeNumberHelperTests
 		AssertSingle(input.Replace(".epub", ""), VolumeNumberSourceType.Folder, expected);
 	}
 
+	/// <summary>
+	/// 実ファイル名の「！3【特典】(レーベル).epub」から巻番号3が取得されることを確認します。
+	/// </summary>
+	[Fact]
+	public void Parse_EpubTitleSeparatorNumberWithTrailingLabel_ReturnsSingle()
+	{
+		AssertSingle("千のスキルを持つ男 異世界で召喚獣はじめました！3【電子版特典イラスト付】(コミックポルカ).epub", VolumeNumberSourceType.Epub, 3);
+	}
+
 	#endregion
 
 	#region 先頭の括弧付き数字の除外

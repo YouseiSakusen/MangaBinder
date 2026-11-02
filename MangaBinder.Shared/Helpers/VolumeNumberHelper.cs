@@ -599,6 +599,22 @@ public static partial class VolumeNumberHelper
 			}
 		}
 
+		// 記号直後の巻数（! の直後）
+		var exclamationMatch = RegexTitleSeparatorNumber().Match(withoutExtension);
+		if (exclamationMatch.Success && isValidWeakVolumeNumber(exclamationMatch.Groups["num"].Value))
+		{
+			var numStr = exclamationMatch.Groups["num"].Value.Replace('_', '.');
+			if (TryParseVolumeNumber(numStr, out var number))
+			{
+				return new VolumeNumberParseResult
+				{
+					Kind = VolumeNumberParseKind.Single,
+					SingleVolume = number,
+					MatchedPattern = "TitleSeparatorNumber",
+				};
+			}
+		}
+
 		// タイトル + 空白 + 数字 + [ または (
 		var titleSpaceNumberMatch = RegexTitleSpaceNumberBeforeParen().Match(withoutExtension);
 		if (titleSpaceNumberMatch.Success && isValidWeakVolumeNumber(titleSpaceNumberMatch.Groups["num"].Value))

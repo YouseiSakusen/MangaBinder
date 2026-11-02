@@ -25,14 +25,7 @@ $sourceRoot = [System.IO.Path]::GetFullPath($repoRoot)
 if ($target.TrimEnd('\', '/') -eq $sourceRoot.TrimEnd('\', '/')) {
     throw 'OutputDirectory must not be the repository root.'
 }
-if (Test-Path -LiteralPath $target) {
-    $existing = @(Get-ChildItem -LiteralPath $target -Force)
-    if ($existing.Count -ne 0) {
-        throw "OutputDirectory is not empty (existing files are protected): $target"
-    }
-} else {
-    New-Item -ItemType Directory -Path $target -Force | Out-Null
-}
+New-Item -ItemType Directory -Path $target -Force | Out-Null
 
 $workerTarget = Join-Path $target 'worker'
 New-Item -ItemType Directory -Path $workerTarget -Force | Out-Null

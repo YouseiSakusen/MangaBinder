@@ -22,6 +22,7 @@
     </Content>
     <Content Include="appsettings.Debug.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </Content>
   </ItemGroup>
 
