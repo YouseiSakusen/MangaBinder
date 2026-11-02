@@ -300,7 +300,7 @@ public class BindingStore : IDisposable
 		this.BindingVolumes = new ObservableList<BindingVolume>();
 		this.SplitVolumes = new ObservableList<BindingVolume>();
 		this.volumeUpdated.AddTo(ref this.disposableBag);
-		this.VolumeFolderDigits
+		this.VolumeFolderDigits = new BindableReactiveProperty<int>(2)
 			.AddTo(ref this.disposableBag);
 		this.ZipOutputFileName = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
