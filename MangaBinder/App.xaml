@@ -32,6 +32,7 @@
 		  <SolidColorBrush x:Key="MaterialRootIconBrush" Color="#C58A00" />
 		  <!-- 実フォルダ：主役、濃い黄土色 -->
 		  <SolidColorBrush x:Key="MaterialFolderIconBrush" Color="#B8860B" />
+		  <SolidColorBrush x:Key="MaterialWorkFolderIconBrush" Color="#9B82C6" />
 		  <!-- 圧縮ファイル本体：コンテナ、控えめな青灰色 -->
 		  <SolidColorBrush x:Key="MaterialArchiveIconBrush" Color="#6E87A8" />
 		  <!-- EPUB：主役、緑系 -->

@@ -80,11 +80,21 @@ public class BindingVolumeViewModel
 	}
 
 	/// <summary>
+	/// この巻が BindingStore.WorkVolumes に登録された MaterialItem を参照しているかどうかを取得します。
+	/// アイコン表示に使用します。
+	/// </summary>
+	public bool IsWorkVolume => this.workVolumes.Contains(this.Material);
+
+	private readonly IReadOnlyCollection<MaterialItem> workVolumes;
+
+	/// <summary>
 	/// <see cref="BindingVolumeViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="bindingVolume">表示対象の BindingVolume。BindingStore.BindingVolumes 内に存在するインスタンスを指定してください。</param>
-	public BindingVolumeViewModel(BindingVolume bindingVolume)
+	/// <param name="workVolumes">BindingStore.WorkVolumes。</param>
+	public BindingVolumeViewModel(BindingVolume bindingVolume, IReadOnlyCollection<MaterialItem> workVolumes)
 	{
 		this.BindingVolume = bindingVolume ?? throw new ArgumentNullException(nameof(bindingVolume));
+		this.workVolumes = workVolumes ?? throw new ArgumentNullException(nameof(workVolumes));
 	}
 }

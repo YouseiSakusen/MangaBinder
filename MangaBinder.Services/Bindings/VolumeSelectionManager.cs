@@ -69,6 +69,9 @@ public class VolumeSelectionManager
 		// ファイルシステムアクセスを UI スレッドで直接実行しないよう Task.Run で別タスクへ移す
 		await Task.Run(this.initializeImageExpansionState, cancellationToken);
 
+		// 展開先の巻フォルダ一覧は、素材ツリーの初期化済み判定とは独立して毎回差分更新する
+		await this.syncWorkVolumesAsync(cancellationToken);
+
 		// ③ VolumeSelectionInitialized が true の場合は再初期化を行わない
 		if (this.bindingStore.VolumeSelectionInitialized.Value)
 		{
@@ -193,6 +196,20 @@ public class VolumeSelectionManager
 		if (material is null)
 		{
 			throw new ArgumentNullException(nameof(material));
+		}
+
+		// 展開先由来の巻は論理的に除去するだけで、物理フォルダは削除しない
+		if (material.OriginalSourceType == MaterialSourceType.WorkFolder)
+		{
+			var workVolume = this.FindBindingVolumeByMaterial(material);
+			if (workVolume is not null)
+			{
+				this.removeBindingVolumeLogically(workVolume);
+				this.invalidateCompletedState();
+			}
+
+			material.IsChecked.Value = false;
+			return;
 		}
 
 		// 選択解除時のみ Scope を生成して BindingManager へ委譲する
@@ -456,6 +473,9 @@ public class VolumeSelectionManager
 			throw;
 		}
 
+		// 同じ巻番号の展開先由来の巻が存在する場合は、元素材へ切り替えるため論理的に除去する
+		this.removeWorkVolumesByVolumeNumber(newVolume.VolumeNumber.Value);
+
 		// BindingVolumes へ挿入
 		try
 		{
@@ -684,6 +704,246 @@ public class VolumeSelectionManager
 
 		// 4. 成功を返す
 		return true;
+	}
+
+	/// <summary>
+	/// BindingVolume を BindingVolumes から論理的に除去し、Dispose と Material.IsChecked の解除を行います。
+	/// 物理フォルダは削除しません。
+	/// </summary>
+	private void removeBindingVolumeLogically(BindingVolume volume)
+	{
+		this.bindingStore.BindingVolumes.Remove(volume);
+		volume.Dispose();
+		volume.Material.IsChecked.Value = false;
+		if (volume.Material.OriginalSourceType == MaterialSourceType.WorkFolder
+			&& !this.bindingStore.WorkVolumes.Contains(volume.Material))
+		{
+			volume.Material.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// 指定した巻番号の展開先由来の BindingVolume をすべて論理的に除去します。
+	/// </summary>
+	private void removeWorkVolumesByVolumeNumber(decimal? volumeNumber)
+	{
+		if (volumeNumber is null)
+		{
+			return;
+		}
+
+		var targets = this.bindingStore.BindingVolumes
+			.Where(v => v.Material.OriginalSourceType == MaterialSourceType.WorkFolder
+				&& v.VolumeNumber.Value == volumeNumber)
+			.ToList();
+
+		foreach (var target in targets)
+		{
+			this.removeBindingVolumeLogically(target);
+		}
+	}
+
+	/// <summary>展開済み巻フォルダ名から巻番号を取得します。</summary>
+	private static decimal getWorkVolumeNumber(MaterialItem workVolume)
+	{
+		var parseResult = VolumeNumberHelper.Parse(workVolume.Name, VolumeNumberSourceType.Folder);
+		return parseResult.SingleVolume
+			?? throw new InvalidOperationException($"展開済み巻フォルダの巻番号を取得できません。Name={workVolume.Name}");
+	}
+
+	/// <summary>
+	/// 展開先作品フォルダ直下の巻フォルダを走査し、WorkVolumes を差分更新します。
+	/// 既存の MaterialItem は同一インスタンスを保持し、新規に見つかった巻だけ画像数・サイズを取得します。
+	/// </summary>
+	private async ValueTask syncWorkVolumesAsync(CancellationToken cancellationToken)
+	{
+		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
+		var registeredPaths = this.bindingStore.WorkVolumes
+			.Select(m => m.FullPath)
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		var (currentPaths, newFolders) = await Task.Run(() =>
+		{
+			var current = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			var added = new List<(string Path, string Name, int FileCount, long TotalBytes)>();
+
+			if (!Directory.Exists(seriesFolderPath))
+			{
+				return (current, added);
+			}
+
+			foreach (var folderPath in Directory.GetDirectories(seriesFolderPath))
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+
+				var name = Path.GetFileName(folderPath);
+				var parseResult = VolumeNumberHelper.Parse(name, VolumeNumberSourceType.Folder);
+				if (parseResult.Kind != VolumeNumberParseKind.Single || !parseResult.SingleVolume.HasValue)
+				{
+					continue;
+				}
+
+				current.Add(folderPath);
+				if (registeredPaths.Contains(folderPath))
+				{
+					continue;
+				}
+
+				var fileCount = 0;
+				var totalBytes = 0L;
+				foreach (var file in new DirectoryInfo(folderPath).EnumerateFiles("*", SearchOption.TopDirectoryOnly))
+				{
+					if (SupportedExtensionHelper.IsImage(file.Extension))
+					{
+						fileCount++;
+						totalBytes += file.Length;
+					}
+				}
+
+				added.Add((folderPath, name, fileCount, totalBytes));
+			}
+
+			return (current, added);
+		}, cancellationToken);
+
+		// 存在しなくなった巻を WorkVolumes から除外する（BindingVolumes からは削除しない）
+		foreach (var material in this.bindingStore.WorkVolumes.ToList())
+		{
+			if (currentPaths.Contains(material.FullPath))
+			{
+				continue;
+			}
+
+			this.bindingStore.WorkVolumes.Remove(material);
+			if (this.FindBindingVolumeByMaterial(material) is null)
+			{
+				material.Dispose();
+			}
+		}
+
+		// 新しく見つかった巻だけ追加する。既に BindingVolumes が参照している同一パスの MaterialItem は再利用する
+		foreach (var folder in newFolders)
+		{
+			var material = this.bindingStore.BindingVolumes
+				.Select(v => v.Material)
+				.FirstOrDefault(m => m.OriginalSourceType == MaterialSourceType.WorkFolder
+					&& string.Equals(m.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase))
+				?? new MaterialItem(
+					itemType: MaterialItemType.Folder,
+					originalSourceType: MaterialSourceType.WorkFolder,
+					name: folder.Name,
+					fullPath: folder.Path,
+					fileCount: folder.FileCount,
+					totalImageBytes: folder.TotalBytes,
+					sourcePath: folder.Path);
+
+			var number = getWorkVolumeNumber(material);
+			var index = 0;
+			while (index < this.bindingStore.WorkVolumes.Count
+				&& getWorkVolumeNumber(this.bindingStore.WorkVolumes[index]) <= number)
+			{
+				index++;
+			}
+
+			this.bindingStore.WorkVolumes.Insert(index, material);
+		}
+	}
+
+	/// <summary>
+	/// 展開済み巻選択Dialogの表示用に、WorkVolumes のチェック状態を BindingVolumes に同期し、巻番号昇順の一覧を返します。
+	/// </summary>
+	public IReadOnlyList<MaterialItem> PrepareExpandedVolumeSelection()
+	{
+		foreach (var workVolume in this.bindingStore.WorkVolumes)
+		{
+			workVolume.IsChecked.Value = this.FindBindingVolumeByMaterial(workVolume) is not null;
+		}
+
+		return this.bindingStore.WorkVolumes.ToList();
+	}
+
+	/// <summary>
+	/// チェックされた展開済み巻の追加により置換される、元素材由来の既存巻を検出します。
+	/// BindingVolumes は変更しません。
+	/// </summary>
+	public IReadOnlyList<ExpandedVolumeReplacement> FindExpandedVolumeReplacements()
+	{
+		var replacements = new List<ExpandedVolumeReplacement>();
+
+		foreach (var workVolume in this.bindingStore.WorkVolumes)
+		{
+			if (!workVolume.IsChecked.Value || this.FindBindingVolumeByMaterial(workVolume) is not null)
+			{
+				continue;
+			}
+
+			var number = getWorkVolumeNumber(workVolume);
+			var replaced = this.bindingStore.BindingVolumes
+				.Where(v => v.Material.OriginalSourceType != MaterialSourceType.WorkFolder
+					&& v.VolumeNumber.Value == number)
+				.Select(v => v.Material)
+				.ToList();
+
+			if (replaced.Count > 0)
+			{
+				replacements.Add(new ExpandedVolumeReplacement(workVolume, replaced));
+			}
+		}
+
+		return replacements;
+	}
+
+	/// <summary>
+	/// WorkVolumes のチェック状態を BindingVolumes へ反映します。
+	/// チェックされた巻は追加し、同じ巻番号の元素材由来の巻はすべて置換します。
+	/// チェックが外された展開先由来の巻は論理的に除去します。物理フォルダは削除しません。
+	/// </summary>
+	public void ApplyExpandedVolumeSelection()
+	{
+		foreach (var workVolume in this.bindingStore.WorkVolumes.ToList())
+		{
+			var existing = this.FindBindingVolumeByMaterial(workVolume);
+
+			if (!workVolume.IsChecked.Value)
+			{
+				if (existing is not null)
+				{
+					this.removeBindingVolumeLogically(existing);
+					this.invalidateCompletedState();
+				}
+
+				continue;
+			}
+
+			if (existing is not null)
+			{
+				continue;
+			}
+
+			var number = getWorkVolumeNumber(workVolume);
+			var originals = this.bindingStore.BindingVolumes
+				.Where(v => v.Material.OriginalSourceType != MaterialSourceType.WorkFolder
+					&& v.VolumeNumber.Value == number)
+				.ToList();
+			foreach (var original in originals)
+			{
+				this.removeBindingVolumeLogically(original);
+			}
+
+			var newVolume = new BindingVolume(workVolume);
+			try
+			{
+				newVolume.VolumeNumber.Value = number;
+				this.bindingStore.InsertBindingVolumeInOrder(newVolume);
+			}
+			catch
+			{
+				newVolume.Dispose();
+				throw;
+			}
+
+			this.invalidateCompletedState();
+		}
 	}
 
 	/// <summary>

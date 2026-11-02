@@ -64,7 +64,8 @@ public class BindingVolume : IDisposable
 	/// 選択解除前にユーザー確認および Work 巻フォルダの削除が必要かどうかを取得します。
 	/// 現時点では Images が1件以上存在する展開済みの巻の場合に true になります。
 	/// </summary>
-	public bool RequiresUnselectCleanup => this.Images.Count > 0;
+	public bool RequiresUnselectCleanup => this.Images.Count > 0
+		&& this.Material.OriginalSourceType != MaterialSourceType.WorkFolder;
 
 	/// <summary>
 	/// 画像処理後に同一ファイル名になる BindingImage が

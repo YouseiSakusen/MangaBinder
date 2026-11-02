@@ -92,6 +92,21 @@ public class BindingStore : IDisposable
 	public ObservableList<MaterialItem> Materials { get; }
 
 	/// <summary>
+	/// 作品別の展開先フォルダ直下にある展開済み巻フォルダ一覧の正本を取得します。
+	/// BindingVolumes 内の展開先由来の BindingVolume は、この一覧内の MaterialItem と同一インスタンスを参照します。
+	/// </summary>
+	public ObservableList<MaterialItem> WorkVolumes { get; }
+
+	/// <summary>BindingVolumes に展開先由来の巻が含まれるかどうか（内部状態）。</summary>
+	private readonly BindableReactiveProperty<bool> hasWorkSourcedBindingVolume;
+
+	/// <summary>
+	/// 画像展開方法をユーザーが選択できるかどうかを取得します。
+	/// 既存Workフォルダが存在し、かつ展開先由来の巻が選択されていない場合に true になります。
+	/// </summary>
+	public IReadOnlyBindableReactiveProperty<bool> CanSelectImageExpansionMethod { get; }
+
+	/// <summary>
 	/// 巻選択工程で選択された巻一覧の正本を取得します。
 	/// BindingVolumes 内の各 BindingVolume は、Materials 内の MaterialItem と同一インスタンスを参照します。
 	/// </summary>
@@ -281,10 +296,11 @@ public class BindingStore : IDisposable
 		this.BindingTargetViewModel = new BindableReactiveProperty<MangaSeriesViewModel?>(null)
 			.AddTo(ref this.disposableBag);
 		this.Materials = new ObservableList<MaterialItem>();
+		this.WorkVolumes = new ObservableList<MaterialItem>();
 		this.BindingVolumes = new ObservableList<BindingVolume>();
 		this.SplitVolumes = new ObservableList<BindingVolume>();
 		this.volumeUpdated.AddTo(ref this.disposableBag);
-		this.VolumeFolderDigits = new BindableReactiveProperty<int>(2)
+		this.VolumeFolderDigits
 			.AddTo(ref this.disposableBag);
 		this.ZipOutputFileName = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
@@ -414,6 +430,17 @@ public class BindingStore : IDisposable
 				global::MangaBinder.Bindings.ImageExpansionMethod.UseExisting,
 				"既存のフォルダを再利用する"),
 		}.AsReadOnly();
+
+		// 展開先由来の巻が選択されている間は UseExisting に固定する
+		this.hasWorkSourcedBindingVolume = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+		this.BindingVolumes.CollectionChanged += this.onBindingVolumesCollectionChangedForWorkSource;
+		this.CanSelectImageExpansionMethod = Observable.CombineLatest(
+			this.HasExistingWorkFolder,
+			this.hasWorkSourcedBindingVolume,
+			(hasExistingWorkFolder, hasWorkSourced) => hasExistingWorkFolder && !hasWorkSourced)
+			.ToReadOnlyBindableReactiveProperty(false)
+			.AddTo(ref this.disposableBag);
 
 		this.VolumeFolderDigitOptions = new[]
 		{
@@ -682,6 +709,49 @@ public class BindingStore : IDisposable
 	}
 
 	/// <summary>
+	/// BindingVolumes の CollectionChanged イベントハンドラ。展開先由来の巻の有無を更新し、存在する間は UseExisting に固定します。
+	/// </summary>
+	private void onBindingVolumesCollectionChangedForWorkSource(in NotifyCollectionChangedEventArgs<BindingVolume> e)
+	{
+		var hasWorkSourced = this.BindingVolumes
+			.Any(volume => volume.Material.OriginalSourceType == MaterialSourceType.WorkFolder);
+		this.hasWorkSourcedBindingVolume.Value = hasWorkSourced;
+
+		if (hasWorkSourced)
+		{
+			this.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.UseExisting;
+		}
+	}
+
+	/// <summary>
+	/// WorkVolumes から外れたが BindingVolumes から参照されている展開先由来の MaterialItem を取得します。
+	/// </summary>
+	private List<MaterialItem> collectDetachedWorkMaterials()
+		=> this.BindingVolumes
+			.Select(volume => volume.Material)
+			.Where(material => material.OriginalSourceType == MaterialSourceType.WorkFolder
+				&& !this.WorkVolumes.Contains(material))
+			.Distinct()
+			.ToList();
+
+	/// <summary>
+	/// WorkVolumes と、そこから外れた展開先由来の MaterialItem を破棄します。
+	/// </summary>
+	private void disposeWorkMaterials(List<MaterialItem> detachedWorkMaterials)
+	{
+		foreach (var material in detachedWorkMaterials)
+		{
+			material.Dispose();
+		}
+
+		foreach (var material in this.WorkVolumes)
+		{
+			material.Dispose();
+		}
+		this.WorkVolumes.Clear();
+	}
+
+	/// <summary>
 	/// BindingVolumes の CollectionChanged イベントハンドラ。CanGoNext を更新します。
 	/// </summary>
 	private void onBindingVolumesCollectionChangedForCanGoNext(in NotifyCollectionChangedEventArgs<BindingVolume> e)
@@ -707,19 +777,22 @@ public class BindingStore : IDisposable
 		// 編集用 Clone の終了（SplitVolumes は購読により破棄される）
 		this.SplitTargetVolume.Value = null;
 
-		// BindingVolumes が Materials を参照しているため、先に BindingVolumes を破棄
+		var detachedWorkMaterials = this.collectDetachedWorkMaterials();
+
+		// BindingVolumes が Materials / WorkVolumes を参照しているため、先に BindingVolumes を破棄
 		foreach (var volume in this.BindingVolumes)
 		{
 			volume.Dispose();
 		}
 		this.BindingVolumes.Clear();
 
-		// 次に Materials を破棄
+		// 次に Materials と WorkVolumes を破棄
 		foreach (var material in this.Materials)
 		{
 			material.Dispose();
 		}
 		this.Materials.Clear();
+		this.disposeWorkMaterials(detachedWorkMaterials);
 
 		// セッション固有の mutable 状態をリセット
 		this.HasExistingWorkFolder.Value = false;
@@ -755,27 +828,31 @@ public class BindingStore : IDisposable
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForCanGoNext;
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForCountText;
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForVolumeNumber;
+		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForWorkSource;
 		this.disposeAllVolumeNumberSubscriptions();
 
 		// 所有関係に従って破棄する
 		// 編集用 Clone は Material を参照するだけなので、先に破棄
 		this.disposeSplitVolumes();
 
-		// BindingVolumes が Materials を参照しているため、先に BindingVolumes を破棄
+		var detachedWorkMaterials = this.collectDetachedWorkMaterials();
+
+		// BindingVolumes が Materials / WorkVolumes を参照しているため、先に BindingVolumes を破棄
 		foreach (var volume in this.BindingVolumes)
 		{
 			volume.Dispose();
 		}
 		this.BindingVolumes.Clear();
 
-		// 次に Materials を破棄
+		// 次に Materials と WorkVolumes を破棄
 		foreach (var material in this.Materials)
 		{
 			material.Dispose();
 		}
 		this.Materials.Clear();
+		this.disposeWorkMaterials(detachedWorkMaterials);
 
-		// 最後に ReactiveProperty を破棄
+		// 最後に
 		this.disposableBag.Dispose();
 	}
 }

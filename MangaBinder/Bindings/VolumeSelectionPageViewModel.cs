@@ -59,6 +59,9 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
     /// <summary>素材展開方法を取得します。</summary>
     public BindableReactiveProperty<ImageExpansionMethod> ImageExpansionMethod => this.bindingStore.ImageExpansionMethod;
 
+    /// <summary>画像展開方法を選択できるかどうかを取得します。</summary>
+    public IReadOnlyBindableReactiveProperty<bool> CanSelectImageExpansionMethod => this.bindingStore.CanSelectImageExpansionMethod;
+
     /// <summary>素材展開方法のオプション一覧を取得します。</summary>
     public IReadOnlyList<ImageExpansionOption> ImageExpansionOptions => this.bindingStore.ImageExpansionOptions;
 
@@ -200,7 +203,11 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
             .Subscribe(async _ => await this.openArchiveCompareAsync())
             .AddTo(ref this.disposableBag);
 
-        this.AddExpandedVolumeCommand = new ReactiveCommand<Unit>()
+        this.AddExpandedVolumeCommand = new ReactiveCommand<Unit>(
+                this.bindingStore.WorkVolumes
+                    .ObserveCountChanged(notifyCurrentCount: true)
+                    .Select(count => count > 0),
+                initialCanExecute: false)
             .AddTo(ref this.disposableBag);
 
         this.AddExpandedVolumeCommand
@@ -240,7 +247,7 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
         // Reactive側の新選択巻一覧を初期化
         // BindingStore.BindingVolumes から BindingVolumeViewModel へ変換
         var bindingVolumesView = this.bindingStore.BindingVolumes
-            .CreateView(bindingVolume => new BindingVolumeViewModel(bindingVolume));
+            .CreateView(bindingVolume => new BindingVolumeViewModel(bindingVolume, this.bindingStore.WorkVolumes));
 
         this.bindingVolumesView = bindingVolumesView;
 

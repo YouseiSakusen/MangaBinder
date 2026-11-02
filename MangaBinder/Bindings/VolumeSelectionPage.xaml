@@ -483,6 +483,7 @@
 										<controls:MaterialIcon
 											Grid.Column="1"
 											ItemType="{Binding DisplayItemType}"
+											IsWorkFolder="{Binding IsWorkVolume, Mode=OneWay}"
 											HorizontalAlignment="Center"
 											VerticalAlignment="Center" />
 
@@ -586,7 +587,7 @@
 													DisplayMemberPath="Label"
 													SelectedValuePath="Method"
 													SelectedValue="{Binding ImageExpansionMethod.Value, Mode=TwoWay}"
-													IsEnabled="{Binding HasExistingWorkFolder.Value}"
+													IsEnabled="{Binding CanSelectImageExpansionMethod.Value}"
 													Width="240"
 													VerticalAlignment="Center"
 													HorizontalAlignment="Right" />

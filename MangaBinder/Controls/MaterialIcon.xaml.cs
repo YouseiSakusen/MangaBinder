@@ -41,6 +41,42 @@ public partial class MaterialIcon : UserControl
 	}
 
 	/// <summary>
+	/// 展開済み巻表示用のアイコンを使用するかどうかを指定するDependencyPropertyです。
+	/// </summary>
+	public static readonly DependencyProperty IsWorkFolderProperty =
+		DependencyProperty.Register(
+			nameof(IsWorkFolder),
+			typeof(bool),
+			typeof(MaterialIcon),
+			new PropertyMetadata(false, OnIsWorkFolderChanged));
+
+	/// <summary>
+	/// 展開済み巻表示用のアイコンを使用するかどうかを取得または設定します。
+	/// true の場合は ItemType に関わらず OpenBindingFolder アイコンを表示します。
+	/// </summary>
+	public bool IsWorkFolder
+	{
+		get => (bool)GetValue(IsWorkFolderProperty);
+		set => SetValue(IsWorkFolderProperty, value);
+	}
+
+	private static void OnIsWorkFolderChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+	{
+		if (d is not MaterialIcon control)
+			return;
+
+		if ((bool)e.NewValue)
+		{
+			control.IconElement.Symbol = AppSymbols.OpenBindingFolder;
+			control.IconElement.SetResourceReference(ForegroundProperty, "MaterialWorkFolderIconBrush");
+		}
+		else
+		{
+			OnItemTypeChanged(control, new DependencyPropertyChangedEventArgs(ItemTypeProperty, control.ItemType, control.ItemType));
+		}
+	}
+
+	/// <summary>
 	/// アイコンの Filled 属性を取得または設定します。
 	/// </summary>
 	public bool Filled
@@ -65,6 +101,9 @@ public partial class MaterialIcon : UserControl
 			return;
 
 		var icon = control.IconElement;
+
+		if (control.IsWorkFolder)
+			return;
 
 		switch (itemType)
 		{
