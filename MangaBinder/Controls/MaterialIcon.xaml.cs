@@ -68,10 +68,12 @@ public partial class MaterialIcon : UserControl
 		if ((bool)e.NewValue)
 		{
 			control.IconElement.Symbol = AppSymbols.OpenBindingFolder;
+			control.Filled = false;
 			control.IconElement.SetResourceReference(ForegroundProperty, "MaterialWorkFolderIconBrush");
 		}
 		else
 		{
+			control.ClearValue(FilledProperty);
 			OnItemTypeChanged(control, new DependencyPropertyChangedEventArgs(ItemTypeProperty, control.ItemType, control.ItemType));
 		}
 	}

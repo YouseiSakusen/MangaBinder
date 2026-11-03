@@ -854,9 +854,13 @@ public class VolumeSelectionManager
 	/// </summary>
 	public IReadOnlyList<MaterialItem> PrepareExpandedVolumeSelection()
 	{
+		var hasExpandedVolume = this.bindingStore.BindingVolumes
+			.Any(v => v.Material.OriginalSourceType == MaterialSourceType.WorkFolder);
+
 		foreach (var workVolume in this.bindingStore.WorkVolumes)
 		{
-			workVolume.IsChecked.Value = this.FindBindingVolumeByMaterial(workVolume) is not null;
+			workVolume.IsChecked.Value = !hasExpandedVolume
+				|| this.FindBindingVolumeByMaterial(workVolume) is not null;
 		}
 
 		return this.bindingStore.WorkVolumes.ToList();
