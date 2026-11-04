@@ -26,6 +26,7 @@ public class MangaBinderInitializer
     {
         this.deleteOldLogFiles();
         var connectionString = this.ensureDatabaseExists();
+        await this.verifyDatabaseVersionAsync(connectionString);
         var thumbnailPath = await this.getThumbnailDirectoryPath(connectionString);
         this.ensureThumbnailDirectoryExists(thumbnailPath);
         this.ensureWorkThumbnailDirectoryExists(thumbnailPath);
@@ -63,6 +64,24 @@ public class MangaBinderInitializer
             JournalMode = SQLiteJournalModeEnum.Wal,
             BusyTimeout = 5000,
         }.ToString();
+    }
+
+    /// <summary>
+    /// DatabaseVersion テーブルの値が <see cref="Constants.CurrentDatabaseVersion"/> と一致することを確認します。
+    /// </summary>
+    /// <param name="connectionString">SQLite 接続文字列。</param>
+    /// <exception cref="DatabaseVersionMismatchException">バージョンが一致しない場合。</exception>
+    private async Task verifyDatabaseVersionAsync(string connectionString)
+    {
+        using var connection = new SQLiteConnection(connectionString);
+        await connection.OpenAsync();
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Version FROM DatabaseVersion WHERE Id = 1;";
+
+        var storedVersion = (await command.ExecuteScalarAsync())?.ToString() ?? string.Empty;
+        if (storedVersion != Constants.CurrentDatabaseVersion)
+            throw new DatabaseVersionMismatchException(storedVersion, Constants.CurrentDatabaseVersion);
     }
 
     /// <summary>

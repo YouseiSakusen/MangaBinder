@@ -6,6 +6,18 @@ namespace MangaBinder;
 public static class Constants
 {
 	/// <summary>
+	/// アプリが要求する DB バージョンです。
+	/// バージョンを変更するときは、既存データのマイグレーション対応も検討・実装し、対応漏れがないことを確認すること。
+	/// </summary>
+	public const string CurrentDatabaseVersion = "1";
+
+	/// <summary>
+	/// 製本設定 JSON の現在のバージョンです。
+	/// バージョンを変更するときは、既存データのマイグレーション対応も検討・実装し、対応漏れがないことを確認すること。
+	/// </summary>
+	public const string CurrentBindingSettingsVersion = "1.0";
+
+	/// <summary>
 	/// ビュー名に関連する定数群です。
 	/// </summary>
 	public static class ViewNames

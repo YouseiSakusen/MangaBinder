@@ -5,7 +5,10 @@ namespace MangaBinder.Bindings;
 /// </summary>
 public class BindingSettingsDto
 {
-	/// <summary>Work巻フォルダの巻番号桁数を取得または設定します。</summary>
+	/// <summary>製本設定のバージョンを取得または設定します。JSON に存在しない場合は初期バージョンの "1.0" です。</summary>
+	public string Version { get; set; } = "1.0";
+
+	/// <summary>Work巻フォルダの巻番号桁数
 	public int VolumeFolderDigits { get; set; }
 
 	/// <summary>製本対象として選択された巻設定一覧を取得または設定します。</summary>

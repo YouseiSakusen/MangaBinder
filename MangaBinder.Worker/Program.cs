@@ -22,8 +22,10 @@ if (instanceMutex is null)
 
 var hostArgs = WorkerStartup.ApplyConsoleMode(args);
 
+#if DEBUG
 Console.OutputEncoding = Encoding.UTF8;
 Console.InputEncoding = Encoding.UTF8;
+#endif
 
 var builder = Host.CreateApplicationBuilder(hostArgs);
 
@@ -39,7 +41,9 @@ builder.Services.AddScoped(sp => new MaterialArchiveRepository(sp.GetRequiredSer
 builder.Services.AddScoped<SeriesMaterialFolderLoader>();
 
 builder.Logging.ClearProviders();
+#if DEBUG
 builder.Logging.AddZLoggerConsole(configureZLogger);
+#endif
 builder.Logging.AddZLoggerRollingFile(options =>
 {
     options.FilePathSelector = (timestamp, sequence) =>

@@ -126,9 +126,10 @@ public class VolumeSelectionManager
 			}
 
 			// 保存済みの製本設定がある場合のみ、DB から取得して復元する
+			string? mismatchedVersion = null;
 			if (bindingTarget.Series.HasBindingSettings)
 			{
-				await this.restoreBindingSettingsAsync(bindingTarget.Series, cancellationToken);
+				mismatchedVersion = await this.restoreBindingSettingsAsync(bindingTarget.Series, cancellationToken);
 			}
 
 			// ⑦ 巻選択の初期化が正常完了したことを記録
@@ -140,6 +141,7 @@ public class VolumeSelectionManager
 				TargetPath = loaderResult.TargetPath,
 				HasNestedArchive = loaderResult.HasNestedArchive,
 				NestedArchiveFileNames = loaderResult.NestedArchiveFileNames,
+				MismatchedBindingSettingsVersion = mismatchedVersion,
 			};
 		}
 		catch
@@ -226,7 +228,8 @@ public class VolumeSelectionManager
 	/// </summary>
 	/// <param name="series">対象作品。</param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
-	private async ValueTask restoreBindingSettingsAsync(MangaSeries series, CancellationToken cancellationToken)
+	/// <returns>バージョン不一致で復元をスキップした場合は保存されていたバージョン。それ以外は null。</returns>
+	private async ValueTask<string?> restoreBindingSettingsAsync(MangaSeries series, CancellationToken cancellationToken)
 	{
 		BindingSettingsDto? settings;
 		try
@@ -240,12 +243,11 @@ public class VolumeSelectionManager
 
 			if (string.IsNullOrEmpty(settingsJson))
 			{
-				return;
+				return null;
 			}
 
 			settings = await Task.Run(
-				() => JsonSerializer.Deserialize<BindingSettingsDto>(settingsJson),
-				cancellationToken);
+				() => JsonSerializer.Deserialize<BindingSettingsDto>(settingsJson),				cancellationToken);
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
@@ -255,7 +257,12 @@ public class VolumeSelectionManager
 
 		if (settings is null)
 		{
-			return;
+			return null;
+		}
+
+		if (settings.Version != Constants.CurrentBindingSettingsVersion)
+		{
+			return settings.Version;
 		}
 
 		var materialMap = new Dictionary<(MaterialItemType, string, string, string), MaterialItem>();
@@ -264,13 +271,20 @@ public class VolumeSelectionManager
 			this.collectMaterials(root, materialMap);
 		}
 
+		var workVolumeMap = new Dictionary<(MaterialItemType, string, string, string), MaterialItem>();
+		foreach (var workVolume in this.bindingStore.WorkVolumes)
+		{
+			this.collectMaterials(workVolume, workVolumeMap);
+		}
+
 		var restoredVolumes = new List<BindingVolume>();
 		try
 		{
 			foreach (var volumeDto in settings.Volumes)
 			{
 				var key = createMaterialKey(volumeDto.Material);
-				if (!materialMap.TryGetValue(key, out var material))
+				var sourceMap = volumeDto.OriginalSourceType == MaterialSourceType.WorkFolder ? workVolumeMap : materialMap;
+				if (!sourceMap.TryGetValue(key, out var material))
 				{
 					this.logger.LogWarning(
 						"保存済みの素材が現在の素材ツリーに存在しないため復元しませんでした。ItemType={ItemType}, FullPath={FullPath}, SourcePath={SourcePath}, ArchiveEntryPrefix={ArchiveEntryPrefix}",
@@ -300,6 +314,8 @@ public class VolumeSelectionManager
 			volume.Material.IsChecked.Value = true;
 			this.bindingStore.BindingVolumes.Add(volume);
 		}
+
+		return null;
 	}
 
 	private static (MaterialItemType, string, string, string) createMaterialKey(MaterialItemDto dto)

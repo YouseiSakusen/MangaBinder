@@ -112,6 +112,17 @@ public partial class App
 			return;
 		}
 
+		catch (DatabaseVersionMismatchException ex)
+		{
+			System.Windows.MessageBox.Show(
+				$"データベースのバージョンがアプリの要求するバージョンと一致しません。\n\n保存されているバージョン：{ex.StoredVersion}\nアプリが要求するバージョン：{ex.RequiredVersion}",
+				"MangaBinderを起動できません",
+				MessageBoxButton.OK,
+				MessageBoxImage.Error);
+			this.Shutdown();
+			return;
+		}
+
 		host = this.createHost();
 		await host.StartAsync();
 

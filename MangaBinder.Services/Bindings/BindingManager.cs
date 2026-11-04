@@ -686,6 +686,7 @@ public class BindingManager
 			() => JsonSerializer.Serialize(
 				new BindingSettingsDto
 				{
+					Version = Constants.CurrentBindingSettingsVersion,
 					VolumeFolderDigits = volumeFolderDigits,
 					Volumes = volumes.Select(volume => volume.CreateDto()).ToList(),
 				}),

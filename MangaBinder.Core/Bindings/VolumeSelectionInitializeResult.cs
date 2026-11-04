@@ -28,6 +28,11 @@ public class VolumeSelectionInitializeResult
 	public IReadOnlyList<string> NestedArchiveFileNames { get; init; } = [];
 
 	/// <summary>
+	/// 復元をスキップした製本設定のバージョンを取得します。バージョン不一致がない場合は null です。
+	/// </summary>
+	public string? MismatchedBindingSettingsVersion { get; init; }
+
+	/// <summary>
 	/// 初期化が成功したかどうかを取得します。
 	/// </summary>
 	public bool IsSuccess => this.Status == MaterialFolderStatus.Success;

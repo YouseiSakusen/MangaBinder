@@ -594,6 +594,7 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
     /// </summary>
     private async ValueTask initializeMaterialsAsync()
     {
+        string? mismatchedVersion = null;
         using (this.loadingService.Begin("素材を解析しています..."))
         {
             // UI描画機会を確保
@@ -655,6 +656,15 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
             // Success の場合は BindingStore.Materials が既に更新されており、
             // MaterialItems（Projection）が自動的に更新される
             // BindingStore の派生状態が自動的に更新される
+            mismatchedVersion = result.MismatchedBindingSettingsVersion;
+        }
+
+        if (mismatchedVersion is not null)
+        {
+            await ContentDialogHelper.ShowErrorAsync(
+                this.contentDialogService,
+                $"保存されている製本設定のバージョンが、アプリの対応バージョンと異なるため復元しませんでした。\n\n保存されているバージョン：{mismatchedVersion}\nアプリの対応バージョン：{Constants.CurrentBindingSettingsVersion}",
+                "製本設定を復元できません");
         }
     }
 

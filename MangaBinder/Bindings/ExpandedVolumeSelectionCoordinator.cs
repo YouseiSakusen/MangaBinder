@@ -50,7 +50,7 @@ public class ExpandedVolumeSelectionCoordinator
 
 		var selectionContent = new ExpandedVolumeSelectionContent
 		{
-			DataContext = manager.PrepareExpandedVolumeSelection(),
+			DataContext = new ExpandedVolumeSelectionViewModel(manager.PrepareExpandedVolumeSelection()),
 		};
 
 		var dialog = new ContentDialog

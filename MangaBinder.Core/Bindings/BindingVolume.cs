@@ -324,6 +324,7 @@ public class BindingVolume : IDisposable
 		{
 			VolumeNumber = this.VolumeNumber.Value,
 			IsBinding = this.IsBinding.Value,
+			OriginalSourceType = this.Material.OriginalSourceType,
 			Material = new MaterialItemDto
 			{
 				ItemType = this.Material.ItemType,
