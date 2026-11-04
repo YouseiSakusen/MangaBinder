@@ -640,6 +640,12 @@ public class VolumeSelectionManager
 				"指定された MaterialItem は BindingStore.Materials の Root 直下に存在しません。");
 		}
 
+		// 物理削除前に、対象素材から作成された全ての BindingVolume を解除する（Work 削除を含む）
+		foreach (var volume in this.FindBindingVolumesForDeletion(material))
+		{
+			await this.UnselectMaterialAsync(volume.Material);
+		}
+
 		// アーカイブの場合は、物理削除前にキャッシュ削除用のキーを取得する
 		MangaSource? materialSource = null;
 		if (material.ItemType == MaterialItemType.Archive)
@@ -709,17 +715,43 @@ public class VolumeSelectionManager
 
 		// 物理削除成功後、BindingStore を更新
 
-		// 1. 既存の UnselectMaterial を呼び出し（BindingVolume 削除と IsChecked = false）
-		await this.UnselectMaterialAsync(material);
-
-		// 2.
+		// 1. 素材ツリーから除去
 		parentRoot.Children.RemoveAt(materialIndexInRoot);
 
-		// 3. Material を Dispose（子ノードを所有している場合も含め）
+		// 2. Material を Dispose（子ノードを所有している場合も含め）
 		material.Dispose();
 
-		// 4. 成功を返す
+		// 3. 成功を返す
 		return true;
+	}
+
+	/// <summary>
+	/// 削除対象素材から作成された BindingVolume を BindingVolumes 全件から特定します。
+	/// Material.SourcePath を大文字小文字を区別せず比較し、Folder の場合は配下のパスも対象にします。
+	/// </summary>
+	/// <param name="material">削除対象の MaterialItem。</param>
+	/// <returns>削除対象の BindingVolume。</returns>
+	public IReadOnlyList<BindingVolume> FindBindingVolumesForDeletion(MaterialItem material)
+	{
+		ArgumentNullException.ThrowIfNull(material);
+
+		var targetPath = Path.TrimEndingDirectorySeparator(material.SourcePath);
+		var isFolder = material.ItemType == MaterialItemType.Folder;
+
+		return this.bindingStore.BindingVolumes
+			.Where(v =>
+			{
+				var path = Path.TrimEndingDirectorySeparator(v.Material.SourcePath);
+				if (string.Equals(path, targetPath, StringComparison.OrdinalIgnoreCase))
+				{
+					return true;
+				}
+
+				return isFolder
+					&& (path.StartsWith(targetPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+						|| path.StartsWith(targetPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+			})
+			.ToList();
 	}
 
 	/// <summary>

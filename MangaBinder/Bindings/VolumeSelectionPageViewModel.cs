@@ -722,8 +722,52 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
         using var scope = this.serviceScopeFactory.CreateScope();
         var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
 
+        // 削除対象素材から作成された選択済み巻の除外確認（1回のみ）
+        var volumes = manager.FindBindingVolumesForDeletion(item.Material);
+        if (volumes.Count > 0)
+        {
+            var numbers = string.Join("、", volumes
+                .Select(v => v.VolumeNumber.Value)
+                .OrderBy(n => n)
+                .Select(n => $"{n}巻"));
+            var excludeConfirmed = await ContentDialogHelper.ShowConfirmAsync(
+                this.contentDialogService,
+                "確認",
+                $"以下の選択済巻を除外します。\n\n{numbers}\n\nよろしいですか？",
+                "除外");
+            if (!excludeConfirmed)
+            {
+                return;
+            }
+
+            // 展開済みWork巻フォルダの削除確認（1回のみ）
+            if (volumes.Any(v => v.RequiresUnselectCleanup))
+            {
+                var cleanupConfirmed = await ContentDialogHelper.ShowConfirmAsync(
+                    this.contentDialogService,
+                    "確認",
+                    "展開済みの巻フォルダも削除されます。\nよろしいですか？",
+                    "削除");
+                if (!cleanupConfirmed)
+                {
+                    return;
+                }
+            }
+        }
+
         // DeleteMaterial() を実行
-        var succeeded = await manager.DeleteMaterialAsync(item.Material, sendToRecycleBin);
+        bool succeeded;
+        try
+        {
+            succeeded = await manager.DeleteMaterialAsync(item.Material, sendToRecycleBin);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            await ContentDialogHelper.ShowErrorAsync(
+                this.contentDialogService,
+                $"展開済みフォルダを削除できなかったため、素材を削除できませんでした。\n{ex.Message}");
+            return;
+        }
 
         // 結果に応じて処理
         if (!succeeded)
