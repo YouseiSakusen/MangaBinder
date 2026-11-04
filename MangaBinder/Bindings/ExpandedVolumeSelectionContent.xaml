@@ -37,7 +37,7 @@
 		</StackPanel>
 
 		<ListView
-			Grid.Row="2"
+			Grid.Row="3"
 			ItemsSource="{Binding Items}"
 			HorizontalContentAlignment="Stretch"
 			ScrollViewer.HorizontalScrollBarVisibility="Disabled"
