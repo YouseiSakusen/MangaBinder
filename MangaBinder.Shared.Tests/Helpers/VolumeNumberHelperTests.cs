@@ -538,5 +538,41 @@ public class VolumeNumberHelperTests
 		AssertSingle(input, VolumeNumberSourceType.Epub, expectedVolume);
 	}
 
+	/// <summary>
+	/// Folder 名の末尾が「_数字」「-数字」の場合に、その数字を巻番号として解析することを確認します。
+	/// </summary>
+	[Theory]
+	[InlineData("MangaZip.IS_01", 1)]
+	[InlineData("MangaZip.IS_02", 2)]
+	[InlineData("MangaZip.IS_03", 3)]
+	[InlineData("MangaZip.IS_04", 4)]
+	[InlineData("MangaZip.IS_05", 5)]
+	[InlineData("MangaZip.IS_06", 6)]
+	[InlineData("MangaZip.IS_07", 7)]
+	[InlineData("MangaZip.IS_08", 8)]
+	[InlineData("MangaZip.IS_09", 9)]
+	[InlineData("Title_12", 12)]
+	[InlineData("Title-03", 3)]
+	[InlineData("Title-12", 12)]
+	public void Single_FolderSeparatorTrailingNumber_ParsedCorrectly(string input, decimal expectedVolume)
+	{
+		AssertSingle(input, VolumeNumberSourceType.Folder, expectedVolume);
+	}
+
+	/// <summary>
+	/// 区切り文字 + 数字が末尾にない、または数字がタイトルに直接連結している Folder 名を、
+	/// 今回の新規パターンで誤認しないことを確認します。
+	/// </summary>
+	[Theory]
+	[InlineData("Title_01_extra")]
+	[InlineData("Title-03_extra")]
+	[InlineData("Title12")]
+	[InlineData("本好きの下剋上2")]
+	public void Folder_SeparatorTrailingNumberNotAtEnd_NotParsedByNewPattern(string input)
+	{
+		var result = VolumeNumberHelper.Parse(input, VolumeNumberSourceType.Folder);
+		Assert.NotEqual("SeparatorTrailingNumber", result.MatchedPattern);
+	}
+
 	#endregion
 }

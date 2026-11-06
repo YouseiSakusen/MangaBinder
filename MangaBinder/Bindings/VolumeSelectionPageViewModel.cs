@@ -192,10 +192,9 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
             .AddTo(ref this.disposableBag);
 
         this.AddExpandedVolumeCommand = new ReactiveCommand<Unit>(
-                this.bindingStore.WorkSeriesFolderPath
-                    .CombineLatest(
-                        this.bindingStore.BindingTarget,
-                        (path, target) => !string.IsNullOrEmpty(path) && target is not null),
+                this.bindingStore.WorkVolumes
+                    .ObserveCountChanged(notifyCurrentCount: true)
+                    .Select(count => count > 0),
                 initialCanExecute: false)
             .AddTo(ref this.disposableBag);
 

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.RegularExpressions;
 
 namespace MangaBinder.Helpers;
@@ -341,6 +341,21 @@ public static partial class VolumeNumberHelper
 	{
 		// Folder では後方の有効候補を優先
 		// タイトル末尾付近の数字から後ろを探す
+
+		// 末尾の区切り文字 + 数字：「MangaZip.IS_01」「Title-03」
+		var separatorTrailingMatch = RegexSeparatorTrailingNumber().Match(normalized);
+		if (separatorTrailingMatch.Success && isValidWeakVolumeNumber(separatorTrailingMatch.Groups["num"].Value))
+		{
+			if (TryParseVolumeNumber(separatorTrailingMatch.Groups["num"].Value, out var number))
+			{
+				return new VolumeNumberParseResult
+				{
+					Kind = VolumeNumberParseKind.Single,
+					SingleVolume = number,
+					MatchedPattern = "SeparatorTrailingNumber",
+				};
+			}
+		}
 
 		// タイトル末尾の裸数字：「3月のライオン 12」
 		var trailingMatch = RegexTitleTrailingNumber().Match(normalized);
@@ -899,6 +914,12 @@ public static partial class VolumeNumberHelper
 	/// </summary>
 	[GeneratedRegex(@"(?<=[!?])(?<num>\d+(?:[._]\d+)?)(?=[^\p{L}\p{N}]|$)")]
 	private static partial Regex RegexTitleSeparatorNumber();
+
+	/// <summary>
+	/// 末尾の区切り文字（_ または -）+ 数字。
+	/// </summary>
+	[GeneratedRegex(@"(?<!\d)[_-](?<num>\d+)$")]
+	private static partial Regex RegexSeparatorTrailingNumber();
 
 	/// <summary>
 	/// タイトル + 空白 + 数字 + ( または [
