@@ -97,15 +97,6 @@ public class BindingStore : IDisposable
 	/// </summary>
 	public ObservableList<MaterialItem> WorkVolumes { get; }
 
-	/// <summary>BindingVolumes に展開先由来の巻が含まれるかどうか（内部状態）。</summary>
-	private readonly BindableReactiveProperty<bool> hasWorkSourcedBindingVolume;
-
-	/// <summary>
-	/// 画像展開方法をユーザーが選択できるかどうかを取得します。
-	/// 既存Workフォルダが存在し、かつ展開先由来の巻が選択されていない場合に true になります。
-	/// </summary>
-	public IReadOnlyBindableReactiveProperty<bool> CanSelectImageExpansionMethod { get; }
-
 	/// <summary>
 	/// 巻選択工程で選択された巻一覧の正本を取得します。
 	/// BindingVolumes 内の各 BindingVolume は、Materials 内の MaterialItem と同一インスタンスを参照します。
@@ -210,12 +201,6 @@ public class BindingStore : IDisposable
 	public IReadOnlyBindableReactiveProperty<string> SelectedVolumeCountText { get; }
 
 	/// <summary>
-	/// Work 作品フォルダが既に存在するかどうかを取得または設定します。
-	/// 初期値は false です。
-	/// </summary>
-	public BindableReactiveProperty<bool> HasExistingWorkFolder { get; }
-
-	/// <summary>
 	/// 現在のBindingTargetに対応する、作品単位のWorkフォルダパスを取得または設定します。
 	/// 製本セッション中の正本として機能し、初期値は string.Empty です。
 	/// </summary>
@@ -225,16 +210,6 @@ public class BindingStore : IDisposable
 	/// 製本前確認画面で表示する、作品単位の展開先フォルダ直下の巻フォルダ数を取得または設定します。
 	/// </summary>
 	public BindableReactiveProperty<int> WorkVolumeFolderCount { get; }
-
-	/// 素材展開方法を取得または設定します。
-	/// 初期値は <see cref="global::MangaBinder.Bindings.ImageExpansionMethod.Recreate"/> です。
-	/// </summary>
-	public BindableReactiveProperty<ImageExpansionMethod> ImageExpansionMethod { get; }
-
-	/// <summary>
-	/// 選択可能な素材展開方法のオプション一覧を取得します。
-	/// </summary>
-	public IReadOnlyList<ImageExpansionOption> ImageExpansionOptions { get; }
 
 	/// <summary>
 	/// 巻フォルダ名の桁数選択肢一覧を取得します。
@@ -407,39 +382,10 @@ public class BindingStore : IDisposable
 		// BindingVolumes の Count 変化で SelectedVolumeCountText を自動更新
 		this.BindingVolumes.CollectionChanged += this.onBindingVolumesCollectionChangedForCountText;
 
-		// 素材展開関連の状態を初期化
-		this.HasExistingWorkFolder = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
-
 		this.WorkSeriesFolderPath = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
 		this.WorkVolumeFolderCount = new BindableReactiveProperty<int>(0)
-			.AddTo(ref this.disposableBag);
-
-		this.ImageExpansionMethod = new BindableReactiveProperty<global::MangaBinder.Bindings.ImageExpansionMethod>(
-			global::MangaBinder.Bindings.ImageExpansionMethod.Recreate)
-			.AddTo(ref this.disposableBag);
-
-		this.ImageExpansionOptions = new[]
-		{
-			new ImageExpansionOption(
-				global::MangaBinder.Bindings.ImageExpansionMethod.Recreate,
-				"作品フォルダを新規作成（既存フォルダ削除）"),
-			new ImageExpansionOption(
-				global::MangaBinder.Bindings.ImageExpansionMethod.UseExisting,
-				"既存のフォルダを再利用する"),
-		}.AsReadOnly();
-
-		// 展開先由来の巻が選択されている間は UseExisting に固定する
-		this.hasWorkSourcedBindingVolume = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
-		this.BindingVolumes.CollectionChanged += this.onBindingVolumesCollectionChangedForWorkSource;
-		this.CanSelectImageExpansionMethod = Observable.CombineLatest(
-			this.HasExistingWorkFolder,
-			this.hasWorkSourcedBindingVolume,
-			(hasExistingWorkFolder, hasWorkSourced) => hasExistingWorkFolder && !hasWorkSourced)
-			.ToReadOnlyBindableReactiveProperty(false)
 			.AddTo(ref this.disposableBag);
 
 		this.VolumeFolderDigitOptions = new[]
@@ -709,21 +655,6 @@ public class BindingStore : IDisposable
 	}
 
 	/// <summary>
-	/// BindingVolumes の CollectionChanged イベントハンドラ。展開先由来の巻の有無を更新し、存在する間は UseExisting に固定します。
-	/// </summary>
-	private void onBindingVolumesCollectionChangedForWorkSource(in NotifyCollectionChangedEventArgs<BindingVolume> e)
-	{
-		var hasWorkSourced = this.BindingVolumes
-			.Any(volume => volume.Material.OriginalSourceType == MaterialSourceType.WorkFolder);
-		this.hasWorkSourcedBindingVolume.Value = hasWorkSourced;
-
-		if (hasWorkSourced)
-		{
-			this.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.UseExisting;
-		}
-	}
-
-	/// <summary>
 	/// WorkVolumes から外れたが BindingVolumes から参照されている展開先由来の MaterialItem を取得します。
 	/// </summary>
 	private List<MaterialItem> collectDetachedWorkMaterials()
@@ -795,10 +726,8 @@ public class BindingStore : IDisposable
 		this.disposeWorkMaterials(detachedWorkMaterials);
 
 		// セッション固有の mutable 状態をリセット
-		this.HasExistingWorkFolder.Value = false;
 		this.WorkSeriesFolderPath.Value = string.Empty;
 		this.WorkVolumeFolderCount.Value = 0;
-		this.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
 		this.VolumeFolderDigits.Value = 2;
 		this.ZipOutputFileName.Value = string.Empty;
 		this.CreateZip.Value = true;
@@ -828,7 +757,6 @@ public class BindingStore : IDisposable
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForCanGoNext;
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForCountText;
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForVolumeNumber;
-		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForWorkSource;
 		this.disposeAllVolumeNumberSubscriptions();
 
 		// 所有関係に従って破棄する

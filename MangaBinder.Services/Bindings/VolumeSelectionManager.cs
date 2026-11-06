@@ -65,14 +65,7 @@ public class VolumeSelectionManager
 				"巻選択の初期化には BindingStore.BindingTarget が設定されている必要があります。");
 		}
 
-		// ② 画像展開状態は VolumeSelection へ入るたびに現在のファイルシステムで再評価する
-		// ファイルシステムアクセスを UI スレッドで直接実行しないよう Task.Run で別タスクへ移す
-		await Task.Run(this.initializeImageExpansionState, cancellationToken);
-
-		// 展開先の巻フォルダ一覧は、素材ツリーの初期化済み判定とは独立して毎回差分更新する
-		await this.SyncWorkVolumesAsync(cancellationToken);
-
-		// ③
+		// ② 初期化済みの場合は素材ツリーと WorkVolumes を再走査せず、既存の状態を維持する
 		if (this.bindingStore.VolumeSelectionInitialized.Value)
 		{
 			// 既存の素材は保持したまま、成功結果を返す
@@ -85,6 +78,9 @@ public class VolumeSelectionManager
 				NestedArchiveFileNames = [],
 			};
 		}
+
+		// ③ 未初期化の場合のみ、保存済み設定の復元より前に展開先の巻フォルダ一覧を同期する
+		await this.SyncWorkVolumesAsync(cancellationToken);
 
 		// 未初期化の場合のみ、巻フォルダ桁数を初期化する
 		this.initializeVolumeFolderDigits(bindingTarget.Series);
@@ -169,7 +165,7 @@ public class VolumeSelectionManager
 	/// SelectMaterial 呼び出し時に使用する allowSelectionOverride フラグ。
 	/// </param>
 	/// <exception cref="ArgumentNullException">material が null の場合。</exception>
-	public async ValueTask ToggleMaterialSelectionAsync(MaterialItem material, bool allowSelectionOverride = false)
+	public ValueTask ToggleMaterialSelectionAsync(MaterialItem material, bool allowSelectionOverride = false)
 	{
 		if (material is null)
 		{
@@ -178,43 +174,54 @@ public class VolumeSelectionManager
 
 		if (material.IsChecked.Value)
 		{
-			await this.UnselectMaterialAsync(material);
+			this.UnselectMaterial(material);
 		}
 		else
 		{
 			this.SelectMaterial(material, allowSelectionOverride);
 		}
+
+		return ValueTask.CompletedTask;
 	}
 
 	/// <summary>
 	/// 指定した MaterialItem に対応する BindingVolume を BindingStore.BindingVolumes から削除し、
 	/// Material.IsChecked を false に設定します。
 	/// BindingVolume が存在しない場合でも IsChecked は false に設定します。
+	/// 素材由来・展開先由来を問わず論理的な除外のみを行い、物理フォルダは削除しません。
 	/// </summary>
 	/// <param name="material">選択解除対象の MaterialItem。</param>
 	/// <exception cref="ArgumentNullException">material が null の場合。</exception>
-	public async ValueTask UnselectMaterialAsync(MaterialItem material)
+	public void UnselectMaterial(MaterialItem material)
 	{
 		if (material is null)
 		{
 			throw new ArgumentNullException(nameof(material));
 		}
 
-		// 展開先由来の巻は論理的に除去するだけで、物理フォルダは削除しない
+		var volume = this.FindBindingVolumeByMaterial(material);
+		if (volume is not null)
+		{
+			this.removeBindingVolumeLogically(volume);
+			this.invalidateCompletedState();
+		}
+
+		material.IsChecked.Value = false;
+	}
+
+	/// <summary>
+	/// 素材削除に伴い、指定した MaterialItem の BindingVolume を除外します。
+	/// 展開先由来の巻は論理除外のみ、素材由来の展開済み巻は Work 巻フォルダも削除します。
+	/// </summary>
+	/// <param name="material">除外対象の MaterialItem。</param>
+	private async ValueTask unselectMaterialForDeletionAsync(MaterialItem material)
+	{
 		if (material.OriginalSourceType == MaterialSourceType.WorkFolder)
 		{
-			var workVolume = this.FindBindingVolumeByMaterial(material);
-			if (workVolume is not null)
-			{
-				this.removeBindingVolumeLogically(workVolume);
-				this.invalidateCompletedState();
-			}
-
-			material.IsChecked.Value = false;
+			this.UnselectMaterial(material);
 			return;
 		}
 
-		// 選択解除時のみ Scope を生成して BindingManager へ委譲する
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var bindingManager = scope.ServiceProvider.GetRequiredService<BindingManager>();
 		await bindingManager.UnselectMaterialAsync(material, true);
@@ -643,7 +650,7 @@ public class VolumeSelectionManager
 		// 物理削除前に、対象素材から作成された全ての BindingVolume を解除する（Work 削除を含む）
 		foreach (var volume in this.FindBindingVolumesForDeletion(material))
 		{
-			await this.UnselectMaterialAsync(volume.Material);
+			await this.unselectMaterialForDeletionAsync(volume.Material);
 		}
 
 		// アーカイブの場合は、物理削除前にキャッシュ削除用のキーを取得する
@@ -1175,38 +1182,6 @@ public class VolumeSelectionManager
 	}
 
 	/// <summary>
-	/// Work 作品フォルダの存在に基づいて、素材展開方法の初期状態を決定します。
-	/// BindingStore.WorkSeriesFolderPath から作品別フォルダの存在確認を行います。
-	/// </summary>
-	private void initializeImageExpansionState()
-	{
-		// WorkFolder 設定が無効な場合は Recreate で統一
-		if (!this.appSettings.HasValidWorkFolder)
-		{
-			this.bindingStore.HasExistingWorkFolder.Value = false;
-			this.bindingStore.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
-			return;
-		}
-
-		// WorkFolder 設定が有効な場合、BindingStore.WorkSeriesFolderPath から作品別フォルダの存在確認
-		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
-		var folderExists = Directory.Exists(seriesFolderPath);
-
-		if (folderExists)
-		{
-			// 既存フォルダがある場合は UseExisting
-			this.bindingStore.HasExistingWorkFolder.Value = true;
-			this.bindingStore.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.UseExisting;
-		}
-		else
-		{
-			// 存在しない場合は Recreate
-			this.bindingStore.HasExistingWorkFolder.Value = false;
-			this.bindingStore.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
-		}
-	}
-
-	/// <summary>
 	/// 巻選択工程から次へ進めるかを検証します。
 	/// </summary>
 	/// <returns>検証結果。</returns>
@@ -1215,6 +1190,19 @@ public class VolumeSelectionManager
 		// 呼び出し時だけ Scope を生成して BindingManager へ委譲する
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var bindingManager = scope.ServiceProvider.GetRequiredService<BindingManager>();
-		return bindingManager.ValidateVolumeSelection(bindingVolumesOnly: false);
+		var result = bindingManager.ValidateVolumeSelection(bindingVolumesOnly: false);
+
+		// 展開先に実在しない展開先由来の巻は、すべて論理的に除外する
+		if (result.Error == VolumeSelectionValidationError.WorkVolumeFolderMissing)
+		{
+			foreach (var volume in result.MissingWorkVolumes)
+			{
+				this.removeBindingVolumeLogically(volume);
+			}
+
+			this.invalidateCompletedState();
+		}
+
+		return result;
 	}
 }

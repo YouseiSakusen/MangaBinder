@@ -32,9 +32,6 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
 
     private DisposableBag disposableBag;
 
-    /// <summary>作品中間フォルダが既に存在するかどうかを取得します。</summary>
-    public BindableReactiveProperty<bool> HasExistingWorkFolder => this.bindingStore.HasExistingWorkFolder;
-
     /// <summary>Root.Children 直下のフォルダ数を取得します。</summary>
     public IReadOnlyBindableReactiveProperty<int> MaterialFolderCount => this.bindingStore.MaterialFolderCount;
 
@@ -55,15 +52,6 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
 
     /// <summary>次工程へ進めるかどうかを取得します。</summary>
     public IReadOnlyBindableReactiveProperty<bool> CanGoNext => this.bindingStore.CanGoNext;
-
-    /// <summary>素材展開方法を取得します。</summary>
-    public BindableReactiveProperty<ImageExpansionMethod> ImageExpansionMethod => this.bindingStore.ImageExpansionMethod;
-
-    /// <summary>画像展開方法を選択できるかどうかを取得します。</summary>
-    public IReadOnlyBindableReactiveProperty<bool> CanSelectImageExpansionMethod => this.bindingStore.CanSelectImageExpansionMethod;
-
-    /// <summary>素材展開方法のオプション一覧を取得します。</summary>
-    public IReadOnlyList<ImageExpansionOption> ImageExpansionOptions => this.bindingStore.ImageExpansionOptions;
 
     /// <summary>巻フォルダ名の桁数を取得します（1, 2, 3 など）。</summary>
     public BindableReactiveProperty<int> VolumeFolderDigits => this.bindingStore.VolumeFolderDigits;
@@ -396,6 +384,15 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
 					return;
 				}
 
+			case VolumeSelectionValidationError.WorkVolumeFolderMissing:
+				this.snackbarService.Show(
+					"展開先に存在しない巻フォルダを除外しました",
+					"展開先由来の巻フォルダが見つからないため、製本対象巻一覧から除外しました。",
+					ControlAppearance.Caution,
+					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					TimeSpan.MaxValue);
+				return;
+
 			default:
 				throw new InvalidOperationException(
 					$"想定外の VolumeSelectionValidationError 値が返されました: {validationResult.Error}");
@@ -437,7 +434,7 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
     {
         if (item.Material.IsChecked.Value)
         {
-            this.unselectMaterialAsync(item.Material);
+            this.unselectMaterial(item.Material);
             return;
         }
 
@@ -448,40 +445,14 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
 
     /// <summary>
     /// 指定した MaterialItem の選択を解除します。
-    /// 展開済みの BindingVolume の場合は ContentDialog で確認し、
-    /// 物理フォルダ削除に失敗した場合はエラーダイアログで通知します。
+    /// 論理的な除外のみを行い、展開先の物理フォルダは削除しません。
     /// </summary>
     /// <param name="material">選択解除対象の MaterialItem。</param>
-    private async void unselectMaterialAsync(MaterialItem material)
+    private void unselectMaterial(MaterialItem material)
     {
-        var volume = this.bindingStore.BindingVolumes
-            .FirstOrDefault(v => ReferenceEquals(v.Material, material));
-
-        if (volume is not null && volume.RequiresUnselectCleanup)
-        {
-            var confirmed = await ContentDialogHelper.ShowConfirmAsync(
-                this.contentDialogService,
-                "確認",
-                "選択を解除すると、この巻の展開済みフォルダも削除されます。\nよろしいですか？",
-                "解除");
-            if (!confirmed)
-            {
-                return;
-            }
-        }
-
-        try
-        {
-            using var scope = this.serviceScopeFactory.CreateScope();
-            var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
-            await manager.UnselectMaterialAsync(material);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            await ContentDialogHelper.ShowErrorAsync(
-                this.contentDialogService,
-                $"展開済みフォルダを削除できなかったため、選択を解除できませんでした。\n{ex.Message}");
-        }
+        using var scope = this.serviceScopeFactory.CreateScope();
+        var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
+        manager.UnselectMaterial(material);
     }
 
     /// <summary>
@@ -490,7 +461,7 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
     /// </summary>
     private void removeBindingVolume(BindingVolumeViewModel item)
     {
-        this.unselectMaterialAsync(item.Material);
+        this.unselectMaterial(item.Material);
     }
 
     /// <summary>

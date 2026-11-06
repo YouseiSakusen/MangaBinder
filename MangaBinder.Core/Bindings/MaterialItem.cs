@@ -26,24 +26,6 @@ public class MaterialItem : IDisposable
 	public MaterialSourceType OriginalSourceType { get; init; }
 
 	/// <summary>
-	/// 今回の製本で元素材を使用するかを取得または設定します。
-	/// 初期値は true（元素材を使用）。
-	/// false の場合は、既存の WorkFolder を入力元として使用します。
-	/// 「BindingVolume を製本しない」という意味ではなく、
-	/// 入力元のみが「元素材」から「既存 Work」に切り替わります。
-	/// </summary>
-	public bool UseOriginalMaterial { get; set; }
-
-	/// <summary>
-	/// 今回実際に使用する入力元種別を取得します。
-	/// UseOriginalMaterial が true の場合は OriginalSourceType をそのまま返し、
-	/// false の場合は MaterialSourceType.WorkFolder を返します。
-	/// </summary>
-	public MaterialSourceType EffectiveSourceType => this.UseOriginalMaterial
-		? this.OriginalSourceType
-		: MaterialSourceType.WorkFolder;
-
-	/// <summary>
 	/// ノードの表示名を取得します。
 	/// </summary>
 	public string Name { get; init; } = string.Empty;
@@ -168,7 +150,6 @@ public class MaterialItem : IDisposable
 		this.SelectionDisabledReason = selectionDisabledReason;
 		this.CanEnableSelectionOverride = canEnableSelectionOverride;
 		this.CanDeleteMaterial = canDeleteMaterial;
-		this.UseOriginalMaterial = true; // 初期値は元素材を使用
 
 		this.IsChecked = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);

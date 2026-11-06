@@ -163,7 +163,7 @@ public class BindingImage : IDisposable
 	/// 入力元が Work フォルダである場合のみ true を返します。
 	/// Folder、Archive、Epub の場合は false です。
 	/// </summary>
-	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.EffectiveSourceType == MaterialSourceType.WorkFolder;
+	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.OriginalSourceType == MaterialSourceType.WorkFolder;
 
 	/// <summary>
 	/// この画像の実処理で使用する見開き分割設定を取得または設定します。

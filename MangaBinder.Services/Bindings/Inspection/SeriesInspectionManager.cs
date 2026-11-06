@@ -96,37 +96,14 @@ public class SeriesInspectionManager
 
 		// ⑥ BindingStore.WorkSeriesFolderPath から対象作品の作品Workフォルダパスを取得する
 		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
-		var isRecreate = this.bindingStore.ImageExpansionMethod.Value == global::MangaBinder.Bindings.ImageExpansionMethod.Recreate;
 
-		// ⑦⑧⑨ 作品Workフォルダの準備（削除・作成・既存巻フォルダ一覧取得）を
-		// UIスレッドをブロックしないよう Task.Run で非同期境界へ移す
-		// 既存Work再利用時でも必ず非同期境界を通る構造にする
-		var existingVolumeFolderNames = await Task.Run(
-			() =>
-			{
-				// ⑦ BindingStore.ImageExpansionMethod が Recreate の場合、作品Workフォルダが存在すれば削除する
-				if (this.bindingStore.ImageExpansionMethod.Value == global::MangaBinder.Bindings.ImageExpansionMethod.Recreate
-					&& Directory.Exists(seriesFolderPath))
-				{
-					Directory.Delete(seriesFolderPath, recursive: true);
-				}
-
-				// ⑧ 作品Workフォルダが存在しない場合を含め、以降の処理で使用できるよう作品Workフォルダを作成する
-				Directory.CreateDirectory(seriesFolderPath);
-
-				// ⑨ 作品Workフォルダ直下に既に存在するフォルダの一覧を取得
-				// 各BindingVolumeの既存Work巻フォルダ判定に使用するため、フォルダ名の集合を構築する
-				// StringComparer.OrdinalIgnoreCase で大文字小文字非依存に比較できる集合とする
-				return new HashSet<string>(
-					Directory.GetDirectories(seriesFolderPath)
-						.Select(path => Path.GetFileName(path)),
-					StringComparer.OrdinalIgnoreCase);
-			},
+		// ⑦ 作品Workフォルダが存在しない場合のみ作成する（既存の作品Workフォルダは削除しない）
+		await Task.Run(
+			() => Directory.CreateDirectory(seriesFolderPath),
 			cancellationToken).ConfigureAwait(false);
 
-		// ⑩ BindingStore.BindingVolumes を順番に処理して WorkFolderPath を設定し、
-		// 既存巻フォルダの判定と作成を行う
-		// 全 BindingVolume を製本前確認工程の対象とする
+		// ⑧ BindingStore.BindingVolumes の全件を順番に処理して WorkFolderPath を設定する
+		// 素材由来の巻は該当巻フォルダのみ削除・再作成し、BindingVolumes に存在しない巻フォルダには触れない
 		var volumeFolderDigits = this.bindingStore.VolumeFolderDigits.Value;
 
 		foreach (var bindingVolume in this.bindingStore.BindingVolumes)
@@ -146,7 +123,6 @@ public class SeriesInspectionManager
 			if (bindingVolume.Material.OriginalSourceType == MaterialSourceType.WorkFolder)
 			{
 				bindingVolume.WorkFolderPath = bindingVolume.Material.FullPath;
-				bindingVolume.Material.UseOriginalMaterial = false;
 				continue;
 			}
 
@@ -158,19 +134,13 @@ public class SeriesInspectionManager
 			// 巻WorkフォルダのフルパスをBindingVolumeに設定
 			bindingVolume.WorkFolderPath = Path.Combine(seriesFolderPath, volumeFolderName);
 
-			// 巻フォルダが既存フォルダ一覧に存在するか判定
-			var workFolderExists = existingVolumeFolderNames.Contains(volumeFolderName);
-
-			// UseOriginalMaterial を毎回明示的に設定
-			// 既存巻フォルダが存在する場合は元素材を使用しない
-			// 存在しない場合は元素材を使用する
-			bindingVolume.Material.UseOriginalMaterial = !workFolderExists;
-
-			// Work巻フォルダが存在しない場合は新規作成
-			if (!workFolderExists)
+			// 既存の巻フォルダは入力元として再利用せず、削除して作り直す
+			if (Directory.Exists(bindingVolume.WorkFolderPath))
 			{
-				Directory.CreateDirectory(bindingVolume.WorkFolderPath);
+				Directory.Delete(bindingVolume.WorkFolderPath, recursive: true);
 			}
+
+			Directory.CreateDirectory(bindingVolume.WorkFolderPath);
 		}
 
 		// ⑪ 全 BindingVolume を EffectiveSourcePath でGroupBy する
@@ -237,9 +207,9 @@ public class SeriesInspectionManager
 		}
 
 		// ⑪ ファイル名正規化処理を実行
-		// EPUB エラー巻（Material.EffectiveSourceType == MaterialSourceType.Epub かつ EpubExtractionError != None）は除外
+		// EPUB エラー巻（Material.OriginalSourceType == MaterialSourceType.Epub かつ EpubExtractionError != None）は除外
 		var normalizationTargets = this.bindingStore.BindingVolumes
-			.Where(v => !(v.Material.EffectiveSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None))
+			.Where(v => !(v.Material.OriginalSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None))
 			.ToList();
 
 		await this.ExecuteFileNameNormalizationAsync(normalizationTargets, pipelineImages, pipelineCancellationToken)
@@ -247,7 +217,7 @@ public class SeriesInspectionManager
 
 		// ⑫ EPUB エラー巻について、後段処理前に検査を実行
 		var epubErrorVolumes = this.bindingStore.BindingVolumes
-			.Where(v => v.Material.EffectiveSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None)
+			.Where(v => v.Material.OriginalSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None)
 			.ToList();
 
 		foreach (var volume in epubErrorVolumes)
@@ -271,13 +241,6 @@ public class SeriesInspectionManager
 
 		// ⑭ 製本前確認工程の処理がすべて正常終了したことを記録
 		this.bindingStore.SeriesInspectionCompleted.Value = true;
-
-		// ⑮ Recreate を実行して正常完了した場合、以降は現在の Work を再利用する状態へ更新
-		if (isRecreate)
-		{
-			this.bindingStore.HasExistingWorkFolder.Value = true;
-			this.bindingStore.ImageExpansionMethod.Value = global::MangaBinder.Bindings.ImageExpansionMethod.UseExisting;
-		}
 	}
 
 	/// <summary>
@@ -370,7 +333,7 @@ public class SeriesInspectionManager
 				{
 					// グループ内の最初のボリュームから入力元種別を取得
 					var firstVolume = group.First();
-					var sourceType = firstVolume.Material.EffectiveSourceType;
+					var sourceType = firstVolume.Material.OriginalSourceType;
 
 					// DI Scope を作成し、入力元種別に対応する IMaterialExtractor を解決
 					using (var scope = this.serviceScopeFactory.CreateScope())
@@ -412,7 +375,7 @@ public class SeriesInspectionManager
 							ct.ThrowIfCancellationRequested();
 
 							// EPUB エラー巻は後段処理をスキップ
-							var isEpubError = volume.Material.EffectiveSourceType == MaterialSourceType.Epub
+							var isEpubError = volume.Material.OriginalSourceType == MaterialSourceType.Epub
 								&& volume.EpubExtractionError != EpubExtractionError.None;
 
 							if (isEpubError)
@@ -633,7 +596,7 @@ public class SeriesInspectionManager
 
 	/// <summary>
 	/// 今回の製本前確認処理で正常に処理された EPUB の一時展開フォルダを削除します。
-	/// 削除対象は、Material.EffectiveSourceType == MaterialSourceType.Epub かつ
+	/// 削除対象は、Material.OriginalSourceType == MaterialSourceType.Epub かつ
 	/// EpubExtractionError == EpubExtractionError.None の BindingVolume です。
 	/// 
 	/// 削除に失敗した場合はログに記録し、例外は再送出しません（best-effort）。
@@ -646,7 +609,7 @@ public class SeriesInspectionManager
 			// EPUB として処理され、かつエラーなく完了した BindingVolume を対象
 			var epubVolumesToCleanup = this.bindingStore.BindingVolumes
 				.Where(v =>
-					v.Material.EffectiveSourceType == MaterialSourceType.Epub &&
+					v.Material.OriginalSourceType == MaterialSourceType.Epub &&
 					v.EpubExtractionError == EpubExtractionError.None)
 				.ToList();
 

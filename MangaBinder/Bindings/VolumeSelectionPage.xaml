@@ -332,7 +332,7 @@
 			</bindings:BindingPageLayout.MainContent>
 
 			<!-- ─────────────────────────────────────────────────────────────────── -->
-			<!-- RightContent: 右パネル（2行1列: 選択巻一覧 + 設定領域） -->
+			<!-- RightContent: 右パネル（2行1列: 製本対象巻一覧 + 設定領域） -->
 			<!-- ─────────────────────────────────────────────────────────────────── -->
 			<bindings:BindingPageLayout.RightContent>
 				<Border Margin="12,0,0,0" Padding="0">
@@ -342,7 +342,7 @@
 							<RowDefinition Height="1*" />
 						</Grid.RowDefinitions>
 
-						<!-- ─ Row 0: 選択巻一覧 ─ -->
+						<!-- ─ Row 0: 製本対象巻一覧 ─ -->
 						<Grid Grid.Row="0">
 							<Grid.RowDefinitions>
 								<RowDefinition Height="Auto" />
@@ -536,7 +536,7 @@
 							VerticalScrollBarVisibility="Auto"
 							HorizontalScrollBarVisibility="Disabled">
 
-							<!-- 外側Card：画像展開設定グループ -->
+							<!-- 外側Card：巻フォルダ設定グループ -->
 							<ui:Card Style="{StaticResource SettingsGroupCardStyle}" Margin="0,0,3,0">
 								<Grid>
 									<Grid.RowDefinitions>
@@ -547,10 +547,10 @@
 									<!-- Row 0: グループ見出し -->
 									<StackPanel Grid.Row="0" VerticalAlignment="Center">
 										<TextBlock
-											Text="画像展開設定"
+											Text="巻フォルダ設定"
 											Style="{StaticResource SettingsGroupTitleStyle}" />
 										<TextBlock
-											Text="次画面の画像展開の動作を設定します"
+											Text="製本時の巻フォルダ名を設定します"
 											Style="{StaticResource SettingsGroupDescriptionStyle}" />
 									</StackPanel>
 
@@ -558,44 +558,10 @@
 									<Grid Grid.Row="1">
 										<Grid.RowDefinitions>
 											<RowDefinition Height="Auto" />
-											<RowDefinition Height="Auto" />
 										</Grid.RowDefinitions>
 
-										<!-- Row 0: 設定1 - 画像展開時の動作 -->
+										<!-- Row 0: 設定1 - 巻フォルダ名の桁数 -->
 										<ui:Card Grid.Row="0" Style="{StaticResource SettingsItemCardStyle}">
-											<Grid Height="44">
-												<Grid.ColumnDefinitions>
-													<ColumnDefinition Width="*" />
-													<ColumnDefinition Width="16" />
-													<ColumnDefinition Width="Auto" />
-												</Grid.ColumnDefinitions>
-
-												<!-- Column 0: 項目名・説明 -->
-												<StackPanel Grid.Column="0">
-													<TextBlock
-														Text="画像展開時の動作"
-												Style="{StaticResource SettingsItemTitleStyle}" />
-													<TextBlock
-														Text="画像展開先の動作を選択します"
-												Style="{StaticResource SettingsItemDescriptionStyle}" />
-												</StackPanel>
-
-												<!-- Column 2: ComboBox -->
-												<ComboBox
-													Grid.Column="2"
-													ItemsSource="{Binding ImageExpansionOptions}"
-													DisplayMemberPath="Label"
-													SelectedValuePath="Method"
-													SelectedValue="{Binding ImageExpansionMethod.Value, Mode=TwoWay}"
-													IsEnabled="{Binding CanSelectImageExpansionMethod.Value}"
-													Width="240"
-													VerticalAlignment="Center"
-													HorizontalAlignment="Right" />
-											</Grid>
-										</ui:Card>
-
-										<!-- Row 1: 設定2 - 巻フォルダ名の桁数 -->
-										<ui:Card Grid.Row="1" Style="{StaticResource SettingsItemCardStyle}" Margin="0,6,0,0">
 											<Grid Height="44">
 												<Grid.ColumnDefinitions>
 													<ColumnDefinition Width="*" />

@@ -196,7 +196,23 @@ public class BindingManager
 				duplicateVolumeNumbers: duplicateVolumeNumbers.AsReadOnly());
 		}
 
-		// ⑤ 抜け巻
+		// ⑤ 展開先由来の巻フォルダの実在確認（巻選択画面の検証のみ）
+		if (!bindingVolumesOnly)
+		{
+			var missingWorkVolumes = targetVolumes
+				.Where(volume => volume.Material.OriginalSourceType == MaterialSourceType.WorkFolder
+					&& !Directory.Exists(volume.Material.FullPath))
+				.ToList();
+
+			if (missingWorkVolumes.Count > 0)
+			{
+				return new VolumeSelectionValidationResult(
+					error: VolumeSelectionValidationError.WorkVolumeFolderMissing,
+					missingWorkVolumes: missingWorkVolumes.AsReadOnly());
+			}
+		}
+
+		// ⑥ 抜け巻
 		var sortedVolumeNumbers = targetVolumes
 			.Select(volume => volume.VolumeNumber.Value!.Value)
 			.OrderBy(x => x)
@@ -211,7 +227,7 @@ public class BindingManager
 			}
 		}
 
-		// ⑥ 問題なし
+		// ⑦ 問題なし
 		return new VolumeSelectionValidationResult();
 	}
 

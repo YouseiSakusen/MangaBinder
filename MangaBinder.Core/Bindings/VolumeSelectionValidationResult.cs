@@ -21,6 +21,11 @@ public class VolumeSelectionValidationResult
 	public IReadOnlyList<decimal> DuplicateVolumeNumbers { get; }
 
 	/// <summary>
+	/// 展開先に実在しない展開先由来の BindingVolume の一覧を取得します。
+	/// </summary>
+	public IReadOnlyList<BindingVolume> MissingWorkVolumes { get; }
+
+	/// <summary>
 	/// エラーが存在するかどうかを取得します。
 	/// </summary>
 	public bool HasError => this.Error != VolumeSelectionValidationError.None;
@@ -36,13 +41,16 @@ public class VolumeSelectionValidationResult
 	/// <param name="error">検証エラー。</param>
 	/// <param name="warning">検証警告。</param>
 	/// <param name="duplicateVolumeNumbers">重複している巻番号の一覧。</param>
+	/// <param name="missingWorkVolumes">展開先に実在しない展開先由来の BindingVolume の一覧。</param>
 	public VolumeSelectionValidationResult(
 		VolumeSelectionValidationError error = VolumeSelectionValidationError.None,
 		VolumeSelectionValidationWarning warning = VolumeSelectionValidationWarning.None,
-		IReadOnlyList<decimal>? duplicateVolumeNumbers = null)
+		IReadOnlyList<decimal>? duplicateVolumeNumbers = null,
+		IReadOnlyList<BindingVolume>? missingWorkVolumes = null)
 	{
 		this.Error = error;
 		this.Warning = warning;
 		this.DuplicateVolumeNumbers = duplicateVolumeNumbers ?? Array.Empty<decimal>();
+		this.MissingWorkVolumes = missingWorkVolumes ?? Array.Empty<BindingVolume>();
 	}
 }

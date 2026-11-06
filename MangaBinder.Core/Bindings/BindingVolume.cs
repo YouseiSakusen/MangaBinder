@@ -41,10 +41,10 @@ public class BindingVolume : IDisposable
 
 	/// <summary>
 	/// 今回の製本で実際に使用する入力元パスを取得します。
-	/// Material.EffectiveSourceType が WorkFolder の場合は this.WorkFolderPath を返し、
+	/// Material.OriginalSourceType が WorkFolder の場合は this.WorkFolderPath を返し、
 	/// それ以外の場合は Material.SourcePath を返します。
 	/// </summary>
-	public string EffectiveSourcePath => this.Material.EffectiveSourceType == MaterialSourceType.WorkFolder
+	public string EffectiveSourcePath => this.Material.OriginalSourceType == MaterialSourceType.WorkFolder
 		? this.WorkFolderPath!
 		: this.Material.SourcePath;
 

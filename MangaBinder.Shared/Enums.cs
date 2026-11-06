@@ -125,19 +125,6 @@ namespace MangaBinder.Bindings
 	}
 
 	/// <summary>
-	/// 素材展開方法を表す列挙型です。
-	/// Work 作品フォルダの構築方式を指定します。
-	/// </summary>
-	public enum ImageExpansionMethod
-	{
-		/// <summary>Work 作品フォルダを素材から新しく作成します。既存フォルダが存在する場合は削除して作り直します。</summary>
-		Recreate = 0,
-
-		/// <summary>既存 Work 作品フォルダ内の画像を使用します。</summary>
-		UseExisting = 1,
-	}
-
-	/// <summary>
 	/// 素材アイテムの種別を表す列挙型です。
 	/// UI/Worker 共通で使用されます。
 	/// </summary>
@@ -405,6 +392,9 @@ namespace MangaBinder.Bindings
 
 		/// <summary>巻番号が重複しています。</summary>
 		DuplicateVolumeNumbers = 4,
+
+		/// <summary>展開先由来の巻フォルダが実在しません。</summary>
+		WorkVolumeFolderMissing = 5,
 	}
 
 	/// <summary>
