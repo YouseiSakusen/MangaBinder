@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Helpers;
@@ -70,9 +70,9 @@ public class VolumeSelectionManager
 		await Task.Run(this.initializeImageExpansionState, cancellationToken);
 
 		// 展開先の巻フォルダ一覧は、素材ツリーの初期化済み判定とは独立して毎回差分更新する
-		await this.syncWorkVolumesAsync(cancellationToken);
+		await this.SyncWorkVolumesAsync(cancellationToken);
 
-		// ③ VolumeSelectionInitialized が true の場合は再初期化を行わない
+		// ③
 		if (this.bindingStore.VolumeSelectionInitialized.Value)
 		{
 			// 既存の素材は保持したまま、成功結果を返す
@@ -801,16 +801,14 @@ public class VolumeSelectionManager
 
 	/// <summary>
 	/// 展開先作品フォルダ直下の巻フォルダを走査し、WorkVolumes を差分更新します。
-	/// 既存の MaterialItem は同一インスタンスを保持し、新規に見つかった巻だけ画像数・サイズを取得します。
+	/// 既存の MaterialItem は同一インスタンスを保持し、全巻の画像数・サイズを最新値へ更新します。
+	/// 初期化時と展開済み巻追加Dialog表示前の両方から呼び出されます。
 	/// </summary>
-	private async ValueTask syncWorkVolumesAsync(CancellationToken cancellationToken)
+	public async ValueTask SyncWorkVolumesAsync(CancellationToken cancellationToken = default)
 	{
 		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
-		var registeredPaths = this.bindingStore.WorkVolumes
-			.Select(m => m.FullPath)
-			.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-		var (currentPaths, newFolders) = await Task.Run(() =>
+		var (currentPaths, scannedFolders) = await Task.Run(() =>
 		{
 			var current = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			var added = new List<(string Path, string Name, int FileCount, long TotalBytes)>();
@@ -832,10 +830,6 @@ public class VolumeSelectionManager
 				}
 
 				current.Add(folderPath);
-				if (registeredPaths.Contains(folderPath))
-				{
-					continue;
-				}
 
 				var fileCount = 0;
 				var totalBytes = 0L;
@@ -869,13 +863,29 @@ public class VolumeSelectionManager
 			}
 		}
 
-		// 新しく見つかった巻だけ追加する。既に BindingVolumes が参照している同一パスの MaterialItem は再利用する
-		foreach (var folder in newFolders)
+		// 既存巻は最新値へ更新し、新しく見つかった巻だけ追加する。既に BindingVolumes が参照している同一パスの MaterialItem は再利用する
+		foreach (var folder in scannedFolders)
 		{
-			var material = this.bindingStore.BindingVolumes
+			var registered = this.bindingStore.WorkVolumes
+				.FirstOrDefault(m => string.Equals(m.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase));
+			if (registered is not null)
+			{
+				registered.FileCount = folder.FileCount;
+				registered.TotalImageBytes = folder.TotalBytes;
+				continue;
+			}
+
+			var reused = this.bindingStore.BindingVolumes
 				.Select(v => v.Material)
 				.FirstOrDefault(m => m.OriginalSourceType == MaterialSourceType.WorkFolder
-					&& string.Equals(m.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase))
+					&& string.Equals(m.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase));
+			if (reused is not null)
+			{
+				reused.FileCount = folder.FileCount;
+				reused.TotalImageBytes = folder.TotalBytes;
+			}
+
+			var material = reused
 				?? new MaterialItem(
 					itemType: MaterialItemType.Folder,
 					originalSourceType: MaterialSourceType.WorkFolder,

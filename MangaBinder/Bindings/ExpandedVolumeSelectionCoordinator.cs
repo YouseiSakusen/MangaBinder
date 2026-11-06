@@ -48,7 +48,9 @@ public class ExpandedVolumeSelectionCoordinator
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var manager = scope.ServiceProvider.GetRequiredService<VolumeSelectionManager>();
 
-		var selectionContent = new ExpandedVolumeSelectionContent
+		await manager.SyncWorkVolumesAsync();
+
+		var selectionContent = new
 		{
 			DataContext = new ExpandedVolumeSelectionViewModel(manager.PrepareExpandedVolumeSelection()),
 		};

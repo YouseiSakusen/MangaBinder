@@ -68,13 +68,13 @@ public class MaterialItem : IDisposable
 	/// <summary>
 	/// 製本対象としてカウントするファイル数を取得します。
 	/// </summary>
-	public int FileCount { get; init; }
+	public int FileCount { get; set; }
 
 	/// <summary>
 	/// ノード直下に存在する画像ファイルの展開後サイズ合計（バイト）を取得します。
 	/// FileCount と同じ粒度です。
 	/// </summary>
-	public long TotalImageBytes { get; init; }
+	public long TotalImageBytes { get; set; }
 
 	/// <summary>
 	/// 解凍元の実パスを取得します。
