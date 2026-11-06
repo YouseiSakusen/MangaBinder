@@ -50,7 +50,7 @@ public class ExpandedVolumeSelectionCoordinator
 
 		await manager.SyncWorkVolumesAsync();
 
-		var selectionContent = new
+		var selectionContent = new ExpandedVolumeSelectionContent
 		{
 			DataContext = new ExpandedVolumeSelectionViewModel(manager.PrepareExpandedVolumeSelection()),
 		};
