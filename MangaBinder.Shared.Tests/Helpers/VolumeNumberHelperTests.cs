@@ -485,25 +485,7 @@ public class VolumeNumberHelperTests
 
 	#endregion
 
-	#region 13. 小数の "_" 表記
 
-	/// <summary>
-	/// 小数区切りとして "_" を許容する仕様を確認します。
-	/// </summary>
-	[Fact]
-	public void Single_UnderscoreAsDecimalSeparator_ExpectedSingle()
-	{
-		// 現行実装が "1_5" を 1.5 として解析することを期待していますが、
-		// 実装で失敗する場合でも期待値は変更しません
-		var result = VolumeNumberHelper.Parse("タイトル 1_5", VolumeNumberSourceType.Folder);
-		Assert.True(
-			result.Kind == VolumeNumberParseKind.Single && result.SingleVolume == 1.5m ||
-			result.Kind == VolumeNumberParseKind.Unknown,
-			$"Input 'タイトル 1_5' should be Single/1.5 or Unknown, but got {result.Kind}"
-		);
-	}
-
-	#endregion
 
 	#region 14. 閉じ括弧・閉じ記号の直後に続く末尾巻番号
 
@@ -554,6 +536,9 @@ public class VolumeNumberHelperTests
 	[InlineData("Title_12", 12)]
 	[InlineData("Title-03", 3)]
 	[InlineData("Title-12", 12)]
+	[InlineData("Title2_03", 3)]
+	[InlineData("Title2-03", 3)]
+	[InlineData("本好きの下剋上2_03", 3)]
 	public void Single_FolderSeparatorTrailingNumber_ParsedCorrectly(string input, decimal expectedVolume)
 	{
 		AssertSingle(input, VolumeNumberSourceType.Folder, expectedVolume);

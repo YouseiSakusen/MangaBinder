@@ -918,7 +918,7 @@ public static partial class VolumeNumberHelper
 	/// <summary>
 	/// 末尾の区切り文字（_ または -）+ 数字。
 	/// </summary>
-	[GeneratedRegex(@"(?<!\d)[_-](?<num>\d+)$")]
+	[GeneratedRegex(@"[_-](?<num>\d+)$")]
 	private static partial Regex RegexSeparatorTrailingNumber();
 
 	/// <summary>
