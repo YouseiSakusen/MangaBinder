@@ -102,7 +102,7 @@ public class SeriesInspectionManager
 		// 画像情報を持つ巻は既存の Work 巻フォルダを新しい巻フォルダ名へ引き継ぐ
 		// BindingVolumes に存在しない巻フォルダには触れない
 		var volumeFolderDigits = this.bindingStore.VolumeFolderDigits.Value;
-		foreach (var bindingVolume in this.bindingStore.BindingVolumes)
+		foreach (var bindingVolume in this.bindingStore.BindingVolumes.ToArray())
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
