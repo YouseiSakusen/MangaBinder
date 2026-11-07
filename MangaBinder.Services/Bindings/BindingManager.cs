@@ -95,7 +95,7 @@ public class BindingManager
 	/// </summary>
 	/// <param name="material">選択解除対象の MaterialItem。</param>
 	/// <param name="invalidateCompletedState">
-	/// true の場合、BindingVolume を削除したときに VolumeSelectionCompleted / SeriesInspectionCompleted を false にします。
+	/// true の場合、BindingVolume を削除したときに VolumeSelectionCompleted を false にします。
 	/// </param>
 	/// <exception cref="ArgumentNullException">material が null の場合。</exception>
 	public async ValueTask UnselectMaterialAsync(MaterialItem material, bool invalidateCompletedState)
@@ -119,7 +119,6 @@ public class BindingManager
 			if (invalidateCompletedState)
 			{
 				this.bindingStore.VolumeSelectionCompleted.Value = false;
-				this.bindingStore.SeriesInspectionCompleted.Value = false;
 			}
 		}
 

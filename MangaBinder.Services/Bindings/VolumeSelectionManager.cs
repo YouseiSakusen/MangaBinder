@@ -407,13 +407,12 @@ public class VolumeSelectionManager
 	}
 
 	/// <summary>
-	/// 巻選択状態の変更により、巻選択・製本前確認の完了状態を無効化します。
+	/// 巻選択状態の変更により、巻選択の完了状態を無効化します。
 	/// VolumeSelectionInitialized は変更しません。
 	/// </summary>
 	private void invalidateCompletedState()
 	{
 		this.bindingStore.VolumeSelectionCompleted.Value = false;
-		this.bindingStore.SeriesInspectionCompleted.Value = false;
 	}
 
 	/// <summary>
@@ -836,8 +835,6 @@ public class VolumeSelectionManager
 					continue;
 				}
 
-				current.Add(folderPath);
-
 				var fileCount = 0;
 				var totalBytes = 0L;
 				foreach (var file in new DirectoryInfo(folderPath).EnumerateFiles("*", SearchOption.TopDirectoryOnly))
@@ -849,13 +846,20 @@ public class VolumeSelectionManager
 					}
 				}
 
+				// 画像数が0件の巻フォルダは WorkVolumes に登録しない
+				if (fileCount == 0)
+				{
+					continue;
+				}
+
+				current.Add(folderPath);
 				added.Add((folderPath, name, fileCount, totalBytes));
 			}
 
 			return (current, added);
 		}, cancellationToken);
 
-		// 存在しなくなった巻を WorkVolumes から除外する（BindingVolumes からは削除しない）
+		// 存在しなくなった、または画像が0件になった巻を WorkVolumes から除外する（BindingVolumes からは削除しない）
 		foreach (var material in this.bindingStore.WorkVolumes.ToList())
 		{
 			if (currentPaths.Contains(material.FullPath))

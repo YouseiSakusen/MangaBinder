@@ -118,6 +118,9 @@ public class BindingImageProcessor
 			return;
 		}
 
+		// FilePath は処理中に設定されるため、Work 入力かどうかは処理開始時点で確定する
+		var isWorkInput = image.ShouldDeleteSourceFile;
+
 		Stream? sourceStream = null;
 		FileStream? ownedFileStream = null;
 		Image? vipsImage = null;
@@ -273,7 +276,7 @@ public class BindingImageProcessor
 			image.ProcessErrorMessage = null;
 
 			// Work 入力の場合：出力先が入力元と異なり、別のファイルを生成した場合は元ファイルを削除
-			if (image.ShouldDeleteSourceFile && !sourceAndOutputAreSame)
+			if (isWorkInput && !sourceAndOutputAreSame)
 			{
 				try
 				{

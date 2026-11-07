@@ -160,10 +160,11 @@ public class BindingImage : IDisposable
 	/// <summary>
 	/// この BindingImage の処理によって別の出力ファイルを正常に生成した場合、
 	/// 入力元の物理ファイルを削除すべきかを取得します。
-	/// 入力元が Work フォルダである場合のみ true を返します。
-	/// Folder、Archive、Epub の場合は false です。
+	/// 入力元が Work フォルダである場合、または Work 側の実ファイル（FilePath）を既に保持している場合に true を返します。
+	/// 元素材（Folder、Archive、Epub）から新規に展開する画像は FilePath が未設定のため false です。
 	/// </summary>
-	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.OriginalSourceType == MaterialSourceType.WorkFolder;
+	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.OriginalSourceType == MaterialSourceType.WorkFolder
+		|| this.FilePath is not null;
 
 	/// <summary>
 	/// この画像の実処理で使用する見開き分割設定を取得または設定します。

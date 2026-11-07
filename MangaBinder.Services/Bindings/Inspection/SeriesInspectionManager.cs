@@ -86,11 +86,6 @@ public class SeriesInspectionManager
 		// ③ 巻選択工程を完了し、製本前確認工程へ到達したことを記録
 		this.bindingStore.VolumeSelectionCompleted.Value = true;
 
-		// ④ 今回の確認処理の開始に伴い完了状態を解除する
-		// SeriesInspectionCompleted が true であっても現物確認を行い、既存 BindingImage との差分だけを処理する
-		// 正常終了時にのみ再度 true を設定する（失敗した処理を完了済みとして扱わない）
-		this.bindingStore.SeriesInspectionCompleted.Value = false;
-
 		// ⑤ ZIP ファイル名の初期生成を実行
 		this.bindingManager.InitializeZipOutputFileName();
 
@@ -103,9 +98,10 @@ public class SeriesInspectionManager
 			cancellationToken).ConfigureAwait(false);
 
 		// ⑧ BindingStore.BindingVolumes の全件を順番に処理して WorkFolderPath を設定する
-		// 素材由来の巻は該当巻フォルダのみ削除・再作成し、BindingVolumes に存在しない巻フォルダには触れない
+		// 素材由来で画像情報を持たない巻のみ該当巻フォルダを削除・再作成する
+		// 画像情報を持つ巻は既存の Work 巻フォルダを新しい巻フォルダ名へ引き継ぐ
+		// BindingVolumes に存在しない巻フォルダには触れない
 		var volumeFolderDigits = this.bindingStore.VolumeFolderDigits.Value;
-
 		foreach (var bindingVolume in this.bindingStore.BindingVolumes)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
@@ -131,16 +127,11 @@ public class SeriesInspectionManager
 				volumeNumber.Value,
 				volumeFolderDigits);
 
-			// 巻WorkフォルダのフルパスをBindingVolumeに設定
-			bindingVolume.WorkFolderPath = Path.Combine(seriesFolderPath, volumeFolderName);
+			var targetFolderPath = Path.Combine(seriesFolderPath, volumeFolderName);
 
-			// 既存の巻フォルダは入力元として再利用せず、削除して作り直す
-			if (Directory.Exists(bindingVolume.WorkFolderPath))
-			{
-				Directory.Delete(bindingVolume.WorkFolderPath, recursive: true);
-			}
-
-			Directory.CreateDirectory(bindingVolume.WorkFolderPath);
+			await Task.Run(
+				() => this.prepareMaterialVolumeFolder(bindingVolume, targetFolderPath),
+				cancellationToken).ConfigureAwait(false);
 		}
 
 		// ⑪ 全 BindingVolume を EffectiveSourcePath でGroupBy する
@@ -206,8 +197,19 @@ public class SeriesInspectionManager
 			await this.CleanupEpubTemporaryFoldersAsync();
 		}
 
+		// 展開先由来の巻は、同期の結果画像が0件になった場合に BindingVolumes から論理的に除外する
+		var emptyWorkVolumes = this.bindingStore.BindingVolumes
+			.Where(v => v.Material.OriginalSourceType == MaterialSourceType.WorkFolder && v.Images.Count == 0)
+			.ToList();
+
+		foreach (var emptyVolume in emptyWorkVolumes)
+		{
+			await this.bindingManager.UnselectMaterialAsync(emptyVolume.Material, invalidateCompletedState: false)
+				.ConfigureAwait(false);
+		}
+
 		// ⑪ ファイル名正規化処理を実行
-		// EPUB エラー巻（Material.OriginalSourceType == MaterialSourceType.Epub かつ EpubExtractionError != None）は除外
+		// EPUB エラー巻
 		var normalizationTargets = this.bindingStore.BindingVolumes
 			.Where(v => !(v.Material.OriginalSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None))
 			.ToList();
@@ -238,9 +240,64 @@ public class SeriesInspectionManager
 
 		// ⑬ 展開先作品フォルダ直下の巻フォルダ数を1回だけ取得し、Store へ保持
 		this.bindingStore.WorkVolumeFolderCount.Value = Directory.GetDirectories(this.bindingStore.WorkSeriesFolderPath.Value).Length;
+	}
 
-		// ⑭ 製本前確認工程の処理がすべて正常終了したことを記録
-		this.bindingStore.SeriesInspectionCompleted.Value = true;
+	/// <summary>
+	/// 素材由来の巻の Work 巻フォルダを準備し、WorkFolderPath を設定します。
+	/// 画像情報を持たない巻は巻フォルダを削除して作り直します。
+	/// 画像情報を持つ巻は既存の Work 巻フォルダを維持し、巻フォルダ名が変わる場合はフォルダ名と画像パスを引き継ぎます。
+	/// </summary>
+	/// <param name="volume">対象の素材由来の BindingVolume。</param>
+	/// <param name="targetFolderPath">今回の巻番号・桁数に対応する Work 巻フォルダのフルパス。</param>
+	/// <exception cref="InvalidOperationException">リネーム先の巻フォルダが既に存在する場合。</exception>
+	private void prepareMaterialVolumeFolder(BindingVolume volume, string targetFolderPath)
+	{
+		if (volume.Images.Count == 0)
+		{
+			volume.WorkFolderPath = targetFolderPath;
+
+			if (Directory.Exists(targetFolderPath))
+			{
+				Directory.Delete(targetFolderPath, recursive: true);
+			}
+
+			Directory.CreateDirectory(targetFolderPath);
+			return;
+		}
+
+		// 製本設定から復元した直後は WorkFolderPath が未設定のため、保存済みの画像パスから現在の巻フォルダを特定する
+		var currentFolderPath = volume.WorkFolderPath
+			?? volume.Images
+				.Where(image => image.FilePath is not null)
+				.Select(image => Path.GetDirectoryName(image.FilePath!))
+				.FirstOrDefault()
+			?? targetFolderPath;
+
+		if (!string.Equals(currentFolderPath, targetFolderPath, StringComparison.Ordinal))
+		{
+			if (Directory.Exists(targetFolderPath)
+				&& !string.Equals(currentFolderPath, targetFolderPath, StringComparison.OrdinalIgnoreCase))
+			{
+				throw new InvalidOperationException(
+					$"巻フォルダ名の変更先が既に存在するため、Work 巻フォルダを引き継げません。Current={currentFolderPath}, Target={targetFolderPath}");
+			}
+
+			if (Directory.Exists(currentFolderPath))
+			{
+				Directory.Move(currentFolderPath, targetFolderPath);
+			}
+
+			foreach (var image in volume.Images)
+			{
+				if (image.FilePath is not null)
+				{
+					image.FilePath = Path.Combine(targetFolderPath, Path.GetFileName(image.FilePath));
+				}
+			}
+		}
+
+		volume.WorkFolderPath = targetFolderPath;
+		Directory.CreateDirectory(targetFolderPath);
 	}
 
 	/// <summary>
@@ -341,28 +398,40 @@ public class SeriesInspectionManager
 						var extractor = scope.ServiceProvider.GetRequiredKeyedService<IMaterialExtractor>(sourceType);
 
 						// 第1段階：処理対象の BindingImage を確定する
-						// Work 巻フォルダ入力：実ファイルと既存 BindingImage を照合し、新規・変更分のみを対象にする
-						// それ以外：Extractor が生成した新規 BindingImage を対象にし、旧 BindingImage は確認済み一覧に含まれないため削除する
+						// 画像情報を持つ巻（展開先由来を含む）：Work の実ファイルと既存 BindingImage を照合し、新規・変更分のみを対象にする
+						// 画像情報を持たない素材由来の巻（照合後に0件になった巻を含む）：Extractor が元素材から生成した BindingImage を対象にする
 						var imagesToProcess = new Dictionary<BindingVolume, List<BindingImage>>();
-						if (sourceType == MaterialSourceType.WorkFolder)
+						var extractTargets = new List<BindingVolume>();
+						foreach (var volume in group)
 						{
-							foreach (var volume in group)
+							ct.ThrowIfCancellationRequested();
+
+							if (sourceType != MaterialSourceType.WorkFolder && volume.Images.Count == 0)
 							{
-								ct.ThrowIfCancellationRequested();
-								imagesToProcess[volume] = ReconcileWorkFolderImages(volume, ct);
+								extractTargets.Add(volume);
+								continue;
+							}
+
+							imagesToProcess[volume] = ReconcileWorkFolderImages(volume, ct);
+
+							if (sourceType != MaterialSourceType.WorkFolder && volume.Images.Count == 0)
+							{
+								imagesToProcess.Remove(volume);
+								extractTargets.Add(volume);
 							}
 						}
-						else
+
+						if (extractTargets.Count > 0)
 						{
-							var previousImages = group.ToDictionary(v => v, v => v.Images.ToArray());
+							var extractGroup = extractTargets
+								.GroupBy(v => v.EffectiveSourcePath, StringComparer.OrdinalIgnoreCase)
+								.Single();
 
-							await extractor.PrepareAsync(group, ct).ConfigureAwait(false);
+							await extractor.PrepareAsync(extractGroup, ct).ConfigureAwait(false);
 
-							foreach (var volume in group)
+							foreach (var volume in extractTargets)
 							{
-								var newImages = volume.Images.Except(previousImages[volume]).ToList();
-								volume.RemoveUnconfirmedImages(newImages);
-								imagesToProcess[volume] = newImages;
+								imagesToProcess[volume] = volume.Images.ToList();
 							}
 						}
 
@@ -413,7 +482,12 @@ public class SeriesInspectionManager
 
 								// 第2段階：1つの BindingImage を処理可能な状態へ準備
 								// (Archive の場合のみ MemoryStream 化。Folder/EPUB は no-op)
-								await extractor.PrepareImageAsync(image, ct).ConfigureAwait(false);
+								// Work の実画像を入力元とする画像は元素材から取得しない
+								if (extractTargets.Contains(volume))
+								{
+									await extractor.PrepareImageAsync(image, ct).ConfigureAwait(false);
+								}
+
 								pipelineImages.Add(image);
 
 								try
@@ -460,7 +534,7 @@ public class SeriesInspectionManager
 		var confirmedImages = new List<BindingImage>();
 		var imagesToProcess = new List<BindingImage>();
 
-		var workFiles = new DirectoryInfo(volume.EffectiveSourcePath)
+		var workFiles = new DirectoryInfo(volume.WorkFolderPath!)
 			.EnumerateFiles("*", SearchOption.TopDirectoryOnly)
 			.Where(file => SupportedExtensionHelper.IsImage(file.Extension))
 			.OrderBy(file => file.FullName, StringComparer.OrdinalIgnoreCase);
@@ -473,6 +547,7 @@ public class SeriesInspectionManager
 			if (image is null)
 			{
 				image = volume.AddImage(workFile.FullName, workFile.Name);
+				image.FilePath = workFile.FullName;
 				imagesToProcess.Add(image);
 			}
 			else if (image.IsChanged(workFile))

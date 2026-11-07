@@ -141,11 +141,6 @@ public class BindingStore : IDisposable
 	public BindableReactiveProperty<bool> VolumeSelectionInitialized { get; }
 
 	/// <summary>
-	/// 製本前確認工程の展開・変換・Inspection処理が正常完了済みかどうかを取得または設定します。
-	/// </summary>
-	public BindableReactiveProperty<bool> SeriesInspectionCompleted { get; }
-
-	/// <summary>
 	/// Root.Children 直下のフォルダ数を取得します。
 	/// Materials の変更に追従して自動更新されます。
 	/// </summary>
@@ -288,8 +283,6 @@ public class BindingStore : IDisposable
 		this.VolumeSelectionCompleted = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 		this.VolumeSelectionInitialized = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
-		this.SeriesInspectionCompleted = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 		this.SplitTargetVolume = new BindableReactiveProperty<BindingVolume?>(null)
 			.AddTo(ref this.disposableBag);
@@ -594,7 +587,6 @@ public class BindingStore : IDisposable
 			{
 				// 巻番号の実変更により、完了済みの後工程結果は再利用できない
 				this.VolumeSelectionCompleted.Value = false;
-				this.SeriesInspectionCompleted.Value = false;
 				this.repositionBindingVolume(volume);
 			});
 	}
@@ -735,7 +727,6 @@ public class BindingStore : IDisposable
 		this.RemoveFromBindingQueueAfterCompletion.Value = true;
 		this.VolumeSelectionCompleted.Value = false;
 		this.VolumeSelectionInitialized.Value = false;
-		this.SeriesInspectionCompleted.Value = false;
 	}
 
 	/// <inheritdoc/>
