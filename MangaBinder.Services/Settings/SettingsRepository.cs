@@ -29,7 +29,7 @@ public class SettingsRepository
 	}
 
 	/// <summary>
-	/// AppSettings・AppStatus・DatabaseVersion を読み込み、<see cref="AppSettings"/> へ反映します。
+	/// AppSettings・AppStatus を読み込み、<see cref="AppSettings"/> へ反映します。
 	/// </summary>
 	public async ValueTask LoadAsync()
 	{
@@ -38,7 +38,6 @@ public class SettingsRepository
 
 		await this.loadAppSettingsAsync(connection);
 		await this.loadApplicationStatusAsync(connection);
-		await this.loadDatabaseVersionAsync(connection);
 	}
 
 	/// <summary>
@@ -201,22 +200,6 @@ public class SettingsRepository
 
 		var value = await connection.QuerySingleAsync<long>(sql.ToString(), new { Id = 1 });
 		this.appSettings.AppStatus.IsInitialFolderSetupCompleted.Value = value != 0;
-	}
-
-	/// <summary>
-	/// DatabaseVersion テーブル（Id = 1）からバージョンを読み込みます。
-	/// </summary>
-	private async ValueTask loadDatabaseVersionAsync(SQLiteConnection connection)
-	{
-		var sql = new StringBuilder();
-		sql.AppendLine(" SELECT ");
-		sql.AppendLine(" 	  Version ");
-		sql.AppendLine(" FROM ");
-		sql.AppendLine(" 	DatabaseVersion ");
-		sql.AppendLine(" WHERE ");
-		sql.AppendLine(" 	Id = :Id; ");
-
-		this.appSettings.DatabaseVersion = await connection.QuerySingleAsync<string>(sql.ToString(), new { Id = 1 });
 	}
 
 	/// <summary>

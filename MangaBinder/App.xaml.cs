@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Configuration;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MangaBinder.Extensions;
+using MangaBinder.Migrations;
 using MangaBinder.Settings;
 using MangaBinder.Startup;
 using Wpf.Ui;
@@ -97,9 +99,10 @@ public partial class App
 		var builtConfig = config.Build();
 
 		var initializer = new MangaBinderInitializer(builtConfig);
+		string connectionString;
 		try
 		{
-			await initializer.InitializeAsync();
+			connectionString = initializer.PrepareDatabase();
 		}
 		catch (DatabaseCreationPermissionException)
 		{
@@ -112,16 +115,22 @@ public partial class App
 			return;
 		}
 
-		catch (DatabaseVersionMismatchException ex)
+
+		// Generic Host 生成前にマイグレーションを完了させる。
+		// 例外は DispatcherUnhandledException まで到達させ、通知とアプリ終了を行う。
+		var migrationService = new MigrationService(connectionString);
+		if (await migrationService.IsMigrationRequiredAsync())
 		{
-			System.Windows.MessageBox.Show(
-				$"データベースのバージョンがアプリの要求するバージョンと一致しません。\n\n保存されているバージョン：{ex.StoredVersion}\nアプリが要求するバージョン：{ex.RequiredVersion}",
-				"MangaBinderを起動できません",
-				MessageBoxButton.OK,
-				MessageBoxImage.Error);
-			this.Shutdown();
-			return;
+			// MigrationWindow を閉じてもアプリが終了しないようにする
+			this.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+			var migrationWindow = new MigrationWindow(migrationService);
+			migrationWindow.ShowDialog();
+			if (migrationWindow.Error is not null)
+				ExceptionDispatchInfo.Throw(migrationWindow.Error);
 		}
+
+		await initializer.InitializeAsync(connectionString);
 
 		host = this.createHost();
 		await host.StartAsync();
@@ -134,6 +143,8 @@ public partial class App
 
 		// MainWindow を DI から生成してテーマを適用
 		var mainWindow = host.Services.GetRequiredService<MainWindow>();
+		this.MainWindow = mainWindow;
+		this.ShutdownMode = ShutdownMode.OnMainWindowClose;
 
 		// テーマ依存初期設定：ThumbnailBackgroundColor が未設定の場合、テーマから生成して保存
 		var themeBackgroundColorInitializer = host.Services.GetRequiredService<ThemeBackgroundColorInitializer>();
@@ -168,7 +179,20 @@ public partial class App
 	/// </summary>
 	private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
 	{
-		host!.Services.GetRequiredService<ILogger<App>>().ZLogError(e.Exception, $"未処理例外が発生しました");
+		if (host is null)
+		{
+			// Generic Host 生成前は Logger が使用できないため、ユーザーへ通知してアプリを終了する
+			e.Handled = true;
+			System.Windows.MessageBox.Show(
+				$"起動処理中にエラーが発生しました。\n\n{e.Exception}",
+				"MangaBinderを起動できません",
+				MessageBoxButton.OK,
+				MessageBoxImage.Error);
+			this.Shutdown();
+			return;
+		}
+
+		host.Services.GetRequiredService<ILogger<App>>().ZLogError(e.Exception, $"未処理例外が発生しました");
 		e.Handled = false;
 	}
 }

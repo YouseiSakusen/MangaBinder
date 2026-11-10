@@ -1,4 +1,4 @@
-using System.Data.SQLite;
+﻿using System.Data.SQLite;
 using System.IO;
 using Microsoft.Extensions.Configuration;
 
@@ -20,13 +20,21 @@ public class MangaBinderInitializer
         => this.config = config;
 
     /// <summary>
-    /// アプリ初回起動時に必要な永続リソースを非同期で保証します。
+    /// マイグレーション前の準備として、古いログの削除とDBファイルの存在保証を行い、接続文字列を返します。
     /// </summary>
-    public async Task InitializeAsync()
+    /// <returns>SQLite 接続文字列。</returns>
+    public string PrepareDatabase()
     {
         this.deleteOldLogFiles();
-        var connectionString = this.ensureDatabaseExists();
-        await this.verifyDatabaseVersionAsync(connectionString);
+        return this.ensureDatabaseExists();
+    }
+
+    /// <summary>
+    /// マイグレーション完了後に、サムネイル関連の永続リソースを非同期で保証します。
+    /// </summary>
+    /// <param name="connectionString">SQLite 接続文字列。</param>
+    public async Task InitializeAsync(string connectionString)
+    {
         var thumbnailPath = await this.getThumbnailDirectoryPath(connectionString);
         this.ensureThumbnailDirectoryExists(thumbnailPath);
         this.ensureWorkThumbnailDirectoryExists(thumbnailPath);
@@ -64,24 +72,6 @@ public class MangaBinderInitializer
             JournalMode = SQLiteJournalModeEnum.Wal,
             BusyTimeout = 5000,
         }.ToString();
-    }
-
-    /// <summary>
-    /// DatabaseVersion テーブルの値が <see cref="Constants.CurrentDatabaseVersion"/> と一致することを確認します。
-    /// </summary>
-    /// <param name="connectionString">SQLite 接続文字列。</param>
-    /// <exception cref="DatabaseVersionMismatchException">バージョンが一致しない場合。</exception>
-    private async Task verifyDatabaseVersionAsync(string connectionString)
-    {
-        using var connection = new SQLiteConnection(connectionString);
-        await connection.OpenAsync();
-
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT Version FROM DatabaseVersion WHERE Id = 1;";
-
-        var storedVersion = (await command.ExecuteScalarAsync())?.ToString() ?? string.Empty;
-        if (storedVersion != Constants.CurrentDatabaseVersion)
-            throw new DatabaseVersionMismatchException(storedVersion, Constants.CurrentDatabaseVersion);
     }
 
     /// <summary>
