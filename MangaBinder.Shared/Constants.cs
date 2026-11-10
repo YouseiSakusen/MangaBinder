@@ -9,7 +9,7 @@ public static class Constants
 	/// アプリが要求する DB バージョンです。
 	/// バージョンを変更するときは、既存データのマイグレーション対応も検討・実装し、対応漏れがないことを確認すること。
 	/// </summary>
-	public const string CurrentDatabaseVersion = "1";
+	public const string CurrentDatabaseVersion = "0";
 
 	/// <summary>
 	/// 製本設定 JSON の現在のバージョンです。
