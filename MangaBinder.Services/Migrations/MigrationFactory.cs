@@ -26,27 +26,33 @@ public class MigrationFactory
 	{
 		var migrations = new List<IMigration>();
 
-		this.addMigrations(migrations, "DB構造", storedDatabaseVersion, Constants.CurrentDatabaseVersion);
-		this.addMigrations(migrations, "タイトル正規化", storedTitleNormalizationVersion, Constants.CurrentTitleNormalizationVersion);
+		// DB構造バージョン
+		switch ((storedDatabaseVersion, Constants.CurrentDatabaseVersion))
+		{
+			case ("0", "0"):
+				break;
+
+			default:
+				throw new InvalidOperationException(
+					$"対応するDB構造マイグレーションがありません。保存：{storedDatabaseVersion} 要求：{Constants.CurrentDatabaseVersion}");
+		}
+
+		// タイトル正規化バージョン
+		switch ((storedTitleNormalizationVersion, Constants.CurrentTitleNormalizationVersion))
+		{
+			case ("0", "0"):
+			case ("1", "1"):
+				break;
+
+			case ("0", "1"):
+				migrations.Add(new Migration0_1(this.connectionString));
+				break;
+
+			default:
+				throw new InvalidOperationException(
+					$"対応するタイトル正規化マイグレーションがありません。保存：{storedTitleNormalizationVersion} 要求：{Constants.CurrentTitleNormalizationVersion}");
+		}
 
 		return migrations;
-	}
-
-	/// <summary>
-	/// 1種類のバージョンについて、必要なマイグレーションを追加します。
-	/// 新しいマイグレーションは、ここへ明示的に追加します。
-	/// </summary>
-	private void addMigrations(List<IMigration> migrations, string versionName, string storedVersion, string requiredVersion)
-	{
-		var stored = int.Parse(storedVersion);
-		var required = int.Parse(requiredVersion);
-
-		if (stored == required)
-			return;
-
-		if (stored > required)
-			throw new InvalidOperationException($"{versionName}バージョンが、アプリの要求するバージョンより新しいため起動できません。保存：{storedVersion}　要求：{requiredVersion}");
-
-		throw new InvalidOperationException($"{versionName}バージョン {storedVersion} から {requiredVersion} へのマイグレーションが存在しません。");
 	}
 }
