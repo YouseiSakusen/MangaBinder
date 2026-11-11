@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Linq;
 using System.Text.Json;
 using HalationGhost.Utilities;
@@ -70,12 +70,12 @@ public class BindingManager
 		// 1. 作品Workフォルダパスを生成
 		var workSeriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(bindingSeries.Series.Title);
 
-		// 2. 対応する Store 所有の共有 MangaSeriesViewModel を取得（同一インスタンスであることが必須）
+		// 2. 対応する Store 所有の共有 MangaSeriesNotifier を取得（同一インスタンスであることが必須）
 		var sharedViewModel = this.mangaSeriesStore.FindNotifierById(bindingSeries.Series.SeriesId)
-			?? throw new InvalidOperationException($"SeriesId {bindingSeries.Series.SeriesId} に対応する共有 MangaSeriesViewModel が見つかりません。");
+			?? throw new InvalidOperationException($"SeriesId {bindingSeries.Series.SeriesId} に対応する共有 MangaSeriesNotifier が見つかりません。");
 		if (!ReferenceEquals(sharedViewModel.Series.Value, bindingSeries.Series))
 		{
-			throw new InvalidOperationException($"SeriesId {bindingSeries.Series.SeriesId} の共有 MangaSeriesViewModel と BindingSeries.Series のインスタンスが一致しません。");
+			throw new InvalidOperationException($"SeriesId {bindingSeries.Series.SeriesId} の共有 MangaSeriesNotifier と BindingSeries.Series のインスタンスが一致しません。");
 		}
 
 		// 3. BindingTarget を設定（この時点で clearCurrentBindingSession() が実行される）

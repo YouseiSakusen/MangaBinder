@@ -1,4 +1,4 @@
-﻿using MangaBinder.Bindings;
+using MangaBinder.Bindings;
 using MangaBinder.Controls;
 using MangaBinder.Helpers;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,13 +11,18 @@ namespace MangaBinder.Series;
 
 /// <summary>
 /// 作品管理ページの ViewModel です。
-/// 検索・登録待ちフィルタ・表示制御を担当します。
-/// 表示対象の MangaSeries コレクションを SelectableSeriesListViewModel へ渡し、
-/// MaintenanceSeriesCardViewModel の生成・管理責務は SelectableSeriesListViewModel に委譲します。
+/// コマンドと Manager 呼び出し、Store の公開、画面固有の UI 処理（検索結果0件 InfoBar の表示時間管理）を担当します。
+/// 検索・表示対象の更新は MangaSeriesManager、表示用カード VM の生成・破棄は MaintenanceSeriesViewModelStore が担当します。
 /// </summary>
-public class MaintenancePageViewModel : IDisposable, IDataInitializable
+public class MaintenancePageViewModel : IDisposable, IDataInitializable, INavigationLeavingAware
 {
+	/// <summary>検索結果0件 InfoBar を表示する時間。</summary>
+	private static readonly TimeSpan noResultInfoBarDuration = TimeSpan.FromSeconds(5);
+
 	private DisposableBag disposableBag;
+
+	/// <summary>InfoBar の自動非表示待機。再検索・画面離脱時に破棄して無効化します。</summary>
+	private readonly SerialDisposable infoBarHideTimer = new();
 
 	/// <summary>ナビゲーションサービス。</summary>
 	private readonly INavigationService navigationService;
@@ -25,26 +30,17 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <summary>編集対象を保持するストア。</summary>
 	private readonly EditStore editStore;
 
-	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
-	private readonly MangaSeriesStore mangaSeriesStore;
-
-	/// <summary>作品管理画面の派生 View を管理するストア。</summary>
-	private readonly MaintenanceSeriesViewModelStore maintenanceSeriesStore;
-
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
-	/// <summary>検索文字列を取得します。</summary>
-	public BindableReactiveProperty<string> SearchQuery { get; }
+	/// <summary>MangaSeries の正本リストと作品管理画面の検索状態を管理するストア。</summary>
+	public MangaSeriesStore MangaSeriesStore { get; }
 
-	/// <summary>登録待ち作品件数を取得します。</summary>
-	public BindableReactiveProperty<int> WorkSeriesCount { get; }
+	/// <summary>作品管理画面の表示用カード VM を管理するストア。</summary>
+	public MaintenanceSeriesViewModelStore MaintenanceSeriesViewModelStore { get; }
 
-	/// <summary>登録済み正式作品件数を取得します。</summary>
-	public BindableReactiveProperty<int> RegisteredSeriesCount { get; }
-
-	/// <summary>検索結果を表示中であるかを取得します。</summary>
-	public BindableReactiveProperty<bool> IsSearchResultsShown { get; }
+	/// <summary>検索結果0件 InfoBar を開いているかを取得します。</summary>
+	public BindableReactiveProperty<bool> IsNoResultInfoBarOpen { get; }
 
 	/// <summary>検索実行コマンドです。</summary>
 	public ReactiveCommand<Unit> SearchCommand { get; private set; }
@@ -67,26 +63,19 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="editStore">編集対象を保持するストア。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
-	/// <param name="maintenanceSeriesStore">作品管理画面の派生 View を管理するストア。</param>
+	/// <param name="maintenanceSeriesViewModelStore">作品管理画面の表示用カード VM を管理するストア。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
-	public MaintenancePageViewModel(INavigationService navigationService, EditStore editStore, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesViewModelStore maintenanceSeriesStore, IServiceScopeFactory serviceScopeFactory)
+	public MaintenancePageViewModel(INavigationService navigationService, EditStore editStore, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesViewModelStore maintenanceSeriesViewModelStore, IServiceScopeFactory serviceScopeFactory)
 	{
 		this.navigationService = navigationService;
 		this.editStore = editStore;
-		this.mangaSeriesStore = mangaSeriesStore;
-		this.maintenanceSeriesStore = maintenanceSeriesStore;
+		this.MangaSeriesStore = mangaSeriesStore;
+		this.MaintenanceSeriesViewModelStore = maintenanceSeriesViewModelStore;
 		this.serviceScopeFactory = serviceScopeFactory;
 
-		this.SearchQuery = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
+		this.infoBarHideTimer.AddTo(ref this.disposableBag);
 
-		// Store が所有する WorkSeriesCount を直接参照
-		this.WorkSeriesCount = this.mangaSeriesStore.WorkSeriesCount;
-
-		// Store が所有する RegisteredSeriesCount を直接参照
-		this.RegisteredSeriesCount = this.mangaSeriesStore.RegisteredSeriesCount;
-
-		this.IsSearchResultsShown = new BindableReactiveProperty<bool>(false)
+		this.IsNoResultInfoBarOpen = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
 		this.SearchCommand = new ReactiveCommand<Unit>()
@@ -101,17 +90,32 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.EditSeriesCommand = new ReactiveCommand<MangaSeries>()
 			.AddTo(ref this.disposableBag);
 
-		// SearchCommand の実装
-		this.SearchCommand.Subscribe(async _ => await this.executeSearchAsync());
+		// SearchCommand: Manager の検索を呼び出す
+		this.SearchCommand
+			.Subscribe(_ => this.callManager(manager => manager.SearchMaintenanceSeries()))
+			.AddTo(ref this.disposableBag);
 
-		// ShowWorkSeriesCommand の実装
-		this.ShowWorkSeriesCommand.Subscribe(async _ => await this.executeShowWorkSeriesAsync());
+		// ShowWorkSeriesCommand: Manager の登録待ち表示を呼び出す
+		this.ShowWorkSeriesCommand
+			.Subscribe(_ => this.callManager(manager => manager.ShowMaintenanceWorkSeries()))
+			.AddTo(ref this.disposableBag);
 
 		// ShowEditorCommand の実装
 		this.ShowEditorCommand.Subscribe(_ => this.showEditor());
 
 		// EditSeriesCommand の実装
 		this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
+
+		// Manager が Store へ反映した検索完了通知を起点に InfoBar を制御（検索のたびに発火する）
+		this.MangaSeriesStore.MaintenanceSearchCompleted
+			.Subscribe(resultCount => this.onSearchCompleted(resultCount))
+			.AddTo(ref this.disposableBag);
+
+		// 登録待ち表示へ戻った場合は InfoBar を閉じる
+		this.MangaSeriesStore.IsMaintenanceSearchResultsShown
+			.Where(isShown => !isShown)
+			.Subscribe(_ => this.closeInfoBar())
+			.AddTo(ref this.disposableBag);
 
 		// SelectableSeriesListViewModel を初期化
 		this.SelectableSeriesListViewModel = new SelectableSeriesListViewModel()
@@ -126,71 +130,72 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		// NavigateCommand を EditSeriesCommand に接続
 		this.SelectableSeriesListViewModel.NavigateCommand = this.EditSeriesCommand;
 
-		// 初回の登録待ち作品フィルタ適用
-		// 依存先（IsSearchResultsEmpty、HasSearchResults、SelectableSeriesListViewModel）の初期化完了後に実行
-		this.applyWorkSeriesOnlyFilter();
+		// Store の単一の表示用カード一覧を一度だけ接続（以降の切り替えは不要）
+		this.SelectableSeriesListViewModel.SetExternalSource(this.MaintenanceSeriesViewModelStore.DisplayCards);
 	}
-
 
 	/// <summary>
 	/// 画面表示後の初期化を非同期で実行します。
-	/// 検索状態をリセットします。
+	/// Manager 経由で登録待ち表示を初期化します。
 	/// </summary>
 	public async ValueTask InitializeDataAsync()
 	{
-		// 検索文字列をクリア
-		this.SearchQuery.Value = string.Empty;
-
-		// Filter を通常状態（登録待ち作品のみ）に戻す
-		this.applyWorkSeriesOnlyFilter();
-
-		// 検索結果表示フラグを false に設定
-		this.IsSearchResultsShown.Value = false;
+		this.callManager(manager => manager.ShowMaintenanceWorkSeries());
 
 		await ValueTask.CompletedTask;
 	}
 
 	/// <summary>
-	/// 検索を実行します。
-	/// 検索文字列が空の場合は通常表示へ戻します。
-	/// ISynchronizedView の Filter を切り替えることで検索結果をリアルタイム更新します。
+	/// 画面から離れる際に InfoBar の表示・時間制御を終了します。
 	/// </summary>
-	private async ValueTask executeSearchAsync()
+	/// <param name="request">遷移先から受け取った要求。</param>
+	public ValueTask OnNavigatingFromAsync(NavigationLeavingRequest request)
 	{
-		var searchQuery = this.SearchQuery.Value?.Trim() ?? string.Empty;
+		this.closeInfoBar();
 
-		if (string.IsNullOrEmpty(searchQuery))
-		{
-			// 検索文字列が空 → 通常表示へ戻す（登録待ち作品のみ Filter）
-			this.applyWorkSeriesOnlyFilter();
-			this.IsSearchResultsShown.Value = false;
-		}
-		else
-		{
-			// 検索条件に一致する作品のみを表示する Filter を設定
-			this.applySearchFilter(searchQuery);
-			this.IsSearchResultsShown.Value = true;
-		}
-
-		await ValueTask.CompletedTask;
+		return ValueTask.CompletedTask;
 	}
 
 	/// <summary>
-	/// 登録待ち一覧を表示します。
-	/// 検索をクリアし、登録待ち作品のみを表示する Filter を設定します。
+	/// Scope を作成して MangaSeriesManager を Resolve し、指定された処理を呼び出します。
 	/// </summary>
-	private async ValueTask executeShowWorkSeriesAsync()
+	/// <param name="action">Manager に対する処理。</param>
+	private void callManager(Action<MangaSeriesManager> action)
 	{
-		// SearchQuery をクリア
-		this.SearchQuery.Value = string.Empty;
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
 
-		// Filter を通常状態（登録待ち作品のみ）に戻す
-		this.applyWorkSeriesOnlyFilter();
+		action(manager);
+	}
 
-		// 検索結果表示フラグを false に設定
-		this.IsSearchResultsShown.Value = false;
+	/// <summary>
+	/// 検索完了通知を受けて InfoBar を制御します。
+	/// 0件の場合は表示して5秒後に閉じる待機を開始し、1件以上の場合は閉じます。
+	/// </summary>
+	/// <param name="resultCount">検索結果件数。</param>
+	private void onSearchCompleted(int resultCount)
+	{
+		if (resultCount > 0)
+		{
+			this.closeInfoBar();
+			return;
+		}
 
-		await ValueTask.CompletedTask;
+		// 前回の非表示待機を破棄して新しい待機に置き換える
+		this.IsNoResultInfoBarOpen.Value = true;
+		this.infoBarHideTimer.Disposable = Observable
+			.Timer(noResultInfoBarDuration)
+			.ObserveOnCurrentSynchronizationContext()
+			.Subscribe(_ => this.IsNoResultInfoBarOpen.Value = false);
+	}
+
+	/// <summary>
+	/// InfoBar を閉じ、非表示待機を破棄します。
+	/// </summary>
+	private void closeInfoBar()
+	{
+		this.infoBarHideTimer.Disposable = Disposable.Empty;
+		this.IsNoResultInfoBarOpen.Value = false;
 	}
 
 	/// <summary>
@@ -217,42 +222,11 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		// 編集対象を指定作品に設定
 		this.editStore.EditTarget = series;
 		this.editStore.EditTargetViewModel =
-			this.mangaSeriesStore.All.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series))
-			?? this.mangaSeriesStore.WorkSeries.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series));
+			this.MangaSeriesStore.All.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series))
+			?? this.MangaSeriesStore.WorkSeries.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series));
 
 		// NavigationHierarchy を設定
 		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
-	}
-
-	/// <summary>
-	/// 登録待ち作品のみを表示する Filter を適用します。
-	/// 新 Reactive 系では、MaintenanceSeriesStore の WorkSeriesCards を直接表示します。
-	/// </summary>
-	private void applyWorkSeriesOnlyFilter()
-	{
-		// 新 Reactive 系：MaintenanceSeriesStore の WorkSeriesCards を外部参照として設定
-		this.SelectableSeriesListViewModel.SetExternalSource(this.maintenanceSeriesStore.WorkSeriesCards);
-	}
-
-	/// <summary>
-	/// 検索条件に基づく Filter を適用します。
-	/// </summary>
-	/// <param name="searchQuery">検索文字列。</param>
-	private void applySearchFilter(string searchQuery)
-	{
-		// Scope を作成して MangaSeriesManager を Resolve
-		using var scope = this.serviceScopeFactory.CreateScope();
-		var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
-
-		// Manager の検索メソッドを呼び出し
-		// All + WorkSeries から一致した MangaSeriesViewModel のみを取得
-		var searchResults = manager.SearchMangaSeries(searchQuery, MangaSeriesSearchTarget.AllAndWorkSeries);
-
-		// 検索結果を MaintenanceSeriesStore へ渡す
-		this.maintenanceSeriesStore.ReplaceSearchResults(searchResults);
-
-		// 検索結果用カード Collection を外部参照として設定して表示
-		this.SelectableSeriesListViewModel.SetExternalSource(this.maintenanceSeriesStore.SearchResultCards);
 	}
 
 	/// <summary>リソースを解放します。</summary>
@@ -261,4 +235,3 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 		this.disposableBag.Dispose();
 	}
 }
-

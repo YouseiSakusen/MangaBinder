@@ -1,4 +1,4 @@
-using MangaBinder.Bindings;
+﻿using MangaBinder.Bindings;
 using MangaBinder.Controls;
 using MangaBinder.Series;
 using R3;
@@ -53,12 +53,12 @@ public class HomeSeriesCardViewModel : IDisposable
 	/// <summary>
 	/// <see cref="HomeSeriesCardViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="seriesViewModel">ラップする MangaSeriesViewModel。</param>
+	/// <param name="seriesViewModel">ラップする MangaSeriesNotifier。</param>
 	/// <param name="mangaSeriesStore">MangaSeries ストア。タグマスタ取得用。</param>
 	/// <param name="seriesTagStore">タグ変更追跡ストア。Dirty 管理用。</param>
 	public HomeSeriesCardViewModel(MangaSeriesNotifier seriesViewModel, MangaSeriesStore? mangaSeriesStore = null, SeriesTagStore? seriesTagStore = null)
 	{
-		// 共有 MangaSeriesViewModel.Series をそのまま参照（新規生成しない）
+		// 共有 MangaSeriesNotifier.Series をそのまま参照（新規生成しない）
 		this.Series = seriesViewModel.Series;
 
 		// 巻情報表示用の SeriesVolumeStatusViewModel を生成（1インスタンスのみ保持）
@@ -145,7 +145,7 @@ public class HomeSeriesCardViewModel : IDisposable
 		.AddTo(ref this.disposableBag);
 
 		// IsSelected は Home 画面固有の表示状態。
-		// 初期値は false で、HomeSeriesStore が BindingQueueStore.Queue から状態を設定する
+		// 初期値は false で、HomeSeriesViewModelStore が BindingQueueStore.Queue から状態を設定する
 		this.IsSelected = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
@@ -169,7 +169,7 @@ public class HomeSeriesCardViewModel : IDisposable
 
 	/// <summary>
 	/// IsSelected の値を設定します。Home 画面の表示状態更新用。
-	/// HomeSeriesStore が BindingQueueStore.Queue の変更を監視して呼び出します。
+	/// HomeSeriesViewModelStore が BindingQueueStore.Queue の変更を監視して呼び出します。
 	/// </summary>
 	/// <param name="isSelected">新しい IsSelected 値。</param>
 	internal void SetIsSelected(bool isSelected)

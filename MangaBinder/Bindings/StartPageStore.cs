@@ -1,4 +1,4 @@
-using ObservableCollections;
+﻿using ObservableCollections;
 using R3;
 using System.Collections.Specialized;
 using MangaBinder.Series;
@@ -20,7 +20,7 @@ public class StartPageStore : IDisposable
 	private readonly BindingQueueStore bindingQueueStore;
 
 	/// <summary>
-	/// 作品ストア。共有 MangaSeriesViewModel を解決するために使用します。
+	/// 作品ストア。共有 MangaSeriesNotifier を解決するために使用します。
 	/// </summary>
 	private readonly MangaSeriesStore mangaSeriesStore;
 
@@ -47,11 +47,11 @@ public class StartPageStore : IDisposable
 		this.mangaSeriesStore = mangaSeriesStore;
 
 		// 製本開始キュー ViewModel コレクションを生成
-		// BindingSeries から、共有 MangaSeriesViewModel を通じて StartPageSeriesCardViewModel へ変換
+		// BindingSeries から、共有 MangaSeriesNotifier を通じて StartPageSeriesCardViewModel へ変換
 		this.queueCardsView = this.bindingQueueStore.Queue
 			.CreateView(bindingSeries =>
 			{
-				// SeriesId から共有 MangaSeriesViewModel を解決
+				// SeriesId から共有 MangaSeriesNotifier を解決
 				var sharedViewModel = this.mangaSeriesStore.FindNotifierById(bindingSeries.Series.SeriesId);
 				if (sharedViewModel is null)
 				{

@@ -1,4 +1,4 @@
-using HalationGhost.Utilities;
+﻿using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Helpers;
 using MangaBinder.Series;
@@ -290,7 +290,7 @@ public class MangaSeriesManager
 			return new List<MangaSeries>();
 
 		// All + WorkSeries から検索（正規化タイトルの完全一致）
-		// 新 Reactive All/WorkSeries の共有 MangaSeriesViewModel から MangaSeries を抽出
+		// 新 Reactive All/WorkSeries の共有 MangaSeriesNotifier から MangaSeries を抽出
 		var results = this.mangaSeriesStore.All
 			.Concat(this.mangaSeriesStore.WorkSeries)
 			.Select(vm => vm.Series.Value)
@@ -829,12 +829,59 @@ public class MangaSeriesManager
 	}
 
 	/// <summary>
+	/// 作品管理画面の検索を実行します。
+	/// MangaSeriesStore.MaintenanceSearchWords を参照し、All + WorkSeries から検索した結果を MaintenanceDisplaySeries へ反映します。
+	/// 検索文字列が空または空白のみの場合は登録待ち表示へ戻します。
+	/// </summary>
+	public void SearchMaintenanceSeries()
+	{
+		var searchWords = this.mangaSeriesStore.MaintenanceSearchWords.Value?.Trim() ?? string.Empty;
+
+		if (string.IsNullOrEmpty(searchWords))
+		{
+			this.ShowMaintenanceWorkSeries();
+			return;
+		}
+
+		var results = this.SearchMangaSeries(searchWords, MangaSeriesSearchTarget.AllAndWorkSeries);
+
+		this.replaceMaintenanceDisplaySeries(results);
+		this.mangaSeriesStore.IsMaintenanceSearchResultsShown.Value = true;
+		this.mangaSeriesStore.NotifyMaintenanceSearchCompleted(results.Count);
+	}
+
+	/// <summary>
+	/// 作品管理画面を登録待ち表示にします。
+	/// 検索文字列をクリアし、MaintenanceDisplaySeries を現在の WorkSeries の内容で更新し、検索結果表示状態を解除します。
+	/// 画面の初期表示・再表示時にも使用します。
+	/// </summary>
+	public void ShowMaintenanceWorkSeries()
+	{
+		this.mangaSeriesStore.MaintenanceSearchWords.Value = string.Empty;
+		this.replaceMaintenanceDisplaySeries(this.mangaSeriesStore.WorkSeries);
+		this.mangaSeriesStore.IsMaintenanceSearchResultsShown.Value = false;
+	}
+
+	/// <summary>
+	/// MaintenanceDisplaySeries の内容を、共有 Notifier の指定一覧で置き換えます。
+	/// </summary>
+	/// <param name="notifiers">表示対象の共有 Notifier。</param>
+	private void replaceMaintenanceDisplaySeries(IEnumerable<MangaSeriesNotifier> notifiers)
+	{
+		// 元リストを列挙中に Clear しないよう、先に materialize する
+		var snapshot = notifiers.ToList();
+
+		this.mangaSeriesStore.MaintenanceDisplaySeries.Clear();
+		this.mangaSeriesStore.MaintenanceDisplaySeries.AddRange(snapshot);
+	}
+
+	/// <summary>
 	/// 指定した検索文字列と検索対象に基づき、一般検索を実行します。
-	/// 検索結果として MangaSeriesStore が所有している共有 MangaSeriesViewModel を返します。
+	/// 検索結果として MangaSeriesStore が所有している共有 MangaSeriesNotifier を返します。
 	/// </summary>
 	/// <param name="searchText">検索文字列。</param>
 	/// <param name="target">検索対象。</param>
-	/// <returns>検索条件に一致した MangaSeriesViewModel のリスト。</returns>
+	/// <returns>検索条件に一致した MangaSeriesNotifier のリスト。</returns>
 	public IReadOnlyList<MangaSeriesNotifier> SearchMangaSeries(string searchText, MangaSeriesSearchTarget target)
 	{
 		// 検索Matcher を生成
@@ -847,13 +894,13 @@ public class MangaSeriesManager
 		switch (target)
 		{
 			case MangaSeriesSearchTarget.All:
-				// MangaSeriesStore.All の中から一致した MangaSeriesViewModel を返す
+				// MangaSeriesStore.All の中から一致した MangaSeriesNotifier を返す
 				return this.mangaSeriesStore.All
 					.Where(vm => matcher.IsMatch(vm.Series.Value))
 					.ToList();
 
 			case MangaSeriesSearchTarget.AllAndWorkSeries:
-				// MangaSeriesStore.All + WorkSeries の中から一致した MangaSeriesViewModel を返す
+				// MangaSeriesStore.All + WorkSeries の中から一致した MangaSeriesNotifier を返す
 				// 列挙順は All → WorkSeries の順を維持する
 				return this.mangaSeriesStore.All
 					.Concat(this.mangaSeriesStore.WorkSeries)
@@ -861,12 +908,12 @@ public class MangaSeriesManager
 					.ToList();
 
 			case MangaSeriesSearchTarget.BindingQueue:
-				// BindingQueueStore.Queue に現在含まれている作品から一致した MangaSeriesViewModel を返す
+				// BindingQueueStore.Queue に現在含まれている作品から一致した MangaSeriesNotifier を返す
 				// BindingQueue の並び順を維持する
 				var result = new List<MangaSeriesNotifier>();
 				foreach (var bindingSeries in this.bindingQueueStore.Queue)
 				{
-					// BindingQueue の各作品の SeriesId に対応する MangaSeriesViewModel を All から取得
+					// BindingQueue の各作品の SeriesId に対応する MangaSeriesNotifier を All から取得
 					var viewModel = this.mangaSeriesStore.All
 						.FirstOrDefault(vm => vm.Series.Value.SeriesId == bindingSeries.Series.SeriesId);
 

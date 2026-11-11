@@ -1,4 +1,4 @@
-using System.Data.SQLite;
+﻿using System.Data.SQLite;
 using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Helpers;
@@ -305,7 +305,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 			storeInstance.ThumbnailStatus = originalSeries.ThumbnailStatus;
 		}
 
-		// Store 正本への全ての反映が完了したので、共有 MangaSeriesViewModel.Series に通知
+		// Store 正本への全ての反映が完了したので、共有 MangaSeriesNotifier.Series に通知
 		this.mangaSeriesStore.NotifySeriesChanged(originalSeries.SeriesId);
 
 		this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 更新処理完了。SeriesId: {originalSeries.SeriesId}, Title: {originalSeries.Title}");

@@ -1,4 +1,4 @@
-namespace MangaBinder.Series;
+﻿namespace MangaBinder.Series;
 
 /// <summary>
 /// 作品編集画面へ渡す編集対象を保持する Singleton ストアです。
@@ -10,7 +10,7 @@ public class EditStore
 	public MangaSeries? EditTarget { get; set; }
 
 	/// <summary>
-	/// 作品カードへ渡す Store 所有の共有 MangaSeriesViewModel を取得または設定します。
+	/// 作品カードへ渡す Store 所有の共有 MangaSeriesNotifier を取得または設定します。
 	/// 設定する場合、Series.Value は EditTarget と同一インスタンスである必要があります。
 	/// </summary>
 	public MangaSeriesNotifier? EditTargetViewModel { get; set; }

@@ -19,7 +19,7 @@
 	<controls:PageLayout
 		EyecatchSymbol="BookToolbox24"
 		EyecatchTitle="作品管理"
-		EyecatchValueText="{Binding WorkSeriesCount.Value, StringFormat=登録待ち&#x20;{0}&#x20;件}">
+		EyecatchValueText="{Binding MangaSeriesStore.WorkSeriesCount.Value, StringFormat=登録待ち&#x20;{0}&#x20;件}">
 
 		<!-- ══════════════════════════════════════════════════ -->
 		<!-- TopContent: 検索エリア + 新規作品登録カード         -->
@@ -44,18 +44,33 @@
 
 					<!-- Column0: 検索エリア -->
 					<Grid Grid.Column="0" VerticalAlignment="Center">
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="Auto" />
+						</Grid.RowDefinitions>
 						<Grid.ColumnDefinitions>
 							<ColumnDefinition Width="*" />
 							<ColumnDefinition Width="Auto" />
 							<ColumnDefinition Width="Auto" />
 						</Grid.ColumnDefinitions>
 
+						<!-- 検索結果0件 InfoBar（5秒後に ViewModel が IsOpen を閉じる） -->
+						<ui:InfoBar
+							Grid.Row="1"
+							Grid.ColumnSpan="3"
+							Margin="0,8,0,0"
+							Severity="Informational"
+							Title="検索結果がありません"
+							Message="指定した条件に一致する作品は見つかりませんでした。"
+							IsClosable="False"
+							IsOpen="{Binding IsNoResultInfoBarOpen.Value, Mode=OneWay}" />
+
 						<!-- 検索TextBox -->
 						<ui:TextBox
 							Grid.Column="0"
 							PlaceholderText="タイトル・作者・メモから検索"
 							InputMethod.PreferredImeState="On"
-							Text="{Binding SearchQuery.Value, UpdateSourceTrigger=PropertyChanged}"
+							Text="{Binding MangaSeriesStore.MaintenanceSearchWords.Value, UpdateSourceTrigger=PropertyChanged}"
 							ClearButtonEnabled="True"
 							Margin="0,0,8,0"
 							Width="500"
@@ -89,7 +104,7 @@
 											   Margin="16,0,0,0"
 											   PrimaryText="新規作品登録"
 											   SecondaryLabel="登録済み作品数"
-											   SecondaryValue="{Binding RegisteredSeriesCount.Value, StringFormat={}{0:N0}}"
+											   SecondaryValue="{Binding MangaSeriesStore.RegisteredSeriesCount.Value, StringFormat={}{0:N0}}"
 											   Symbol="BookAdd24"
 											   Command="{Binding ShowEditorCommand}" />
 				</Grid>
@@ -113,9 +128,9 @@
 					Grid.Row="0"
 					Margin="0,8,0,8"
 					VerticalAlignment="Center"
-					Visibility="{Binding IsSearchResultsShown.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
+					Visibility="{Binding MaintenanceSeriesViewModelStore.IsSearchResultsShown.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
 					<TextBlock
-						Text="{Binding SelectableSeriesListViewModel.ItemCount.Value, StringFormat='検索結果 {0}件'}"
+						Text="{Binding MaintenanceSeriesViewModelStore.DisplayCount.Value, StringFormat='検索結果 {0}件'}"
 						FontSize="13"
 						HorizontalAlignment="Right"
 						Opacity="0.7" />
@@ -126,7 +141,7 @@
 					<!-- SelectableSeriesList: HasItems が true のときに表示 -->
 					<controls:SelectableSeriesList
 						DataContext="{Binding SelectableSeriesListViewModel}"
-						Visibility="{Binding SelectableSeriesListViewModel.HasItems.Value, Converter={StaticResource BooleanToVisibilityConverter}}" />
+						Visibility="{Binding DataContext.MaintenanceSeriesViewModelStore.HasItems.Value, RelativeSource={RelativeSource AncestorType=Page}, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
 					<!-- エンプティステート: 検索結果が0件の場合の表示 -->
 					<Grid
@@ -134,7 +149,7 @@
 						Panel.ZIndex="1"
 						HorizontalAlignment="Stretch"
 						VerticalAlignment="Stretch"
-						Visibility="{Binding SelectableSeriesListViewModel.IsEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
+						Visibility="{Binding MaintenanceSeriesViewModelStore.IsEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
 						<StackPanel
 							HorizontalAlignment="Left"
 							VerticalAlignment="Top"

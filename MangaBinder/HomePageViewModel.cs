@@ -1,4 +1,4 @@
-using MangaBinder.Bindings;
+﻿using MangaBinder.Bindings;
 using MangaBinder.Series;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,7 +33,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     private readonly SeriesTagStore seriesTagStore;
 
     /// <summary>Home 画面用派生 Store。SeriesCardViewModel の生成・所有・Dispose を担当。</summary>
-    private readonly HomeSeriesViewModelStore homeSeriesStore;
+    private readonly HomeSeriesViewModelStore homeSeriesViewModelStore;
 
     /// <summary>MangaSeries の正本リストを管理するストア。</summary>
     private readonly MangaSeriesStore mangaSeriesStore;
@@ -127,11 +127,11 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="editStore">編集対象を保持するストア。</param>
     /// <param name="appSettings">アプリケーション設定。</param>
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
-    /// <param name="homeSeriesStore">Home 画面用派生 Store。</param>
+    /// <param name="homeSeriesViewModelStore">Home 画面用派生 Store。</param>
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
     /// <param name="bindingQueueStore">製本待ち状態ストア。</param>
     /// <param name="snackbarService">Snackbar 通知サービス。</param>
-    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, EditStore editStore, AppSettings appSettings, SeriesTagStore seriesTagStore, HomeSeriesViewModelStore homeSeriesStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, EditStore editStore, AppSettings appSettings, SeriesTagStore seriesTagStore, HomeSeriesViewModelStore homeSeriesViewModelStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
     {
         this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;
@@ -139,13 +139,13 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         this.editStore = editStore;
         this.appSettings = appSettings;
         this.seriesTagStore = seriesTagStore;
-        this.homeSeriesStore = homeSeriesStore;
+        this.homeSeriesViewModelStore = homeSeriesViewModelStore;
         this.mangaSeriesStore = mangaSeriesStore;
         this.bindingQueueStore = bindingQueueStore;
         this.snackbarService = snackbarService;
 
-        // Home 用一覧を HomeSeriesStore から取得
-        this.Series = this.homeSeriesStore.HomeCards;
+        // Home 用一覧を HomeSeriesViewModelStore から取得
+        this.Series = this.homeSeriesViewModelStore.HomeCards;
 
         // Store の RegisteredSeriesCount を共有
         this.RegisteredSeriesCount = this.mangaSeriesStore.RegisteredSeriesCount;
@@ -309,7 +309,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>
     /// Home 画面の CheckBox で選択状態を切り替えます。
     /// BindingQueueDispatcher を通じて Queue を更新し、
-    /// 表示更新は HomeSeriesStore → IsSelected で自動的に戻ります。
+    /// 表示更新は HomeSeriesViewModelStore → IsSelected で自動的に戻ります。
     /// </summary>
     private void toggleBindingQueue(HomeSeriesCardViewModel cardViewModel)
     {
