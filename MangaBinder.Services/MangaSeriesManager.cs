@@ -135,7 +135,7 @@ public class MangaSeriesManager
 		var bindingSeriesList = new List<BindingSeries>();
 		foreach (var seriesId in queuedSeriesIds)
 		{
-			var matchedViewModel = this.mangaSeriesStore.FindViewModelById(seriesId);
+			var matchedViewModel = this.mangaSeriesStore.FindNotifierById(seriesId);
 			if (matchedViewModel != null)
 			{
 				var bindingSeries = new BindingSeries
@@ -835,14 +835,14 @@ public class MangaSeriesManager
 	/// <param name="searchText">検索文字列。</param>
 	/// <param name="target">検索対象。</param>
 	/// <returns>検索条件に一致した MangaSeriesViewModel のリスト。</returns>
-	public IReadOnlyList<MangaSeriesViewModel> SearchMangaSeries(string searchText, MangaSeriesSearchTarget target)
+	public IReadOnlyList<MangaSeriesNotifier> SearchMangaSeries(string searchText, MangaSeriesSearchTarget target)
 	{
 		// 検索Matcher を生成
 		var matcher = new MangaSeriesSearchMatcher(searchText);
 
 		// 検索条件が無効な場合は空のリストを返す
 		if (!matcher.IsValid)
-			return new List<MangaSeriesViewModel>();
+			return new List<MangaSeriesNotifier>();
 
 		switch (target)
 		{
@@ -863,7 +863,7 @@ public class MangaSeriesManager
 			case MangaSeriesSearchTarget.BindingQueue:
 				// BindingQueueStore.Queue に現在含まれている作品から一致した MangaSeriesViewModel を返す
 				// BindingQueue の並び順を維持する
-				var result = new List<MangaSeriesViewModel>();
+				var result = new List<MangaSeriesNotifier>();
 				foreach (var bindingSeries in this.bindingQueueStore.Queue)
 				{
 					// BindingQueue の各作品の SeriesId に対応する MangaSeriesViewModel を All から取得
@@ -880,7 +880,7 @@ public class MangaSeriesManager
 
 			default:
 				// 予期しない値の場合は空のリストを返す
-				return new List<MangaSeriesViewModel>();
+				return new List<MangaSeriesNotifier>();
 		}
 	}
 }

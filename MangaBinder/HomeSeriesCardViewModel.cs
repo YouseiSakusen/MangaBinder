@@ -56,7 +56,7 @@ public class HomeSeriesCardViewModel : IDisposable
 	/// <param name="seriesViewModel">ラップする MangaSeriesViewModel。</param>
 	/// <param name="mangaSeriesStore">MangaSeries ストア。タグマスタ取得用。</param>
 	/// <param name="seriesTagStore">タグ変更追跡ストア。Dirty 管理用。</param>
-	public HomeSeriesCardViewModel(MangaSeriesViewModel seriesViewModel, MangaSeriesStore? mangaSeriesStore = null, SeriesTagStore? seriesTagStore = null)
+	public HomeSeriesCardViewModel(MangaSeriesNotifier seriesViewModel, MangaSeriesStore? mangaSeriesStore = null, SeriesTagStore? seriesTagStore = null)
 	{
 		// 共有 MangaSeriesViewModel.Series をそのまま参照（新規生成しない）
 		this.Series = seriesViewModel.Series;

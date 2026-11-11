@@ -16,7 +16,7 @@ public partial class BindingHistoryList : UserControl
 	/// <summary>表示対象の共有 MangaSeriesViewModel を表す依存関係プロパティ。</summary>
 	public static readonly DependencyProperty SeriesViewModelProperty = DependencyProperty.Register(
 		nameof(SeriesViewModel),
-		typeof(MangaSeriesViewModel),
+		typeof(MangaSeriesNotifier),
 		typeof(BindingHistoryList),
 		new PropertyMetadata(null, onSeriesViewModelChanged));
 
@@ -33,9 +33,9 @@ public partial class BindingHistoryList : UserControl
 	/// <summary>
 	/// 表示対象の共有 MangaSeriesViewModel を取得または設定します。
 	/// </summary>
-	public MangaSeriesViewModel? SeriesViewModel
+	public MangaSeriesNotifier? SeriesViewModel
 	{
-		get => (MangaSeriesViewModel?)this.GetValue(SeriesViewModelProperty);
+		get => (MangaSeriesNotifier?)this.GetValue(SeriesViewModelProperty);
 		set => this.SetValue(SeriesViewModelProperty, value);
 	}
 
@@ -71,7 +71,7 @@ public partial class BindingHistoryList : UserControl
 	private static void onSeriesViewModelChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
 	{
 		var list = (BindingHistoryList)d;
-		list.ViewModel?.SetSeriesViewModel((MangaSeriesViewModel?)e.NewValue);
+		list.ViewModel?.SetSeriesViewModel((MangaSeriesNotifier?)e.NewValue);
 	}
 
 	/// <summary>

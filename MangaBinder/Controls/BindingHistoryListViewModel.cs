@@ -48,7 +48,7 @@ public class BindingHistoryListViewModel : IDisposable
 	/// 対象の共有 MangaSeriesViewModel を設定し、通知の購読を差し替えます。
 	/// </summary>
 	/// <param name="seriesViewModel">対象の共有VM。未設定の場合は null。</param>
-	public void SetSeriesViewModel(MangaSeriesViewModel? seriesViewModel)
+	public void SetSeriesViewModel(MangaSeriesNotifier? seriesViewModel)
 	{
 		this.seriesSubscription?.Dispose();
 		this.seriesSubscription = null;

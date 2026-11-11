@@ -71,7 +71,7 @@ public class BindingManager
 		var workSeriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(bindingSeries.Series.Title);
 
 		// 2. 対応する Store 所有の共有 MangaSeriesViewModel を取得（同一インスタンスであることが必須）
-		var sharedViewModel = this.mangaSeriesStore.FindViewModelById(bindingSeries.Series.SeriesId)
+		var sharedViewModel = this.mangaSeriesStore.FindNotifierById(bindingSeries.Series.SeriesId)
 			?? throw new InvalidOperationException($"SeriesId {bindingSeries.Series.SeriesId} に対応する共有 MangaSeriesViewModel が見つかりません。");
 		if (!ReferenceEquals(sharedViewModel.Series.Value, bindingSeries.Series))
 		{

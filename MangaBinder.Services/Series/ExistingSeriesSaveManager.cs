@@ -286,7 +286,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 		}
 
 		// === Commit 成功後、Store 内の正式作品インスタンスを更新 ===
-		var storeViewModel = this.mangaSeriesStore.FindViewModelById(originalSeries.SeriesId);
+		var storeViewModel = this.mangaSeriesStore.FindNotifierById(originalSeries.SeriesId);
 		if (storeViewModel is null)
 			throw new InvalidOperationException($"Store から SeriesId {originalSeries.SeriesId} の正式作品が見つかりません。");
 

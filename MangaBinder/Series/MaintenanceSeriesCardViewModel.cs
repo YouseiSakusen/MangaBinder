@@ -34,7 +34,7 @@ public class MaintenanceSeriesCardViewModel : IDisposable
 	/// 新 Reactive 系では、共有の MangaSeriesViewModel を受け取ります。
 	/// </summary>
 	/// <param name="viewModel">共有の MangaSeriesViewModel。この Series プロパティを参照します。</param>
-	public MaintenanceSeriesCardViewModel(MangaSeriesViewModel viewModel)
+	public MaintenanceSeriesCardViewModel(MangaSeriesNotifier viewModel)
 	{
 		// 共有の Series を直接参照する（同一インスタンス）
 		// MangaSeriesViewModel が所有し管理するため、このインスタンスでは Dispose しない

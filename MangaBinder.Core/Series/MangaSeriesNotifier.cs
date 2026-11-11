@@ -8,7 +8,7 @@ namespace MangaBinder.Series;
 /// アプリケーション全体で MangaSeries を参照する際に使用される薄いラッパーです。
 /// 状態は最小限に抑え、MangaSeries インスタンス自体と Series.ForceNotify() による通知機構を活用します。
 /// </summary>
-public class MangaSeriesViewModel : IDisposable
+public class MangaSeriesNotifier : IDisposable
 {
 	private DisposableBag disposableBag;
 
@@ -19,10 +19,10 @@ public class MangaSeriesViewModel : IDisposable
 	public BindableReactiveProperty<MangaSeries> Series { get; }
 
 	/// <summary>
-	/// <see cref="MangaSeriesViewModel"/> の新しいインスタンスを初期化します。
+	/// <see cref="MangaSeriesNotifier"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="series">保持する MangaSeries インスタンス。</param>
-	public MangaSeriesViewModel(MangaSeries series)
+	public MangaSeriesNotifier(MangaSeries series)
 	{
 		this.Series = new BindableReactiveProperty<MangaSeries>(series)
 			.AddTo(ref this.disposableBag);

@@ -48,7 +48,7 @@ public class BindingStore : IDisposable
 	/// このプロパティは BindingStore が所有しますが、値の MangaSeriesViewModel は Dispose しません。
 	/// BindingTarget が null になると自動的に null へクリアされます。
 	/// </summary>
-	public BindableReactiveProperty<MangaSeriesViewModel?> BindingTargetViewModel { get; }
+	public BindableReactiveProperty<MangaSeriesNotifier?> BindingTargetViewModel { get; }
 
 	/// <summary>
 	/// 現在の見開き分割画面で扱う対象巻を取得または設定します。
@@ -263,7 +263,7 @@ public class BindingStore : IDisposable
 	{
 		this.BindingTarget = new BindableReactiveProperty<BindingSeries?>(null)
 			.AddTo(ref this.disposableBag);
-		this.BindingTargetViewModel = new BindableReactiveProperty<MangaSeriesViewModel?>(null)
+		this.BindingTargetViewModel = new BindableReactiveProperty<MangaSeriesNotifier?>(null)
 			.AddTo(ref this.disposableBag);
 		this.Materials = new ObservableList<MaterialItem>();
 		this.WorkVolumes = new ObservableList<MaterialItem>();

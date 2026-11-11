@@ -25,7 +25,7 @@ public class SeriesMemoManager
 	/// <param name="seriesViewModel">対象の共有VM。</param>
 	/// <param name="memo">新しいメモ。</param>
 	/// <returns>完了時にコンプリートする ValueTask。</returns>
-	public async ValueTask SaveMemoAsync(MangaSeriesViewModel seriesViewModel, string memo)
+	public async ValueTask SaveMemoAsync(MangaSeriesNotifier seriesViewModel, string memo)
 	{
 		var series = seriesViewModel.Series.Value;
 

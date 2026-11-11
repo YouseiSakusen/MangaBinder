@@ -22,7 +22,7 @@ public class MemoEditButtonViewModel : IDisposable
 	private IDisposable? seriesSubscription;
 
 	/// <summary>編集対象の共有 MangaSeriesViewModel。</summary>
-	private MangaSeriesViewModel? targetViewModel;
+	private MangaSeriesNotifier? targetViewModel;
 
 	/// <summary>リソース管理用の DisposableBag。</summary>
 	private DisposableBag disposableBag;
@@ -61,7 +61,7 @@ public class MemoEditButtonViewModel : IDisposable
 	/// 共有 MangaSeriesViewModel.Series の通知を購読し、表示を自動更新します。
 	/// </summary>
 	/// <param name="seriesViewModel">編集対象の共有VM。未設定の場合は null。</param>
-	public void SetSeriesViewModel(MangaSeriesViewModel? seriesViewModel)
+	public void SetSeriesViewModel(MangaSeriesNotifier? seriesViewModel)
 	{
 		this.seriesSubscription?.Dispose();
 		this.seriesSubscription = null;

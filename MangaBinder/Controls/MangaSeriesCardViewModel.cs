@@ -48,7 +48,7 @@ public class MangaSeriesCardViewModel : IDisposable
 	/// Store 所有の共有 MangaSeriesViewModel を取得・設定します。
 	/// このVMの Series の変更通知を購読し、子VMへ中継します。VM自体は Dispose しません。
 	/// </summary>
-	public BindableReactiveProperty<MangaSeriesViewModel?> SeriesViewModel { get; }
+	public BindableReactiveProperty<MangaSeriesNotifier?> SeriesViewModel { get; }
 
 	/// <summary>編集画面で使用されるかどうかを取得します。生成時に確定します。</summary>
 	public bool IsEditMode { get; init; }
@@ -121,7 +121,7 @@ public class MangaSeriesCardViewModel : IDisposable
 		this.ShowMemo = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
 
-		this.SeriesViewModel = new BindableReactiveProperty<MangaSeriesViewModel?>(null)
+		this.SeriesViewModel = new BindableReactiveProperty<MangaSeriesNotifier?>(null)
 			.AddTo(ref this.disposableBag);
 
 		// 子ViewModel の生成（MangaSeriesCardViewModel が所有）
@@ -204,7 +204,7 @@ public class MangaSeriesCardViewModel : IDisposable
 	/// <param name="seriesViewModelSource">Store が所有する共有 VM の入力ソース。</param>
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	public MangaSeriesCardViewModel(
-		BindableReactiveProperty<MangaSeriesViewModel?> seriesViewModelSource,
+		BindableReactiveProperty<MangaSeriesNotifier?> seriesViewModelSource,
 		ThumbnailImageLoader thumbnailImageLoader)
 		: this(thumbnailImageLoader)
 	{

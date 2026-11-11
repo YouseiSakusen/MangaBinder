@@ -18,8 +18,8 @@ public sealed class MangaSeriesStore : IDisposable
 
 	private DisposableBag disposableBag;
 	private readonly ObservableList<MangaTag> tags = new();
-	private readonly ObservableList<MangaSeriesViewModel> workSeriesViewModels = new();
-	private readonly ObservableList<MangaSeriesViewModel> allViewModels = new();
+	private readonly ObservableList<MangaSeriesNotifier> workSeriesNotifiers = new();
+	private readonly ObservableList<MangaSeriesNotifier> allSeriesNotifiers = new();
 
 	/// <summary>
 	/// MangaSeriesManager による初期ロード一式が正常完了済みであるかを示す値を取得します。
@@ -47,11 +47,11 @@ public sealed class MangaSeriesStore : IDisposable
 	public MangaSeriesStore()
 	{
 		// RegisteredSeriesCount を初期化
-		this.RegisteredSeriesCount = new BindableReactiveProperty<int>(this.allViewModels.Count)
+		this.RegisteredSeriesCount = new BindableReactiveProperty<int>(this.allSeriesNotifiers.Count)
 			.AddTo(ref this.disposableBag);
 
 		// All の件数変更を監視
-		this.allViewModels.ObserveCountChanged()
+		this.allSeriesNotifiers.ObserveCountChanged()
 			.Subscribe(count =>
 			{
 				this.RegisteredSeriesCount.Value = count;
@@ -59,11 +59,11 @@ public sealed class MangaSeriesStore : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		// WorkSeriesCount を初期化
-		this.WorkSeriesCount = new BindableReactiveProperty<int>(this.workSeriesViewModels.Count)
+		this.WorkSeriesCount = new BindableReactiveProperty<int>(this.workSeriesNotifiers.Count)
 			.AddTo(ref this.disposableBag);
 
 		// WorkSeries の件数変更を監視
-		this.workSeriesViewModels.ObserveCountChanged()
+		this.workSeriesNotifiers.ObserveCountChanged()
 			.Subscribe(count =>
 			{
 				this.WorkSeriesCount.Value = count;
@@ -75,13 +75,13 @@ public sealed class MangaSeriesStore : IDisposable
 	/// Reactive な正式作品 ViewModel 一覧を取得します。
 	/// 各 MangaSeriesViewModel が持つ Series プロパティは Store が所有する同一インスタンスを参照します。
 	/// </summary>
-	public ObservableList<MangaSeriesViewModel> All => this.allViewModels;
+	public ObservableList<MangaSeriesNotifier> All => this.allSeriesNotifiers;
 
 	/// <summary>
 	/// Reactive な登録待ち作品 ViewModel 一覧を取得します。
 	/// 各 MangaSeriesViewModel が持つ Series プロパティは Store が所有する同一インスタンスを参照します。
 	/// </summary>
-	public ObservableList<MangaSeriesViewModel> WorkSeries => this.workSeriesViewModels;
+	public ObservableList<MangaSeriesNotifier> WorkSeries => this.workSeriesNotifiers;
 
 	/// <summary>
 	/// MangaSeries の一覧を指定したリストで一括置換します。
@@ -98,13 +98,13 @@ public sealed class MangaSeriesStore : IDisposable
 			.ToList();
 
 		// 現在の allViewModels を保持
-		var oldViewModels = this.allViewModels.ToList();
+		var oldNotifiers = this.allSeriesNotifiers.ToList();
 
 		// allViewModels を Clear（派生 View 削除通知を先に流す）
-		this.allViewModels.Clear();
+		this.allSeriesNotifiers.Clear();
 
 		// Clear によって HomeSeriesStore 等の派生 View がカード削除通知を受けてから、旧 ViewModel を Dispose
-		foreach (var oldViewModel in oldViewModels)
+		foreach (var oldViewModel in oldNotifiers)
 		{
 			oldViewModel.Dispose();
 		}
@@ -112,8 +112,8 @@ public sealed class MangaSeriesStore : IDisposable
 		// ソート済み MangaSeries を MangaSeriesViewModel でラップして allViewModels へ追加
 		foreach (var mangaSeries in sorted)
 		{
-			var viewModel = new MangaSeriesViewModel(mangaSeries);
-			this.allViewModels.Add(viewModel);
+			var viewModel = new MangaSeriesNotifier(mangaSeries);
+			this.allSeriesNotifiers.Add(viewModel);
 		}
 	}
 
@@ -128,10 +128,10 @@ public sealed class MangaSeriesStore : IDisposable
 		var newWorkSeriesList = newWorkSeries.ToList();
 
 		// 現在の workSeriesViewModels を保持
-		var oldViewModels = this.workSeriesViewModels.ToList();
+		var oldViewModels = this.workSeriesNotifiers.ToList();
 
 		// workSeriesViewModels を Clear（派生 View 削除通知を先に流す）
-		this.workSeriesViewModels.Clear();
+		this.workSeriesNotifiers.Clear();
 
 		// Clear によって MaintenanceSeriesStore 等の派生 Card がカード削除通知を受けてから、旧 ViewModel を Dispose
 		foreach (var oldViewModel in oldViewModels)
@@ -142,8 +142,8 @@ public sealed class MangaSeriesStore : IDisposable
 		// Repository から取得した順序をそのまま維持して MangaSeriesViewModel でラップして追加
 		foreach (var mangaSeries in newWorkSeriesList)
 		{
-			var viewModel = new MangaSeriesViewModel(mangaSeries);
-			this.workSeriesViewModels.Add(viewModel);
+			var viewModel = new MangaSeriesNotifier(mangaSeries);
+			this.workSeriesNotifiers.Add(viewModel);
 		}
 	}
 
@@ -171,12 +171,12 @@ public sealed class MangaSeriesStore : IDisposable
 			return;
 
 		// 既存の登録待ち作品を workSeriesViewModels から検索
-		var existingViewModel = this.workSeriesViewModels.FirstOrDefault(vm => vm.Series.Value.WorkId == workSeries.WorkId);
+		var existingNotifier = this.workSeriesNotifiers.FirstOrDefault(vm => vm.Series.Value.WorkId == workSeries.WorkId);
 
-		if (existingViewModel is not null)
+		if (existingNotifier is not null)
 		{
 			// 既存する場合は、ViewModel が保持する Series インスタンスのプロパティを更新（インスタンス差し替えない）
-			var existing = existingViewModel.Series.Value;
+			var existing = existingNotifier.Series.Value;
 
 			// WorkMangaSeries UPDATE 対象のプロパティをコピー
 			existing.Title = workSeries.Title;
@@ -209,13 +209,13 @@ public sealed class MangaSeriesStore : IDisposable
 			}
 
 			// 全プロパティ・Tags の更新が完了したので、共有 BindableReactiveProperty を ForceNotify
-			existingViewModel.Series.ForceNotify();
+			existingNotifier.Series.ForceNotify();
 		}
 		else
 		{
 			// 存在しない場合は新規追加する
-			var newViewModel = new MangaSeriesViewModel(workSeries);
-			this.workSeriesViewModels.Add(newViewModel);
+			var newNotifier = new MangaSeriesNotifier(workSeries);
+			this.workSeriesNotifiers.Add(newNotifier);
 		}
 	}
 
@@ -227,16 +227,16 @@ public sealed class MangaSeriesStore : IDisposable
 	/// <param name="item">追加する MangaSeries。</param>
 	public void Add(MangaSeries item)
 	{
-		if (this.allViewModels.Any(vm => vm.Series.Value.SeriesId == item.SeriesId))
+		if (this.allSeriesNotifiers.Any(vm => vm.Series.Value.SeriesId == item.SeriesId))
 		{
 			return;
 		}
 
 		// Title → Author → SeriesId 昇順を保つため、挿入位置を検索
 		var insertIndex = 0;
-		for (var i = 0; i < this.allViewModels.Count; i++)
+		for (var i = 0; i < this.allSeriesNotifiers.Count; i++)
 		{
-			var existingSeries = this.allViewModels[i].Series.Value;
+			var existingSeries = this.allSeriesNotifiers[i].Series.Value;
 			var titleCompare = titleComparer.Compare(item.Title, existingSeries.Title);
 			if (titleCompare < 0)
 			{
@@ -266,8 +266,8 @@ public sealed class MangaSeriesStore : IDisposable
 		}
 
 		// 新正本 All にのみ MangaSeriesViewModel を同じ位置へ追加
-		var viewModel = new MangaSeriesViewModel(item);
-		this.allViewModels.Insert(insertIndex, viewModel);
+		var viewModel = new MangaSeriesNotifier(item);
+		this.allSeriesNotifiers.Insert(insertIndex, viewModel);
 	}
 
 	/// <summary>
@@ -276,8 +276,8 @@ public sealed class MangaSeriesStore : IDisposable
 	/// </summary>
 	/// <param name="seriesId">検索する SeriesId。</param>
 	/// <returns>見つかった場合は該当の MangaSeriesViewModel。見つからない場合は null。</returns>
-	public MangaSeriesViewModel? FindViewModelById(long seriesId)
-		=> this.allViewModels.FirstOrDefault(vm => vm.Series.Value.SeriesId == seriesId);
+	public MangaSeriesNotifier? FindNotifierById(long seriesId)
+		=> this.allSeriesNotifiers.FirstOrDefault(vm => vm.Series.Value.SeriesId == seriesId);
 
 	/// <summary>
 	/// 指定した SeriesId の共有 MangaSeriesViewModel.Series に変更通知を流します。
@@ -287,7 +287,7 @@ public sealed class MangaSeriesStore : IDisposable
 	/// <exception cref="InvalidOperationException">対象の MangaSeriesViewModel が見つからない場合。</exception>
 	public void NotifySeriesChanged(long seriesId)
 	{
-		var viewModel = this.FindViewModelById(seriesId);
+		var viewModel = this.FindNotifierById(seriesId);
 		if (viewModel is null)
 		{
 			throw new InvalidOperationException($"SeriesId {seriesId} に対応する MangaSeriesViewModel が見つかりません。");
@@ -302,11 +302,11 @@ public sealed class MangaSeriesStore : IDisposable
 	/// <param name="seriesId">削除対象の SeriesId。</param>
 	public void Remove(long seriesId)
 	{
-		var target = this.allViewModels.FirstOrDefault(vm => vm.Series.Value.SeriesId == seriesId);
+		var target = this.allSeriesNotifiers.FirstOrDefault(vm => vm.Series.Value.SeriesId == seriesId);
 		if (target is not null)
 		{
 			// Collection から削除してから Dispose
-			this.allViewModels.Remove(target);
+			this.allSeriesNotifiers.Remove(target);
 			target.Dispose();
 		}
 	}
@@ -318,14 +318,14 @@ public sealed class MangaSeriesStore : IDisposable
 	/// <param name="workId">削除対象の WorkId。</param>
 	public void RemoveWorkSeries(int workId)
 	{
-		var target = this.workSeriesViewModels.FirstOrDefault(vm => vm.Series.Value.WorkId == workId);
+		var target = this.workSeriesNotifiers.FirstOrDefault(vm => vm.Series.Value.WorkId == workId);
 		if (target is not null)
 		{
 			// ライフサイクル順序：
 			// 1. workSeriesViewModels から MangaSeriesViewModel を Remove
 			// 2. WorkSeries の変更通知により MaintenanceSeriesStore の CreateView 側で対応する MaintenanceSeriesCardViewModel が削除・Disposeされる
 			// 3. その後、削除した MangaSeriesViewModel 自体を Dispose
-			this.workSeriesViewModels.Remove(target);
+			this.workSeriesNotifiers.Remove(target);
 			target.Dispose();
 		}
 	}
@@ -413,14 +413,14 @@ public sealed class MangaSeriesStore : IDisposable
 		{
 			this.tags.Remove(target);
 
-			// 各作品からも該当タグを削除（新 All + WorkSeries の共有 ViewModel から MangaSeries を取得）
-			var allSeriesViewModels = this.allViewModels
-				.Concat(this.workSeriesViewModels)
+			// 各作品からも該当タグを削除（新 All + WorkSeries の共有 Notifier から MangaSeries を取得）
+			var allSeriesNotifiers = this.allSeriesNotifiers
+				.Concat(this.workSeriesNotifiers)
 				.ToList();
 
-			foreach (var viewModel in allSeriesViewModels)
+			foreach (var notifier in allSeriesNotifiers)
 			{
-				var series = viewModel.Series.Value;
+				var series = notifier.Series.Value;
 				var seriesTag = series.Tags.FirstOrDefault(t => t.TagId == tagId);
 				if (seriesTag is not null)
 					series.Tags.Remove(seriesTag);
@@ -463,7 +463,7 @@ public sealed class MangaSeriesStore : IDisposable
 	private void SynchronizeSeriesTagInstances()
 	{
 		// 新 All + WorkSeries の共有 ViewModel から MangaSeries を取得
-		var allSeriesViewModels = this.allViewModels.Concat(this.workSeriesViewModels).ToList();
+		var allSeriesViewModels = this.allSeriesNotifiers.Concat(this.workSeriesNotifiers).ToList();
 
 		foreach (var viewModel in allSeriesViewModels)
 		{
@@ -502,7 +502,7 @@ public sealed class MangaSeriesStore : IDisposable
 	private void SynchronizeSeriesTagForId(long tagId)
 	{
 		// 新 All + WorkSeries の共有 ViewModel から MangaSeries を取得
-		var allSeriesViewModels = this.allViewModels.Concat(this.workSeriesViewModels).ToList();
+		var allSeriesViewModels = this.allSeriesNotifiers.Concat(this.workSeriesNotifiers).ToList();
 
 		var storeTag = this.tags.FirstOrDefault(t => t.TagId == tagId);
 		if (storeTag is null)

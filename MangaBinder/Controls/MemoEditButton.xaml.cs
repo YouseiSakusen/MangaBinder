@@ -15,7 +15,7 @@ public partial class MemoEditButton : UserControl
 	/// <summary>編集対象の共有 MangaSeriesViewModel を表す依存関係プロパティ。</summary>
 	public static readonly DependencyProperty SeriesViewModelProperty = DependencyProperty.Register(
 		nameof(SeriesViewModel),
-		typeof(MangaSeriesViewModel),
+		typeof(MangaSeriesNotifier),
 		typeof(MemoEditButton),
 		new PropertyMetadata(null, onSeriesViewModelChanged));
 
@@ -32,9 +32,9 @@ public partial class MemoEditButton : UserControl
 	/// <summary>
 	/// 編集対象の共有 MangaSeriesViewModel を取得または設定します。
 	/// </summary>
-	public MangaSeriesViewModel? SeriesViewModel
+	public MangaSeriesNotifier? SeriesViewModel
 	{
-		get => (MangaSeriesViewModel?)this.GetValue(SeriesViewModelProperty);
+		get => (MangaSeriesNotifier?)this.GetValue(SeriesViewModelProperty);
 		set => this.SetValue(SeriesViewModelProperty, value);
 	}
 
@@ -59,7 +59,7 @@ public partial class MemoEditButton : UserControl
 	private static void onSeriesViewModelChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
 	{
 		var button = (MemoEditButton)d;
-		button.ViewModel?.SetSeriesViewModel((MangaSeriesViewModel?)e.NewValue);
+		button.ViewModel?.SetSeriesViewModel((MangaSeriesNotifier?)e.NewValue);
 	}
 
 	/// <summary>

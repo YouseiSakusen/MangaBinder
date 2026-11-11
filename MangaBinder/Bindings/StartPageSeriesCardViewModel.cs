@@ -76,7 +76,7 @@ public class StartPageSeriesCardViewModel : IDisposable
 	/// </summary>
 	/// <param name="bindingSeries">ラップする BindingSeries。</param>
 	/// <param name="sharedSeriesViewModel">Series を共有する MangaSeriesViewModel。</param>
-	public StartPageSeriesCardViewModel(BindingSeries bindingSeries, MangaSeriesViewModel sharedSeriesViewModel)
+	public StartPageSeriesCardViewModel(BindingSeries bindingSeries, MangaSeriesNotifier sharedSeriesViewModel)
 	{
 		this.BindingSeries = bindingSeries;
 		this.bindingSeries = bindingSeries;

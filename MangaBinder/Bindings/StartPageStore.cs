@@ -52,7 +52,7 @@ public class StartPageStore : IDisposable
 			.CreateView(bindingSeries =>
 			{
 				// SeriesId から共有 MangaSeriesViewModel を解決
-				var sharedViewModel = this.mangaSeriesStore.FindViewModelById(bindingSeries.Series.SeriesId);
+				var sharedViewModel = this.mangaSeriesStore.FindNotifierById(bindingSeries.Series.SeriesId);
 				if (sharedViewModel is null)
 				{
 					throw new InvalidOperationException(

@@ -29,7 +29,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	private readonly MangaSeriesStore mangaSeriesStore;
 
 	/// <summary>作品管理画面の派生 View を管理するストア。</summary>
-	private readonly MaintenanceSeriesStore maintenanceSeriesStore;
+	private readonly MaintenanceSeriesViewModelStore maintenanceSeriesStore;
 
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
@@ -69,7 +69,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="maintenanceSeriesStore">作品管理画面の派生 View を管理するストア。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
-	public MaintenancePageViewModel(INavigationService navigationService, EditStore editStore, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesStore maintenanceSeriesStore, IServiceScopeFactory serviceScopeFactory)
+	public MaintenancePageViewModel(INavigationService navigationService, EditStore editStore, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesViewModelStore maintenanceSeriesStore, IServiceScopeFactory serviceScopeFactory)
 	{
 		this.navigationService = navigationService;
 		this.editStore = editStore;

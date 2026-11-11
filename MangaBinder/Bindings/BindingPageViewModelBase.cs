@@ -24,7 +24,7 @@ public abstract class BindingPageViewModelBase : IDisposable, IBackRequestHandle
 	public MangaSeriesCardViewModel MangaSeriesCard { get; }
 
 	/// <summary>BindingStore が所有する共有 MangaSeriesViewModel を取得します。</summary>
-	public BindableReactiveProperty<MangaBinder.Series.MangaSeriesViewModel?> BindingTargetViewModel => this.bindingStore.BindingTargetViewModel;
+	public BindableReactiveProperty<MangaBinder.Series.MangaSeriesNotifier?> BindingTargetViewModel => this.bindingStore.BindingTargetViewModel;
 
 	/// <summary>マウスサイドボタンで戻る処理を有効にするかどうかを取得または設定します。</summary>
 	protected bool IsMouseBackEnabled { get; set; } = true;

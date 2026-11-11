@@ -11,7 +11,7 @@ namespace MangaBinder;
 /// MangaSeriesStore.All の Reactive な変更を監視し、
 /// SeriesCardViewModel 一覧へ自動的に変換します。
 /// </summary>
-public class HomeSeriesStore : IDisposable
+public class HomeSeriesViewModelStore : IDisposable
 {
 	private DisposableBag disposableBag;
 
@@ -34,7 +34,7 @@ public class HomeSeriesStore : IDisposable
 	/// CreateView で生成された ISynchronizedView。
 	/// ViewChanged イベントを購読して、削除・置換時に SeriesCardViewModel を Dispose する。
 	/// </summary>
-	private readonly ISynchronizedView<MangaSeriesViewModel, HomeSeriesCardViewModel> homeCardsView;
+	private readonly ISynchronizedView<MangaSeriesNotifier, HomeSeriesCardViewModel> homeCardsView;
 
 	/// <summary>
 	/// WPF バインド用の Home 用作品 ViewModel コレクション（同期ビュー）。
@@ -43,12 +43,12 @@ public class HomeSeriesStore : IDisposable
 	public NotifyCollectionChangedSynchronizedViewList<HomeSeriesCardViewModel> HomeCards { get; }
 
 	/// <summary>
-	/// <see cref="HomeSeriesStore"/> の新しいインスタンスを初期化します。
+	/// <see cref="HomeSeriesViewModelStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="mangaSeriesStore">作品ストア。</param>
 	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
 	/// <param name="seriesTagStore">タグ変更追跡ストア。</param>
-	public HomeSeriesStore(MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, SeriesTagStore seriesTagStore)
+	public HomeSeriesViewModelStore(MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, SeriesTagStore seriesTagStore)
 	{
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.bindingQueueStore = bindingQueueStore;
@@ -87,7 +87,7 @@ public class HomeSeriesStore : IDisposable
 	/// ViewChanged イベント ハンドラ。
 	/// ISynchronizedView での削除・置換・ソート時に SeriesCardViewModel を適切に Dispose する。
 	/// </summary>
-	private void onHomeCardsViewChanged(in SynchronizedViewChangedEventArgs<MangaSeriesViewModel, HomeSeriesCardViewModel> e)
+	private void onHomeCardsViewChanged(in SynchronizedViewChangedEventArgs<MangaSeriesNotifier, HomeSeriesCardViewModel> e)
 	{
 		switch (e.Action)
 		{

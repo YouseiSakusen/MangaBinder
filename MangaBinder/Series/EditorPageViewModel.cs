@@ -39,7 +39,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private bool suppressMaterialSizeCalculation;
 	private bool disposed;
 	private double? editingStartOwnedMaxVolume;
-	private MangaSeriesViewModel? ownedSeriesViewModel;
+	private MangaSeriesNotifier? ownedSeriesViewModel;
 
 	/// <summary>編集対象の Series を取得します。</summary>
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
@@ -704,7 +704,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			return;
 		}
 
-		var created = new MangaSeriesViewModel(editingSeries);
+		var created = new MangaSeriesNotifier(editingSeries);
 		this.MangaSeriesCard.SeriesViewModel.Value = created;
 		this.disposeOwnedSeriesViewModel();
 		this.ownedSeriesViewModel = created;
