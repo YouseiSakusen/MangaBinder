@@ -19,6 +19,7 @@ public static class MangaTitleHelper
     ///   <item>タイトル内のすべての空白（char.IsWhiteSpace 判定）を除去</item>
     ///   <item>ASCII英字 A-Z / a-z の大小文字を統一（大文字へ）</item>
     ///   <item>波ダッシュ（U+007E / U+301C / U+FF5E）を U+301C に統一</item>
+    ///   <item>半角句点・読点を全角へ統一（U+FF61 → U+3002 / U+FF64 → U+3001）</item>
     /// </list>
     /// </summary>
     /// <param name="title">正規化前のタイトル文字列。</param>
@@ -41,7 +42,10 @@ public static class MangaTitleHelper
             .Replace("\u203C", "!!")
             .Replace("\u2047", "??")
             .Replace("\u2048", "?!")
-            .Replace("\u2049", "!?");
+            .Replace("\u2049", "!?")
+            // 半角句点・読点を全角へ統一（U+FF61 → U+3002 / U+FF64 → U+3001）
+            .Replace('\uFF61', '\u3002')
+            .Replace('\uFF64', '\u3001');
 
         // 全角英数字・記号（U+FF01〜U+FF5E）を半角（U+0021〜U+007E）に変換
         var sb = new StringBuilder(symbolUnified.Length);

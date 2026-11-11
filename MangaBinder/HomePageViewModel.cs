@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using ObservableCollections;
 using R3;
 using System.Collections.Specialized;
+using System.Windows;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
@@ -219,6 +220,27 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         // 保存通知は ExistingSeriesSaveManager から MangaSeriesStore.NotifySeriesChanged() を通じて流れる
         this.editStore.EditTarget = null;
         this.editStore.EditTargetViewModel = null;
+
+        this.showStartupMessage();
+    }
+
+    /// <summary>
+    /// 起動時メッセージ（App.StartupMessage）があれば Snackbar で表示し、表示後にクリアします。
+    /// </summary>
+    private void showStartupMessage()
+    {
+        if (Application.Current is not App app ||
+            string.IsNullOrEmpty(app.StartupMessage))
+            return;
+
+        this.snackbarService.Show(
+            "データベースの更新が完了しました",
+            app.StartupMessage,
+            ControlAppearance.Success,
+            new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
+            Timeout.InfiniteTimeSpan);
+
+        app.StartupMessage = string.Empty;
     }
 
     /// <inheritdoc/>

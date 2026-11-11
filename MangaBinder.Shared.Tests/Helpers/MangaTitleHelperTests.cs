@@ -358,4 +358,33 @@ public class MangaTitleHelperTests
 		var expected = "驚愕!!困惑??疑問?!感動!?";
 		Assert.Equal(expected, result);
 	}
+
+	/// <summary>
+	/// 半角句点（U+FF61）が全角句点（U+3002）に変換されることを確認します。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_HalfWidthPeriod_ConvertedToFullWidth()
+	{
+		Assert.Equal("終わり。", MangaTitleHelper.NormalizeTitleInternal("終わり\uFF61"));
+	}
+
+	/// <summary>
+	/// 半角読点（U+FF64）が全角読点（U+3001）に変換されることを確認します。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_HalfWidthComma_ConvertedToFullWidth()
+	{
+		Assert.Equal("A、B", MangaTitleHelper.NormalizeTitleInternal("A\uFF64B"));
+	}
+
+	/// <summary>
+	/// 半角・全角の句読点による表記差が同じ正規化結果になることを確認します。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_PunctuationWidthDifference_SameResult()
+	{
+		var half = MangaTitleHelper.NormalizeTitleInternal("あ\uFF64い\uFF61");
+		var full = MangaTitleHelper.NormalizeTitleInternal("あ、い。");
+		Assert.Equal(full, half);
+	}
 }

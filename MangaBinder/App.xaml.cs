@@ -26,6 +26,11 @@ public partial class App
 	// .NET 汎用ホスト。OnStartup で構築され、アプリケーション終了まで保持されます。
 	private static IHost? host;
 
+	/// <summary>
+	/// Home 画面の初回表示時に Snackbar で通知するメッセージを取得または設定します。
+	/// </summary>
+	public string StartupMessage { get; set; } = string.Empty;
+
 	// UI の多重起動防止 Mutex。プロセス稼働中は保持し、OnExit で解放します。
 	private readonly SingleInstanceGuard singleInstanceGuard = new();
 
@@ -128,6 +133,12 @@ public partial class App
 			migrationWindow.ShowDialog();
 			if (migrationWindow.Error is not null)
 				ExceptionDispatchInfo.Throw(migrationWindow.Error);
+
+			this.StartupMessage =
+				"データベースの更新が完了しました。\n" +
+				"更新前のデータベースをバックアップしました。\n\n" +
+				"保存先：\n" +
+				migrationService.BackupFilePath;
 		}
 
 		await initializer.InitializeAsync(connectionString);

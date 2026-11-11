@@ -14,7 +14,7 @@ public static class Constants
 	/// <summary>
 	/// アプリが要求するタイトル正規化バージョンです。
 	/// </summary>
-	public const string CurrentTitleNormalizationVersion = "0";
+	public const string CurrentTitleNormalizationVersion = "1";
 
 	/// <summary>
 	/// 製本設定 JSON の現在のバージョンです。
