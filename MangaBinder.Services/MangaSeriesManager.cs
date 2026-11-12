@@ -33,8 +33,8 @@ public class MangaSeriesManager
 	/// <summary>製本待ち作品を管理するストア。</summary>
 	private readonly BindingQueueStore bindingQueueStore;
 
-	/// <summary>タグを取得する Repository。</summary>
-	private readonly TagRepository tagRepository;
+	/// <summary>タグマスタの読み込みと TagStore への反映を担う Manager。</summary>
+	private readonly TagManager tagManager;
 
 	/// <summary>アプリケーション設定。</summary>
 	private readonly AppSettings appSettings;
@@ -54,7 +54,7 @@ public class MangaSeriesManager
 	/// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="bindingQueueStore">製本待ち作品を管理するストア。</param>
-	/// <param name="tagRepository">タグを取得する Repository。</param>
+	/// <param name="tagManager">タグマスタの読み込みと TagStore への反映を担う Manager。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
 	/// <param name="logger">ログ出力用の Logger。オプション。</param>
@@ -65,7 +65,7 @@ public class MangaSeriesManager
 		BindingQueueDispatcher bindingQueueDispatcher,
 		MangaSeriesStore mangaSeriesStore,
 		BindingQueueStore bindingQueueStore,
-		TagRepository tagRepository,
+		TagManager tagManager,
 		AppSettings appSettings,
 		IServiceScopeFactory serviceScopeFactory,
 		ILogger<MangaSeriesManager>? logger = null)
@@ -76,7 +76,7 @@ public class MangaSeriesManager
 		this.bindingQueueDispatcher = bindingQueueDispatcher;
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.bindingQueueStore = bindingQueueStore;
-		this.tagRepository = tagRepository;
+		this.tagManager = tagManager;
 		this.appSettings = appSettings;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.logger = logger;
@@ -98,7 +98,8 @@ public class MangaSeriesManager
 	}
 
 	/// <summary>
-	/// Home 画面初期化時に全 MangaSeries を取得し、BindingQueue を復元します。
+	/// Home 画面初期化時にタグマスタと全 MangaSeries を取得し、BindingQueue を復元します。
+	/// 先にタグマスタを TagStore へ読み込み、MangaSeriesNotifier 生成時点で共有 TagNotifier が存在するようにします。
 	/// DB から取得した MangaSeries インスタンスを MangaSeriesStore に格納し、
 	/// Store から取得した参照を BindingQueue や呼び出し元に返すことで、
 	/// アプリケーション全体で同一のインスタンスを参照するようにします。
@@ -108,30 +109,27 @@ public class MangaSeriesManager
 	/// <returns>MangaSeriesStore に格納された MangaSeries のリスト。</returns>
 	public async ValueTask<List<MangaSeries>> GetAllSeriesAsync(CancellationToken cancellationToken = default)
 	{
-		// 1. MangaRepository から MangaSeries 一覧を取得する
+		// 1. TagManager からタグマスタを読み込み、TagStore を初期化する（MangaSeriesNotifier 生成前に必要）
+		this.tagManager.LoadTags();
+
+		// 2. MangaRepository から MangaSeries 一覧を取得する
 		var allSeriesReadOnly = await this.mangaRepository.GetAllSeriesAsync();
 		var allSeries = allSeriesReadOnly.ToList();
 
-		// 2. MangaSeriesStore に DB から取得した MangaSeries を格納する
+		// 3. MangaSeriesStore に DB から取得した MangaSeries を格納する
 		this.mangaSeriesStore.ReplaceAll(allSeries);
 
-		// 3. WorkMangaSeriesRepository から登録待ち作品を取得する
+		// 4. WorkMangaSeriesRepository から登録待ち作品を取得する
 		var allWorkSeriesReadOnly = await this.workMangaSeriesRepository.GetAllAsync();
 		var allWorkSeries = allWorkSeriesReadOnly.ToList();
 
-		// 4. MangaSeriesStore に登録待ち作品を格納する
+		// 5. MangaSeriesStore に登録待ち作品を格納する
 		this.mangaSeriesStore.ReplaceWorkSeries(allWorkSeries);
 
-		// 5. TagRepository からタグ一覧を取得する
-		var allTags = this.tagRepository.GetAll();
-
-		// 6. MangaSeriesStore にタグを格納する
-		this.mangaSeriesStore.ReplaceTags(allTags);
-
-		// 7. BindingQueue から SeriesId 一覧を取得する
+		// 6. BindingQueue から SeriesId 一覧を取得する
 		var queuedSeriesIds = await this.bindingQueueRepository.GetQueuedSeriesIdsAsync(cancellationToken);
 
-		// 8. MangaSeriesStore から SeriesId が一致するインスタンスを探し、BindingSeries を構築する
+		// 7. MangaSeriesStore から SeriesId が一致するインスタンスを探し、BindingSeries を構築する
 		var bindingSeriesList = new List<BindingSeries>();
 		foreach (var seriesId in queuedSeriesIds)
 		{
@@ -150,13 +148,13 @@ public class MangaSeriesManager
 			}
 		}
 
-		// 9. BindingQueueDispatcher に復元したBindingQueue一覧を設定する
+		// 8. BindingQueueDispatcher に復元したBindingQueue一覧を設定する
 		this.bindingQueueDispatcher.ReplaceAll(bindingSeriesList);
 
-		// 10. Store の初期化を完了とマーク
+		// 9. Store の初期化を完了とマーク
 		this.mangaSeriesStore.MarkInitialized();
 
-		// 11. MangaSeriesStore から取得した MangaSeries 一覧を返す
+		// 10. MangaSeriesStore から取得した MangaSeries 一覧を返す
 		return this.mangaSeriesStore.All.Select(vm => vm.Series.Value).ToList();
 	}
 

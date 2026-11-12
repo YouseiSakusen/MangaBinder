@@ -132,7 +132,7 @@
 
                                     <!-- 通常表示：タグ名 TextBlock -->
                                     <TextBlock Grid.Column="1"
-                                               Text="{Binding Name}"
+                                               Text="{Binding Tag.Value.Name}"
                                                Style="{StaticResource BodyStrongTextBlockStyle}"
                                                VerticalAlignment="Center">
                                         <TextBlock.Visibility>

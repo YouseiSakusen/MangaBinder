@@ -2,21 +2,26 @@ namespace MangaBinder.Tags;
 
 /// <summary>
 /// タグ追加・削除・リネームに関するルールを集約するクラスです。
+/// DB 更新成功後にタグマスタの正本である <see cref="TagStore"/> へ反映します。
+/// タグ削除時は、作品からのタグ除去を <see cref="MangaSeriesStore"/> へ依頼します。
 /// </summary>
 public sealed class TagEditor
 {
 	private readonly TagRepository repository;
-	private readonly MangaSeriesStore store;
+	private readonly TagStore tagStore;
+	private readonly MangaSeriesStore seriesStore;
 
 	/// <summary>
 	/// <see cref="TagEditor"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="repository">タグリポジトリ。</param>
-	/// <param name="store">MangaSeries 正本ストア。</param>
-	public TagEditor(TagRepository repository, MangaSeriesStore store)
+	/// <param name="tagStore">タグマスタの正本ストア。</param>
+	/// <param name="seriesStore">MangaSeries 正本ストア。タグ削除時に作品からタグを取り除くために使用します。</param>
+	public TagEditor(TagRepository repository, TagStore tagStore, MangaSeriesStore seriesStore)
 	{
 		this.repository = repository;
-		this.store = store;
+		this.tagStore = tagStore;
+		this.seriesStore = seriesStore;
 	}
 
 	/// <summary>
@@ -32,21 +37,21 @@ public sealed class TagEditor
 		if (string.IsNullOrEmpty(trimmed))
 			return TagAddResult.Failure(TagAddFailureReason.EmptyName);
 
-		// Store のタグ一覧から重複チェック
-		var isDuplicate = this.store.GetTags()
+		// TagStore のタグ一覧から重複チェック
+		var isDuplicate = this.tagStore.GetTags()
 			.Any(t => string.Equals(t.Name, trimmed, StringComparison.OrdinalIgnoreCase));
 
 		if (isDuplicate)
 			return TagAddResult.Failure(TagAddFailureReason.Duplicate);
 
 		// DisplayOrder を計算（現在のタグ数が次の順序）
-		var nextOrder = this.store.GetTags().Count;
+		var nextOrder = this.tagStore.Tags.Count;
 
 		// DB に挿入、採番済みタグを取得
 		var addedTag = this.repository.Insert(trimmed, nextOrder, showOnSeriesCard: true);
 
-		// Store へ追加
-		this.store.AddTag(addedTag);
+		// TagStore へ追加
+		this.tagStore.AddTag(addedTag);
 
 		return TagAddResult.Success(addedTag);
 	}
@@ -57,15 +62,17 @@ public sealed class TagEditor
 	/// <param name="tagId">削除するタグの ID。</param>
 	public void Delete(long tagId)
 	{
-		var exists = this.store.GetTags().Any(t => t.TagId == tagId);
+		var exists = this.tagStore.FindTagNotifierById(tagId) is not null;
 		if (!exists)
 			return;
 
 		// DB から削除
 		this.repository.Delete(tagId);
 
-		// Store から削除（各 MangaSeries から該当タグを削除する責務は RemoveTag が担当）
-		this.store.RemoveTag(tagId);
+		// 先に全作品（正式・登録待ち）から該当タグを取り除き、共有 TagNotifier が参照されない状態にしてから
+		// TagStore から削除して TagNotifier を破棄する
+		this.seriesStore.RemoveTagFromAllSeries(tagId);
+		this.tagStore.RemoveTag(tagId);
 	}
 
 	/// <summary>
@@ -82,7 +89,7 @@ public sealed class TagEditor
 			return TagRenameResult.Failure(TagRenameFailureReason.EmptyName);
 
 		// 重複チェック（自身以外）
-		var isDuplicate = this.store.GetTags()
+		var isDuplicate = this.tagStore.GetTags()
 			.Any(t => t.TagId != target.TagId
 				&& string.Equals(t.Name, trimmed, StringComparison.OrdinalIgnoreCase));
 
@@ -94,9 +101,9 @@ public sealed class TagEditor
 		if (updated is null)
 			return TagRenameResult.Failure(TagRenameFailureReason.NotFound);
 
-		// Store 更新
-		this.store.UpdateTag(updated);
+		// TagStore 更新（正本の MangaTag インスタンスは置き換えず、同じインスタンスを更新して通知する）
+		this.tagStore.UpdateTag(updated);
 
-		return TagRenameResult.Success(updated);
+		return TagRenameResult.Success(this.tagStore.GetTagNotifier(updated.TagId).Tag.Value);
 	}
 }

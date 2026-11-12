@@ -9,7 +9,7 @@ using MangaBinder.Tags;
 /// <summary>
 /// MangaSeries の正本リストを管理する Singleton ストアです。
 /// アプリケーション全体で同一の MangaSeries インスタンスを参照するための中央集中管理を提供します。
-/// また、タグマスタも保持します。
+/// タグマスタの正本は <see cref="TagStore"/> が管理し、このストアは作品の正本管理に専念します。
 /// </summary>
 public sealed class MangaSeriesStore : IDisposable
 {
@@ -17,7 +17,7 @@ public sealed class MangaSeriesStore : IDisposable
 	private static readonly Comparer<string> titleComparer = Comparer<string>.Default;
 
 	private DisposableBag disposableBag;
-	private readonly ObservableList<MangaTag> tags = new();
+	private readonly TagStore tagStore;
 	private readonly ObservableList<MangaSeriesNotifier> workSeriesNotifiers = new();
 	private readonly ObservableList<MangaSeriesNotifier> allSeriesNotifiers = new();
 
@@ -78,8 +78,11 @@ public sealed class MangaSeriesStore : IDisposable
 	/// <summary>
 	/// <see cref="MangaSeriesStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	public MangaSeriesStore()
+	/// <param name="tagStore">MangaSeriesNotifier が共有 TagNotifier を参照するためのタグストア。</param>
+	public MangaSeriesStore(TagStore tagStore)
 	{
+		this.tagStore = tagStore;
+
 		this.MaintenanceSearchWords = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
@@ -157,7 +160,7 @@ public sealed class MangaSeriesStore : IDisposable
 		// ソート済み MangaSeries を MangaSeriesNotifier でラップして allViewModels へ追加
 		foreach (var mangaSeries in sorted)
 		{
-			var viewModel = new MangaSeriesNotifier(mangaSeries);
+			var viewModel = new MangaSeriesNotifier(mangaSeries, this.tagStore);
 			this.allSeriesNotifiers.Add(viewModel);
 		}
 	}
@@ -190,7 +193,7 @@ public sealed class MangaSeriesStore : IDisposable
 		// Repository から取得した順序をそのまま維持して MangaSeriesNotifier でラップして追加
 		foreach (var mangaSeries in newWorkSeriesList)
 		{
-			var viewModel = new MangaSeriesNotifier(mangaSeries);
+			var viewModel = new MangaSeriesNotifier(mangaSeries, this.tagStore);
 			this.workSeriesNotifiers.Add(viewModel);
 		}
 	}
@@ -249,9 +252,13 @@ public sealed class MangaSeriesStore : IDisposable
 			existing.Memo = workSeries.Memo;
 			existing.IsIncomplete = workSeries.IsIncomplete;
 
-			// タグも更新
+			// タグも更新（workSeries が existing と同一インスタンスの場合に備え、Clear 前に正本インスタンスへ解決して退避）
+			var canonicalTags = workSeries.Tags
+				.Select(tag => this.tagStore.GetTagNotifier(tag.TagId).Tag.Value)
+				.ToList();
+
 			existing.Tags.Clear();
-			foreach (var tag in workSeries.Tags)
+			foreach (var tag in canonicalTags)
 			{
 				existing.Tags.Add(tag);
 			}
@@ -262,7 +269,7 @@ public sealed class MangaSeriesStore : IDisposable
 		else
 		{
 			// 存在しない場合は新規追加する
-			var newNotifier = new MangaSeriesNotifier(workSeries);
+			var newNotifier = new MangaSeriesNotifier(workSeries, this.tagStore);
 			this.workSeriesNotifiers.Add(newNotifier);
 		}
 	}
@@ -314,7 +321,7 @@ public sealed class MangaSeriesStore : IDisposable
 		}
 
 		// 新正本 All にのみ MangaSeriesNotifier を同じ位置へ追加
-		var viewModel = new MangaSeriesNotifier(item);
+		var viewModel = new MangaSeriesNotifier(item, this.tagStore);
 		this.allSeriesNotifiers.Insert(insertIndex, viewModel);
 	}
 
@@ -381,205 +388,23 @@ public sealed class MangaSeriesStore : IDisposable
 	}
 
 	/// <summary>
-	/// 全てのタグを取得します。
+	/// 指定したタグ ID のタグを、正式作品・登録待ち作品のすべてから取り除きます。
+	/// タグマスタの正本である <see cref="TagStore"/> は変更しません。
+	/// 先にこのメソッドで作品から取り除いてから、<see cref="TagStore.RemoveTag(long)"/> を呼び出してください。
 	/// </summary>
-	public IReadOnlyList<MangaTag> GetTags()
-		=> this.tags.AsReadOnly();
-
-	/// <summary>
-	/// タグ一覧の ObservableList を取得します。
-	/// 監視・バインディング用に使用されます。
-	/// </summary>
-	public ObservableList<MangaTag> Tags => this.tags;
-
-	/// <summary>
-	/// タグの一覧を指定したリストで一括置換します。
-	/// 自動的に DisplayOrder 昇順、Name 昇順でソートされます。
-	/// 正式作品・登録待ち作品のタグが Store の正本インスタンスと同期されます。
-	/// </summary>
-	/// <param name="newTags">新しいタグ一覧。</param>
-	public void ReplaceTags(IEnumerable<MangaTag> newTags)
+	/// <param name="tagId">取り除くタグの ID。</param>
+	public void RemoveTagFromAllSeries(long tagId)
 	{
-		this.tags.Clear();
-		this.tags.AddRange(newTags);
-		this.SortTags();
-		this.SynchronizeSeriesTagInstances();
-	}
+		var allNotifiers = this.allSeriesNotifiers
+			.Concat(this.workSeriesNotifiers)
+			.ToList();
 
-	/// <summary>
-	/// 指定したタグ ID でタグを検索します。
-	/// </summary>
-	/// <param name="tagId">検索するタグ ID。</param>
-	/// <returns>見つかった場合は該当のタグ、見つからない場合は null。</returns>
-	public MangaTag? FindTagById(long tagId)
-		=> this.tags.FirstOrDefault(x => x.TagId == tagId);
-
-	/// <summary>
-	/// 指定したタグをストアに追加します。
-	/// 自動的に DisplayOrder 昇順、Name 昇順が保たれます。
-	/// </summary>
-	/// <param name="tag">追加するタグ。</param>
-	public void AddTag(MangaTag tag)
-	{
-		if (this.tags.Any(x => x.TagId == tag.TagId))
-			return;
-
-		this.tags.Add(tag);
-		this.SortTags();
-	}
-
-	/// <summary>
-	/// 指定したタグをストア内で更新します。同じ TagId を持つタグを置き換えます。
-	/// 更新後、自動的に DisplayOrder 昇順、Name 昇順が保たれます。
-	/// 同時に、正式作品・登録待ち作品が同じ TagId のタグを保持している場合は、新しい正本インスタンスへ置き換えます。
-	/// </summary>
-	/// <param name="tag">更新するタグ。</param>
-	public void UpdateTag(MangaTag tag)
-	{
-		var existing = this.tags.FirstOrDefault(x => x.TagId == tag.TagId);
-		if (existing is not null)
+		foreach (var notifier in allNotifiers)
 		{
-			var index = this.tags.IndexOf(existing);
-			if (index >= 0)
-			{
-				this.tags[index] = tag;
-				this.SortTags();
-
-				// 更新されたタグのみを対象に各作品へ同期
-				this.SynchronizeSeriesTagForId(tag.TagId);
-			}
-		}
-	}
-
-	/// <summary>
-	/// 指定したタグ ID をストアから削除します。
-	/// 同時に、正式作品・登録待ち作品が同じ TagId のタグを保持している場合は、それらから削除します。
-	/// </summary>
-	/// <param name="tagId">削除するタグの ID。</param>
-	public void RemoveTag(long tagId)
-	{
-		var target = this.tags.FirstOrDefault(x => x.TagId == tagId);
-		if (target is not null)
-		{
-			this.tags.Remove(target);
-
-			// 各作品からも該当タグを削除（新 All + WorkSeries の共有 Notifier から MangaSeries を取得）
-			var allSeriesNotifiers = this.allSeriesNotifiers
-				.Concat(this.workSeriesNotifiers)
-				.ToList();
-
-			foreach (var notifier in allSeriesNotifiers)
-			{
-				var series = notifier.Series.Value;
-				var seriesTag = series.Tags.FirstOrDefault(t => t.TagId == tagId);
-				if (seriesTag is not null)
-					series.Tags.Remove(seriesTag);
-			}
-		}
-	}
-
-	/// <summary>
-	/// タグ一覧を DisplayOrder 昇順、Name 昇順でソートします。
-	/// ReplaceTags、AddTag、UpdateTag の後に呼び出され、タグの並び順を保証します。
-	/// 既存の MangaTag インスタンスを維持したまま、必要な項目だけを移動する差分方式を使用します。
-	/// </summary>
-	private void SortTags()
-	{
-		var sorted = this.tags
-			.OrderBy(x => x.DisplayOrder)
-			.ThenBy(x => x.Name)
-			.ToArray();
-
-		// 正しい順序と現在の順序を比較し、位置が異なるタグだけを移動
-		for (var targetIndex = 0; targetIndex < sorted.Length; targetIndex++)
-		{
-			var targetTag = sorted[targetIndex];
-			var currentIndex = this.tags.IndexOf(targetTag);
-
-			if (currentIndex < 0 || currentIndex == targetIndex)
-				continue;
-
-			// 位置が異なるタグだけを移動
-			this.tags.RemoveAt(currentIndex);
-			this.tags.Insert(targetIndex, targetTag);
-		}
-	}
-
-	/// <summary>
-	/// 正式作品・登録待ち作品が保持するタグを Store のタグマスタ正本インスタンスと同期します。
-	/// 各作品の Tags 内のタグについて、Store.Tags に同じ TagId が存在する場合は正本インスタンスへ置き換えます。
-	/// Store に存在しないタグは作品の Tags から削除します。
-	/// </summary>
-	private void SynchronizeSeriesTagInstances()
-	{
-		// 新 All + WorkSeries の共有 ViewModel から MangaSeries を取得
-		var allSeriesViewModels = this.allSeriesNotifiers.Concat(this.workSeriesNotifiers).ToList();
-
-		foreach (var viewModel in allSeriesViewModels)
-		{
-			var series = viewModel.Series.Value;
-
-			// 逆順 for ループで Tags を処理（置換・削除時の列挙例外回避）
-			for (var i = series.Tags.Count - 1; i >= 0; i--)
-			{
-				var seriesTag = series.Tags[i];
-
-				// Store 内に同じ TagId のタグが存在するか検索
-				var storeTag = this.tags.FirstOrDefault(t => t.TagId == seriesTag.TagId);
-
-				if (storeTag is not null)
-				{
-					// Store のタグが見つかった場合は、そのインスタンスへ置き換え
-					if (!ReferenceEquals(series.Tags[i], storeTag))
-					{
-						series.Tags[i] = storeTag;
-					}
-				}
-				else
-				{
-					// Store に存在しないタグは削除
-					series.Tags.RemoveAt(i);
-				}
-			}
-		}
-	}
-
-	/// <summary>
-	/// 指定した TagId を保持する作品のタグを Store の正本インスタンスと同期します。
-	/// UpdateTag のように単一タグの更新後に使用される軽量同期です。
-	/// </summary>
-	/// <param name="tagId">同期対象のタグ ID。</param>
-	private void SynchronizeSeriesTagForId(long tagId)
-	{
-		// 新 All + WorkSeries の共有 ViewModel から MangaSeries を取得
-		var allSeriesViewModels = this.allSeriesNotifiers.Concat(this.workSeriesNotifiers).ToList();
-
-		var storeTag = this.tags.FirstOrDefault(t => t.TagId == tagId);
-		if (storeTag is null)
-		{
-			// Store に存在しないタグは全作品から削除
-			foreach (var viewModel in allSeriesViewModels)
-			{
-				var series = viewModel.Series.Value;
-				var toRemove = series.Tags.FirstOrDefault(t => t.TagId == tagId);
-				if (toRemove is not null)
-					series.Tags.Remove(toRemove);
-			}
-		}
-		else
-		{
-			// Store のタグで全作品を同期
-			foreach (var viewModel in allSeriesViewModels)
-			{
-				var series = viewModel.Series.Value;
-				var seriesTag = series.Tags.FirstOrDefault(t => t.TagId == tagId);
-				if (seriesTag is not null && !ReferenceEquals(seriesTag, storeTag))
-				{
-					var index = series.Tags.IndexOf(seriesTag);
-					if (index >= 0)
-						series.Tags[index] = storeTag;
-				}
-			}
+			var series = notifier.Series.Value;
+			var seriesTag = series.Tags.FirstOrDefault(t => t.TagId == tagId);
+			if (seriesTag is not null)
+				series.Tags.Remove(seriesTag);
 		}
 	}
 

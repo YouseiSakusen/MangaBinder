@@ -59,7 +59,7 @@ public class HomeSeriesViewModelStore : IDisposable
 		this.homeCardsView = this.mangaSeriesStore.All
 			.CreateView(seriesViewModel =>
 			{
-				var card = new HomeSeriesCardViewModel(seriesViewModel, this.mangaSeriesStore, this.seriesTagStore);
+				var card = new HomeSeriesCardViewModel(seriesViewModel, this.seriesTagStore);
 				// 生成時点で現在の BindingQueueStore.Queue を確認して IsSelected を初期化
 				var isInQueue = this.bindingQueueStore.Contains(seriesViewModel.Series.Value.SeriesId);
 				card.SetIsSelected(isInQueue);

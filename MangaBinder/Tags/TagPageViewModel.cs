@@ -9,28 +9,29 @@ namespace MangaBinder.Tags;
 
 /// <summary>
 /// タグ画面の ViewModel です。
+/// <see cref="TagStore"/> が保持するタグ一覧と Reactive 状態を View へ公開し、操作は <see cref="TagEditor"/> へ依頼する薄い接続層です。
 /// </summary>
 public class TagPageViewModel : IDataInitializable, IDisposable
 {
-	private readonly MangaSeriesStore mangaSeriesStore;
+	private readonly TagStore tagStore;
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly ISnackbarService snackbarService;
 	private DisposableBag disposableBag;
 
-	/// <summary>タグ定義一覧を取得します。Store から直接参照します。</summary>
-	public NotifyCollectionChangedSynchronizedViewList<MangaTag> Tags { get; }
+	/// <summary>タグ一覧を取得します。TagStore の正本コレクションから直接生成した View です。</summary>
+	public NotifyCollectionChangedSynchronizedViewList<TagNotifier> Tags { get; }
 
-	/// <summary>登録タグ数を取得します。</summary>
-	public BindableReactiveProperty<int> TagCount { get; }
+	/// <summary>登録タグ数を取得します。TagStore の状態をそのまま公開します。</summary>
+	public BindableReactiveProperty<int> TagCount => this.tagStore.TagCount;
 
-	/// <summary>タグが0件かどうかを取得します。</summary>
-	public BindableReactiveProperty<bool> IsEmpty { get; }
+	/// <summary>タグが0件かどうかを取得します。TagStore の状態をそのまま公開します。</summary>
+	public BindableReactiveProperty<bool> IsEmpty => this.tagStore.IsEmpty;
 
-	/// <summary>タグが1件以上あるかどうかを取得します。</summary>
-	public BindableReactiveProperty<bool> HasTags { get; }
+	/// <summary>タグが1件以上あるかどうかを取得します。TagStore の状態をそのまま公開します。</summary>
+	public BindableReactiveProperty<bool> HasTags => this.tagStore.HasTags;
 
-	/// <summary>新規追加タグ名の入力値を取得します。</summary>
-	public BindableReactiveProperty<string> NewTagName { get; }
+	/// <summary>新規追加タグ名の入力値を取得します。TagStore の状態をそのまま公開します。</summary>
+	public BindableReactiveProperty<string> NewTagName => this.tagStore.NewTagName;
 
 	/// <summary>タグ追加成功時にインクリメントされるフォーカス要求カウンタです。</summary>
 	public BindableReactiveProperty<int> TagNameFocusRequest { get; }
@@ -39,19 +40,19 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 	public ReactiveCommand<Unit> AddTagCommand { get; }
 
 	/// <summary>タグを削除するコマンドです。</summary>
-	public ReactiveCommand<MangaTag> DeleteTagCommand { get; }
+	public ReactiveCommand<TagNotifier> DeleteTagCommand { get; }
 
-	/// <summary>現在インライン編集中のタグを取得します。null の場合は通常表示です。</summary>
-	public BindableReactiveProperty<MangaTag?> EditingTag { get; }
+	/// <summary>現在インライン編集中のタグを取得します。null の場合は通常表示です。TagStore の状態をそのまま公開します。</summary>
+	public BindableReactiveProperty<TagNotifier?> EditingTag => this.tagStore.EditingTag;
 
-	/// <summary>編集中のタグ名の入力値を取得します。</summary>
-	public BindableReactiveProperty<string> EditingTagName { get; }
+	/// <summary>編集中のタグ名の入力値を取得します。TagStore の状態をそのまま公開します。</summary>
+	public BindableReactiveProperty<string> EditingTagName => this.tagStore.EditingTagName;
 
 	/// <summary>編集開始時にインクリメントされるフォーカス＆全選択要求カウンタです。</summary>
 	public BindableReactiveProperty<int> RenameTextBoxFocusRequest { get; }
 
 	/// <summary>タグ名変更を開始するコマンドです。</summary>
-	public ReactiveCommand<MangaTag> StartRenameTagCommand { get; }
+	public ReactiveCommand<TagNotifier> StartRenameTagCommand { get; }
 
 	/// <summary>タグ名変更を確定するコマンドです。</summary>
 	public ReactiveCommand<Unit> CommitRenameTagCommand { get; }
@@ -62,47 +63,24 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 	/// <summary>
 	/// <see cref="TagPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
+	/// <param name="tagStore">タグマスタの正本と Reactive 状態を保持するストア。</param>
 	/// <param name="serviceScopeFactory">サービススコープファクトリ。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
-	public TagPageViewModel(MangaSeriesStore mangaSeriesStore, IServiceScopeFactory serviceScopeFactory, ISnackbarService snackbarService)
+	public TagPageViewModel(TagStore tagStore, IServiceScopeFactory serviceScopeFactory, ISnackbarService snackbarService)
 	{
-		this.mangaSeriesStore = mangaSeriesStore;
+		this.tagStore = tagStore;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.snackbarService = snackbarService;
 
 		// Store のタグ一覧を View として公開（コピーしない）
-		this.Tags = this.mangaSeriesStore.Tags
+		this.Tags = this.tagStore.Tags
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
-			.AddTo(ref this.disposableBag);
-
-		var initialCount = this.mangaSeriesStore.Tags.Count;
-		this.TagCount = new BindableReactiveProperty<int>(initialCount)
-			.AddTo(ref this.disposableBag);
-
-		this.IsEmpty = new BindableReactiveProperty<bool>(initialCount == 0)
-			.AddTo(ref this.disposableBag);
-
-		this.HasTags = new BindableReactiveProperty<bool>(initialCount > 0)
-			.AddTo(ref this.disposableBag);
-
-		// Tags の件数変更を監視し、TagCount / IsEmpty / HasTags を自動更新
-		this.mangaSeriesStore.Tags.ObserveCountChanged()
-			.Subscribe(count =>
-			{
-				this.TagCount.Value = count;
-				this.IsEmpty.Value = count == 0;
-				this.HasTags.Value = count > 0;
-			})
-			.AddTo(ref this.disposableBag);
-
-		this.NewTagName = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
 		this.TagNameFocusRequest = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
-		var canAdd = this.NewTagName
+		var canAdd = this.tagStore.NewTagName
 			.Select(n => !string.IsNullOrWhiteSpace(n));
 
 		this.AddTagCommand = new ReactiveCommand<Unit>(canAdd, initialCanExecute: false)
@@ -111,22 +89,16 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 		this.AddTagCommand.Subscribe(_ => this.addTag())
 			.AddTo(ref this.disposableBag);
 
-		this.DeleteTagCommand = new ReactiveCommand<MangaTag>()
+		this.DeleteTagCommand = new ReactiveCommand<TagNotifier>()
 			.AddTo(ref this.disposableBag);
 
 		this.DeleteTagCommand.Subscribe(tag => this.deleteTag(tag))
 			.AddTo(ref this.disposableBag);
 
-		this.EditingTag = new BindableReactiveProperty<MangaTag?>(null)
-			.AddTo(ref this.disposableBag);
-
-		this.EditingTagName = new BindableReactiveProperty<string>(string.Empty)
-			.AddTo(ref this.disposableBag);
-
 		this.RenameTextBoxFocusRequest = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
-		this.StartRenameTagCommand = new ReactiveCommand<MangaTag>()
+		this.StartRenameTagCommand = new ReactiveCommand<TagNotifier>()
 			.AddTo(ref this.disposableBag);
 
 		this.StartRenameTagCommand.Subscribe(tag => this.startRenameTag(tag))
@@ -148,27 +120,26 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 	/// <summary>
 	/// タグ名変更を開始します。
 	/// </summary>
-	private void startRenameTag(MangaTag tag)
+	private void startRenameTag(TagNotifier tag)
 	{
-		this.EditingTag.Value = tag;
-		this.EditingTagName.Value = tag.Name;
+		this.tagStore.BeginEditing(tag);
 		this.RenameTextBoxFocusRequest.Value++;
 	}
 
 	/// <summary>
 	/// タグ名変更を確定します。
-	/// Store が更新されるのを待って画面が自動反映されます。
+	/// TagStore が更新され、TagNotifier の通知によって画面が自動反映されます。
 	/// </summary>
 	private void commitRenameTag()
 	{
-		var target = this.EditingTag.Value;
+		var target = this.tagStore.EditingTag.Value;
 		if (target is null)
 			return;
 
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var editor = scope.ServiceProvider.GetRequiredService<TagEditor>();
 
-		var result = editor.Rename(target, this.EditingTagName.Value);
+		var result = editor.Rename(target.Tag.Value, this.tagStore.EditingTagName.Value);
 
 		if (!result.IsSuccess)
 		{
@@ -190,10 +161,8 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 			return;
 		}
 
-		// Store が TagEditor.Rename で更新される。画面はView経由で自動反映。
-		// Tags[index] = は行わない。
-		this.EditingTag.Value = null;
-		this.EditingTagName.Value = string.Empty;
+		// Store が TagEditor.Rename で更新される。画面は TagNotifier の通知で自動反映。
+		this.tagStore.EndEditing();
 	}
 
 	/// <summary>
@@ -201,8 +170,7 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 	/// </summary>
 	private void cancelRenameTag()
 	{
-		this.EditingTag.Value = null;
-		this.EditingTagName.Value = string.Empty;
+		this.tagStore.EndEditing();
 	}
 
 	/// <summary>
@@ -210,14 +178,13 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 	/// Store が更新されるのを待って画面が自動反映されます。
 	/// </summary>
 	/// <param name="tag">削除するタグ。</param>
-	private void deleteTag(MangaTag tag)
+	private void deleteTag(TagNotifier tag)
 	{
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var editor = scope.ServiceProvider.GetRequiredService<TagEditor>();
 
-		editor.Delete(tag.TagId);
+		editor.Delete(tag.Tag.Value.TagId);
 		// Store が TagEditor.Delete で更新される。画面はView経由で自動反映。
-		// Tags.Remove() は行わない。
 	}
 
 	/// <summary>
@@ -229,7 +196,7 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var editor = scope.ServiceProvider.GetRequiredService<TagEditor>();
 
-		var result = editor.Add(this.NewTagName.Value);
+		var result = editor.Add(this.tagStore.NewTagName.Value);
 
 		if (!result.IsSuccess)
 		{
@@ -251,8 +218,7 @@ public class TagPageViewModel : IDataInitializable, IDisposable
 		}
 
 		// Store が TagEditor.Add で更新される。画面はView経由で自動反映。
-		// Tags.Add() は行わない。
-		this.NewTagName.Value = string.Empty;
+		this.tagStore.NewTagName.Value = string.Empty;
 		this.TagNameFocusRequest.Value++;
 	}
 

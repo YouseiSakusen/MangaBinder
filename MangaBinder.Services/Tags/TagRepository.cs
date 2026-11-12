@@ -24,7 +24,7 @@ public sealed class TagRepository
 
 	/// <summary>
 	/// 登録済みタグ一覧を DB から取得します。
-	/// タグ一覧の並び順は MangaSeriesStore が管理するため、ここでは並び順を指定しません。
+	/// タグ一覧の並び順は TagStore が管理するため、ここでは並び順を指定しません。
 	/// </summary>
 	/// <returns>タグ定義の読み取り専用リスト。</returns>
 	public IReadOnlyList<MangaTag> GetAll()

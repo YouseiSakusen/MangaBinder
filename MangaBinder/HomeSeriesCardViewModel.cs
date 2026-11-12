@@ -54,9 +54,8 @@ public class HomeSeriesCardViewModel : IDisposable
 	/// <see cref="HomeSeriesCardViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="seriesViewModel">ラップする MangaSeriesNotifier。</param>
-	/// <param name="mangaSeriesStore">MangaSeries ストア。タグマスタ取得用。</param>
-	/// <param name="seriesTagStore">タグ変更追跡ストア。Dirty 管理用。</param>
-	public HomeSeriesCardViewModel(MangaSeriesNotifier seriesViewModel, MangaSeriesStore? mangaSeriesStore = null, TagStore? seriesTagStore = null)
+	/// <param name="seriesTagStore">タグマスタ取得・Dirty 管理用のタグストア。</param>
+	public HomeSeriesCardViewModel(MangaSeriesNotifier seriesViewModel, TagStore? seriesTagStore = null)
 	{
 		// 共有 MangaSeriesNotifier.Series をそのまま参照（新規生成しない）
 		this.Series = seriesViewModel.Series;
@@ -150,7 +149,7 @@ public class HomeSeriesCardViewModel : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		// TagSelector の初期化
-		this.tagSelector = new SeriesTagPickerViewModel(mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore)))
+		this.tagSelector = new SeriesTagPickerViewModel(seriesTagStore ?? throw new ArgumentNullException(nameof(seriesTagStore)))
 			.AddTo(ref this.disposableBag);
 
 		// 対象作品を設定し、タグ変更時の Dirty 登録処理を接続

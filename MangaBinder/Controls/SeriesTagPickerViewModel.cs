@@ -15,7 +15,7 @@ namespace MangaBinder.Controls;
 /// </summary>
 public class SeriesTagPickerViewModel : IDisposable
 {
-	private readonly MangaSeriesStore mangaSeriesStore;
+	private readonly TagStore tagStore;
 	private readonly DisposableBag disposableBag = new();
 	private readonly ObservableList<SeriesTagSelectionItem> selectableTagItems;
 	private readonly ObservableList<MangaTag> selectedTags;
@@ -46,10 +46,10 @@ public class SeriesTagPickerViewModel : IDisposable
 	/// <summary>
 	/// SeriesTagSelectorViewModel の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="mangaSeriesStore">MangaSeries のストア。</param>
-	public SeriesTagPickerViewModel(MangaSeriesStore mangaSeriesStore)
+	/// <param name="tagStore">タグマスタの正本を保持するストア。</param>
+	public SeriesTagPickerViewModel(TagStore tagStore)
 	{
-		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
+		this.tagStore = tagStore ?? throw new ArgumentNullException(nameof(tagStore));
 
 		this.selectableTagItems = new ObservableList<SeriesTagSelectionItem>();
 		this.SelectableTagItems = this.selectableTagItems
@@ -150,7 +150,7 @@ public class SeriesTagPickerViewModel : IDisposable
 		// 既存のイベント購読を削除するためクリア
 		this.selectableTagItems.Clear();
 
-		var tags = this.mangaSeriesStore.GetTags()
+		var tags = this.tagStore.GetTags()
 			.OrderByDescending(t => t.DisplayOrder)
 			.ThenByDescending(t => t.TagId)
 			.ToList();

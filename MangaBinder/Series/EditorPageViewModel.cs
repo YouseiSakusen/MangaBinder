@@ -27,6 +27,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private readonly IContentDialogService contentDialogService;
 	private readonly INavigationService navigationService;
 	private readonly MangaSeriesStore mangaSeriesStore;
+	private readonly TagStore tagStore;
 	private readonly ISnackbarService snackbarService;
 	private readonly AppSettings appSettings;
 	private readonly EditingSession editorStore;
@@ -272,6 +273,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <param name="contentDialogService">コンテンツダイアログサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="mangaSeriesStore">漫画シリーズストア。</param>
+	/// <param name="tagStore">タグマスタの正本を保持するストア。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="editorStore">エディタストア。</param>
@@ -283,6 +285,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		IContentDialogService contentDialogService,
 		INavigationService navigationService,
 		MangaSeriesStore mangaSeriesStore,
+		TagStore tagStore,
 		ISnackbarService snackbarService,
 		AppSettings appSettings,
 		EditingSession editorStore,
@@ -294,6 +297,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
 		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
+		this.tagStore = tagStore ?? throw new ArgumentNullException(nameof(tagStore));
 		this.snackbarService = snackbarService ?? throw new ArgumentNullException(nameof(snackbarService));
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
 		this.editorStore = editorStore ?? throw new ArgumentNullException(nameof(editorStore));
@@ -304,7 +308,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			.AddTo(ref this.disposableBag);
 
 		// TagSelector の初期化
-		this.tagSelector = new SeriesTagPickerViewModel(mangaSeriesStore)
+		this.tagSelector = new SeriesTagPickerViewModel(tagStore)
 			.AddTo(ref this.disposableBag);
 
 		this.Title = new BindableReactiveProperty<string?>(null)
@@ -704,7 +708,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			return;
 		}
 
-		var created = new MangaSeriesNotifier(editingSeries);
+		var created = new MangaSeriesNotifier(editingSeries, this.tagStore);
 		this.MangaSeriesCard.SeriesViewModel.Value = created;
 		this.disposeOwnedSeriesViewModel();
 		this.ownedSeriesViewModel = created;

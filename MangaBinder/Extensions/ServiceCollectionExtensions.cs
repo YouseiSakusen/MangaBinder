@@ -65,6 +65,7 @@ public static class ServiceCollectionExtensions
 		services.AddNavigationPage<TagPage, TagPageViewModel>(ServiceLifetime.Singleton);
 		services.AddScoped<TagRepository>();
 		services.AddScoped<TagEditor>();
+		services.AddScoped<TagManager>();
 		services.AddScoped<ThumbnailManager>();
 		services.AddScoped<MangaSeriesManager>();
 		services.AddScoped<NewSeriesCoordinator>();

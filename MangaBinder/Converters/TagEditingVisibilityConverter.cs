@@ -10,8 +10,8 @@ namespace MangaBinder.Converters;
 /// </summary>
 /// <remarks>
 /// バインド値：
-/// [0] 行の MangaTag（DataContext）
-/// [1] EditingTag.Value（ViewModel の編集中タグ）
+/// [0] 行の TagNotifier（DataContext）
+/// [1] EditingTag.Value（TagStore が保持する編集中の TagNotifier）
 ///
 /// パラメーター：
 /// "Editing"  → 編集中の行に Visible を返す
@@ -25,8 +25,8 @@ public sealed class TagEditingVisibilityConverter : IMultiValueConverter
 		if (values.Length < 2)
 			return Visibility.Collapsed;
 
-		var rowTag = values[0] as MangaTag;
-		var editingTag = values[1] as MangaTag;
+		var rowTag = values[0] as TagNotifier;
+		var editingTag = values[1] as TagNotifier;
 
 		var isEditing = rowTag is not null && ReferenceEquals(rowTag, editingTag);
 		var wantEditing = parameter is string p && p == "Editing";
