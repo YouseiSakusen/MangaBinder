@@ -90,7 +90,7 @@ public static class ServiceCollectionExtensions
 
 		services.AddSingleton<BindingStore>();
 		services.AddSingleton<EditStore>();
-		services.AddSingleton<SeriesTagStore>();
+		services.AddSingleton<TagStore>();
 		services.AddSingleton<MangaSeriesStore>();
 		services.AddSingleton<MaintenanceSeriesViewModelStore>();
 		services.AddSingleton<BindingQueueStore>();

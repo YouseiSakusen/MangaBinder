@@ -229,7 +229,7 @@
 										Source="{Binding Series.Value, Converter={extensions:ThumbnailImageConverterExtension}}"
 										Width="140"
 										Height="196"
-										Stretch="UniformToFill"
+										Stretch="Uniform"
 										RenderOptions.BitmapScalingMode="LowQuality" />
 								</Border>
 

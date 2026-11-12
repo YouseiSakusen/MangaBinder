@@ -30,7 +30,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     private readonly EditStore editStore;
 
     /// <summary>タグ変更追跡ストア。</summary>
-    private readonly SeriesTagStore seriesTagStore;
+    private readonly TagStore seriesTagStore;
 
     /// <summary>Home 画面用派生 Store。SeriesCardViewModel の生成・所有・Dispose を担当。</summary>
     private readonly HomeSeriesViewModelStore homeSeriesViewModelStore;
@@ -131,7 +131,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
     /// <param name="bindingQueueStore">製本待ち状態ストア。</param>
     /// <param name="snackbarService">Snackbar 通知サービス。</param>
-    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, EditStore editStore, AppSettings appSettings, SeriesTagStore seriesTagStore, HomeSeriesViewModelStore homeSeriesViewModelStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, EditStore editStore, AppSettings appSettings, TagStore seriesTagStore, HomeSeriesViewModelStore homeSeriesViewModelStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
     {
         this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;

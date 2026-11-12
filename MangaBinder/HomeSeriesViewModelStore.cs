@@ -28,7 +28,7 @@ public class HomeSeriesViewModelStore : IDisposable
 	/// <summary>
 	/// タグ変更追跡ストア。SeriesCardViewModel の TagSelector 用。
 	/// </summary>
-	private readonly SeriesTagStore seriesTagStore;
+	private readonly TagStore seriesTagStore;
 
 	/// <summary>
 	/// CreateView で生成された ISynchronizedView。
@@ -48,7 +48,7 @@ public class HomeSeriesViewModelStore : IDisposable
 	/// <param name="mangaSeriesStore">作品ストア。</param>
 	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
 	/// <param name="seriesTagStore">タグ変更追跡ストア。</param>
-	public HomeSeriesViewModelStore(MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, SeriesTagStore seriesTagStore)
+	public HomeSeriesViewModelStore(MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, TagStore seriesTagStore)
 	{
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.bindingQueueStore = bindingQueueStore;

@@ -12,7 +12,7 @@ namespace MangaBinder.Controls;
 /// </summary>
 public partial class SeriesTagPicker : UserControl
 {
-	private SeriesTagSelectorViewModel? currentViewModel;
+	private SeriesTagPickerViewModel? currentViewModel;
 
 	/// <summary>
 	/// ButtonContent DependencyProperty を取得または設定します。
@@ -53,7 +53,7 @@ public partial class SeriesTagPicker : UserControl
 		this.unsubscribeSelectableTagItems();
 
 		// 新しい ViewModel へ更新
-		this.currentViewModel = this.DataContext as SeriesTagSelectorViewModel;
+		this.currentViewModel = this.DataContext as SeriesTagPickerViewModel;
 
 		// Loaded 状態の場合のみ新しい ViewModel を購読
 		if (this.IsLoaded)

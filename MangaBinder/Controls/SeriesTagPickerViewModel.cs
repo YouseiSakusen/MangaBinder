@@ -13,7 +13,7 @@ namespace MangaBinder.Controls;
 /// SeriesTagSelector 用の ViewModel。
 /// 1つの MangaSeries に対するタグ選択・表示状態を管理します。
 /// </summary>
-public class SeriesTagSelectorViewModel : IDisposable
+public class SeriesTagPickerViewModel : IDisposable
 {
 	private readonly MangaSeriesStore mangaSeriesStore;
 	private readonly DisposableBag disposableBag = new();
@@ -47,7 +47,7 @@ public class SeriesTagSelectorViewModel : IDisposable
 	/// SeriesTagSelectorViewModel の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="mangaSeriesStore">MangaSeries のストア。</param>
-	public SeriesTagSelectorViewModel(MangaSeriesStore mangaSeriesStore)
+	public SeriesTagPickerViewModel(MangaSeriesStore mangaSeriesStore)
 	{
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
 

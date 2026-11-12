@@ -3,7 +3,7 @@ namespace MangaBinder;
 /// <summary>
 /// タグ変更された <see cref="MangaSeries"/> を保持する Singleton ストアです。
 /// </summary>
-public sealed class SeriesTagStore
+public sealed class TagStore
 {
 	private readonly Dictionary<long, MangaSeries> dirtyMap = new();
 

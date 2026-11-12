@@ -11,7 +11,7 @@ namespace MangaBinder;
 public class HomeSeriesCardViewModel : IDisposable
 {
 	private DisposableBag disposableBag = new();
-	private SeriesTagSelectorViewModel tagSelector = null!;
+	private SeriesTagPickerViewModel tagSelector = null!;
 
 	/// <summary>
 	/// 基になった MangaSeries です。
@@ -48,7 +48,7 @@ public class HomeSeriesCardViewModel : IDisposable
 	/// <summary>
 	/// タグ選択・表示状態を管理する ViewModel です。
 	/// </summary>
-	public SeriesTagSelectorViewModel TagSelector => this.tagSelector;
+	public SeriesTagPickerViewModel TagSelector => this.tagSelector;
 
 	/// <summary>
 	/// <see cref="HomeSeriesCardViewModel"/> の新しいインスタンスを初期化します。
@@ -56,7 +56,7 @@ public class HomeSeriesCardViewModel : IDisposable
 	/// <param name="seriesViewModel">ラップする MangaSeriesNotifier。</param>
 	/// <param name="mangaSeriesStore">MangaSeries ストア。タグマスタ取得用。</param>
 	/// <param name="seriesTagStore">タグ変更追跡ストア。Dirty 管理用。</param>
-	public HomeSeriesCardViewModel(MangaSeriesNotifier seriesViewModel, MangaSeriesStore? mangaSeriesStore = null, SeriesTagStore? seriesTagStore = null)
+	public HomeSeriesCardViewModel(MangaSeriesNotifier seriesViewModel, MangaSeriesStore? mangaSeriesStore = null, TagStore? seriesTagStore = null)
 	{
 		// 共有 MangaSeriesNotifier.Series をそのまま参照（新規生成しない）
 		this.Series = seriesViewModel.Series;
@@ -150,7 +150,7 @@ public class HomeSeriesCardViewModel : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		// TagSelector の初期化
-		this.tagSelector = new SeriesTagSelectorViewModel(mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore)))
+		this.tagSelector = new SeriesTagPickerViewModel(mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore)))
 			.AddTo(ref this.disposableBag);
 
 		// 対象作品を設定し、タグ変更時の Dirty 登録処理を接続

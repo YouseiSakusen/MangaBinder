@@ -32,7 +32,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private readonly EditingSession editorStore;
 	private readonly LoadingService loadingService;
 	private readonly ThumbnailImageLoader thumbnailImageLoader;
-	private SeriesTagSelectorViewModel tagSelector = null!;
+	private SeriesTagPickerViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
 	private CancellationTokenSource? materialSizeCancellationTokenSource;
 	private bool isInitializing;
@@ -47,7 +47,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <summary>
 	/// タグ選択・表示状態を管理する ViewModel です。
 	/// </summary>
-	public SeriesTagSelectorViewModel TagSelector => this.tagSelector;
+	public SeriesTagPickerViewModel TagSelector => this.tagSelector;
 
 	/// <summary>タイトルを取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Title { get; }
@@ -304,7 +304,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			.AddTo(ref this.disposableBag);
 
 		// TagSelector の初期化
-		this.tagSelector = new SeriesTagSelectorViewModel(mangaSeriesStore)
+		this.tagSelector = new SeriesTagPickerViewModel(mangaSeriesStore)
 			.AddTo(ref this.disposableBag);
 
 		this.Title = new BindableReactiveProperty<string?>(null)
