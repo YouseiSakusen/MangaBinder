@@ -10,7 +10,7 @@ namespace MangaBinder.Bindings;
 /// BindingQueueStore.Queue の Reactive な変更を監視し、
 /// StartPageSeriesCardViewModel 一覧へ自動的に変換します。
 /// </summary>
-public class StartPageStore : IDisposable
+public class StartPageCardStore : IDisposable
 {
 	private DisposableBag disposableBag;
 
@@ -37,11 +37,11 @@ public class StartPageStore : IDisposable
 	public NotifyCollectionChangedSynchronizedViewList<StartPageSeriesCardViewModel> QueueCards { get; }
 
 	/// <summary>
-	/// <see cref="StartPageStore"/> の新しいインスタンスを初期化します。
+	/// <see cref="StartPageCardStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
 	/// <param name="mangaSeriesStore">作品ストア。</param>
-	public StartPageStore(BindingQueueStore bindingQueueStore, MangaSeriesStore mangaSeriesStore)
+	public StartPageCardStore(BindingQueueStore bindingQueueStore, MangaSeriesStore mangaSeriesStore)
 	{
 		this.bindingQueueStore = bindingQueueStore;
 		this.mangaSeriesStore = mangaSeriesStore;

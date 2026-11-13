@@ -11,7 +11,7 @@ namespace MangaBinder;
 /// MangaSeriesStore.All の Reactive な変更を監視し、
 /// SeriesCardViewModel 一覧へ自動的に変換します。
 /// </summary>
-public class HomeSeriesViewModelStore : IDisposable
+public class HomeSeriesCardStore : IDisposable
 {
 	private DisposableBag disposableBag;
 
@@ -38,11 +38,11 @@ public class HomeSeriesViewModelStore : IDisposable
 	public NotifyCollectionChangedSynchronizedViewList<HomeSeriesCardViewModel> HomeCards { get; }
 
 	/// <summary>
-	/// <see cref="HomeSeriesViewModelStore"/> の新しいインスタンスを初期化します。
+	/// <see cref="HomeSeriesCardStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="mangaSeriesStore">作品ストア。</param>
 	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
-	public HomeSeriesViewModelStore(MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
+	public HomeSeriesCardStore(MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
 	{
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.bindingQueueStore = bindingQueueStore;

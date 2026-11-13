@@ -95,8 +95,8 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<MangaSeriesStore>();
 		services.AddSingleton<MaintenanceSeriesViewModelStore>();
 		services.AddSingleton<BindingQueueStore>();
-		services.AddSingleton<StartPageStore>();
-		services.AddSingleton<HomeSeriesViewModelStore>();
+		services.AddSingleton<StartPageCardStore>();
+		services.AddSingleton<HomeSeriesCardStore>();
 		services.AddScoped<BindingStoreRepository>();
 		services.AddScoped<BindingQueueDispatcher>();
 		services.AddScoped<BindingRepository>();

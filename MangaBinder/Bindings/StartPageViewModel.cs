@@ -25,7 +25,7 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>製本開始キュー ストア。</summary>
 	private readonly BindingQueueStore bindingQueueStore;
 	/// <summary>製本開始ページ ストア。</summary>
-	private readonly StartPageStore startPageStore;
+	private readonly StartPageCardStore startPageStore;
 
 	/// <summary>製本工程正本状態 ストア。</summary>
 	private readonly BindingStore bindingStore;
@@ -94,7 +94,7 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		INavigationService navigationService,
 		IContentDialogService contentDialogService,
 		BindingQueueStore bindingQueueStore,
-		StartPageStore startPageStore,
+		StartPageCardStore startPageStore,
 		BindingStore bindingStore,
 		ISnackbarService snackbarService)
 	{
