@@ -9,6 +9,7 @@
 	  xmlns:behaviors="clr-namespace:MangaBinder.Behaviors"
 	  xmlns:extensions="clr-namespace:MangaBinder.Extensions"
 	  xmlns:controls="clr-namespace:MangaBinder.Controls"
+	  xmlns:converters="clr-namespace:MangaBinder.Converters"
 	  xmlns:tags="clr-namespace:MangaBinder.Tags"
 	  mc:Ignorable="d"
 	  d:DesignHeight="800" d:DesignWidth="1200"
@@ -19,6 +20,7 @@
 	<Page.Resources>
 		<tags:BindingProxy x:Key="VmProxy" Data="{Binding}" />
 		<BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+		<converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 		<Style x:Key="EmptyStateCardStyle" TargetType="Border">
 			<Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
 			<Setter Property="CornerRadius" Value="6" />
@@ -55,7 +57,7 @@
 						  Background="Transparent"
 						  behaviors:ScrollViewerOffsetBehavior.BoundVerticalOffset="{Binding SavedBindingListVerticalOffset.Value, Mode=TwoWay}"
 						  behaviors:ViewportPageScrollBehavior.IsEnabled="True"
-						  Visibility="{Binding IsNotEmpty.Value, Converter={StaticResource BooleanToVisibilityConverter}}">
+						  Visibility="{Binding IsEmpty.Value, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
 
 					<ListView.ItemsPanel>
 						<ItemsPanelTemplate>

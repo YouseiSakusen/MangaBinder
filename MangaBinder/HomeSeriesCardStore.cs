@@ -1,4 +1,3 @@
-using MangaBinder.Bindings;
 using MangaBinder.Series;
 using ObservableCollections;
 using R3;
@@ -21,11 +20,6 @@ public class HomeSeriesCardStore : IDisposable
 	private readonly MangaSeriesStore mangaSeriesStore;
 
 	/// <summary>
-	/// 製本開始キュー ストア。SeriesCardViewModel の IsSelected 初期値決定に使用。
-	/// </summary>
-	private readonly BindingQueueStore bindingQueueStore;
-
-	/// <summary>
 	/// CreateView で生成された ISynchronizedView。
 	/// ViewChanged イベントを購読して、削除・置換時に SeriesCardViewModel を Dispose する。
 	/// </summary>
@@ -41,23 +35,15 @@ public class HomeSeriesCardStore : IDisposable
 	/// <see cref="HomeSeriesCardStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="mangaSeriesStore">作品ストア。</param>
-	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
-	public HomeSeriesCardStore(MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
+	public HomeSeriesCardStore(MangaSeriesStore mangaSeriesStore)
 	{
 		this.mangaSeriesStore = mangaSeriesStore;
-		this.bindingQueueStore = bindingQueueStore;
 
 		// Home 用作品 ViewModel コレクションを生成
-		// MangaSeriesViewModel から SeriesCardViewModel へ変換
+		// 共有 MangaSeriesNotifier から HomeSeriesCardViewModel へ変換
+		// 製本待ちのチェック状態は共有 Notifier の IsBindingQueued が保持するため、ここでは扱わない
 		this.homeCardsView = this.mangaSeriesStore.All
-			.CreateView(seriesViewModel =>
-			{
-				var card = new HomeSeriesCardViewModel(seriesViewModel);
-				// 生成時点で現在の BindingQueueStore.Queue を確認して IsSelected を初期化
-				var isInQueue = this.bindingQueueStore.Contains(seriesViewModel.Series.Value.SeriesId);
-				card.SetIsSelected(isInQueue);
-				return card;
-			});
+			.CreateView(seriesNotifier => new HomeSeriesCardViewModel(seriesNotifier));
 
 		this.HomeCards = this.homeCardsView
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
@@ -66,14 +52,6 @@ public class HomeSeriesCardStore : IDisposable
 		// ISynchronizedView の ViewChanged イベントを購読
 		// 削除・置換・ソートなどの変更で、SeriesCardViewModel のライフサイクルを管理
 		this.homeCardsView.ViewChanged += this.onHomeCardsViewChanged;
-
-		// BindingQueueStore.Queue の変更を監視して IsSelected を更新する
-		// ObservableList<T>.IObservableCollection<T>.CollectionChanged を直接購読
-		// Add / Remove / Replace / Reset に対応
-		this.bindingQueueStore.Queue.CollectionChanged += this.onBindingQueueCollectionChanged;
-
-		// 初期状態でQueue内の全カードを正しく初期化
-		this.initializeIsSelectedFromQueue();
 	}
 
 	/// <summary>
@@ -135,139 +113,12 @@ public class HomeSeriesCardStore : IDisposable
 	}
 
 	/// <summary>
-	/// BindingQueueStore.Queue の CollectionChanged イベント ハンドラ。
-	/// Queue への Add / Remove / Replace / Clear により、対応する SeriesCardViewModel.IsSelected を更新する。
-	/// </summary>
-	private void onBindingQueueCollectionChanged(in NotifyCollectionChangedEventArgs<BindingSeries> e)
-	{
-		switch (e.Action)
-		{
-			case NotifyCollectionChangedAction.Add:
-				// 追加されたカードを IsSelected = true にする
-				if (e.IsSingleItem)
-				{
-					// 単一要素追加
-					var card = this.findCardBySeriesId(e.NewItem.Series.SeriesId);
-					if (card != null)
-					{
-						card.SetIsSelected(true);
-					}
-				}
-				else
-				{
-					// 複数要素追加
-					foreach (var bindingSeries in e.NewItems)
-					{
-						var card = this.findCardBySeriesId(bindingSeries.Series.SeriesId);
-						if (card != null)
-						{
-							card.SetIsSelected(true);
-						}
-					}
-				}
-				break;
-
-			case NotifyCollectionChangedAction.Remove:
-				// 削除されたカードを IsSelected = false にする
-				if (e.IsSingleItem)
-				{
-					// 単一要素削除
-					var card = this.findCardBySeriesId(e.OldItem.Series.SeriesId);
-					if (card != null)
-					{
-						card.SetIsSelected(false);
-					}
-				}
-				else
-				{
-					// 複数要素削除
-					foreach (var bindingSeries in e.OldItems)
-					{
-						var card = this.findCardBySeriesId(bindingSeries.Series.SeriesId);
-						if (card != null)
-						{
-							card.SetIsSelected(false);
-						}
-					}
-				}
-				break;
-
-			case NotifyCollectionChangedAction.Replace:
-				// 置換時も対応するカードの状態を更新
-				if (e.IsSingleItem)
-				{
-					// 単一要素置換
-					var oldCard = this.findCardBySeriesId(e.OldItem.Series.SeriesId);
-					if (oldCard != null)
-					{
-						oldCard.SetIsSelected(false);
-					}
-					var newCard = this.findCardBySeriesId(e.NewItem.Series.SeriesId);
-					if (newCard != null)
-					{
-						newCard.SetIsSelected(true);
-					}
-				}
-				else
-				{
-					// 複数要素置換
-					foreach (var bindingSeries in e.OldItems)
-					{
-						var card = this.findCardBySeriesId(bindingSeries.Series.SeriesId);
-						if (card != null)
-						{
-							card.SetIsSelected(false);
-						}
-					}
-					foreach (var bindingSeries in e.NewItems)
-					{
-						var card = this.findCardBySeriesId(bindingSeries.Series.SeriesId);
-						if (card != null)
-						{
-							card.SetIsSelected(true);
-						}
-					}
-				}
-				break;
-
-			case NotifyCollectionChangedAction.Reset:
-				// Reset (Clear / ReplaceAll) の場合は全カードを再照合
-				// Queue の内容を確認して全カードの IsSelected を再初期化
-				this.initializeIsSelectedFromQueue();
-				break;
-		}
-	}
-
-	/// <summary>
-	/// 現在の BindingQueueStore.Queue 状態から、すべての SeriesCardViewModel.IsSelected を初期化する。
-	/// </summary>
-	private void initializeIsSelectedFromQueue()
-	{
-		foreach (var card in this.HomeCards)
-		{
-			var isInQueue = this.bindingQueueStore.Queue.Any(bs => bs.Series.SeriesId == card.Series.Value.SeriesId);
-			card.SetIsSelected(isInQueue);
-		}
-	}
-
-	/// <summary>
-	/// SeriesId から対応する SeriesCardViewModel を検索する。
-	/// </summary>
-	private HomeSeriesCardViewModel? findCardBySeriesId(long seriesId)
-	{
-		return this.HomeCards.FirstOrDefault(card => card.Series.Value.SeriesId == seriesId);
-	}
-
-	/// <summary>
 	/// リソースを解放します。
 	/// </summary>
 	public void Dispose()
 	{
 		// HomeCards の ViewChanged イベント購読を解除
 		this.homeCardsView.ViewChanged -= this.onHomeCardsViewChanged;
-
-		// Queue の CollectionChanged イベント購読を解除
-		this.bindingQueueStore.Queue.CollectionChanged -= this.onBindingQueueCollectionChanged;
 
 		// 現在 View に残っている SeriesCardViewModel をすべて Dispose
 		foreach (var card in this.homeCardsView)

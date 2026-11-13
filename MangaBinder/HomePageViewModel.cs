@@ -39,9 +39,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>MangaSeries の正本リストを管理するストア。</summary>
     private readonly MangaSeriesStore mangaSeriesStore;
 
-    /// <summary>製本待ち状態ストア。</summary>
-    private readonly BindingQueueStore bindingQueueStore;
-
     /// <summary>アプリケーション設定。</summary>
     private readonly AppSettings appSettings;
 
@@ -136,9 +133,8 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
     /// <param name="homeSeriesViewModelStore">Home 画面用派生 Store。</param>
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
-    /// <param name="bindingQueueStore">製本待ち状態ストア。</param>
     /// <param name="snackbarService">Snackbar 通知サービス。</param>
-    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, EditStore editStore, AppSettings appSettings, TagStore seriesTagStore, HomeSeriesCardStore homeSeriesViewModelStore, MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, ISnackbarService snackbarService)
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, EditStore editStore, AppSettings appSettings, TagStore seriesTagStore, HomeSeriesCardStore homeSeriesViewModelStore, MangaSeriesStore mangaSeriesStore, ISnackbarService snackbarService)
     {
         this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;
@@ -148,7 +144,6 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         this.seriesTagStore = seriesTagStore;
         this.homeSeriesViewModelStore = homeSeriesViewModelStore;
         this.mangaSeriesStore = mangaSeriesStore;
-        this.bindingQueueStore = bindingQueueStore;
         this.snackbarService = snackbarService;
 
         // Home 用一覧を HomeSeriesViewModelStore から取得
@@ -319,32 +314,23 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
     /// <summary>
     /// Home 画面の CheckBox で選択状態を切り替えます。
-    /// BindingQueueDispatcher を通じて Queue を更新し、
-    /// 表示更新は HomeSeriesViewModelStore → IsSelected で自動的に戻ります。
+    /// 現在の状態は共有 Notifier の IsBindingQueued から判定し、BindingQueueManager を通じて Queue を更新します。
+    /// 表示更新は Queue の変更通知で共有 Notifier の IsBindingQueued が更新されることで自動的に戻ります。
     /// </summary>
     private void toggleBindingQueue(HomeSeriesCardViewModel cardViewModel)
     {
         using var scope = this.serviceScopeFactory.CreateScope();
-        var dispatcher = scope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
+        var queueManager = scope.ServiceProvider.GetRequiredService<BindingQueueManager>();
 
-        // 現在の IsSelected.Value から判定
         // false → true : Add (まだQueue内にないので追加)
         // true → false : Remove (Queue内にあるので削除)
-        if (cardViewModel.IsSelected.Value)
+        if (cardViewModel.SeriesNotifier.IsBindingQueued.Value)
         {
-            // 既に Queue に入っているので削除
-            dispatcher.Remove(cardViewModel.Series.Value.SeriesId);
+            queueManager.Remove(cardViewModel.Series.Value.SeriesId);
         }
         else
         {
-            // Queue にまだ入っていないので追加
-            dispatcher.Add(new BindingSeries
-            {
-                SeriesNotifier = cardViewModel.SeriesNotifier,
-                Status = BindingStartStatus.Configuring,
-                AddedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
-            });
+            queueManager.Add(cardViewModel.SeriesNotifier);
         }
     }
 

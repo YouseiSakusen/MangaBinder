@@ -210,7 +210,7 @@
 											HorizontalAlignment="Center"
 											Margin="0,0,0,4" />
 										<CheckBox
-											IsChecked="{Binding IsSelected.Value, Mode=OneWay}"
+											IsChecked="{Binding SeriesNotifier.IsBindingQueued.Value, Mode=OneWay}"
 											Command="{Binding DataContext.ToggleBindingQueueCommand, RelativeSource={RelativeSource AncestorType=Page}}"
 											CommandParameter="{Binding}"
 											HorizontalAlignment="Center" />

@@ -14,7 +14,7 @@ public class HomeSeriesCardViewModel : IDisposable
 
 	/// <summary>
 	/// 共有 <see cref="MangaSeriesNotifier"/> です。<see cref="MangaSeriesStore"/> が所有しているため、ここで Dispose してはいけません。
-	/// タグ表示ボタンへ渡します。
+	/// タグ表示ボタンへ渡します。製本待ちのチェック状態は <see cref="MangaSeriesNotifier.IsBindingQueued"/> を参照します。
 	/// </summary>
 	public MangaSeriesNotifier SeriesNotifier { get; }
 
@@ -43,12 +43,6 @@ public class HomeSeriesCardViewModel : IDisposable
 	/// 素材フォルダ作成日時表示用の ViewModel です。
 	/// </summary>
 	public BindableReactiveProperty<MaterialFolderCreatedAtViewModel> MaterialFolderCreatedAtViewModel { get; }
-
-	/// <summary>
-	/// 製本対象として選択されているかどうかを示します。
-	/// UI 状態のため、SeriesCardViewModel が保持します。
-	/// </summary>
-	public BindableReactiveProperty<bool> IsSelected { get; }
 
 	/// <summary>
 	/// <see cref="HomeSeriesCardViewModel"/> の新しいインスタンスを初期化します。
@@ -143,26 +137,11 @@ public class HomeSeriesCardViewModel : IDisposable
 			}
 		})
 		.AddTo(ref this.disposableBag);
-
-		// IsSelected は Home 画面固有の表示状態。
-		// 初期値は false で、HomeSeriesViewModelStore が BindingQueueStore.Queue から状態を設定する
-		this.IsSelected = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
 	}
 
 	/// <inheritdoc/>
 	public void Dispose()
 	{
 		this.disposableBag.Dispose();
-	}
-
-	/// <summary>
-	/// IsSelected の値を設定します。Home 画面の表示状態更新用。
-	/// HomeSeriesViewModelStore が BindingQueueStore.Queue の変更を監視して呼び出します。
-	/// </summary>
-	/// <param name="isSelected">新しい IsSelected 値。</param>
-	internal void SetIsSelected(bool isSelected)
-	{
-		this.IsSelected.Value = isSelected;
 	}
 }

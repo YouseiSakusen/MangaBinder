@@ -52,8 +52,8 @@ public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 	/// <summary>設定。WindowPlacement ファイル名の取得に使用します。</summary>
 	private readonly Microsoft.Extensions.Configuration.IConfiguration configuration;
 
-	/// <summary>製本待ちキューストア。InfoBadge 表示用に読み取り専用で使用します。</summary>
-	private readonly BindingQueueStore bindingQueueStore;
+	/// <summary>製本待ちの正本ストア。InfoBadge 表示用に件数を読み取り専用で使用します。</summary>
+	private readonly BindingStore bindingStore;
 
 	/// <summary>
 	/// アプリケーションタイトルを表す読み取り専用リアクティブプロパティです。
@@ -106,7 +106,7 @@ public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 	/// <param name="loadingService">ローディングサービス。</param>
 	/// <param name="serviceProvider">DI コンテナのサービスプロバイダー。</param>
 	/// <param name="configuration">設定。</param>
-	/// <param name="bindingQueueStore">製本待ちキューストア。</param>
+	/// <param name="bindingStore">製本待ちの正本ストア。</param>
 	public MainWindowViewModel(
 		ILogger<MainWindowViewModel> logger,
 		IThemeService themeService,
@@ -120,7 +120,7 @@ public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 		LoadingService loadingService,
 		IServiceProvider serviceProvider,
 		Microsoft.Extensions.Configuration.IConfiguration configuration,
-		BindingQueueStore bindingQueueStore)
+		BindingStore bindingStore)
 		: base(
 			navigationService,
 			snackbarService,
@@ -138,7 +138,7 @@ public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 		this.loadingService = loadingService;
 		this.serviceProvider = serviceProvider;
 		this.configuration = configuration;
-		this.bindingQueueStore = bindingQueueStore;
+		this.bindingStore = bindingStore;
 
 		this.logger.ZLogInformation($"MainWindowViewModel 初期化開始");
 
@@ -169,7 +169,7 @@ public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 		this.loadingService.StateChanged += this.onLoadingServiceStateChanged;
 
 		// BindingQueue 件数をストアから参照
-		this.BindingQueueCount = this.bindingQueueStore.Count;
+		this.BindingQueueCount = this.bindingStore.QueueCount;
 
 		// 製本待ちメニューアイテムを作成（InfoBadge表示用）
 		var bindingQueueMenuItem = new NavigationViewItem
@@ -276,9 +276,8 @@ public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 		await this.saveViewModelAsync(this.CurrentViewModel);
 
 		using var scope = this.serviceScopeFactory.CreateScope();
-		var bindingStoreRepository = scope.ServiceProvider.GetRequiredService<BindingStoreRepository>();
-		var bindingQueueRepository = scope.ServiceProvider.GetRequiredService<BindingQueueRepository>();
-		await bindingQueueRepository.SaveAsync(bindingStoreRepository.GetAll());
+		var bindingQueueManager = scope.ServiceProvider.GetRequiredService<BindingQueueManager>();
+		await bindingQueueManager.SaveAsync();
 
 		// 作品一覧のスクロール位置を AppSettings へ反映してDB保存する
 		this.appSettings.SeriesListVerticalOffset.Value = this.homePageViewModel.SavedSeriesListVerticalOffset.Value;

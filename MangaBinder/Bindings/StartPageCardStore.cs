@@ -1,13 +1,12 @@
 ﻿using ObservableCollections;
 using R3;
 using System.Collections.Specialized;
-using MangaBinder.Series;
 
 namespace MangaBinder.Bindings;
 
 /// <summary>
 /// 製本開始画面専用の状態と派生 View を保持する Store です。
-/// BindingQueueStore.Queue の Reactive な変更を監視し、
+/// 製本待ちの正本 <see cref="BindingStore.Queue"/> の Reactive な変更を監視し、
 /// StartPageSeriesCardViewModel 一覧へ自動的に変換します。
 /// </summary>
 public class StartPageCardStore : IDisposable
@@ -15,14 +14,9 @@ public class StartPageCardStore : IDisposable
 	private DisposableBag disposableBag;
 
 	/// <summary>
-	/// 製本開始キュー ストア。
+	/// 製本待ち Queue の正本を保持する Store。
 	/// </summary>
-	private readonly BindingQueueStore bindingQueueStore;
-
-	/// <summary>
-	/// 作品ストア。共有 MangaSeriesNotifier を解決するために使用します。
-	/// </summary>
-	private readonly MangaSeriesStore mangaSeriesStore;
+	private readonly BindingStore bindingStore;
 
 	/// <summary>
 	/// CreateView で生成された ISynchronizedView。
@@ -32,36 +26,22 @@ public class StartPageCardStore : IDisposable
 
 	/// <summary>
 	/// WPF バインド用の製本開始キュー ViewModel コレクション（同期ビュー）。
-	/// BindingQueueStore.Queue の変更を自動的に反映します。
+	/// <see cref="BindingStore.Queue"/> の変更を自動的に反映します。
 	/// </summary>
 	public NotifyCollectionChangedSynchronizedViewList<StartPageSeriesCardViewModel> QueueCards { get; }
 
 	/// <summary>
 	/// <see cref="StartPageCardStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
-	/// <param name="mangaSeriesStore">作品ストア。</param>
-	public StartPageCardStore(BindingQueueStore bindingQueueStore, MangaSeriesStore mangaSeriesStore)
+	/// <param name="bindingStore">製本待ち Queue の正本を保持する Store。</param>
+	public StartPageCardStore(BindingStore bindingStore)
 	{
-		this.bindingQueueStore = bindingQueueStore;
-		this.mangaSeriesStore = mangaSeriesStore;
+		this.bindingStore = bindingStore;
 
 		// 製本開始キュー ViewModel コレクションを生成
-		// BindingSeries から、共有 MangaSeriesNotifier を通じて StartPageSeriesCardViewModel へ変換
-		this.queueCardsView = this.bindingQueueStore.Queue
-			.CreateView(bindingSeries =>
-			{
-				// SeriesId から共有 MangaSeriesNotifier を解決
-				var sharedViewModel = this.mangaSeriesStore.FindNotifierById(bindingSeries.Series.SeriesId);
-				if (sharedViewModel is null)
-				{
-					throw new InvalidOperationException(
-						$"BindingQueue に登録された SeriesId {bindingSeries.Series.SeriesId} が MangaSeriesStore.All に見つかりません。" +
-						"BindingQueue と MangaSeriesStore.All の状態が不整合です。");
-				}
-				// 共有 ViewModel を渡してカードを生成
-				return new StartPageSeriesCardViewModel(bindingSeries, sharedViewModel);
-			});
+		// BindingSeries が保持する共有 MangaSeriesNotifier をそのまま参照する StartPageSeriesCardViewModel へ変換
+		this.queueCardsView = this.bindingStore.Queue
+			.CreateView(bindingSeries => new StartPageSeriesCardViewModel(bindingSeries));
 
 		this.QueueCards = this.queueCardsView
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)

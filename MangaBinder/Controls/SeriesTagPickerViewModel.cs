@@ -119,9 +119,9 @@ public class SeriesTagPickerViewModel : IDisposable
 			item.Dispose();
 		}
 
-		this.selectableTagItemsView.Dispose();
-		this.SelectableTagItems.Dispose();
+		// SelectableTagItems は disposableBag が所有するため、ここでは個別に Dispose しない
 		this.disposableBag.Dispose();
+		this.selectableTagItemsView.Dispose();
 	}
 
 	/// <summary>

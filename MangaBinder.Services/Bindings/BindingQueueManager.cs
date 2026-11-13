@@ -81,6 +81,15 @@ public sealed class BindingQueueManager
 	}
 
 	/// <summary>
+	/// 現在の <see cref="BindingStore.Queue"/> を DB へ保存します。
+	/// アプリ終了時にまとめて実行する想定で、追加・削除のたびには保存しません。
+	/// </summary>
+	public async ValueTask SaveAsync()
+	{
+		await this.bindingQueueRepository.SaveAsync(this.bindingStore.Queue);
+	}
+
+	/// <summary>
 	/// 共有 Notifier を参照する製本待ち用の <see cref="BindingSeries"/> を生成します。
 	/// </summary>
 	/// <param name="notifier">共有 Notifier。</param>

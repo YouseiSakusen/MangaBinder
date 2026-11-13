@@ -22,8 +22,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <summary>コンテントダイアログサービス。</summary>
 	private readonly IContentDialogService contentDialogService;
 
-	/// <summary>製本開始キュー ストア。</summary>
-	private readonly BindingQueueStore bindingQueueStore;
 	/// <summary>製本開始ページ ストア。</summary>
 	private readonly StartPageCardStore startPageStore;
 
@@ -85,7 +83,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	/// <param name="serviceScopeFactory">スコープファクトリー。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
-	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
 	/// <param name="startPageStore">製本開始ページ ストア。</param>
 	/// <param name="bindingStore">製本工程正本状態 ストア。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
@@ -93,7 +90,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		IServiceScopeFactory serviceScopeFactory,
 		INavigationService navigationService,
 		IContentDialogService contentDialogService,
-		BindingQueueStore bindingQueueStore,
 		StartPageCardStore startPageStore,
 		BindingStore bindingStore,
 		ISnackbarService snackbarService)
@@ -101,7 +97,6 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
-		this.bindingQueueStore = bindingQueueStore;
 		this.startPageStore = startPageStore;
 		this.bindingStore = bindingStore;
 		this.snackbarService = snackbarService;
@@ -109,11 +104,11 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		// StartPageStore が公開する WPF バインド用一覧を使用
 		this.Series = this.startPageStore.QueueCards;
 
-		// BindingQueue 件数をストアから参照
-		this.SelectedSeriesCount = this.bindingQueueStore.Count;
+		// 製本待ち件数を正本 BindingStore から参照（新しいインスタンスを作らない）
+		this.SelectedSeriesCount = this.bindingStore.QueueCount;
 
-		// BindingQueue が空かどうかをストアから参照
-		this.IsEmpty = this.bindingQueueStore.IsEmpty;
+		// 製本待ちが空かどうかを正本 BindingStore から参照（新しいインスタンスを作らない）
+		this.IsEmpty = this.bindingStore.IsQueueEmpty;
 
 		// BindingStore.BindingTarget をそのまま参照（新しいインスタンスを作らない）
 		this.BindingTarget = this.bindingStore.BindingTarget;
@@ -224,8 +219,8 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 	private void executeRemoveFromQueue(BindingSeries bindingSeries)
 	{
 		using var scope = this.serviceScopeFactory.CreateScope();
-		var dispatcher = scope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
-		dispatcher.Remove(bindingSeries.Series.SeriesId);
+		var queueManager = scope.ServiceProvider.GetRequiredService<BindingQueueManager>();
+		queueManager.Remove(bindingSeries.Series.SeriesId);
 	}
 
 	/// <summary>
@@ -241,10 +236,10 @@ public class StartPageViewModel : IDisposable, IDataInitializable
 		if (!confirmed)
 			return;
 
-		// BindingQueueDispatcher 経由でクリア
+		// BindingQueueManager 経由でクリア
 		using var scope = this.serviceScopeFactory.CreateScope();
-		var dispatcher = scope.ServiceProvider.GetRequiredService<BindingQueueDispatcher>();
-		dispatcher.Clear();
+		var queueManager = scope.ServiceProvider.GetRequiredService<BindingQueueManager>();
+		queueManager.Clear();
 	}
 
 	/// <summary>

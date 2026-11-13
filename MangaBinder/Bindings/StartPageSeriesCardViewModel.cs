@@ -13,8 +13,6 @@ namespace MangaBinder.Bindings;
 public class StartPageSeriesCardViewModel : IDisposable
 {
 	private DisposableBag disposableBag = new();
-	private NotifyCollectionChangedEventHandler<MangaTag>? collectionChangedHandler;
-	private BindingSeries bindingSeries = null!;
 
 	/// <summary>
 	/// 基になった BindingSeries です。
@@ -47,8 +45,9 @@ public class StartPageSeriesCardViewModel : IDisposable
 
 	/// <summary>
 	/// 製本開始キュー内での表示用タグテキスト。
+	/// 共有 MangaSeriesNotifier.Tags の追加・削除と、共有 TagNotifier の名称変更から導出されます。
 	/// </summary>
-	public BindableReactiveProperty<string> TagDisplayText { get; set; } = null!;
+	public IReadOnlyBindableReactiveProperty<string> TagDisplayText { get; private set; } = null!;
 
 	/// <summary>
 	/// 製本開始キューの進行状態を取得します。
@@ -72,17 +71,16 @@ public class StartPageSeriesCardViewModel : IDisposable
 
 	/// <summary>
 	/// <see cref="StartPageSeriesCardViewModel"/> の新しいインスタンスを初期化します。
-	/// 共有 MangaSeriesViewModel の Series BindableReactiveProperty を使用します。
+	/// BindingSeries が保持する共有 MangaSeriesNotifier の Series BindableReactiveProperty を使用します。
+	/// 共有 Notifier は MangaSeriesStore の所有物のため、このクラスでは Dispose しません。
 	/// </summary>
 	/// <param name="bindingSeries">ラップする BindingSeries。</param>
-	/// <param name="sharedSeriesViewModel">Series を共有する MangaSeriesViewModel。</param>
-	public StartPageSeriesCardViewModel(BindingSeries bindingSeries, MangaSeriesNotifier sharedSeriesViewModel)
+	public StartPageSeriesCardViewModel(BindingSeries bindingSeries)
 	{
 		this.BindingSeries = bindingSeries;
-		this.bindingSeries = bindingSeries;
 
-		// Series の初期化（共有ViewModel から直接参照）
-		this.Series = sharedSeriesViewModel.Series;
+		// Series の初期化（共有 Notifier から直接参照）
+		this.Series = bindingSeries.SeriesNotifier.Series;
 
 		this.initializeCommon(bindingSeries);
 	}
@@ -146,32 +144,27 @@ public class StartPageSeriesCardViewModel : IDisposable
 		})
 		.AddTo(ref this.disposableBag);
 
-		// TagDisplayText の初期化とタグ変更購読
-		this.TagDisplayText = new BindableReactiveProperty<string>(
-			SeriesTagDisplayFormatter.FormatForStartPage(bindingSeries.Series.Tags))
+		// TagDisplayText を共有 Notifier から導出する
+		// タグの追加・削除は Tags の変更通知、名称変更は先頭の共有 TagNotifier.Tag の通知で再計算する
+		// 書式は先頭タグ名と件数のみに依存するため、先頭タグだけを購読すれば足りる
+		var seriesNotifier = bindingSeries.SeriesNotifier;
+		this.TagDisplayText = seriesNotifier.Tags
+			.ObserveChanged()
+			.Select(_ => Unit.Default)
+			.Prepend(Unit.Default)
+			.Select(_ => seriesNotifier.Tags.Count == 0
+				? Observable.Return(Unit.Default)
+				: seriesNotifier.Tags[0].Tag.AsObservable().Select(_ => Unit.Default))
+			.Switch()
+			.Select(_ => SeriesTagDisplayFormatter.FormatForStartPage(
+				seriesNotifier.Tags.Select(tagNotifier => tagNotifier.Tag.Value)))
+			.ToReadOnlyBindableReactiveProperty(string.Empty)
 			.AddTo(ref this.disposableBag);
-
-		// Tags の変更を購読
-		this.collectionChangedHandler = this.OnTagsCollectionChanged;
-		bindingSeries.Series.Tags.CollectionChanged += this.collectionChangedHandler;
-	}
-
-	/// <summary>
-	/// Tags コレクション変更時のハンドラー。
-	/// </summary>
-	private void OnTagsCollectionChanged(in NotifyCollectionChangedEventArgs<MangaTag> e)
-	{
-		this.TagDisplayText.Value = SeriesTagDisplayFormatter.FormatForStartPage(this.bindingSeries.Series.Tags);
 	}
 
 	/// <inheritdoc/>
 	public void Dispose()
 	{
-		if (this.collectionChangedHandler != null)
-		{
-			this.BindingSeries.Series.Tags.CollectionChanged -= this.collectionChangedHandler;
-		}
-
 		this.disposableBag.Dispose();
 	}
 }

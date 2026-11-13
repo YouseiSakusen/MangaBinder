@@ -52,6 +52,9 @@ public partial class SeriesTagPicker : UserControl
 		}
 
 		viewModel.BeginSession(series);
+
+		// 表示順の元になる DisplayOrder はコレクション変更通知なしで変わり得るため、表示前に並べ直す
+		this.updateDisplayItems();
 		this.currentPlacementTarget = placementTarget;
 		this.TagPopup.PlacementTarget = placementTarget;
 		this.TagPopup.IsOpen = true;
@@ -197,6 +200,12 @@ public partial class SeriesTagPicker : UserControl
 		{
 			realTags.Add(item);
 		}
+
+		// Popup の表示順は表示専用で DisplayOrder 降順→TagId 降順とする（TagStore.Tags の正本順序は変更しない）
+		realTags = realTags
+			.OrderByDescending(item => item.TagNotifier.Tag.Value.DisplayOrder)
+			.ThenByDescending(item => item.TagNotifier.Tag.Value.TagId)
+			.ToList();
 
 		var tagCount = realTags.Count;
 		var columns = 2;
