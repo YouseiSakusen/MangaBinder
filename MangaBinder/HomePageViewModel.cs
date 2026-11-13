@@ -1,4 +1,5 @@
 ﻿using MangaBinder.Bindings;
+using MangaBinder.Controls;
 using MangaBinder.Series;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,6 +57,12 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// ListView にバインドする SeriesCardViewModel の一覧を取得します。
     /// </summary>
     public NotifyCollectionChangedSynchronizedViewList<HomeSeriesCardViewModel> Series { get; }
+
+    /// <summary>
+    /// Home 画面で共通のタグ選択 Popup 用 ViewModel を取得します。画面に1個だけ存在します。
+    /// Popup の操作セッション終了時に、タグの追加・削除があった作品を Dirty 登録します。
+    /// </summary>
+    public SeriesTagPickerViewModel TagPicker { get; }
 
     /// <summary>Home 画面の表示状態を取得します。</summary>
     public HomeStateInformation HomeStateInformation { get; } = new();
@@ -146,6 +153,10 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
         // Home 用一覧を HomeSeriesViewModelStore から取得
         this.Series = this.homeSeriesViewModelStore.HomeCards;
+
+        // タグ選択 Popup 用 ViewModel は画面共通の1個だけを生成し、Popup 終了時にまとめて Dirty 登録する
+        this.TagPicker = new SeriesTagPickerViewModel(this.seriesTagStore, this.serviceScopeFactory, this.seriesTagStore.MarkDirty)
+            .AddTo(ref this.disposableBag);
 
         // Store の RegisteredSeriesCount を共有
         this.RegisteredSeriesCount = this.mangaSeriesStore.RegisteredSeriesCount;

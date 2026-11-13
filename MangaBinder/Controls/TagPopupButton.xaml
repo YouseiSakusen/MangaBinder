@@ -1,0 +1,18 @@
+<UserControl x:Class="MangaBinder.Controls.TagPopupButton"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+			 mc:Ignorable="d" 
+			 d:DesignHeight="450" d:DesignWidth="800">
+	<!-- ToggleButton: タグ表示 & 共通 SeriesTagPicker の Popup 開閉依頼 -->
+	<ToggleButton
+		x:Name="TagToggleButton"
+		Padding="6,2"
+		FontSize="11"
+		Cursor="Hand"
+		Background="{DynamicResource ControlFillColorDefaultBrush}"
+		BorderThickness="0"
+		Checked="onTagToggleButtonChecked"
+		Unchecked="onTagToggleButtonUnchecked" />
+</UserControl>

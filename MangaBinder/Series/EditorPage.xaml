@@ -767,13 +767,24 @@
 								<ColumnDefinition Width="*" />
 							</Grid.ColumnDefinitions>
 
-							<!-- タグ選択UI（新SeriesTagPicker） -->
-							<controls:SeriesTagPicker
+							<!-- タグ選択UI（TagPopupButton + 共通 SeriesTagPicker） -->
+							<controls:TagPopupButton
 								Grid.Column="0"
 								Margin="0,0,12,0"
 								VerticalAlignment="Bottom"
-								DataContext="{Binding TagSelector}"
-								ButtonContent="⊕ タグを設定" />
+								Series="{Binding MangaSeriesCard.SeriesViewModel.Value}"
+								Picker="{Binding ElementName=EditorTagPicker}"
+								FixedText="⊕ タグを設定" />
+
+							<!-- タグ選択 Popup（画面に1個） -->
+							<controls:SeriesTagPicker
+								x:Name="EditorTagPicker"
+								Grid.Column="0"
+								Width="0"
+								Height="0"
+								HorizontalAlignment="Left"
+								VerticalAlignment="Bottom"
+								DataContext="{Binding TagPicker}" />
 
 							<!-- 選択済みタグ表示エリア（1行固定横スクロール） -->
 							<ScrollViewer
@@ -782,7 +793,7 @@
 								HorizontalScrollBarVisibility="Auto"
 								VerticalScrollBarVisibility="Disabled"
 								VerticalAlignment="Center">
-								<ItemsControl ItemsSource="{Binding TagSelector.SelectedTags}">
+								<ItemsControl ItemsSource="{Binding SelectedTags.Value}">
 									<ItemsControl.ItemsPanel>
 										<ItemsPanelTemplate>
 											<StackPanel Orientation="Horizontal" />
@@ -804,7 +815,7 @@
 														Filled="True"
 														VerticalAlignment="Center" />
 													<TextBlock
-														Text="{Binding Name}"
+														Text="{Binding Tag.Value.Name}"
 														FontSize="12"
 														Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 														VerticalAlignment="Center" />

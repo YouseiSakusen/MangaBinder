@@ -26,11 +26,6 @@ public class HomeSeriesViewModelStore : IDisposable
 	private readonly BindingQueueStore bindingQueueStore;
 
 	/// <summary>
-	/// タグ変更追跡ストア。SeriesCardViewModel の TagSelector 用。
-	/// </summary>
-	private readonly TagStore seriesTagStore;
-
-	/// <summary>
 	/// CreateView で生成された ISynchronizedView。
 	/// ViewChanged イベントを購読して、削除・置換時に SeriesCardViewModel を Dispose する。
 	/// </summary>
@@ -47,19 +42,17 @@ public class HomeSeriesViewModelStore : IDisposable
 	/// </summary>
 	/// <param name="mangaSeriesStore">作品ストア。</param>
 	/// <param name="bindingQueueStore">製本開始キュー ストア。</param>
-	/// <param name="seriesTagStore">タグ変更追跡ストア。</param>
-	public HomeSeriesViewModelStore(MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore, TagStore seriesTagStore)
+	public HomeSeriesViewModelStore(MangaSeriesStore mangaSeriesStore, BindingQueueStore bindingQueueStore)
 	{
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.bindingQueueStore = bindingQueueStore;
-		this.seriesTagStore = seriesTagStore;
 
 		// Home 用作品 ViewModel コレクションを生成
 		// MangaSeriesViewModel から SeriesCardViewModel へ変換
 		this.homeCardsView = this.mangaSeriesStore.All
 			.CreateView(seriesViewModel =>
 			{
-				var card = new HomeSeriesCardViewModel(seriesViewModel, this.seriesTagStore);
+				var card = new HomeSeriesCardViewModel(seriesViewModel);
 				// 生成時点で現在の BindingQueueStore.Queue を確認して IsSelected を初期化
 				var isInQueue = this.bindingQueueStore.Contains(seriesViewModel.Series.Value.SeriesId);
 				card.SetIsSelected(isInQueue);

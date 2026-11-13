@@ -4,34 +4,25 @@ using System.Collections.Specialized;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using MangaBinder.Series;
 
 namespace MangaBinder.Controls;
 
 /// <summary>
-/// SeriesTagPicker.xaml の相互作用ロジック
+/// タグ選択 Popup 専用の UserControl です。
+/// <see cref="TagPopupButton"/> からの依頼で Popup を開閉し、タグ選択状態は <see cref="SeriesTagPickerViewModel"/> へ委譲します。
 /// </summary>
 public partial class SeriesTagPicker : UserControl
 {
 	private SeriesTagPickerViewModel? currentViewModel;
 
-	/// <summary>
-	/// ButtonContent DependencyProperty を取得または設定します。
-	/// </summary>
-	public object ButtonContent
-	{
-		get => this.GetValue(ButtonContentProperty);
-		set => this.SetValue(ButtonContentProperty, value);
-	}
+	/// <summary>現在の Popup 表示の基準となっているボタン。Popup が閉じている間は null です。</summary>
+	private FrameworkElement? currentPlacementTarget;
 
 	/// <summary>
-	/// ButtonContent DependencyProperty の定義。
+	/// Popup が閉じられたときに発生します。引数は Popup の PlacementTarget だったボタンです。
 	/// </summary>
-	public static readonly DependencyProperty ButtonContentProperty =
-		DependencyProperty.Register(
-			nameof(ButtonContent),
-			typeof(object),
-			typeof(SeriesTagPicker),
-			new PropertyMetadata(null));
+	public event Action<FrameworkElement>? PopupClosed;
 
 	/// <summary>
 	/// SeriesTagPicker の新しいインスタンスを初期化します。
@@ -42,6 +33,70 @@ public partial class SeriesTagPicker : UserControl
 		this.DataContextChanged += this.onDataContextChanged;
 		this.Loaded += this.onLoaded;
 		this.Unloaded += this.onUnloaded;
+	}
+
+	/// <summary>
+	/// 対象作品のタグ選択 Popup を、指定したボタンの上側に表示します。
+	/// 既に別の作品で表示中の場合は、先にその Popup を閉じて操作セッションを終了します。
+	/// </summary>
+	/// <param name="series">対象作品の共有 Notifier。</param>
+	/// <param name="placementTarget">Popup の PlacementTarget とするボタン。</param>
+	public void Open(MangaSeriesNotifier series, FrameworkElement placementTarget)
+	{
+		var viewModel = this.currentViewModel
+			?? throw new InvalidOperationException("SeriesTagPicker の DataContext に SeriesTagPickerViewModel が設定されていません。");
+
+		if (this.currentPlacementTarget is not null)
+		{
+			this.closeCurrentPopup();
+		}
+
+		viewModel.BeginSession(series);
+		this.currentPlacementTarget = placementTarget;
+		this.TagPopup.PlacementTarget = placementTarget;
+		this.TagPopup.IsOpen = true;
+	}
+
+	/// <summary>
+	/// 指定したボタンを基準に表示中の Popup を閉じます。別のボタンが基準の場合は何もしません。
+	/// </summary>
+	/// <param name="placementTarget">Popup の閉鎖を依頼したボタン。</param>
+	public void Close(FrameworkElement placementTarget)
+	{
+		if (!ReferenceEquals(this.currentPlacementTarget, placementTarget))
+		{
+			return;
+		}
+
+		this.closeCurrentPopup();
+	}
+
+	/// <summary>
+	/// 表示中の Popup を閉じ、操作セッションの終了と閉鎖通知を行います。
+	/// </summary>
+	private void closeCurrentPopup()
+	{
+		var closedTarget = this.currentPlacementTarget
+			?? throw new InvalidOperationException("表示中の Popup がありません。");
+
+		this.currentPlacementTarget = null;
+		this.TagPopup.IsOpen = false;
+		this.currentViewModel?.EndSession();
+		this.PopupClosed?.Invoke(closedTarget);
+	}
+
+	/// <summary>
+	/// Popup.Closed のハンドラー。StaysOpen=False による自動クローズ時の終了処理を行います。
+	/// </summary>
+	private void onTagPopupClosed(object? sender, EventArgs e)
+	{
+		// 別の作品で再表示済みの場合や、closeCurrentPopup 内で処理済みの場合は何もしない
+		if (this.TagPopup.IsOpen || this.currentPlacementTarget is null)
+		{
+			return;
+		}
+
+		this.closeCurrentPopup();
 	}
 
 	/// <summary>
@@ -69,6 +124,7 @@ public partial class SeriesTagPicker : UserControl
 	/// </summary>
 	private void onLoaded(object sender, RoutedEventArgs e)
 	{
+		this.TagPopup.Closed += this.onTagPopupClosed;
 		this.subscribeSelectableTagItems();
 		this.updateDisplayItems();
 	}
@@ -78,6 +134,13 @@ public partial class SeriesTagPicker : UserControl
 	/// </summary>
 	private void onUnloaded(object sender, RoutedEventArgs e)
 	{
+		// 表示中のまま破棄される場合も、操作セッションを終了してから購読を解除する
+		if (this.currentPlacementTarget is not null)
+		{
+			this.closeCurrentPopup();
+		}
+
+		this.TagPopup.Closed -= this.onTagPopupClosed;
 		this.unsubscribeSelectableTagItems();
 	}
 

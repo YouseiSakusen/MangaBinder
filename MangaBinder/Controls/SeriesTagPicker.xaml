@@ -7,23 +7,10 @@
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
     <Grid>
-        <!-- ToggleButton: タグ表示 & ポップアップ開閉 -->
-        <ToggleButton
-            x:Name="TagToggleButton"
-            Padding="6,2"
-            FontSize="11"
-            Content="{Binding ButtonContent, RelativeSource={RelativeSource AncestorType=UserControl}}"
-            Cursor="Hand"
-            Background="{DynamicResource ControlFillColorDefaultBrush}"
-            BorderThickness="0"
-            Command="{Binding PreparePopupCommand}" />
-
-        <!-- Popup: タグ選択チェックボックス一覧 -->
+        <!-- Popup: タグ選択チェックボックス一覧。開閉と PlacementTarget はコードビハインドから制御する -->
         <Popup
             x:Name="TagPopup"
-            PlacementTarget="{Binding ElementName=TagToggleButton}"
             Placement="Top"
-            IsOpen="{Binding IsChecked, ElementName=TagToggleButton, Mode=TwoWay}"
             StaysOpen="False"
             AllowsTransparency="True"
             PopupAnimation="Fade">

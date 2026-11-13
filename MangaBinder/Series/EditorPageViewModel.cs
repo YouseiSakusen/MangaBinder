@@ -1,6 +1,7 @@
 using MangaBinder.Bindings;
 using MangaBinder.Controls;
 using MangaBinder.Settings;
+using MangaBinder.Tags;
 using ObservableCollections;
 using R3;
 using Reactive.Bindings.R3.Notifiers;
@@ -33,8 +34,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private readonly EditingSession editorStore;
 	private readonly LoadingService loadingService;
 	private readonly ThumbnailImageLoader thumbnailImageLoader;
-	private SeriesTagPickerViewModel tagSelector = null!;
 	private DisposableBag disposableBag;
+	private NotifyCollectionChangedSynchronizedViewList<TagNotifier>? selectedTagsView;
 	private CancellationTokenSource? materialSizeCancellationTokenSource;
 	private bool isInitializing;
 	private bool suppressMaterialSizeCalculation;
@@ -46,9 +47,16 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
 
 	/// <summary>
-	/// タグ選択・表示状態を管理する ViewModel です。
+	/// タグ選択 Popup 用 ViewModel です。Editor では Popup 終了時の Dirty 登録は行わず、既存の作品保存処理で反映します。
 	/// </summary>
-	public SeriesTagPickerViewModel TagSelector => this.tagSelector;
+	public SeriesTagPickerViewModel TagPicker { get; }
+
+	/// <summary>
+	/// 選択済みタグ表示用の共有 <see cref="TagNotifier"/> 一覧を取得します。
+	/// 対象作品の <see cref="MangaSeriesNotifier.Tags"/> と同期し、タグ名の変更・タグの追加・削除を反映します。
+	/// 要素の <see cref="TagNotifier"/> は <see cref="TagStore"/> の所有物のため Dispose しません。
+	/// </summary>
+	public BindableReactiveProperty<NotifyCollectionChangedSynchronizedViewList<TagNotifier>?> SelectedTags { get; }
 
 	/// <summary>タイトルを取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Title { get; }
@@ -307,8 +315,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.EditingSeries = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
 
-		// TagSelector の初期化
-		this.tagSelector = new SeriesTagPickerViewModel(tagStore)
+		// TagPicker の初期化
+		this.TagPicker = new SeriesTagPickerViewModel(tagStore, serviceScopeFactory)
+			.AddTo(ref this.disposableBag);
+
+		this.SelectedTags = new BindableReactiveProperty<NotifyCollectionChangedSynchronizedViewList<TagNotifier>?>(null)
 			.AddTo(ref this.disposableBag);
 
 		this.Title = new BindableReactiveProperty<string?>(null)
@@ -662,6 +673,24 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		{
 			await this.showDeleteSeriesDialogAsync();
 		});
+
+		// 接続された共有 MangaSeriesNotifier のタグを、選択済みタグ表示へ連動する
+		this.MangaSeriesCard.SeriesViewModel
+			.Subscribe(this.onSeriesViewModelChanged)
+			.AddTo(ref this.disposableBag);
+	}
+
+	/// <summary>
+	/// 接続対象の MangaSeriesNotifier が変わったとき、選択済みタグ表示用の同期 View を作り直します。
+	/// Notifier と TagNotifier は共有物のため Dispose せず、ここで生成した View だけを破棄します。
+	/// </summary>
+	private void onSeriesViewModelChanged(MangaSeriesNotifier? notifier)
+	{
+		this.SelectedTags.Value = null;
+		this.selectedTagsView?.Dispose();
+		this.selectedTagsView = notifier?.Tags
+			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current);
+		this.SelectedTags.Value = this.selectedTagsView;
 	}
 
 	/// <summary>
@@ -789,9 +818,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 			// 編集開始時の OwnedMaxVolume を保持（素材削除時の復元用）
 			this.editingStartOwnedMaxVolume = this.VolumeStatus.OwnedMaxVolume.Value;
-
-			// TagSelector へ対象作品を設定（onTagsChanged は不要）
-			this.tagSelector.SetTarget(editingSeries);
 
 			// 素材ファイル一覧を初期化（既存作品のみ）
 			// MaterialFiles 再構築中の容量再計算を抑止
@@ -2430,7 +2456,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		if (disposing)
 		{
 			this.ClearPastedThumbnail();
-			this.tagSelector.Dispose();
+			this.selectedTagsView?.Dispose();
+			this.selectedTagsView = null;
 			this.materialSizeCancellationTokenSource?.Dispose();
 			this.disposableBag.Dispose();
 			this.disposeOwnedSeriesViewModel();

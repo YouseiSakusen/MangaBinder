@@ -11,7 +11,12 @@ namespace MangaBinder;
 public class HomeSeriesCardViewModel : IDisposable
 {
 	private DisposableBag disposableBag = new();
-	private SeriesTagPickerViewModel tagSelector = null!;
+
+	/// <summary>
+	/// 共有 <see cref="MangaSeriesNotifier"/> です。<see cref="MangaSeriesStore"/> が所有しているため、ここで Dispose してはいけません。
+	/// タグ表示ボタンへ渡します。
+	/// </summary>
+	public MangaSeriesNotifier SeriesNotifier { get; }
 
 	/// <summary>
 	/// 基になった MangaSeries です。
@@ -46,17 +51,13 @@ public class HomeSeriesCardViewModel : IDisposable
 	public BindableReactiveProperty<bool> IsSelected { get; }
 
 	/// <summary>
-	/// タグ選択・表示状態を管理する ViewModel です。
-	/// </summary>
-	public SeriesTagPickerViewModel TagSelector => this.tagSelector;
-
-	/// <summary>
 	/// <see cref="HomeSeriesCardViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="seriesViewModel">ラップする MangaSeriesNotifier。</param>
-	/// <param name="seriesTagStore">タグマスタ取得・Dirty 管理用のタグストア。</param>
-	public HomeSeriesCardViewModel(MangaSeriesNotifier seriesViewModel, TagStore? seriesTagStore = null)
+	public HomeSeriesCardViewModel(MangaSeriesNotifier seriesViewModel)
 	{
+		this.SeriesNotifier = seriesViewModel;
+
 		// 共有 MangaSeriesNotifier.Series をそのまま参照（新規生成しない）
 		this.Series = seriesViewModel.Series;
 
@@ -147,22 +148,11 @@ public class HomeSeriesCardViewModel : IDisposable
 		// 初期値は false で、HomeSeriesViewModelStore が BindingQueueStore.Queue から状態を設定する
 		this.IsSelected = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
-
-		// TagSelector の初期化
-		this.tagSelector = new SeriesTagPickerViewModel(seriesTagStore ?? throw new ArgumentNullException(nameof(seriesTagStore)))
-			.AddTo(ref this.disposableBag);
-
-		// 対象作品を設定し、タグ変更時の Dirty 登録処理を接続
-		var onTagsChanged = seriesTagStore != null
-			? (Action<MangaSeries>)(s => seriesTagStore.MarkDirty(s))
-			: null;
-		this.tagSelector.SetTarget(this.Series.Value, onTagsChanged);
 	}
 
 	/// <inheritdoc/>
 	public void Dispose()
 	{
-		this.tagSelector.Dispose();
 		this.disposableBag.Dispose();
 	}
 

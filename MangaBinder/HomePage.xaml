@@ -447,13 +447,13 @@
 											Command="{Binding DataContext.EditSeriesCommand, RelativeSource={RelativeSource AncestorType=Page}}"
 											CommandParameter="{Binding Series.Value}" />
 
-										<!-- Row2: タグボタン -->
-									<controls:SeriesTagPicker
-										Grid.Row="2"
-										DataContext="{Binding TagSelector}"
-										ButtonContent="{Binding CompactDisplayText.Value}"
-										VerticalAlignment="Bottom"
-										HorizontalAlignment="Center" />
+										<!-- Row2: タグボタン（Popup は画面共通の HomeTagPicker を使用） -->
+										<controls:TagPopupButton
+											Grid.Row="2"
+											Series="{Binding SeriesNotifier}"
+											Picker="{Binding ElementName=HomeTagPicker}"
+											VerticalAlignment="Bottom"
+											HorizontalAlignment="Center" />
 								</Grid>
 							</Grid>
 						</ui:Card>
@@ -461,6 +461,15 @@
 					</ListView.ItemTemplate>
 
 				</ListView>
+
+				<!-- タグ選択 Popup（画面共通と1個。各カードの TagPopupButton から開閉を依頼する） -->
+				<controls:SeriesTagPicker
+					x:Name="HomeTagPicker"
+					DataContext="{Binding TagPicker}"
+					Width="0"
+					Height="0"
+					HorizontalAlignment="Left"
+					VerticalAlignment="Top" />
 
 				<!-- Empty State 1: 素材フォルダ未登録 -->
 				<Grid
