@@ -99,6 +99,7 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<HomeSeriesCardStore>();
 		services.AddScoped<BindingStoreRepository>();
 		services.AddScoped<BindingQueueDispatcher>();
+		services.AddScoped<BindingQueueManager>();
 		services.AddScoped<BindingRepository>();
 		services.AddScoped<BindingManager>();
 		services.AddScoped<BindingCancelViewModel>();

@@ -21,10 +21,10 @@ public class MangaSeriesManager
 	/// <summary>登録待ち作品の取得を担う Repository。</summary>
 	private readonly WorkMangaSeriesRepository workMangaSeriesRepository;
 
-	/// <summary>BindingQueue の SeriesId 復元を担う Repository。</summary>
-	private readonly BindingQueueRepository bindingQueueRepository;
+	/// <summary>製本待ちの復元を担う Manager。</summary>
+	private readonly BindingQueueManager bindingQueueManager;
 
-	/// <summary>製本開始状態 Dispatcher。</summary>
+	/// <summary>製本開始状態 Dispatcher。作品編集の保存時に使用する移行期間中の旧経路です。</summary>
 	private readonly BindingQueueDispatcher bindingQueueDispatcher;
 
 	/// <summary>MangaSeries の正本リストを管理するストア。</summary>
@@ -50,7 +50,7 @@ public class MangaSeriesManager
 	/// </summary>
 	/// <param name="mangaRepository">MangaSeries の取得を担う Repository。</param>
 	/// <param name="workMangaSeriesRepository">登録待ち作品の取得を担う Repository。</param>
-	/// <param name="bindingQueueRepository">BindingQueue の SeriesId 復元を担う Repository。</param>
+	/// <param name="bindingQueueManager">製本待ちの復元を担う Manager。</param>
 	/// <param name="bindingQueueDispatcher">製本開始状態 Dispatcher。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="bindingQueueStore">製本待ち作品を管理するストア。</param>
@@ -61,7 +61,7 @@ public class MangaSeriesManager
 	public MangaSeriesManager(
 		MangaRepository mangaRepository,
 		WorkMangaSeriesRepository workMangaSeriesRepository,
-		BindingQueueRepository bindingQueueRepository,
+		BindingQueueManager bindingQueueManager,
 		BindingQueueDispatcher bindingQueueDispatcher,
 		MangaSeriesStore mangaSeriesStore,
 		BindingQueueStore bindingQueueStore,
@@ -72,7 +72,7 @@ public class MangaSeriesManager
 	{
 		this.mangaRepository = mangaRepository;
 		this.workMangaSeriesRepository = workMangaSeriesRepository;
-		this.bindingQueueRepository = bindingQueueRepository;
+		this.bindingQueueManager = bindingQueueManager;
 		this.bindingQueueDispatcher = bindingQueueDispatcher;
 		this.mangaSeriesStore = mangaSeriesStore;
 		this.bindingQueueStore = bindingQueueStore;
@@ -126,35 +126,13 @@ public class MangaSeriesManager
 		// 5. MangaSeriesStore に登録待ち作品を格納する
 		this.mangaSeriesStore.ReplaceWorkSeries(allWorkSeries);
 
-		// 6. BindingQueue から SeriesId 一覧を取得する
-		var queuedSeriesIds = await this.bindingQueueRepository.GetQueuedSeriesIdsAsync(cancellationToken);
+		// 6. BindingQueueManager が DB の製本待ちを復元し、共有 Notifier から BindingSeries を構築して BindingStore.Queue へ反映する
+		await this.bindingQueueManager.RestoreAsync(cancellationToken);
 
-		// 7. MangaSeriesStore から SeriesId が一致するインスタンスを探し、BindingSeries を構築する
-		var bindingSeriesList = new List<BindingSeries>();
-		foreach (var seriesId in queuedSeriesIds)
-		{
-			var matchedViewModel = this.mangaSeriesStore.FindNotifierById(seriesId);
-			if (matchedViewModel != null)
-			{
-				var bindingSeries = new BindingSeries
-				{
-					Series = matchedViewModel.Series.Value,
-					Status = BindingStartStatus.Configuring,
-					CurrentStep = 0,
-					AddedAt = DateTime.Now,
-					UpdatedAt = DateTime.Now,
-				};
-				bindingSeriesList.Add(bindingSeries);
-			}
-		}
-
-		// 8. BindingQueueDispatcher に復元したBindingQueue一覧を設定する
-		this.bindingQueueDispatcher.ReplaceAll(bindingSeriesList);
-
-		// 9. Store の初期化を完了とマーク
+		// 7. Store の初期化を完了とマーク
 		this.mangaSeriesStore.MarkInitialized();
 
-		// 10. MangaSeriesStore から取得した MangaSeries 一覧を返す
+		// 8. MangaSeriesStore から取得した MangaSeries 一覧を返す
 		return this.mangaSeriesStore.All.Select(vm => vm.Series.Value).ToList();
 	}
 
@@ -801,10 +779,14 @@ public class MangaSeriesManager
 	{
 		if (isBindingQueued)
 		{
+			// 保存後の正本作品は MangaSeriesStore に存在する。共有 Notifier を参照する
+			var notifier = this.mangaSeriesStore.FindNotifierById(series.SeriesId)
+				?? throw new InvalidOperationException($"SeriesId {series.SeriesId} に対応する MangaSeriesNotifier が見つかりません。");
+
 			this.bindingQueueDispatcher.Add(
 				new BindingSeries
 				{
-					Series = series,
+					SeriesNotifier = notifier,
 					Status = BindingStartStatus.Configuring,
 					AddedAt = DateTime.Now,
 					UpdatedAt = DateTime.Now,

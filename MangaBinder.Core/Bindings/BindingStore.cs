@@ -51,6 +51,19 @@ public class BindingStore : IDisposable
 	public BindableReactiveProperty<MangaSeriesNotifier?> BindingTargetViewModel { get; }
 
 	/// <summary>
+	/// 製本待ち作品のメモリ上の正本を取得します。
+	/// 製本セッション（<see cref="BindingTarget"/> の変更）の初期化対象ではなく、アプリケーション実行中は保持され続けます。
+	/// 変更は <see cref="AddToQueue"/> 等のメソッド経由で行います。
+	/// </summary>
+	public ObservableList<BindingSeries> Queue { get; } = new();
+
+	/// <summary>製本待ち作品の件数を取得します。<see cref="Queue"/> の件数変更に自動追従します。</summary>
+	public BindableReactiveProperty<int> QueueCount { get; }
+
+	/// <summary>製本待ちが空であるかどうかを取得します。<see cref="Queue"/> の件数変更に自動追従します。</summary>
+	public BindableReactiveProperty<bool> IsQueueEmpty { get; }
+
+	/// <summary>
 	/// 現在の見開き分割画面で扱う対象巻を取得または設定します。
 	/// 値の切り替え時に、旧巻の画像は見開き分割対象を解除し、新巻の画像へデフォルトを適用します。
 	/// </summary>
@@ -265,6 +278,20 @@ public class BindingStore : IDisposable
 			.AddTo(ref this.disposableBag);
 		this.BindingTargetViewModel = new BindableReactiveProperty<MangaSeriesNotifier?>(null)
 			.AddTo(ref this.disposableBag);
+
+		// 製本待ち Queue の件数と空判定を Queue から導出する
+		this.QueueCount = new BindableReactiveProperty<int>(this.Queue.Count)
+			.AddTo(ref this.disposableBag);
+		this.IsQueueEmpty = new BindableReactiveProperty<bool>(this.Queue.Count == 0)
+			.AddTo(ref this.disposableBag);
+		this.Queue.ObserveCountChanged()
+			.Subscribe(count =>
+			{
+				this.QueueCount.Value = count;
+				this.IsQueueEmpty.Value = count == 0;
+			})
+			.AddTo(ref this.disposableBag);
+
 		this.Materials = new ObservableList<MaterialItem>();
 		this.WorkVolumes = new ObservableList<MaterialItem>();
 		this.BindingVolumes = new ObservableList<BindingVolume>();
@@ -692,8 +719,56 @@ public class BindingStore : IDisposable
 	}
 
 	/// <summary>
+	/// 製本待ちへ作品を追加します。
+	/// 同一 SeriesId は重複登録しません。
+	/// </summary>
+	/// <param name="item">追加する製本待ち作品。</param>
+	public void AddToQueue(BindingSeries item)
+	{
+		if (this.ContainsInQueue(item.Series.SeriesId))
+			return;
+
+		this.Queue.Add(item);
+	}
+
+	/// <summary>
+	/// 指定した SeriesId の作品を製本待ちから削除します。
+	/// 製本待ちに存在しない場合は何もしません。
+	/// </summary>
+	/// <param name="seriesId">削除対象の SeriesId。</param>
+	public void RemoveFromQueue(long seriesId)
+	{
+		var target = this.Queue.FirstOrDefault(x => x.Series.SeriesId == seriesId);
+		if (target is not null)
+			this.Queue.Remove(target);
+	}
+
+	/// <summary>
+	/// 指定した SeriesId が製本待ちに含まれているか判定します。
+	/// </summary>
+	/// <param name="seriesId">判定する SeriesId。</param>
+	/// <returns>含まれている場合 <see langword="true"/>。</returns>
+	public bool ContainsInQueue(long seriesId)
+		=> this.Queue.Any(x => x.Series.SeriesId == seriesId);
+
+	/// <summary>
+	/// 製本待ちを指定した一覧で一括置換します。
+	/// </summary>
+	/// <param name="items">新しい製本待ち一覧。</param>
+	public void ReplaceQueue(IEnumerable<BindingSeries> items)
+	{
+		this.Queue.Clear();
+		this.Queue.AddRange(items);
+	}
+
+	/// <summary>製本待ちを全件クリアします。</summary>
+	public void ClearQueue()
+		=> this.Queue.Clear();
+
+	/// <summary>
 	/// 製本セッション固有の状態を初期値へ戻します。
 	/// BindingTarget 自身は変更しません。
+	/// 製本待ち <see cref="Queue"/> は初期化しません。
 	/// </summary>
 	private void clearCurrentBindingSession()
 	{

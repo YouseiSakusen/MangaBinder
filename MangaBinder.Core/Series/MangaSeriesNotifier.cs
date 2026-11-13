@@ -27,6 +27,13 @@ public class MangaSeriesNotifier : IDisposable
 	public BindableReactiveProperty<MangaSeries> Series { get; }
 
 	/// <summary>
+	/// この作品が製本待ちに含まれているかどうかを取得します。
+	/// 正本ではありません。正本は <c>BindingStore.Queue</c> で、この値は <see cref="MangaSeriesStore"/> が Queue の変更通知から反映する表示用の派生状態です。
+	/// <see cref="MangaSeriesStore"/> 以外から値を設定してはいけません。
+	/// </summary>
+	public BindableReactiveProperty<bool> IsBindingQueued { get; }
+
+	/// <summary>
 	/// この作品に付与されたタグの表示・通知用派生コレクションを取得します。
 	/// 要素は <see cref="TagStore"/> が所有する共有 <see cref="TagNotifier"/> であり、
 	/// <c>MangaSeries.Tags</c> の変更に連動して更新されます。要素を Dispose してはいけません。
@@ -45,6 +52,9 @@ public class MangaSeriesNotifier : IDisposable
 		this.trackedSeries = series;
 
 		this.Series = new BindableReactiveProperty<MangaSeries>(series)
+			.AddTo(ref this.disposableBag);
+
+		this.IsBindingQueued = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
 		this.synchronizeSeriesTagInstances();

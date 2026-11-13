@@ -340,7 +340,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
             // Queue にまだ入っていないので追加
             dispatcher.Add(new BindingSeries
             {
-                Series = cardViewModel.Series.Value,
+                SeriesNotifier = cardViewModel.SeriesNotifier,
                 Status = BindingStartStatus.Configuring,
                 AddedAt = DateTime.Now,
                 UpdatedAt = DateTime.Now

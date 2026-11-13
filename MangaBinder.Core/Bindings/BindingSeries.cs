@@ -1,4 +1,5 @@
 using MangaBinder.Core.Formatters;
+using MangaBinder.Series;
 
 namespace MangaBinder.Bindings;
 
@@ -7,8 +8,14 @@ namespace MangaBinder.Bindings;
 /// </summary>
 public sealed class BindingSeries
 {
-	/// <summary>漫画作品情報。</summary>
-	public MangaSeries Series { get; init; } = default!;
+	/// <summary>
+	/// <see cref="MangaSeriesStore"/> が所有する共有 <see cref="MangaSeriesNotifier"/> です。
+	/// ここで生成・コピー・Dispose してはいけません。
+	/// </summary>
+	public MangaSeriesNotifier SeriesNotifier { get; init; } = default!;
+
+	/// <summary>共有 Notifier が保持する正本の漫画作品情報。</summary>
+	public MangaSeries Series => this.SeriesNotifier.Series.Value;
 
 	/// <summary>製本開始キューの進行状態。</summary>
 	public BindingStartStatus Status { get; init; }

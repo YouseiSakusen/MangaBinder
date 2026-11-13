@@ -1,8 +1,10 @@
 ﻿using ObservableCollections;
 using R3;
+using System.Collections.Specialized;
 
 namespace MangaBinder;
 
+using MangaBinder.Bindings;
 using MangaBinder.Series;
 using MangaBinder.Tags;
 
@@ -10,6 +12,7 @@ using MangaBinder.Tags;
 /// MangaSeries の正本リストを管理する Singleton ストアです。
 /// アプリケーション全体で同一の MangaSeries インスタンスを参照するための中央集中管理を提供します。
 /// タグマスタの正本は <see cref="TagStore"/> が管理し、このストアは作品の正本管理に専念します。
+/// 製本待ちの正本である <see cref="BindingStore.Queue"/> の変更を監視し、所有する共有 Notifier の <see cref="MangaSeriesNotifier.IsBindingQueued"/> へ反映します。
 /// </summary>
 public sealed class MangaSeriesStore : IDisposable
 {
@@ -18,6 +21,10 @@ public sealed class MangaSeriesStore : IDisposable
 
 	private DisposableBag disposableBag;
 	private readonly TagStore tagStore;
+	private readonly BindingStore bindingStore;
+
+	/// <summary>現在 <see cref="MangaSeriesNotifier.IsBindingQueued"/> を true にしている Notifier。Queue の一括変更時に全作品を再走査しないために保持します。</summary>
+	private readonly HashSet<MangaSeriesNotifier> queuedNotifiers = new();
 	private readonly ObservableList<MangaSeriesNotifier> workSeriesNotifiers = new();
 	private readonly ObservableList<MangaSeriesNotifier> allSeriesNotifiers = new();
 
@@ -79,9 +86,14 @@ public sealed class MangaSeriesStore : IDisposable
 	/// <see cref="MangaSeriesStore"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="tagStore">MangaSeriesNotifier が共有 TagNotifier を参照するためのタグストア。</param>
-	public MangaSeriesStore(TagStore tagStore)
+	/// <param name="bindingStore">製本待ち Queue の正本を保持するストア。Queue の変更を監視して Notifier の派生状態へ反映します。</param>
+	public MangaSeriesStore(TagStore tagStore, BindingStore bindingStore)
 	{
 		this.tagStore = tagStore;
+		this.bindingStore = bindingStore;
+
+		// 製本待ち Queue の変更をここで一元監視する（解除は Dispose）
+		this.bindingStore.Queue.CollectionChanged += this.onBindingQueueCollectionChanged;
 
 		this.MaintenanceSearchWords = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
@@ -360,6 +372,9 @@ public sealed class MangaSeriesStore : IDisposable
 		var target = this.allSeriesNotifiers.FirstOrDefault(vm => vm.Series.Value.SeriesId == seriesId);
 		if (target is not null)
 		{
+			// 削除する作品が製本待ちに残っていると Dispose 済み Notifier を Queue が参照し続けるため、先に Queue から取り除く
+			this.bindingStore.RemoveFromQueue(seriesId);
+
 			// Collection から削除してから Dispose
 			this.MaintenanceDisplaySeries.Remove(target);
 			this.allSeriesNotifiers.Remove(target);
@@ -408,9 +423,103 @@ public sealed class MangaSeriesStore : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// 製本待ち Queue の CollectionChanged イベント ハンドラ。
+	/// Add / Remove / Replace は変更された作品の Notifier のみを差分で反映し、
+	/// Reset（Clear 等）は Queue と現在 true の Notifier のみを比較して反映します。
+	/// </summary>
+	private void onBindingQueueCollectionChanged(in NotifyCollectionChangedEventArgs<BindingSeries> e)
+	{
+		switch (e.Action)
+		{
+			case NotifyCollectionChangedAction.Add:
+				if (e.IsSingleItem)
+				{
+					this.setBindingQueued(e.NewItem.SeriesNotifier, true);
+				}
+				else
+				{
+					foreach (var added in e.NewItems)
+					{
+						this.setBindingQueued(added.SeriesNotifier, true);
+					}
+				}
+				break;
+
+			case NotifyCollectionChangedAction.Remove:
+				if (e.IsSingleItem)
+				{
+					this.setBindingQueued(e.OldItem.SeriesNotifier, false);
+				}
+				else
+				{
+					foreach (var removed in e.OldItems)
+					{
+						this.setBindingQueued(removed.SeriesNotifier, false);
+					}
+				}
+				break;
+
+			case NotifyCollectionChangedAction.Replace:
+				this.setBindingQueued(e.OldItem.SeriesNotifier, false);
+				this.setBindingQueued(e.NewItem.SeriesNotifier, true);
+				break;
+
+			case NotifyCollectionChangedAction.Move:
+				break;
+
+			default:
+				this.resetBindingQueued();
+				break;
+		}
+	}
+
+	/// <summary>
+	/// Queue の現在の内容に合わせて、共有 Notifier の <see cref="MangaSeriesNotifier.IsBindingQueued"/> を一括で整合させます。
+	/// 現在 true の Notifier と Queue の要素のみを走査し、全作品は走査しません。
+	/// </summary>
+	private void resetBindingQueued()
+	{
+		var current = new HashSet<MangaSeriesNotifier>();
+		foreach (var bindingSeries in this.bindingStore.Queue)
+		{
+			current.Add(bindingSeries.SeriesNotifier);
+		}
+
+		foreach (var notifier in this.queuedNotifiers.Where(n => !current.Contains(n)).ToList())
+		{
+			this.setBindingQueued(notifier, false);
+		}
+
+		foreach (var notifier in current)
+		{
+			this.setBindingQueued(notifier, true);
+		}
+	}
+
+	/// <summary>
+	/// 指定した Notifier の <see cref="MangaSeriesNotifier.IsBindingQueued"/> を更新し、現在 true の Notifier の集合を同期します。
+	/// </summary>
+	/// <param name="notifier">更新対象の共有 Notifier。</param>
+	/// <param name="isBindingQueued">製本待ちに含まれているかどうか。</param>
+	private void setBindingQueued(MangaSeriesNotifier notifier, bool isBindingQueued)
+	{
+		if (isBindingQueued)
+		{
+			this.queuedNotifiers.Add(notifier);
+		}
+		else
+		{
+			this.queuedNotifiers.Remove(notifier);
+		}
+
+		notifier.IsBindingQueued.Value = isBindingQueued;
+	}
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{
+		this.bindingStore.Queue.CollectionChanged -= this.onBindingQueueCollectionChanged;
 		this.disposableBag.Dispose();
 	}
 
