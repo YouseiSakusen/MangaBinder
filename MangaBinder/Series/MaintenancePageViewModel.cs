@@ -27,9 +27,6 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	/// <summary>ナビゲーションサービス。</summary>
 	private readonly INavigationService navigationService;
 
-	/// <summary>編集対象を保持するストア。</summary>
-	private readonly EditStore editStore;
-
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
@@ -61,14 +58,12 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	/// <see cref="MaintenancePageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
-	/// <param name="editStore">編集対象を保持するストア。</param>
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="maintenanceSeriesViewModelStore">作品管理画面の表示用カード VM を管理するストア。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
-	public MaintenancePageViewModel(INavigationService navigationService, EditStore editStore, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesViewModelStore maintenanceSeriesViewModelStore, IServiceScopeFactory serviceScopeFactory)
+	public MaintenancePageViewModel(INavigationService navigationService, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesViewModelStore maintenanceSeriesViewModelStore, IServiceScopeFactory serviceScopeFactory)
 	{
 		this.navigationService = navigationService;
-		this.editStore = editStore;
 		this.MangaSeriesStore = mangaSeriesStore;
 		this.MaintenanceSeriesViewModelStore = maintenanceSeriesViewModelStore;
 		this.serviceScopeFactory = serviceScopeFactory;
@@ -104,7 +99,7 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 		this.ShowEditorCommand.Subscribe(_ => this.showEditor());
 
 		// EditSeriesCommand の実装
-		this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
+		this.EditSeriesCommand.Subscribe(async series => await this.editSeriesAsync(series));
 
 		// Manager が Store へ反映した検索完了通知を起点に InfoBar を制御（検索のたびに発火する）
 		this.MangaSeriesStore.MaintenanceSearchCompleted
@@ -214,16 +209,17 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	}
 
 	/// <summary>
-	/// 指定された作品を編集モードで EditorPage を表示します。
+	/// 指定された作品の編集準備を完了してから、編集モードで EditorPage を表示します。
 	/// </summary>
 	/// <param name="series">編集対象の作品。</param>
-	private void editSeries(MangaSeries series)
+	private async ValueTask editSeriesAsync(MangaSeries series)
 	{
-		// 編集対象を指定作品に設定
-		this.editStore.EditTarget = series;
-		this.editStore.EditTargetViewModel =
-			this.MangaSeriesStore.All.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series))
-			?? this.MangaSeriesStore.WorkSeries.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series));
+		// EditorStore の初期化完了を待ってから遷移する
+		using (var scope = this.serviceScopeFactory.CreateScope())
+		{
+			var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+			await manager.PrepareEditAsync(series);
+		}
 
 		// NavigationHierarchy を設定
 		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));

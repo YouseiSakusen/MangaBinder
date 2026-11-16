@@ -27,8 +27,8 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <summary>ナビゲーションサービス。</summary>
     private readonly INavigationService navigationService;
 
-    /// <summary>編集対象を保持するストア。</summary>
-    private readonly EditStore editStore;
+    /// <summary>編集セッション状態を保持するストア。</summary>
+    private readonly EditorStore editorStore;
 
     /// <summary>タグ変更追跡ストア。</summary>
     private readonly TagStore seriesTagStore;
@@ -128,18 +128,18 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     /// <param name="logger">ロガー。</param>
     /// <param name="serviceScopeFactory">スコープファクトリー。</param>
     /// <param name="navigationService">ナビゲーションサービス。</param>
-    /// <param name="editStore">編集対象を保持するストア。</param>
+    /// <param name="editorStore">編集セッション状態を保持するストア。</param>
     /// <param name="appSettings">アプリケーション設定。</param>
     /// <param name="seriesTagStore">タグ変更追跡ストア。</param>
     /// <param name="homeSeriesViewModelStore">Home 画面用派生 Store。</param>
     /// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
     /// <param name="snackbarService">Snackbar 通知サービス。</param>
-    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, EditStore editStore, AppSettings appSettings, TagStore seriesTagStore, HomeSeriesCardStore homeSeriesViewModelStore, MangaSeriesStore mangaSeriesStore, ISnackbarService snackbarService)
+    public HomePageViewModel(ILogger<HomePageViewModel> logger, IServiceScopeFactory serviceScopeFactory, INavigationService navigationService, EditorStore editorStore, AppSettings appSettings, TagStore seriesTagStore, HomeSeriesCardStore homeSeriesViewModelStore, MangaSeriesStore mangaSeriesStore, ISnackbarService snackbarService)
     {
         this.logger = logger;
         this.serviceScopeFactory = serviceScopeFactory;
         this.navigationService = navigationService;
-        this.editStore = editStore;
+        this.editorStore = editorStore;
         this.appSettings = appSettings;
         this.seriesTagStore = seriesTagStore;
         this.homeSeriesViewModelStore = homeSeriesViewModelStore;
@@ -194,7 +194,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
 
         this.EditSeriesCommand = new ReactiveCommand<MangaSeries>()
             .AddTo(ref this.disposableBag);
-        this.EditSeriesCommand.Subscribe(series => this.editSeries(series));
+        this.EditSeriesCommand.Subscribe(async series => await this.editSeriesAsync(series));
 
         this.ToggleBindingQueueCommand = new ReactiveCommand<HomeSeriesCardViewModel>()
             .AddTo(ref this.disposableBag);
@@ -222,10 +222,9 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
         this.HomeStateInformation.HasCompletedMaterialFolderScanJob.Value = homeState.HasCompletedMaterialFolderScanJob.Value;
         this.HomeStateInformation.EmptyStateKind.Value                    = homeState.EmptyStateKind.Value;
 
-        // EditTarget をクリア
+        // 編集セッションをクリア（EditTarget の null 設定でストア自身が状態をクリアする）
         // 保存通知は ExistingSeriesSaveManager から MangaSeriesStore.NotifySeriesChanged() を通じて流れる
-        this.editStore.EditTarget = null;
-        this.editStore.EditTargetViewModel = null;
+        this.editorStore.EditTarget.Value = null;
 
         this.showStartupMessage();
     }
@@ -299,14 +298,17 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     }
 
     /// <summary>
-    /// 指定した作品を編集対象として設定し、EditorPage へ遷移します。
+    /// 指定した作品の編集準備を完了してから、EditorPage へ遷移します。
     /// </summary>
     /// <param name="series">編集対象の作品。</param>
-    private void editSeries(MangaSeries series)
+    private async ValueTask editSeriesAsync(MangaSeries series)
     {
-        // 編集対象を指定作品に設定
-        this.editStore.EditTarget = series;
-        this.editStore.EditTargetViewModel = this.mangaSeriesStore.All.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, series));
+        // EditorStore の初期化完了を待ってから遷移する
+        using (var scope = this.serviceScopeFactory.CreateScope())
+        {
+            var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+            await manager.PrepareEditAsync(series);
+        }
 
         // NavigationHierarchy
         this.navigationService.NavigateWithHierarchy(typeof(EditorPage));

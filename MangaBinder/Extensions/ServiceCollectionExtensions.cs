@@ -68,6 +68,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<TagManager>();
 		services.AddScoped<ThumbnailManager>();
 		services.AddScoped<MangaBinderManager>();
+		services.AddScoped<MangaSeriesManager>();
 		services.AddScoped<NewSeriesCoordinator>();
 		services.AddKeyedScoped<ISeriesSaveManager, NewSeriesSaveManager>(SeriesSaveType.New);
 		services.AddKeyedScoped<ISeriesSaveManager, ExistingSeriesSaveManager>(SeriesSaveType.Existing);
@@ -90,7 +91,7 @@ public static class ServiceCollectionExtensions
 		services.AddSingleton<ThumbnailPreviewOrDefaultConverter>();
 
 		services.AddSingleton<BindingStore>();
-		services.AddSingleton<EditStore>();
+		services.AddSingleton<EditorStore>();
 		services.AddSingleton<TagStore>();
 		services.AddSingleton<MangaSeriesStore>();
 		services.AddSingleton<MaintenanceSeriesViewModelStore>();

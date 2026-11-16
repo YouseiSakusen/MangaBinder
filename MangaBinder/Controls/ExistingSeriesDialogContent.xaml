@@ -29,7 +29,7 @@
 		<!-- 説明文 -->
 		<ui:TextBlock
 			Grid.Row="0"
-			Text="同一タイトル作品をを追加する場合は、作者を設定してください。"
+			Text="同一タイトル作品を追加する場合は、作者を設定してください。"
 			TextWrapping="Wrap"
 			Margin="0,0,0,12"
 			Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -44,13 +44,23 @@
 			<TextBlock Text="既存作品を開く" />
 		</RadioButton>
 
-		<!-- 作品一覧 -->
+		<!-- 作品一覧：候補が1件の場合のみ1件分の高さに縮める -->
 		<local:SelectableSeriesList
 			Grid.Row="2"
-			Height="320"
 			IsEnabled="{Binding IsOpenExistingSeriesSelected.Value}"
 			DataContext="{Binding SelectableSeriesListViewModel}"
-			Margin="0,0,0,12" />
+			Margin="0,0,0,12">
+			<local:SelectableSeriesList.Style>
+				<Style TargetType="local:SelectableSeriesList">
+					<Setter Property="Height" Value="320" />
+					<Style.Triggers>
+						<DataTrigger Binding="{Binding ItemCount.Value}" Value="1">
+							<Setter Property="Height" Value="Auto" />
+						</DataTrigger>
+					</Style.Triggers>
+				</Style>
+			</local:SelectableSeriesList.Style>
+		</local:SelectableSeriesList>
 
 		<!-- 別作者の作品として追加 RadioButton -->
 		<RadioButton
@@ -85,6 +95,7 @@
 				Grid.Column="1"
 				Text="{Binding NewAuthorInput.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 				InputMethod.PreferredImeState="On"
+				behaviors:TrimOnPasteBehavior.IsEnabled="True"
 				behaviors:FocusOnChangedBehavior.Request="{Binding AuthorFocusRequest.Value}"
 				Padding="8,6" />
 		</Grid>

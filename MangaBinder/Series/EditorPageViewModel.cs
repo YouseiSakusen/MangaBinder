@@ -24,14 +24,14 @@ namespace MangaBinder.Series;
 public partial class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, INavigationDisposable, IBackRequestHandler
 {
 	private readonly IServiceScopeFactory serviceScopeFactory;
-	private readonly EditStore editStore;
+	private readonly EditorStore editorStore;
 	private readonly IContentDialogService contentDialogService;
 	private readonly INavigationService navigationService;
 	private readonly MangaSeriesStore mangaSeriesStore;
 	private readonly TagStore tagStore;
 	private readonly ISnackbarService snackbarService;
 	private readonly AppSettings appSettings;
-	private readonly EditingSession editorStore;
+	private readonly EditingSession editingSession;
 	private readonly LoadingService loadingService;
 	private readonly ThumbnailImageLoader thumbnailImageLoader;
 	private DisposableBag disposableBag;
@@ -40,8 +40,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private bool isInitializing;
 	private bool suppressMaterialSizeCalculation;
 	private bool disposed;
-	private double? editingStartOwnedMaxVolume;
-	private MangaSeriesNotifier? ownedSeriesViewModel;
 
 	/// <summary>編集対象の Series を取得します。</summary>
 	public BindableReactiveProperty<MangaSeries?> EditingSeries { get; }
@@ -106,11 +104,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <summary>EditorPage 全体の初期化要求を取得します。</summary>
 	public BooleanNotifier EditorPageInitializeRequest { get; }
 
-	/// <summary>素材ファイル一覧を取得します。</summary>
-	public ObservableList<MaterialFileItemViewModel> MaterialFiles { get; }
-
 	/// <summary>
 	/// WPFのXAMLバインディングに対応した素材ファイル一覧のViewを取得します。
+	/// <see cref="EditorStore.MaterialFiles"/> を表示用に変換した同期Viewです。
 	/// </summary>
 	public NotifyCollectionChangedSynchronizedViewList<MaterialFileItemViewModel> MaterialFilesView { get; }
 
@@ -204,9 +200,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public BindableReactiveProperty<bool> RegisterSeriesCommandCanExecute { get; }
 
 	/// <summary>
-	/// 製本待ちへの登録状態を取得または設定します。
-	/// 正式登録済み作品の場合は現在のBindingQueue状態を反映し、
-	/// 新規作品・登録待ち作品の場合は初期値falseです。
+	/// 製本待ちへの登録状態を取得します。
+	/// <see cref="EditorStore.IsBindingQueued"/> を共有し、所有・破棄はストアが行います。
 	/// </summary>
 	public BindableReactiveProperty<bool> IsBindingQueued { get; }
 
@@ -222,23 +217,20 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public ReactiveCommand<Unit> RegisterSeriesCommand { get; }
 
 	/// <summary>
-	/// 登録先に選択可能な素材フォルダ一覧を取得します。
-	/// </summary>
-	public ObservableList<SourceFolder> MaterialSourceFolders { get; }
-
-	/// <summary>
 	/// WPFのXAMLバインディングに対応した素材フォルダ一覧のViewを取得します。
+	/// <see cref="EditorStore.MaterialSourceFolders"/> の同期Viewです。
 	/// </summary>
 	public NotifyCollectionChangedSynchronizedViewList<SourceFolder> MaterialSourceFoldersView { get; }
 
 	/// <summary>
-	/// 登録先に選択された素材フォルダを取得または設定します。
+	/// 登録先に選択された素材フォルダを取得します。
+	/// <see cref="EditorStore.SelectedMaterialSourceFolder"/> を共有し、所有・破棄はストアが行います。
 	/// </summary>
 	public BindableReactiveProperty<SourceFolder?> SelectedMaterialSourceFolder { get; }
 
 	/// <summary>
 	/// 登録先素材フォルダを変更可能かどうかを取得します。
-	/// 新規作品・登録待ち作品の場合は true、既存作品の場合は false です。
+	/// <see cref="EditorStore.CanSelectMaterialSourceFolder"/> を共有し、所有・破棄はストアが行います。
 	/// </summary>
 	public BindableReactiveProperty<bool> CanSelectMaterialSourceFolder { get; }
 
@@ -278,37 +270,38 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <see cref="EditorPageViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="serviceScopeFactory">サービススコープファクトリ。</param>
+	/// <param name="editorStore">編集セッション状態を保持するストア。</param>
 	/// <param name="contentDialogService">コンテンツダイアログサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="mangaSeriesStore">漫画シリーズストア。</param>
 	/// <param name="tagStore">タグマスタの正本を保持するストア。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
-	/// <param name="editorStore">エディタストア。</param>
+	/// <param name="editingSession">保存処理用の編集セッション。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	public EditorPageViewModel(
 		IServiceScopeFactory serviceScopeFactory,
-		EditStore editStore,
+		EditorStore editorStore,
 		IContentDialogService contentDialogService,
 		INavigationService navigationService,
 		MangaSeriesStore mangaSeriesStore,
 		TagStore tagStore,
 		ISnackbarService snackbarService,
 		AppSettings appSettings,
-		EditingSession editorStore,
+		EditingSession editingSession,
 		LoadingService loadingService,
 		ThumbnailImageLoader thumbnailImageLoader)
 	{
 		this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
-		this.editStore = editStore ?? throw new ArgumentNullException(nameof(editStore));
+		this.editorStore = editorStore ?? throw new ArgumentNullException(nameof(editorStore));
 		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
 		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
 		this.tagStore = tagStore ?? throw new ArgumentNullException(nameof(tagStore));
 		this.snackbarService = snackbarService ?? throw new ArgumentNullException(nameof(snackbarService));
 		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
-		this.editorStore = editorStore ?? throw new ArgumentNullException(nameof(editorStore));
+		this.editingSession = editingSession ?? throw new ArgumentNullException(nameof(editingSession));
 		this.loadingService = loadingService ?? throw new ArgumentNullException(nameof(loadingService));
 		this.thumbnailImageLoader = thumbnailImageLoader ?? throw new ArgumentNullException(nameof(thumbnailImageLoader));
 
@@ -382,10 +375,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		this.EditorPageInitializeRequest = new BooleanNotifier(false);
 
-		this.MaterialFiles = new ObservableList<MaterialFileItemViewModel>();
-
-		// MaterialFilesView: WPFバインディング対応の同期View
-		this.MaterialFilesView = this.MaterialFiles
+		// MaterialFilesView: EditorStore の素材一覧（正本）を表示用 ViewModel へ変換する WPF バインディング対応の同期 View
+		this.MaterialFilesView = this.editorStore.MaterialFiles
+			.CreateView(item => MaterialFileItemViewModel.FromDto(item))
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
@@ -409,25 +401,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.HasMaterialFiles = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
-		// MaterialFiles の変更を監視して更新
-		void onMaterialFilesCollectionChanged(
-			in NotifyCollectionChangedEventArgs<MaterialFileItemViewModel> e)
-		{
-			var isEmpty = this.MaterialFiles.Count == 0;
-			this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
-			this.MaterialFileCountText.Value = this.getMaterialFileCountText();
-			this.IsMaterialFilesEmpty.Value = isEmpty;
-			this.HasMaterialFiles.Value = !isEmpty;
-
-			// 初期化中および素材サイズ再計算抑止中は、CollectionChanged からのサイズ再計算を実行しない
-			if (!this.isInitializing &&
-				!this.suppressMaterialSizeCalculation)
-			{
-				_ = this.updateMaterialTotalSizeAsync();
-			}
-		}
-
-		this.MaterialFiles.CollectionChanged += onMaterialFilesCollectionChanged;
+		// EditorStore.MaterialFiles の変更を監視して表示を更新（Dispose で解除）
+		this.editorStore.MaterialFiles.CollectionChanged += this.onMaterialFilesCollectionChanged;
 
 		// EndVolumeTextInputCommand: 完結巻入力中テキストを処理するコマンド
 		this.EndVolumeTextInputCommand = new ReactiveCommand<string?>()
@@ -499,9 +474,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.RegisterSeriesCommandCanExecute = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
-		// IsBindingQueued: 製本待ち登録状態
-		this.IsBindingQueued = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
+		// IsBindingQueued: 製本待ち登録状態（EditorStore が所有し、ここでは破棄しない）
+		this.IsBindingQueued = this.editorStore.IsBindingQueued;
 
 		// IsDescriptionPasteFormattingEnabled: あらすじ貼付整形の有効状態
 		this.IsDescriptionPasteFormattingEnabled = new BindableReactiveProperty<bool>(true)
@@ -515,21 +489,14 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			await this.RegisterSeriesAsync();
 		});
 
-		// MaterialSourceFolders: 登録先に選択可能な素材フォルダ一覧
-		this.MaterialSourceFolders = new ObservableList<SourceFolder>();
-
-		// MaterialSourceFoldersView: WPFバインディング対応の同期View
-		this.MaterialSourceFoldersView = this.MaterialSourceFolders
+		// MaterialSourceFoldersView: EditorStore の素材フォルダ候補を WPF バインディング対応の同期 View として参照
+		this.MaterialSourceFoldersView = this.editorStore.MaterialSourceFolders
 			.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 			.AddTo(ref this.disposableBag);
 
-		// SelectedMaterialSourceFolder: 選択された素材フォルダ
-		this.SelectedMaterialSourceFolder = new BindableReactiveProperty<SourceFolder?>(null)
-			.AddTo(ref this.disposableBag);
-
-		// CanSelectMaterialSourceFolder: 登録先素材フォルダ変更可能かどうか
-		this.CanSelectMaterialSourceFolder = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
+		// SelectedMaterialSourceFolder / CanSelectMaterialSourceFolder: EditorStore が所有し、ここでは破棄しない
+		this.SelectedMaterialSourceFolder = this.editorStore.SelectedMaterialSourceFolder;
+		this.CanSelectMaterialSourceFolder = this.editorStore.CanSelectMaterialSourceFolder;
 
 		// AddMaterialFileCommand: ファイル選択コマンド
 		this.AddMaterialFileCommand = new ReactiveCommand<Unit>()
@@ -694,59 +661,26 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
-	/// 作品カードへ渡す MangaSeriesViewModel を決定して接続します。
-	/// Store 所有のVMがあればそれを使用し、無い場合（新規作品）のみ編集画面で生成・所有します。
+	/// 作品カードへ渡す MangaSeriesNotifier を接続します。
+	/// 編集用クローン専用の Notifier を <see cref="EditorStore"/> から取得します。
+	/// Notifier の所有・破棄は <see cref="EditorStore"/> が行うため、ここでは破棄しません。
 	/// </summary>
 	private void connectSeriesViewModel(MangaSeries? editingSeries)
 	{
 		if (editingSeries is null)
 		{
 			this.MangaSeriesCard.SeriesViewModel.Value = null;
-			this.disposeOwnedSeriesViewModel();
 			return;
 		}
 
-		if (editingSeries.SeriesId != 0)
+		var notifier = this.editorStore.EditTargetNotifier
+			?? throw new InvalidOperationException("EditorStore.EditTargetNotifier が初期化されていません。");
+		if (!ReferenceEquals(notifier.Series.Value, editingSeries))
 		{
-			var shared = this.editStore.EditTargetViewModel
-				?? throw new InvalidOperationException($"SeriesId {editingSeries.SeriesId} の共有 MangaSeriesViewModel が EditStore.EditTargetViewModel にありません。");
-			if (!ReferenceEquals(shared.Series.Value, editingSeries))
-			{
-				throw new InvalidOperationException($"SeriesId {editingSeries.SeriesId} の共有 MangaSeriesViewModel と編集対象の MangaSeries インスタンスが一致しません。");
-			}
-
-			this.MangaSeriesCard.SeriesViewModel.Value = shared;
-			this.disposeOwnedSeriesViewModel();
-			return;
+			throw new InvalidOperationException("EditorStore.EditTargetNotifier と編集対象の MangaSeries インスタンスが一致しません。");
 		}
 
-		if (editingSeries.WorkId != 0)
-		{
-			var workShared = this.mangaSeriesStore.WorkSeries.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, editingSeries))
-				?? throw new InvalidOperationException($"WorkId {editingSeries.WorkId} の共有 MangaSeriesViewModel が MangaSeriesStore.WorkSeries にありません。");
-
-			this.MangaSeriesCard.SeriesViewModel.Value = workShared;
-			this.disposeOwnedSeriesViewModel();
-			return;
-		}
-
-		if (this.ownedSeriesViewModel is not null && ReferenceEquals(this.ownedSeriesViewModel.Series.Value, editingSeries))
-		{
-			this.MangaSeriesCard.SeriesViewModel.Value = this.ownedSeriesViewModel;
-			this.ownedSeriesViewModel.Series.ForceNotify();
-			return;
-		}
-
-		var created = new MangaSeriesNotifier(editingSeries, this.tagStore);
-		this.MangaSeriesCard.SeriesViewModel.Value = created;
-		this.disposeOwnedSeriesViewModel();
-		this.ownedSeriesViewModel = created;
-	}
-
-	private void disposeOwnedSeriesViewModel()
-	{
-		this.ownedSeriesViewModel?.Dispose();
-		this.ownedSeriesViewModel = null;
+		this.MangaSeriesCard.SeriesViewModel.Value = notifier;
 	}
 
 	/// <summary>
@@ -755,9 +689,9 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <returns>0件の場合は "無し"、1件以上の場合は "{Count}件"。</returns>
 	private string getMaterialFilesDisplayText()
 	{
-		return this.MaterialFiles.Count == 0
+		return this.editorStore.MaterialFiles.Count == 0
 			? "無し"
-			: $"{this.MaterialFiles.Count}件";
+			: $"{this.editorStore.MaterialFiles.Count}件";
 	}
 
 	/// <summary>
@@ -766,201 +700,36 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <returns>0件の場合は "0件"、1件以上の場合は "{Count}件"。</returns>
 	private string getMaterialFileCountText()
 	{
-		return this.MaterialFiles.Count == 0
+		return this.editorStore.MaterialFiles.Count == 0
 			? "0件"
-			: $"{this.MaterialFiles.Count}件";
+			: $"{this.editorStore.MaterialFiles.Count}件";
 	}
 
 	/// <summary>
-	/// 指定された作品の編集を開始します。
-	/// 編集セッション管理は SeriesManager に委譲します。
+	/// 素材一覧の件数に依存する表示用プロパティを Store の内容から更新します。
 	/// </summary>
-	/// <param name="series">編集対象の作品。</param>
-	public async ValueTask StartEditAsync(MangaSeries series)
+	private void refreshMaterialFilesDisplay()
 	{
-		// デバッグログ: StartEdit 開始
-		System.Diagnostics.Debug.WriteLine("==============================");
-		System.Diagnostics.Debug.WriteLine("[EditorPageVM] StartEditAsync");
-		System.Diagnostics.Debug.WriteLine($"Hash={this.GetHashCode()}");
-		System.Diagnostics.Debug.WriteLine($"Series={series.Title}");
-		System.Diagnostics.Debug.WriteLine("==============================");
+		this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
+		this.MaterialFileCountText.Value = this.getMaterialFileCountText();
 
-		ArgumentNullException.ThrowIfNull(series);
-
-		// 編集対象を EditStore へ同期
-		// これにより、EditStore側の編集対象が常に一致し、
-		// 保存完了後に MangaSeriesStore.NotifySeriesChanged() を通じて正しい作品の共有 Series 状態が更新される
-		this.editStore.EditTarget = series;
-
-		// Scope を生成
-		using var scope = this.serviceScopeFactory.CreateScope();
-		var seriesManager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
-
-		// 編集セッション開始を SeriesManager に依頼
-		seriesManager.BeginEdit(series, this.editorStore);
-
-		// EditorStore から編集対象を取得
-		var editingSeries = this.editorStore.EditingSeries;
-		this.EditingSeries.Value = editingSeries;
-
-		// ReactiveProperty に値を設定
-		if (editingSeries != null)
-		{
-			this.Title.Value = editingSeries.Title;
-			this.Author.Value = editingSeries.Author;
-			this.Publisher.Value = editingSeries.Publisher;
-			this.Description.Value = editingSeries.Description;
-			this.Memo.Value = editingSeries.Memo;
-			this.IsIncomplete.Value = editingSeries.IsIncomplete;
-
-			// 巻情報を VolumeStatus に読み込み
-			this.VolumeStatus.LoadFromSeries(editingSeries);
-
-			// 編集開始時の OwnedMaxVolume を保持（素材削除時の復元用）
-			this.editingStartOwnedMaxVolume = this.VolumeStatus.OwnedMaxVolume.Value;
-
-			// 素材ファイル一覧を初期化（既存作品のみ）
-			// MaterialFiles 再構築中の容量再計算を抑止
-			this.suppressMaterialSizeCalculation = true;
-			try
-			{
-				this.MaterialFiles.Clear();
-				if (!editingSeries.IsWork)
-				{
-					var materialFiles = seriesManager.GetMaterialFiles(editingSeries);
-					foreach (var item in materialFiles)
-					{
-						var viewModel = MaterialFileItemViewModel.FromDto(item);
-						this.MaterialFiles.Add(viewModel);
-					}
-				}
-			}
-			finally
-			{
-				this.suppressMaterialSizeCalculation = false;
-			}
-
-			// 素材一覧を並び順で並べ替え
-			this.SortMaterialFilesByOrder();
-
-			// ヘッダー表示用文字列を更新
-			this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
-
-			// サマリカード用の素材ファイル数表示テキストを更新
-			this.MaterialFileCountText.Value = this.getMaterialFileCountText();
-
-			// EmptyState 表示制御を更新
-			var isEmpty = this.MaterialFiles.Count == 0;
-			this.IsMaterialFilesEmpty.Value = isEmpty;
-			this.HasMaterialFiles.Value = !isEmpty;
-
-			// 登録先素材フォルダの選択可否を判定
-			if (editingSeries.SeriesId != 0 && editingSeries.HasMaterialSources)
-			{
-				// 既存作品で MaterialSource が存在する場合：登録先素材フォルダをロック
-				var sourceFolder = this.findMatchingSourceFolderForExistingSeries(editingSeries);
-				this.SelectedMaterialSourceFolder.Value = sourceFolder;
-				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.StartEditAsync] 既存作品（MaterialSource あり）。sourceFolder: {(sourceFolder == null ? "null" : sourceFolder.FolderPath.Value)}");
-				this.CanSelectMaterialSourceFolder.Value = false;
-			}
-			else
-			{
-				// 既存作品で MaterialSource がない場合、または新規作品・登録待ち作品の場合は ComboBox を有効化
-				this.CanSelectMaterialSourceFolder.Value = true;
-			}
-
-			// 一時保存ボタンの有効/無効を更新
-			this.UpdateSaveWorkSeriesCommandCanExecute();
-
-			// 貼り付けたサムネイルをクリア
-			this.ClearPastedThumbnail();
-
-				// 製本待ち状態を読み込む
-				// 正式登録済み作品の場合は現在のBindingQueue状態を反映
-				// 新規作品・登録待ち作品の場合は false
-				if (editingSeries.SeriesId != 0 && !editingSeries.IsWork)
-				{
-					this.IsBindingQueued.Value = seriesManager.IsBindingQueued(editingSeries.SeriesId);
-				}
-					else
-					{
-						this.IsBindingQueued.Value = false;
-					}
-
-					// MaterialFiles の構築完了後、素材サイズを計算
-					await this.updateMaterialTotalSizeAsync();
-
-					// EditorPage 全体を初期表示状態へ戻す
-					this.EditorPageInitializeRequest.SwitchValue();
-
-					// タイトル入力欄へフォーカスして全選択する
-					this.TitleFocusRequest.Value++;
-				}
+		var isEmpty = this.editorStore.MaterialFiles.Count == 0;
+		this.IsMaterialFilesEmpty.Value = isEmpty;
+		this.HasMaterialFiles.Value = !isEmpty;
 	}
 
 	/// <summary>
-	/// 既存作品の Material フォルダに対応する SourceFolder を検索します。
-	/// 複数の MaterialSource がある場合は先頭を基準に検索します。
-	/// 複数のSourceFolderが一致する場合は、FolderPathが最も長いものを優先します。
+	/// Store の素材一覧が変更されたときに表示用状態を更新します。
 	/// </summary>
-	/// <param name="series">既存作品。</param>
-	/// <returns>一致した SourceFolder、または見つからない場合は null。</returns>
-	private SourceFolder? findMatchingSourceFolderForExistingSeries(MangaSeries series)
+	/// <param name="e">コレクション変更イベント引数。</param>
+	private void onMaterialFilesCollectionChanged(in NotifyCollectionChangedEventArgs<MaterialFileItem> e)
 	{
-		// Material フォルダのみを対象
-		var materialSources = series.Sources
-			.Where(s => s.Role == FolderRole.Material)
-			.ToList();
+		this.refreshMaterialFilesDisplay();
 
-		// Material フォルダがない場合は null
-		if (materialSources.Count == 0)
+		if (!this.isInitializing && !this.suppressMaterialSizeCalculation)
 		{
-			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] Material フォルダなし。SeriesId: {series.SeriesId}");
-			return null;
+			_ = this.updateMaterialTotalSizeAsync();
 		}
-
-		// 先頭の MaterialSource を基準に検索
-		var targetMaterialPath = Path.GetFullPath(materialSources[0].Path);
-		System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 検索開始。targetMaterialPath: {targetMaterialPath}");
-
-		// AppSettings の Material フォルダで照合
-		var materialFolders = this.appSettings.SourceFolders
-			.Where(f => f.Role.Value == FolderRole.Material)
-			.ToList();
-
-		System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] AppSettings Material フォルダ数: {materialFolders.Count}");
-
-		// 各フォルダと照合
-		var matchedFolders = new List<(SourceFolder folder, int pathLength)>();
-
-		foreach (var sourceFolder in materialFolders)
-		{
-			var sourceFolderPath = Path.GetFullPath(sourceFolder.FolderPath.Value);
-			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 照合対象: {sourceFolderPath}");
-
-			// targetMaterialPath が sourceFolderPath の配下にあるかチェック
-			if (this.isPathUnderFolder(targetMaterialPath, sourceFolderPath))
-			{
-				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 一致: {sourceFolderPath}");
-				matchedFolders.Add((sourceFolder, sourceFolderPath.Length));
-			}
-		}
-
-		// 一致フォルダがない場合
-		if (matchedFolders.Count == 0)
-		{
-			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 一致フォルダなし");
-			return null;
-		}
-
-		// FolderPath が最も長いものを優先（最も詳細度の高い一致）
-		var result = matchedFolders
-			.OrderByDescending(x => x.pathLength)
-			.First()
-			.folder;
-
-		System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.findMatchingSourceFolderForExistingSeries] 結果: {result.FolderPath.Value}");
-		return result;
 	}
 
 	/// <summary>
@@ -1009,7 +778,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		}
 
 		// D&D で追加された素材がある場合
-		if (this.MaterialFiles.Count > 0)
+		if (this.editorStore.MaterialFiles.Count > 0)
 		{
 			this.SaveWorkSeriesCommandCanExecute.Value = false;
 			this.RegisterSeriesCommandCanExecute.Value = true;
@@ -1024,42 +793,50 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>
 	/// ナビゲーション完了後に呼ばれる初期データ読み込み処理。
-	/// editStore.EditTarget から編集対象を取得し、StartEditAsync を実行します。
-	/// また、AppSettings から素材フォルダ一覧を取得します。
+	/// 編集用データは MangaSeriesManager が準備済みの <see cref="EditorStore"/> を参照し、
+	/// ここでは画面表示用の値を反映するだけで、業務データの再取得・再構築は行いません。
 	/// </summary>
-	public async ValueTask InitializeDataAsync()
+	public ValueTask InitializeDataAsync()
 	{
 		// 初期化開始を記録
 		this.isInitializing = true;
 
 		try
 		{
-			// Material フォルダ一覧を取得・設定
-			var materialFolders = this.appSettings.SourceFolders
-				.Where(f => f.Role.Value == FolderRole.Material)
-				.ToList();
-			this.MaterialSourceFolders.Clear();
-			foreach (var folder in materialFolders)
-			{
-				this.MaterialSourceFolders.Add(folder);
-			}
+			var editingSeries = this.editorStore.EditTarget.Value
+				?? throw new InvalidOperationException("EditorStore が初期化されていません。MangaSeriesManager.PrepareEditAsync を完了してから画面遷移してください。");
 
-			var editTarget = this.editStore.EditTarget;
+			this.EditingSeries.Value = editingSeries;
 
-			// 新規作品・登録待ち作品の場合は先頭を初期選択
-			if (editTarget == null || editTarget.SeriesId == 0)
-			{
-				this.CanSelectMaterialSourceFolder.Value = true;
-				if (this.MaterialSourceFolders.Count > 0)
-				{
-					this.SelectedMaterialSourceFolder.Value = this.MaterialSourceFolders[0];
-				}
-			}
+			this.Title.Value = editingSeries.Title;
+			this.Author.Value = editingSeries.Author;
+			this.Publisher.Value = editingSeries.Publisher;
+			this.Description.Value = editingSeries.Description;
+			this.Memo.Value = editingSeries.Memo;
+			this.IsIncomplete.Value = editingSeries.IsIncomplete;
 
-			if (editTarget is not null)
-			{
-				await this.StartEditAsync(editTarget);
-			}
+			// 巻情報を VolumeStatus に読み込み
+			this.VolumeStatus.LoadFromSeries(editingSeries);
+
+			// 素材一覧の表示状態を Store の内容から反映
+			this.refreshMaterialFilesDisplay();
+			this.MaterialTotalSizeText.Value = this.editorStore.MaterialFiles.Count == 0
+				? string.Empty
+				: StorageSizeHelper.FormatSize(this.editorStore.MaterialTotalSizeBytes);
+
+			// 一時保存ボタンの有効/無効を更新
+			this.UpdateSaveWorkSeriesCommandCanExecute();
+
+			// 貼り付けたサムネイルをクリア
+			this.ClearPastedThumbnail();
+
+			// EditorPage 全体を初期表示状態へ戻す
+			this.EditorPageInitializeRequest.SwitchValue();
+
+			// タイトル入力欄へフォーカスして全選択する
+			this.TitleFocusRequest.Value++;
+
+			return ValueTask.CompletedTask;
 		}
 		finally
 		{
@@ -1089,7 +866,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		try
 		{
 			// MaterialFiles の FullPath をすべて集計
-			var paths = this.MaterialFiles
+			var paths = this.editorStore.MaterialFiles
 				.Select(m => m.FullPath)
 				.ToList();
 
@@ -1126,8 +903,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		if (!request.PreserveState)
 		{
-			this.editStore.EditTarget = null;
-			this.editStore.EditTargetViewModel = null;
+			this.editorStore.EditTarget.Value = null;
 		}
 
 		return ValueTask.CompletedTask;
@@ -1224,7 +1000,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		}
 
 		// 素材ファイルが存在するかどうかを判定（現在保持している MaterialFiles の状態を利用）
-		var hasMaterialFiles = this.MaterialFiles.Count > 0;
+		var hasMaterialFiles = this.editorStore.MaterialFiles.Count > 0;
 
 		// ダイアログ用 ViewModel を生成（削除対象作品と素材有無を渡す）
 		var dialogViewModel = new SeriesDeleteDialogContentViewModel(editingSeries, hasMaterialFiles);
@@ -1776,8 +1552,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			var materialManager = scope.ServiceProvider.GetRequiredService<MaterialManager>();
 
 			// 既存の FullPath と FileName を取得
-			var existingFullPaths = this.MaterialFiles.Select(m => m.FullPath).ToHashSet();
-			var existingFileNames = this.MaterialFiles.Select(m => m.FileName).ToHashSet();
+			var existingFullPaths = this.editorStore.MaterialFiles.Select(m => m.FullPath).ToHashSet();
+			var existingFileNames = this.editorStore.MaterialFiles.Select(m => m.Name).ToHashSet();
 
 			// ローディング開始
 			using (this.loadingService.Begin("素材を追加しています..."))
@@ -1822,8 +1598,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 							SizeBytes = candidate.Size,
 							CanRemove = true,
 						};
-						var viewModel = MaterialFileItemViewModel.FromDto(item);
-						this.MaterialFiles.Add(viewModel);
+						this.editorStore.MaterialFiles.Add(item);
 						addedAny = true;
 					}
 				}
@@ -1877,8 +1652,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var ownedVolumeEstimator = scope.ServiceProvider.GetRequiredService<OwnedVolumeEstimator>();
 
-			var materials = this.MaterialFiles
-				.Select(m => (m.FileName, GetVolumeNumberSourceType(m.ItemType)))
+			var materials = this.editorStore.MaterialFiles
+				.Select(m => (m.Name, GetVolumeNumberSourceType(m.ItemType)))
 				.ToList();
 
 			if (materials.Count == 0)
@@ -2111,7 +1886,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			// 新規作品・登録待ち作品の場合は、素材ファイルと登録先フォルダが必須
 			if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
 			{
-				if (this.MaterialFiles.Count == 0)
+				if (this.editorStore.MaterialFiles.Count == 0)
 				{
 					this.snackbarService.Show(
 						"エラー",
@@ -2136,7 +1911,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			else
 			{
 				// 既存作品の場合、追加素材がある場合のみ登録先フォルダが必須
-				if (this.MaterialFiles.Count > 0 && this.SelectedMaterialSourceFolder.Value == null)
+				if (this.editorStore.MaterialFiles.Count > 0 && this.SelectedMaterialSourceFolder.Value == null)
 				{
 					this.snackbarService.Show(
 						"エラー",
@@ -2149,7 +1924,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			}
 
 			// 素材 DTO に変換
-			var materialFileDtos = this.MaterialFiles
+			var materialFileDtos = this.editorStore.MaterialFiles
 				.Select(item => new MaterialFile
 				{
 					FullPath = item.FullPath,
@@ -2173,7 +1948,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 				?? this.SelectedMaterialSourceFolder.Value;
 
 			// 追加素材がある場合のみ、登録先フォルダの選択を要求
-			if (this.MaterialFiles.Count > 0 && registrationMaterialSourceFolder == null)
+			if (this.editorStore.MaterialFiles.Count > 0 && registrationMaterialSourceFolder == null)
 			{
 				this.snackbarService.Show(
 					"エラー",
@@ -2186,11 +1961,11 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 			// ===== 保存前確認フローを実行 =====
 			// 保存先フォルダを EditorStore に設定（確定した登録先を使用）
-			this.editorStore.SelectedMaterialSourceFolder = registrationMaterialSourceFolder;
+			this.editingSession.SelectedMaterialSourceFolder = registrationMaterialSourceFolder;
 
 			// 1. MangaSeriesManager を使用して保存前確認を開始
 			var confirmationResult = await seriesManager.GetSaveSeriesConfirmationAsync(
-				this.editorStore,
+				this.editingSession,
 				materialFileDtos);
 
 			// 2. 確認結果に応じて処理分岐
@@ -2225,7 +2000,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 						// ユーザーが「移動して登録」を選択した場合
 						if (differentDriveResult == ContentDialogResult.Primary)
 						{
-							this.editorStore.DifferentDriveConfirmed = true;
+							this.editingSession.DifferentDriveConfirmed = true;
 						}
 						else
 						{
@@ -2241,7 +2016,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 						// 再度確認を実行
 						confirmationResult = await seriesManager.GetSaveSeriesConfirmationAsync(
-							this.editorStore,
+							this.editingSession,
 							materialFileDtos);
 					}
 
@@ -2258,7 +2033,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 										// 保存実行
 										saveResult = await seriesManager.SaveSeriesAsync(
-										this.editorStore,
+										this.editingSession,
 										materialFileDtos,
 										this.PastedThumbnailBytes,
 										this.IsBindingQueued.Value);
@@ -2376,7 +2151,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// </summary>
 	private void SortMaterialFilesByOrder()
 	{
-		if (this.MaterialFiles.Count == 0)
+		if (this.editorStore.MaterialFiles.Count == 0)
 		{
 			return;
 		}
@@ -2387,7 +2162,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		try
 		{
 			// 現在のアイテムをリストに変換してソート
-			var sorted = this.MaterialFiles
+			var sorted = this.editorStore.MaterialFiles
 				.OrderBy(item =>
 				{
 					// ItemType で第一ソート（Folder=0, ファイル=1）
@@ -2401,14 +2176,14 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 					};
 					return typeOrder;
 				})
-				.ThenBy(item => item.FileName, StringComparer.Ordinal)  // 同じ分類内はFileNameで昇順
+				.ThenBy(item => item.Name, StringComparer.Ordinal)  // 同じ分類内はNameで昇順
 				.ToList();
 
 			// ObservableList の内容を更新
-			this.MaterialFiles.Clear();
+			this.editorStore.MaterialFiles.Clear();
 			foreach (var item in sorted)
 			{
-				this.MaterialFiles.Add(item);
+				this.editorStore.MaterialFiles.Add(item);
 			}
 		}
 		finally
@@ -2459,8 +2234,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			this.selectedTagsView?.Dispose();
 			this.selectedTagsView = null;
 			this.materialSizeCancellationTokenSource?.Dispose();
+			this.editorStore.MaterialFiles.CollectionChanged -= this.onMaterialFilesCollectionChanged;
 			this.disposableBag.Dispose();
-			this.disposeOwnedSeriesViewModel();
 		}
 
 		this.disposed = true;
@@ -2553,15 +2328,16 @@ public partial class EditorPageViewModel
 			return;
 		}
 
-		// 削除対象が MaterialFiles に含まれているか確認
-		if (!this.MaterialFiles.Contains(targetItem))
+		// 削除対象を Store の素材一覧から FullPath で特定
+		var storeItem = this.editorStore.MaterialFiles.FirstOrDefault(m => m.FullPath == targetItem.FullPath);
+		if (storeItem == null)
 		{
 			return;
 		}
 
-		// MaterialFiles から削除
+		// Store の素材一覧から削除
 		// CollectionChanged イベントでコレクション関連の表示は自動更新される
-		this.MaterialFiles.Remove(targetItem);
+		this.editorStore.MaterialFiles.Remove(storeItem);
 
 		// 登録/保存コマンドの有効状態を更新
 		this.UpdateSaveWorkSeriesCommandCanExecute();
@@ -2579,9 +2355,9 @@ public partial class EditorPageViewModel
 		try
 		{
 			// 素材が0件の場合は編集開始時の値に戻す
-			if (this.MaterialFiles.Count == 0)
+			if (this.editorStore.MaterialFiles.Count == 0)
 			{
-				this.VolumeStatus.OwnedMaxVolume.Value = this.editingStartOwnedMaxVolume;
+				this.VolumeStatus.OwnedMaxVolume.Value = this.editorStore.EditingStartOwnedMaxVolume;
 				return;
 			}
 
@@ -2589,8 +2365,8 @@ public partial class EditorPageViewModel
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var ownedVolumeEstimator = scope.ServiceProvider.GetRequiredService<OwnedVolumeEstimator>();
 
-			var materials = this.MaterialFiles
-				.Select(m => (m.FileName, GetVolumeNumberSourceType(m.ItemType)))
+			var materials = this.editorStore.MaterialFiles
+				.Select(m => (m.Name, GetVolumeNumberSourceType(m.ItemType)))
 				.ToList();
 			var result = ownedVolumeEstimator.Estimate(materials);
 
@@ -2602,14 +2378,14 @@ public partial class EditorPageViewModel
 			else
 			{
 				// 推定できない場合は編集開始時の値に戻す
-				this.VolumeStatus.OwnedMaxVolume.Value = this.editingStartOwnedMaxVolume;
+				this.VolumeStatus.OwnedMaxVolume.Value = this.editorStore.EditingStartOwnedMaxVolume;
 			}
 		}
 		catch (Exception ex)
 		{
 			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RecalculateOwnedVolumeEstimateAfterRemoval] 例外発生: {ex.Message}");
 			// 例外が発生した場合は編集開始時の値に戻す
-			this.VolumeStatus.OwnedMaxVolume.Value = this.editingStartOwnedMaxVolume;
+			this.VolumeStatus.OwnedMaxVolume.Value = this.editorStore.EditingStartOwnedMaxVolume;
 		}
 	}
 

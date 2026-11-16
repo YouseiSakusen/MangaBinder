@@ -34,14 +34,8 @@ public class NewSeriesCoordinator
 	/// <summary>コンテントダイアログサービス。</summary>
 	private readonly IContentDialogService contentDialogService;
 
-	/// <summary>編集対象を保持するストア。</summary>
-	private readonly EditStore editStore;
-
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
-
-	/// <summary>共有 MangaSeriesViewModel を所有するストア。</summary>
-	private readonly MangaSeriesStore mangaSeriesStore;
 
 	/// <summary>アプリケーション設定。</summary>
 	private readonly AppSettings appSettings;
@@ -51,21 +45,17 @@ public class NewSeriesCoordinator
 	/// </summary>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
-	/// <param name="editStore">編集対象を保持するストア。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
+	/// <param name="appSettings">アプリケーション設定。</param>
 	public NewSeriesCoordinator(
 		INavigationService navigationService,
 		IContentDialogService contentDialogService,
-		EditStore editStore,
 		IServiceScopeFactory serviceScopeFactory,
-		MangaSeriesStore mangaSeriesStore,
 		AppSettings appSettings)
 	{
 		this.appSettings = appSettings;
-		this.mangaSeriesStore = mangaSeriesStore;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
-		this.editStore = editStore;
 		this.serviceScopeFactory = serviceScopeFactory;
 	}
 
@@ -97,7 +87,7 @@ public class NewSeriesCoordinator
 		// Dialog 表示期間用の Scope を作成
 		using var scope = this.serviceScopeFactory.CreateScope();
 
-		// Scope から MangaSeriesManager を Resolve
+		// Scope から MangaBinderManager を Resolve（同一タイトル検索用）
 		var mangaSeriesManager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
 
 		// NewSeriesTitleDialogContentViewModel を生成
@@ -254,11 +244,9 @@ public class NewSeriesCoordinator
 			// Primary（作品編集開始/作品を開く）で正常終了し、作品が確定している場合
 			if ((result == ContentDialogResult.Primary) && confirmedSeries != null)
 			{
-				// 編集対象を設定
-				this.editStore.EditTarget = confirmedSeries;
-				this.editStore.EditTargetViewModel =
-					this.mangaSeriesStore.All.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, confirmedSeries))
-					?? this.mangaSeriesStore.WorkSeries.FirstOrDefault(vm => ReferenceEquals(vm.Series.Value, confirmedSeries));
+				// 編集対象が確定したため、EditorStore の初期化完了を待つ
+				var editManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+				await editManager.PrepareEditAsync(confirmedSeries);
 
 				// EditorPage へ遷移
 				this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
