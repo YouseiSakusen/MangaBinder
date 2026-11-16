@@ -13,7 +13,7 @@ namespace MangaBinder;
 /// Home 画面の初期化と BindingQueue 復元を統一する Manager クラスです。
 /// また、作品編集セッションを管理します。
 /// </summary>
-public class MangaSeriesManager
+public class MangaBinderManager
 {
 	/// <summary>MangaSeries の取得を担う Repository。</summary>
 	private readonly MangaRepository mangaRepository;
@@ -40,13 +40,13 @@ public class MangaSeriesManager
 	private readonly AppSettings appSettings;
 
 	/// <summary>ログ出力用の Logger。</summary>
-	private readonly ILogger<MangaSeriesManager>? logger;
+	private readonly ILogger<MangaBinderManager>? logger;
 
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
 	/// <summary>
-	/// <see cref="MangaSeriesManager"/> の新しいインスタンスを初期化します。
+	/// <see cref="MangaBinderManager"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="mangaRepository">MangaSeries の取得を担う Repository。</param>
 	/// <param name="workMangaSeriesRepository">登録待ち作品の取得を担う Repository。</param>
@@ -58,7 +58,7 @@ public class MangaSeriesManager
 	/// <param name="appSettings">アプリケーション設定。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
 	/// <param name="logger">ログ出力用の Logger。オプション。</param>
-	public MangaSeriesManager(
+	public MangaBinderManager(
 		MangaRepository mangaRepository,
 		WorkMangaSeriesRepository workMangaSeriesRepository,
 		BindingQueueManager bindingQueueManager,
@@ -68,7 +68,7 @@ public class MangaSeriesManager
 		TagManager tagManager,
 		AppSettings appSettings,
 		IServiceScopeFactory serviceScopeFactory,
-		ILogger<MangaSeriesManager>? logger = null)
+		ILogger<MangaBinderManager>? logger = null)
 	{
 		this.mangaRepository = mangaRepository;
 		this.workMangaSeriesRepository = workMangaSeriesRepository;

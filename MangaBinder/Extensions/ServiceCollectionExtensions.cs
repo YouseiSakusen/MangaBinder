@@ -67,7 +67,7 @@ public static class ServiceCollectionExtensions
 		services.AddScoped<TagEditor>();
 		services.AddScoped<TagManager>();
 		services.AddScoped<ThumbnailManager>();
-		services.AddScoped<MangaSeriesManager>();
+		services.AddScoped<MangaBinderManager>();
 		services.AddScoped<NewSeriesCoordinator>();
 		services.AddKeyedScoped<ISeriesSaveManager, NewSeriesSaveManager>(SeriesSaveType.New);
 		services.AddKeyedScoped<ISeriesSaveManager, ExistingSeriesSaveManager>(SeriesSaveType.Existing);

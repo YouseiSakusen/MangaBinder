@@ -160,10 +160,10 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	/// Scope を作成して MangaSeriesManager を Resolve し、指定された処理を呼び出します。
 	/// </summary>
 	/// <param name="action">Manager に対する処理。</param>
-	private void callManager(Action<MangaSeriesManager> action)
+	private void callManager(Action<MangaBinderManager> action)
 	{
 		using var scope = this.serviceScopeFactory.CreateScope();
-		var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+		var manager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
 
 		action(manager);
 	}

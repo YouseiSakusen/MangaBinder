@@ -794,7 +794,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		// Scope を生成
 		using var scope = this.serviceScopeFactory.CreateScope();
-		var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+		var seriesManager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
 
 		// 編集セッション開始を SeriesManager に依頼
 		seriesManager.BeginEdit(series, this.editorStore);
@@ -1209,7 +1209,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		// Scope を生成して MangaSeriesManager を取得
 		using var scope = this.serviceScopeFactory.CreateScope();
-		var mangaSeriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+		var mangaSeriesManager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
 
 		// IsBindingQueued() が true の場合は削除ダイアログを表示しない
 		if (mangaSeriesManager.IsBindingQueued(editingSeries.SeriesId))
@@ -1712,7 +1712,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 			// Scope を生成
 			using var scope = this.serviceScopeFactory.CreateScope();
-			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
 
 			// ローディング開始
 				using (this.loadingService.Begin("作品を一時保存しています…"))
@@ -2034,7 +2034,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		{
 			// Scope を生成（確認～保存まで同じ Scope を使用）
 			using var scope = this.serviceScopeFactory.CreateScope();
-			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
 
 			// 入力値の検証
 			var editingSeries = this.EditingSeries.Value;

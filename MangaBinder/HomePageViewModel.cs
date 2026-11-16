@@ -211,7 +211,7 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     {
         // Manager 側で IsInitialized チェックして、必要な場合だけ DB ロード実行
         using var managerScope = this.serviceScopeFactory.CreateScope();
-        var manager = managerScope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+        var manager = managerScope.ServiceProvider.GetRequiredService<MangaBinderManager>();
         await manager.EnsureInitializedAsync();
 
         // 毎回: HomeState 更新

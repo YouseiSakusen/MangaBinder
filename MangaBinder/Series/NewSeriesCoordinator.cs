@@ -98,7 +98,7 @@ public class NewSeriesCoordinator
 		using var scope = this.serviceScopeFactory.CreateScope();
 
 		// Scope から MangaSeriesManager を Resolve
-		var mangaSeriesManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+		var mangaSeriesManager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
 
 		// NewSeriesTitleDialogContentViewModel を生成
 		var titleViewModel = new NewSeriesTitleDialogContentViewModel();
@@ -287,7 +287,7 @@ public class NewSeriesCoordinator
 	/// </summary>
 	private void handleTitleInputPrimary(
 		NewSeriesTitleDialogContentViewModel viewModel,
-		MangaSeriesManager manager,
+		MangaBinderManager manager,
 		ContentDialog dialog,
 		ContentDialogClosingEventArgs closingArgs,
 		double contentWidth,
