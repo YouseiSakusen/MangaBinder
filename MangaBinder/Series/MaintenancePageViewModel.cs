@@ -30,6 +30,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	/// <summary>DI スコープを作成するファクトリー。</summary>
 	private readonly IServiceScopeFactory serviceScopeFactory;
 
+	/// <summary>Snackbar 通知サービス。</summary>
+	private readonly ISnackbarService snackbarService;
+
 	/// <summary>MangaSeries の正本リストと作品管理画面の検索状態を管理するストア。</summary>
 	public MangaSeriesStore MangaSeriesStore { get; }
 
@@ -61,12 +64,14 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	/// <param name="mangaSeriesStore">MangaSeries の正本リストを管理するストア。</param>
 	/// <param name="maintenanceSeriesViewModelStore">作品管理画面の表示用カード VM を管理するストア。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
-	public MaintenancePageViewModel(INavigationService navigationService, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesViewModelStore maintenanceSeriesViewModelStore, IServiceScopeFactory serviceScopeFactory)
+	/// <param name="snackbarService">Snackbar 通知サービス。</param>
+	public MaintenancePageViewModel(INavigationService navigationService, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesViewModelStore maintenanceSeriesViewModelStore, IServiceScopeFactory serviceScopeFactory, ISnackbarService snackbarService)
 	{
 		this.navigationService = navigationService;
 		this.MangaSeriesStore = mangaSeriesStore;
 		this.MaintenanceSeriesViewModelStore = maintenanceSeriesViewModelStore;
 		this.serviceScopeFactory = serviceScopeFactory;
+		this.snackbarService = snackbarService;
 
 		this.infoBarHideTimer.AddTo(ref this.disposableBag);
 
@@ -215,10 +220,17 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	private async ValueTask editSeriesAsync(MangaSeries series)
 	{
 		// EditorStore の初期化完了を待ってから遷移する
+		EditPrepareResult result;
 		using (var scope = this.serviceScopeFactory.CreateScope())
 		{
 			var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
-			await manager.PrepareEditAsync(series);
+			result = await manager.PrepareEditAsync(series);
+		}
+
+		if (result == EditPrepareResult.MultipleMaterialFolders)
+		{
+			EditPrepareNotificationHelper.ShowMultipleMaterialFoldersSnackbar(this.snackbarService);
+			return;
 		}
 
 		// NavigationHierarchy を設定

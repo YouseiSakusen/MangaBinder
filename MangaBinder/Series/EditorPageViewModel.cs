@@ -20,8 +20,10 @@ namespace MangaBinder.Series;
 
 /// <summary>
 /// 編集ページの ViewModel です。
+/// UI 入力、画面表示、Command、Dialog、Snackbar、Navigation を担当し、
+/// 編集・素材操作・検証・保存の業務処理は <see cref="MangaSeriesManager"/> へ委譲します。
 /// </summary>
-public partial class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, INavigationDisposable, IBackRequestHandler
+public partial class EditorPageViewModel : IDataInitializable, INavigationLeavingAware, INavigationDisposable
 {
 	private readonly IServiceScopeFactory serviceScopeFactory;
 	private readonly EditorStore editorStore;
@@ -30,15 +32,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private readonly MangaSeriesStore mangaSeriesStore;
 	private readonly TagStore tagStore;
 	private readonly ISnackbarService snackbarService;
-	private readonly AppSettings appSettings;
-	private readonly EditingSession editingSession;
 	private readonly LoadingService loadingService;
 	private readonly ThumbnailImageLoader thumbnailImageLoader;
 	private DisposableBag disposableBag;
 	private NotifyCollectionChangedSynchronizedViewList<TagNotifier>? selectedTagsView;
 	private CancellationTokenSource? materialSizeCancellationTokenSource;
 	private bool isInitializing;
-	private bool suppressMaterialSizeCalculation;
 	private bool disposed;
 
 	/// <summary>編集対象の Series を取得します。</summary>
@@ -58,12 +57,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>タイトルを取得または設定します。</summary>
 	public BindableReactiveProperty<string?> Title { get; }
-
-	/// <summary>
-	/// タイトル入力欄がフォーカスを失ったときに実行するコマンドを取得します。
-	/// 既存正式作品の場合、タイトルが変更されたかを確認し、ContentDialog を表示します。
-	/// </summary>
-	public ReactiveCommand<Unit> TitleLostFocusCommand { get; }
 
 	/// <summary>
 	/// タイトル入力欄へのフォーカス要求カウンタを取得または設定します。
@@ -167,7 +160,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public ReactiveCommand<Unit> SelectThumbnailCommand { get; }
 
 	/// <summary>
-	/// 編集画面を閉じてメイン画面へ戻るコマンドを取得します。
+	/// 編集内容を破棄して前の画面へ戻るコマンド（キャンセル）を取得します。
 	/// </summary>
 	public ReactiveCommand<Unit> BackCommand { get; }
 
@@ -276,8 +269,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <param name="mangaSeriesStore">漫画シリーズストア。</param>
 	/// <param name="tagStore">タグマスタの正本を保持するストア。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
-	/// <param name="appSettings">アプリケーション設定。</param>
-	/// <param name="editingSession">保存処理用の編集セッション。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
 	public EditorPageViewModel(
@@ -288,8 +279,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		MangaSeriesStore mangaSeriesStore,
 		TagStore tagStore,
 		ISnackbarService snackbarService,
-		AppSettings appSettings,
-		EditingSession editingSession,
 		LoadingService loadingService,
 		ThumbnailImageLoader thumbnailImageLoader)
 	{
@@ -300,8 +289,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
 		this.tagStore = tagStore ?? throw new ArgumentNullException(nameof(tagStore));
 		this.snackbarService = snackbarService ?? throw new ArgumentNullException(nameof(snackbarService));
-		this.appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
-		this.editingSession = editingSession ?? throw new ArgumentNullException(nameof(editingSession));
 		this.loadingService = loadingService ?? throw new ArgumentNullException(nameof(loadingService));
 		this.thumbnailImageLoader = thumbnailImageLoader ?? throw new ArgumentNullException(nameof(thumbnailImageLoader));
 
@@ -319,9 +306,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			.AddTo(ref this.disposableBag);
 
 		this.TitleFocusRequest = new BindableReactiveProperty<int>(0)
-			.AddTo(ref this.disposableBag);
-
-		this.TitleLostFocusCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
 
 		this.Author = new BindableReactiveProperty<string?>(null)
@@ -412,12 +396,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			this.HandleEndVolumeTextInput(text);
 		});
 
-		// TitleLostFocusCommand: タイトル入力欄の LostFocus 時に実行するコマンド
-		this.TitleLostFocusCommand.Subscribe(async _ =>
-		{
-			await this.HandleTitleLostFocusAsync();
-		});
-
 		// ThumbnailPreviewImageSource: プレビュー用画像ソース
 		this.ThumbnailPreviewImageSource = new BindableReactiveProperty<BitmapSource?>(null)
 			.AddTo(ref this.disposableBag);
@@ -438,12 +416,12 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			await this.SelectThumbnailAsync();
 		});
 
-		// BackCommand: 戻るコマンド
+		// BackCommand: キャンセルコマンド（編集状態を破棄して戻る）
 		this.BackCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
 		this.BackCommand.Subscribe(_ =>
 		{
-			this.executeGoBack();
+			this.cancelEditing();
 		});
 
 		// SaveWorkSeriesCommandCanExecute: 一時保存ボタンの有効/無効状態
@@ -509,95 +487,95 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		// AddMaterialFolderCommand: フォルダ選択コマンド
 		this.AddMaterialFolderCommand = new ReactiveCommand<Unit>()
 			.AddTo(ref this.disposableBag);
-			this.AddMaterialFolderCommand.Subscribe(_ =>
+		this.AddMaterialFolderCommand.Subscribe(_ =>
+		{
+			this.AddMaterialFolderAsync();
+		});
+
+		// OpenMaterialFolderCommand: 素材フォルダを開くコマンド
+		this.OpenMaterialFolderCommand = new ReactiveCommand<Unit>()
+			.AddTo(ref this.disposableBag);
+		this.OpenMaterialFolderCommand.Subscribe(async _ =>
+		{
+			await this.openMaterialFolderAsync();
+		});
+
+		// RemoveMaterialFileCommand: 追加素材を一覧から削除するコマンド
+		this.RemoveMaterialFileCommand = new ReactiveCommand<MaterialFileItemViewModel?>()
+			.AddTo(ref this.disposableBag);
+		this.RemoveMaterialFileCommand.Subscribe(targetItem =>
+		{
+			this.RemoveMaterialFile(targetItem);
+		});
+
+		// VolumeStatus: 巻情報編集用ViewModel
+		this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
+			.AddTo(ref this.disposableBag);
+
+		// MaterialFolderCreatedAtViewModel: 素材フォルダ作成日時表示用ViewModel
+		var materialFolderCreatedAtViewModel = new MaterialFolderCreatedAtViewModel();
+		this.MaterialFolderCreatedAtViewModel = new BindableReactiveProperty<MaterialFolderCreatedAtViewModel>(materialFolderCreatedAtViewModel)
+			.AddTo(ref this.disposableBag);
+
+		materialFolderCreatedAtViewModel.AddTo(ref this.disposableBag);
+
+		// MangaSeriesCard: 作品サムネイルカード用ViewModel
+		this.MangaSeriesCard = new MangaSeriesCardViewModel()
+		{
+			IsEditMode = true
+		}
+			.AddTo(ref this.disposableBag);
+
+		// MangaSeriesCard の Header を "作品サムネイル" に初期設定
+		this.MangaSeriesCard.Header.Value = "作品サムネイル";
+
+		// Editor では SeriesMemo を表示しない（メモは画面右側に直接編集UIがある）
+		this.MangaSeriesCard.ShowMemo.Value = false;
+
+		// VolumeStatus.DisplayStatus の変更を購読し、MangaSeriesCard.VolumeStatus へ Reactive に反映
+		this.VolumeStatus.DisplayStatus
+			.Subscribe(displayStatus =>
 			{
-				this.AddMaterialFolderAsync();
-			});
+				this.MangaSeriesCard.VolumeStatus.Value = displayStatus;
+			})
+			.AddTo(ref this.disposableBag);
 
-			// OpenMaterialFolderCommand: 素材フォルダを開くコマンド
-			this.OpenMaterialFolderCommand = new ReactiveCommand<Unit>()
-				.AddTo(ref this.disposableBag);
-			this.OpenMaterialFolderCommand.Subscribe(async _ =>
+		// MangaSeriesCard の ThumbnailSource: ThumbnailPreviewImageSource と EditingSeries から最終表示画像を導出
+		// ・ThumbnailPreviewImageSource が null でなければそれを使用
+		// ・null かつ EditingSeries が null でなければ ThumbnailImageLoader.Load() の結果を使用
+		// ・両方 null なら null
+		// （MangaSeriesCard 生成後に配置し、Subscribe 即時発火時に MangaSeriesCard が存在することを保証）
+		this.ThumbnailPreviewImageSource
+			.CombineLatest(this.EditingSeries, (preview, series) =>
 			{
-				await this.openMaterialFolderAsync();
-			});
+				if (preview != null)
+				{
+					return (ImageSource?)preview;
+				}
 
-			// RemoveMaterialFileCommand: 追加素材を一覧から削除するコマンド
-			this.RemoveMaterialFileCommand = new ReactiveCommand<MaterialFileItemViewModel?>()
-				.AddTo(ref this.disposableBag);
-			this.RemoveMaterialFileCommand.Subscribe(targetItem =>
+				if (series != null)
+				{
+					return this.thumbnailImageLoader.Load(series);
+				}
+
+				return null;
+			})
+			.Subscribe(imageSource =>
 			{
-				this.RemoveMaterialFile(targetItem);
-			});
+				this.MangaSeriesCard.ThumbnailSource.Value = imageSource;
+			})
+			.AddTo(ref this.disposableBag);
 
-			// VolumeStatus: 巻情報編集用ViewModel
-			this.VolumeStatus = new EditorSeriesVolumeStatusViewModel()
-				.AddTo(ref this.disposableBag);
-
-			// MaterialFolderCreatedAtViewModel: 素材フォルダ作成日時表示用ViewModel
-			var materialFolderCreatedAtViewModel = new MaterialFolderCreatedAtViewModel();
-			this.MaterialFolderCreatedAtViewModel = new BindableReactiveProperty<MaterialFolderCreatedAtViewModel>(materialFolderCreatedAtViewModel)
-				.AddTo(ref this.disposableBag);
-
-			materialFolderCreatedAtViewModel.AddTo(ref this.disposableBag);
-
-			// MangaSeriesCard: 作品サムネイルカード用ViewModel
-			this.MangaSeriesCard = new MangaSeriesCardViewModel()
+		// IsIncomplete の変更を VolumeStatus の表示用 DisplayStatus へ同期（表示色反映のため）
+		this.IsIncomplete
+			.Subscribe(isIncomplete =>
 			{
-				IsEditMode = true
-			}
-				.AddTo(ref this.disposableBag);
-
-			// MangaSeriesCard の Header を "作品サムネイル" に初期設定
-			this.MangaSeriesCard.Header.Value = "作品サムネイル";
-
-			// Editor では SeriesMemo を表示しない（メモは画面右側に直接編集UIがある）
-			this.MangaSeriesCard.ShowMemo.Value = false;
-
-			// VolumeStatus.DisplayStatus の変更を購読し、MangaSeriesCard.VolumeStatus へ Reactive に反映
-			this.VolumeStatus.DisplayStatus
-				.Subscribe(displayStatus =>
+				if (this.VolumeStatus.DisplayStatus.Value != null)
 				{
-					this.MangaSeriesCard.VolumeStatus.Value = displayStatus;
-				})
-				.AddTo(ref this.disposableBag);
-
-			// MangaSeriesCard の ThumbnailSource: ThumbnailPreviewImageSource と EditingSeries から最終表示画像を導出
-			// ・ThumbnailPreviewImageSource が null でなければそれを使用
-			// ・null かつ EditingSeries が null でなければ ThumbnailImageLoader.Load() の結果を使用
-			// ・両方 null なら null
-			// （MangaSeriesCard 生成後に配置し、Subscribe 即時発火時に MangaSeriesCard が存在することを保証）
-			this.ThumbnailPreviewImageSource
-				.CombineLatest(this.EditingSeries, (preview, series) =>
-				{
-					if (preview != null)
-					{
-						return (ImageSource?)preview;
-					}
-
-					if (series != null)
-					{
-						return this.thumbnailImageLoader.Load(series);
-					}
-
-					return null;
-				})
-				.Subscribe(imageSource =>
-				{
-					this.MangaSeriesCard.ThumbnailSource.Value = imageSource;
-				})
-				.AddTo(ref this.disposableBag);
-
-			// IsIncomplete の変更を VolumeStatus の表示用 DisplayStatus へ同期（表示色反映のため）
-			this.IsIncomplete
-				.Subscribe(isIncomplete =>
-				{
-					if (this.VolumeStatus.DisplayStatus.Value != null)
-					{
-						this.VolumeStatus.DisplayStatus.Value.IsIncomplete.Value = isIncomplete;
-					}
-				})
-				.AddTo(ref this.disposableBag);
+					this.VolumeStatus.DisplayStatus.Value.IsIncomplete.Value = isIncomplete;
+				}
+			})
+			.AddTo(ref this.disposableBag);
 
 		// CanDeleteSeries: 作品削除ボタンの表示制御
 		this.CanDeleteSeries = new BindableReactiveProperty<bool>(false)
@@ -726,32 +704,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	{
 		this.refreshMaterialFilesDisplay();
 
-		if (!this.isInitializing && !this.suppressMaterialSizeCalculation)
+		if (!this.isInitializing)
 		{
 			_ = this.updateMaterialTotalSizeAsync();
 		}
-	}
-
-	/// <summary>
-	/// targetPath が folderPath の配下にあるかを判定します。
-	/// </summary>
-	/// <param name="targetPath">判定対象のパス。</param>
-	/// <param name="folderPath">親フォルダのパス。</param>
-	/// <returns>targetPath が folderPath の配下にある場合は true。</returns>
-	private bool isPathUnderFolder(string targetPath, string folderPath)
-	{
-		var targetFull = Path.GetFullPath(targetPath);
-		var folderFull = Path.GetFullPath(folderPath);
-
-		// folderFull の末尾に区切り文字がない場合は追加
-		if (!folderFull.EndsWith(Path.DirectorySeparatorChar))
-		{
-			folderFull += Path.DirectorySeparatorChar;
-		}
-
-		// targetFull が folderFull の配下にあるかを判定
-		return targetFull.StartsWith(folderFull, StringComparison.OrdinalIgnoreCase) ||
-			   string.Equals(targetFull, folderFull.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
 	}
 
 	/// <summary>
@@ -865,25 +821,21 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		try
 		{
-			// MaterialFiles の FullPath をすべて集計
-			var paths = this.editorStore.MaterialFiles
-				.Select(m => m.FullPath)
-				.ToList();
-
-			if (paths.Count == 0)
+			if (this.editorStore.MaterialFiles.Count == 0)
 			{
 				this.MaterialTotalSizeText.Value = string.Empty;
 				return;
 			}
 
-			// StorageSizeHelper を使用して合計サイズを取得
-			var totalBytes = await StorageSizeHelper.GetTotalAllAsync(paths, currentToken);
+			// 合計サイズの計算は Manager の責務
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
+			var totalBytes = await manager.CalculateMaterialTotalSizeAsync(currentToken);
 
 			// キャンセルされた古い計算結果が MaterialTotalSizeText を更新しないようにチェック
 			if (!currentToken.IsCancellationRequested)
 			{
-				var formattedSize = StorageSizeHelper.FormatSize(totalBytes);
-				this.MaterialTotalSizeText.Value = formattedSize;
+				this.MaterialTotalSizeText.Value = StorageSizeHelper.FormatSize(totalBytes);
 			}
 		}
 		catch (OperationCanceledException)
@@ -894,7 +846,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>
 	/// 画面から離れる際の後処理。
-	/// 遷移先が状態保持を要求していない場合に、編集対象の参照をクリアします。
+	/// 遷移先が状態保持を要求していない場合に、編集セッション固有の UI リソースと編集状態を破棄します。
+	/// 保存成功・キャンセルで既に破棄済みの場合は何もしません。
 	/// </summary>
 	/// <param name="request">遷移先から受け取った要求。</param>
 	public ValueTask OnNavigatingFromAsync(NavigationLeavingRequest request)
@@ -903,10 +856,35 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		if (!request.PreserveState)
 		{
-			this.editorStore.EditTarget.Value = null;
+			this.closeEditSession();
 		}
 
 		return ValueTask.CompletedTask;
+	}
+
+	/// <summary>
+	/// 編集セッションを終了します。
+	/// 画面の編集対象と貼り付けサムネイルを解放し、<see cref="EditorStore.EditTarget"/> を null にして
+	/// Store 側の既存クリア処理で編集状態（編集用クローン・Notifier・素材一覧など）を破棄します。
+	/// 正本（<see cref="EditorStore.OriginalSeries"/>）や共有 Notifier には影響しません。
+	/// </summary>
+	private void closeEditSession()
+	{
+		this.ClearPastedThumbnail();
+
+		// 編集用 Notifier が破棄される前に、画面側の接続を外す
+		this.EditingSeries.Value = null;
+		this.editorStore.EditTarget.Value = null;
+	}
+
+	/// <summary>
+	/// 編集をキャンセルします。
+	/// DB 保存・正本更新・素材ファイル移動は行わず、編集状態を破棄して前画面へ戻ります。
+	/// </summary>
+	private void cancelEditing()
+	{
+		this.closeEditSession();
+		this.navigationService.GoBack();
 	}
 
 	/// <summary>
@@ -1040,145 +1018,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
-	/// 素材フォルダ選択ダイアログを非同期で表示し、ユーザーの選択結果を返します。
-	/// 登録対象素材が複数の MangaSource.Path に存在する場合のみダイアログを表示します。
-	/// </summary>
-	/// <returns>素材フォルダ選択結果。</returns>
-	private async ValueTask<MaterialFolderSelectionResult> showMaterialFolderSelectionDialogAsync()
-	{
-		// 編集中の作品を取得
-		var editingSeries = this.EditingSeries.Value;
-		if (editingSeries == null)
-		{
-			return MaterialFolderSelectionResult.Skipped;
-		}
-
-		// 実際の素材フォルダ候補を生成（重複なし）
-		var materialFolderCandidates = new List<(SourceFolder, MangaSource)>();
-		var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		// 素材フォルダのみを対象に、各 MangaSource に対応する SourceFolder を検索
-		var materialSources = editingSeries.MaterialSources;
-
-		foreach (var mangaSource in materialSources)
-		{
-			// 重複判定（MangaSource.Path を基準）
-			var normalizedPath = System.IO.Path.GetFullPath(mangaSource.Path);
-			if (!seenPaths.Add(normalizedPath))
-			{
-				// 既に登録されているパス
-				continue;
-			}
-
-			// MangaSource に対応する SourceFolder を検索
-			var matchingSourceFolder = this.findSourceFolderForMangaSource(mangaSource);
-			if (matchingSourceFolder != null)
-			{
-				materialFolderCandidates.Add((matchingSourceFolder, mangaSource));
-			}
-		}
-
-		// 候補件数による動作分岐
-		if (materialFolderCandidates.Count == 0)
-		{
-			// 0件：ダイアログ表示なし、従来動作
-			return MaterialFolderSelectionResult.Skipped;
-		}
-		else if (materialFolderCandidates.Count == 1)
-		{
-			// 1件：ダイアログ表示なし、その候補を使用
-			return MaterialFolderSelectionResult.Selected(materialFolderCandidates[0].Item1);
-		}
-
-		// 2件以上：ダイアログ表示
-		var scope = this.serviceScopeFactory.CreateScope();
-		try
-		{
-			var materialFolderOpener = scope.ServiceProvider.GetRequiredService<MaterialFolderOpener>();
-			var dialogViewModel = new MaterialsConfirmDialogContentViewModel(materialFolderOpener);
-			dialogViewModel.SetMaterialFolderCandidates(materialFolderCandidates);
-
-			// ダイアログコンテンツを作成
-			var content = new MaterialsConfirmDialogContent
-			{
-				DataContext = dialogViewModel,
-			};
-
-			// ContentDialog を生成
-			var dialog = new ContentDialog
-			{
-				Title = "素材フォルダの選択",
-				Content = content,
-				PrimaryButtonText = "素材フォルダの選択",
-				CloseButtonText = "登録のキャンセル",
-				DialogWidth = 900,
-			};
-
-			// ダイアログを表示して結果を取得
-			var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
-
-			// ユーザーが「登録のキャンセル」を選択した場合
-			if (result == ContentDialogResult.None)
-			{
-				dialogViewModel.Dispose();
-				return MaterialFolderSelectionResult.Cancelled;
-			}
-
-			// 「素材フォルダの選択」が押された場合、選択中の候補を取得
-			var selectedCandidate = dialogViewModel.SelectedMaterialFolder.Value;
-			dialogViewModel.Dispose();
-
-			if (selectedCandidate != null)
-			{
-				return MaterialFolderSelectionResult.Selected(selectedCandidate.SourceFolder);
-			}
-
-			// 選択がない場合はキャンセル扱い
-			return MaterialFolderSelectionResult.Cancelled;
-		}
-		finally
-		{
-			scope.Dispose();
-		}
-	}
-
-	/// <summary>
-	/// 指定された MangaSource に対応する SourceFolder を検索します。
-	/// </summary>
-	/// <param name="mangaSource">検索対象の MangaSource。</param>
-	/// <returns>対応する SourceFolder、見つからない場合は null。</returns>
-	private SourceFolder? findSourceFolderForMangaSource(MangaSource mangaSource)
-	{
-		ArgumentNullException.ThrowIfNull(mangaSource);
-
-		var targetPath = System.IO.Path.GetFullPath(mangaSource.Path);
-
-		// AppSettings の Material フォルダで照合
-		var materialFolders = this.appSettings.SourceFolders
-			.Where(f => f.Role.Value == FolderRole.Material)
-			.ToList();
-
-		// 各フォルダと照合
-		var matchedFolders = new List<(SourceFolder folder, int pathLength)>();
-
-		foreach (var sourceFolder in materialFolders)
-		{
-			var sourceFolderPath = System.IO.Path.GetFullPath(sourceFolder.FolderPath.Value);
-
-			// targetPath が sourceFolderPath の配下にあるかチェック
-			if (this.isPathUnderFolder(targetPath, sourceFolderPath))
-			{
-				matchedFolders.Add((sourceFolder, sourceFolderPath.Length));
-			}
-		}
-
-		// 最も長いパスにマッチしたフォルダを返す（最も詳細なマッチング）
-		return matchedFolders.Count > 0
-			? matchedFolders.OrderByDescending(m => m.pathLength).First().folder
-			: null;
-	}
-
-	/// <summary>
 	/// クリップボードからサムネイルを貼り付けます。
 	/// 成功時はプレビュー画像を更新し、JPEG byte[] を保持します。
 	/// 失敗またはキャンセル時は何もしません。
@@ -1295,105 +1134,25 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
-	/// 編集画面の入力値を指定された MangaSeries オブジェクトへ反映し、完成データへ更新します。
-	/// Worker（MaterialFolderScanner / GoogleBooksImporter）と同等の品質を目指します。
-	/// 既存作品（SeriesId != 0 かつ IsWork == false）の場合は、共通処理のみを実施して返ります。
+	/// 画面の入力値を Manager へ渡すための入力値にまとめます。
+	/// 編集用クローンへの反映は Manager が行います。
 	/// </summary>
-	/// <param name="targetSeries">値を反映する対象の MangaSeries。</param>
-	private void UpdateEditingSeriesFromUI(MangaSeries targetSeries)
+	/// <returns>画面で入力された値。</returns>
+	private EditorInputValues createInputValues()
 	{
-		if (targetSeries == null)
-			return;
-
-		var titleInput = this.Title.Value ?? string.Empty;
-
-		// === 【共通処理】基本情報 ===
-		targetSeries.Title = titleInput;
-		targetSeries.Author = this.Author.Value ?? string.Empty;
-		targetSeries.Publisher = this.Publisher.Value ?? string.Empty;
-		targetSeries.Description = this.Description.Value ?? string.Empty;
-		targetSeries.Memo = this.Memo.Value ?? string.Empty;
-		targetSeries.IsIncomplete = this.IsIncomplete.Value;
-
-		// === 【共通処理】タイトル派生値（MangaTitleHelper を利用） ===
-		targetSeries.NormalizedTitleInternal = MangaTitleHelper.NormalizeTitleInternal(titleInput);
-		targetSeries.ShortTitle = MangaTitleHelper.GetShortTitle(titleInput, string.Empty);
-		// NormalizedTitleExternal は Worker でも設定されていないため string.Empty のまま（登録待ち・新規のみで後から設定）
-
-		// === 【共通処理】巻情報 ===
-		targetSeries.StartVolume = (int)this.VolumeStatus.StartVolume.Value;
-
-		// 完結巻の反映：EndVolume が入力されている場合は SeriesCompleted = true
-		if (this.VolumeStatus.EndVolume.Value.HasValue && this.VolumeStatus.EndVolume.Value.Value >= 1)
+		return new EditorInputValues
 		{
-			targetSeries.EndVolume = (int)this.VolumeStatus.EndVolume.Value.Value;
-			targetSeries.SeriesCompleted = true;
-		}
-		else
-		{
-			// 完結巻が未入力の場合
-			targetSeries.EndVolume = 0;
-			targetSeries.SeriesCompleted = false;
-			targetSeries.IsOwnedCompleted = false;
-		}
-
-		// 所持推定巻数を反映
-		targetSeries.OwnedMaxVolume = this.VolumeStatus.OwnedMaxVolume.Value.HasValue ? (int)this.VolumeStatus.OwnedMaxVolume.Value.Value : 0;
-
-		// 全巻所持フラグを反映
-		targetSeries.IsOwnedCompleted = this.VolumeStatus.IsOwnedCompleted.Value;
-
-		// === 【共通処理】Description 出典 ===
-		// 既存作品（SeriesId != 0 && IsWork == false）ではこのメソッド内では変更しない
-		// 新規作品・登録待ち作品のみ、Description が入力されている場合は Manual、未入力の場合は None
-		if (targetSeries.SeriesId == 0 || targetSeries.IsWork)
-		{
-			if (!string.IsNullOrEmpty(this.Description.Value))
-			{
-				targetSeries.DescriptionSource = DescriptionSource.Manual;
-				targetSeries.DescriptionSourceTitle = string.Empty;
-			}
-			else
-			{
-				targetSeries.DescriptionSource = DescriptionSource.None;
-				targetSeries.DescriptionSourceTitle = string.Empty;
-			}
-		}
-
-		// === 【共通処理】GoogleBooks 関連 ===
-		// GoogleBooks API 取得対象判定：作者・出版社・あらすじのいずれかが未入力の場合のみ NotImported 状態に設定
-		// 3項目すべて入力済みの場合は、現在の状態（Success, NotFound, Failed など）を維持
-		var hasMissingGoogleBooksField =
-			string.IsNullOrWhiteSpace(targetSeries.Author) ||
-			string.IsNullOrWhiteSpace(targetSeries.Publisher) ||
-			string.IsNullOrWhiteSpace(targetSeries.Description);
-
-		if (hasMissingGoogleBooksField)
-		{
-			targetSeries.GoogleBooksImportStatus = GoogleBooksImportStatus.NotImported;
-			targetSeries.GoogleBooksImportedAt = string.Empty;
-			targetSeries.GoogleBooksImportMessage = string.Empty;
-		}
-
-		// === 既存作品の場合はここで終了 ===
-		if (targetSeries.SeriesId != 0 && !targetSeries.IsWork)
-		{
-			// 既存作品では以降の初期化処理は実施しない
-			return;
-		}
-
-		// === 【登録待ち・新規のみ】その他の初期値 ===
-		// Worker で生成される MangaSeries と同等の状態を保持
-		targetSeries.IsSourceMissing = false;
-		targetSeries.HasNestedArchive = false;
-
-		// === 【登録待ち・新規のみ】製本済み最終巻 ===
-		// UI で編集不可のため、デフォルト値のまま
-		targetSeries.BoundEndVolume = 0;
-
-		// === 【登録待ち・新規のみ】外部用タイトル正規化 ===
-		targetSeries.NormalizedTitleExternal = string.Empty;
-		// NOTE: ManuallyEditedAt と IsOwnedMaxVolumeManuallyEdited は WorkMangaSeries テーブルに存在しないため設定しない
+			Title = this.Title.Value,
+			Author = this.Author.Value,
+			Publisher = this.Publisher.Value,
+			Description = this.Description.Value,
+			Memo = this.Memo.Value,
+			IsIncomplete = this.IsIncomplete.Value,
+			StartVolume = this.VolumeStatus.StartVolume.Value,
+			EndVolume = this.VolumeStatus.EndVolume.Value,
+			OwnedMaxVolume = this.VolumeStatus.OwnedMaxVolume.Value,
+			IsOwnedCompleted = this.VolumeStatus.IsOwnedCompleted.Value,
+		};
 	}
 
 	/// <summary>
@@ -1401,7 +1160,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// </summary>
 	/// <param name="alreadyAddedFiles">既に追加済みのファイル名リスト。</param>
 	/// <param name="sameNameFiles">同名の素材ファイル名リスト。</param>
-	private void showMaterialDuplicateWarningSnackbar(List<string> alreadyAddedFiles, List<string> sameNameFiles)
+	private void showMaterialDuplicateWarningSnackbar(IReadOnlyList<string> alreadyAddedFiles, IReadOnlyList<string> sameNameFiles)
 	{
 		// どちらのリストも空の場合は表示しない
 		if ((alreadyAddedFiles.Count == 0) && (sameNameFiles.Count == 0))
@@ -1456,8 +1215,8 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 	/// <summary>
 	/// 編集中の作品を WorkMangaSeries テーブルへ一時保存します。
-	/// 保存対象となるサムネイル JPEG byte[] がある場合は、MangaSeriesManager 経由で WorkThumbnail フォルダへ保存します。
-	/// 成功後は自動的に作品管理画面へ戻ります。
+	/// 検証・保存は MangaSeriesManager へ委譲し、ここでは入力値の受け渡しと結果の通知・画面遷移だけを行います。
+	/// 成功後は編集状態を破棄して作品管理画面へ戻ります。
 	/// </summary>
 	private async ValueTask SaveWorkSeriesAsync()
 	{
@@ -1466,43 +1225,33 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		try
 		{
-			var editingSeries = this.EditingSeries.Value;
+			using var scope = this.serviceScopeFactory.CreateScope();
+			var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
 
-			// EditingSeries を完成状態へ更新
-			this.UpdateEditingSeriesFromUI(editingSeries);
-
-			// タイトル必須チェック
-			if (string.IsNullOrWhiteSpace(editingSeries.Title))
+			// タイトル必須チェック（入力値の反映を含む）
+			if (manager.ValidateForWorkSave(this.createInputValues()) != EditorValidationError.None)
 			{
-				this.snackbarService.Show(
-					"エラー",
-					"タイトルを入力してください。",
-					ControlAppearance.Danger,
-					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.MaxValue);
+				this.showErrorSnackbar("エラー", "タイトルを入力してください。");
 				return;
 			}
 
 			// サムネイル JPEG byte[] を取得
 			var thumbnailBytes = this.GetPastedThumbnailBytes();
 
-			// Scope を生成
-			using var scope = this.serviceScopeFactory.CreateScope();
-			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
-
 			// ローディング開始
-				using (this.loadingService.Begin("作品を一時保存しています…"))
-				{
-					await Task.Yield();
+			using (this.loadingService.Begin("作品を一時保存しています…"))
+			{
+				await Task.Yield();
 
-					// WorkMangaSeries へ一時保存
-					var workId = await seriesManager.SaveWorkSeriesAsync(editingSeries, thumbnailBytes);
+				// WorkMangaSeries へ一時保存
+				var workId = await manager.SaveWorkSeriesAsync(thumbnailBytes);
 
 				// 成功ログ
 				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SaveWorkSeriesAsync] 一時保存成功。WorkId={workId}");
 			}
 
-			// 作品管理画面へ戻る
+			// 編集状態を破棄して作品管理画面へ戻る
+			this.closeEditSession();
 			this.navigationService.Navigate(typeof(MaintenancePage));
 		}
 		catch (Exception ex)
@@ -1513,29 +1262,29 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.SaveWorkSeriesAsync] 例外発生: {ex}");
 
 			// VolumeSelectionPage と同じ通知方式：赤色（Danger）で自動では閉じない
-			this.snackbarService.Show(
-				"一時保存に失敗しました",
-				errorMessageBody,
-				ControlAppearance.Danger,
-				new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-				TimeSpan.MaxValue);
+			this.showErrorSnackbar("一時保存に失敗しました", errorMessageBody);
 		}
 	}
 
 	/// <summary>
-	/// ドラッグアンドドロップされたファイル/フォルダを解析し、素材として MaterialFiles に追加します。
-	/// 以下の基準で判定・追加します：
-	/// - ファイル：SupportedExtensionHelper.IsArchive() で対応アーカイブのみ追加
-	/// - フォルダ（epub のみ）：フォルダ内の epub ファイルを単体で追加
-	/// - フォルダ（画像のみ）：フォルダ自体を追加
-	/// - それ以外：追加しない（エラー表示なし）
-	/// 
-	/// 重複判定は以下の順で行われます：
-	/// 1. 同一 FullPath が存在する場合は追加しません（「既に追加済み」として記録）
-	/// 2. 同一 FullPath は異なるが、同名の FileName が存在する場合は追加しません（「同名ファイル」として記録）
-	/// 3. 上記以外は通常どおり追加します
-	/// 
-	/// 追加できなかった素材が存在する場合、処理終了後に Warning Snackbar を 1 回だけ表示します。
+	/// 赤色（Danger）でユーザーが閉じるまで表示するエラー Snackbar を表示します。
+	/// </summary>
+	/// <param name="title">タイトル。</param>
+	/// <param name="message">本文。</param>
+	private void showErrorSnackbar(string title, string message)
+	{
+		this.snackbarService.Show(
+			title,
+			message,
+			ControlAppearance.Danger,
+			new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+			TimeSpan.MaxValue);
+	}
+
+	/// <summary>
+	/// ドラッグアンドドロップされたファイル/フォルダを素材として追加します。
+	/// 素材の解析・重複判定・追加・並び替え・所持最大巻数の推定は MangaSeriesManager が行い、
+	/// ここでは Loading 表示、結果の画面反映、重複時の Snackbar 通知だけを行います。
 	/// </summary>
 	/// <param name="droppedPaths">ドラッグアンドドロップされたファイル/フォルダのパス配列。</param>
 	private async ValueTask AddMaterialFilesFromDropAsync(string[] droppedPaths)
@@ -1547,90 +1296,30 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 
 		try
 		{
-			// Scope を生成
 			using var scope = this.serviceScopeFactory.CreateScope();
-			var materialManager = scope.ServiceProvider.GetRequiredService<MaterialManager>();
-
-			// 既存の FullPath と FileName を取得
-			var existingFullPaths = this.editorStore.MaterialFiles.Select(m => m.FullPath).ToHashSet();
-			var existingFileNames = this.editorStore.MaterialFiles.Select(m => m.Name).ToHashSet();
+			var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
 
 			// ローディング開始
 			using (this.loadingService.Begin("素材を追加しています..."))
 			{
 				await Task.Yield();
 
-				// 候補を解析
-				var candidates = materialManager.AnalyzePaths(droppedPaths, existingFullPaths.ToList());
+				var result = manager.AddMaterialFiles(droppedPaths);
 
-				// 重複判定結果を記録
-				var alreadyAddedFiles = new List<string>();
-				var sameNameFiles = new List<string>();
-				var addedAny = false;
-
-				// MaterialFiles を一括更新している間、CollectionChanged からのサイズ再計算を抑止
-				this.suppressMaterialSizeCalculation = true;
-
-				try
+				if (result.Added)
 				{
-					foreach (var candidate in candidates)
-					{
-						// ① 同一 FullPath の重複判定
-						if (existingFullPaths.Contains(candidate.FullPath))
-						{
-							alreadyAddedFiles.Add(candidate.FileName);
-							continue;
-						}
-
-						// ② 同名ファイルの重複判定
-						if (existingFileNames.Contains(candidate.FileName))
-						{
-							sameNameFiles.Add(candidate.FileName);
-							continue;
-						}
-
-						// ③ 重複なし → 追加
-						var item = new MaterialFileItem
-						{
-							Name = candidate.FileName,
-							FullPath = candidate.FullPath,
-							ItemType = candidate.Type,
-							SizeBytes = candidate.Size,
-							CanRemove = true,
-						};
-						this.editorStore.MaterialFiles.Add(item);
-						addedAny = true;
-					}
-				}
-				finally
-				{
-					this.suppressMaterialSizeCalculation = false;
-				}
-
-				// 追加完了後、addedAny == true の場合のみサイズ計算を1回だけ実行
-				if (addedAny)
-				{
-					// 素材一覧を並び順で並べ替え
-					this.SortMaterialFilesByOrder();
-
-					// ヘッダー表示用文字列を更新
-					this.MaterialFilesDisplay.Value = this.getMaterialFilesDisplayText();
-
 					// ボタン有効制御を更新
 					this.UpdateSaveWorkSeriesCommandCanExecute();
 
-					// 所持推定を再計算
-					this.RecalculateOwnedVolumeEstimate();
+					// 自動推定された所持最大巻数を入力欄へ反映
+					this.reflectOwnedMaxVolumeIfUpdated(result.OwnedMaxVolumeUpdated);
 
 					// 素材サイズを計算
 					await this.updateMaterialTotalSizeAsync();
 				}
 
-				// === 追加できなかった素材の通知 ===
-				if (alreadyAddedFiles.Count > 0 || sameNameFiles.Count > 0)
-				{
-					this.showMaterialDuplicateWarningSnackbar(alreadyAddedFiles, sameNameFiles);
-				}
+				// 追加できなかった素材の通知
+				this.showMaterialDuplicateWarningSnackbar(result.AlreadyAddedFiles, result.SameNameFiles);
 			}
 		}
 		catch (Exception ex)
@@ -1641,36 +1330,19 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
-	/// 現在の MaterialFiles から所持推定を再計算し、有効な結果の場合のみ OwnedMaxVolume を更新します。
-	/// 推定不能の場合は現在の所持推定値を変更しません。
+	/// Manager が編集用クローンの所持最大巻数を自動推定で更新した場合に、その値を入力欄へ反映します。
 	/// </summary>
-	private void RecalculateOwnedVolumeEstimate()
+	/// <param name="ownedMaxVolumeUpdated">自動推定により所持最大巻数が更新された場合は true。</param>
+	private void reflectOwnedMaxVolumeIfUpdated(bool ownedMaxVolumeUpdated)
 	{
-		try
+		if (!ownedMaxVolumeUpdated)
 		{
-			// Scope を生成
-			using var scope = this.serviceScopeFactory.CreateScope();
-			var ownedVolumeEstimator = scope.ServiceProvider.GetRequiredService<OwnedVolumeEstimator>();
-
-			var materials = this.editorStore.MaterialFiles
-				.Select(m => (m.Name, GetVolumeNumberSourceType(m.ItemType)))
-				.ToList();
-
-			if (materials.Count == 0)
-			{
-				return;
-			}
-
-			var result = ownedVolumeEstimator.Estimate(materials);
-			if (result.OwnedMaxVolume > 0)
-			{
-				this.VolumeStatus.OwnedMaxVolume.Value = result.OwnedMaxVolume;
-			}
+			return;
 		}
-		catch (Exception ex)
-		{
-			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RecalculateOwnedVolumeEstimate] 例外発生: {ex.Message}");
-		}
+
+		var target = this.editorStore.EditTarget.Value
+			?? throw new InvalidOperationException("EditorStore が初期化されていません。");
+		this.VolumeStatus.OwnedMaxVolume.Value = target.OwnedMaxVolume;
 	}
 
 	/// <summary>
@@ -1731,475 +1403,216 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	}
 
 	/// <summary>
-	/// タイトル入力欄が LostFocus した場合の処理を実行します。
-	/// 既存正式作品のみ、タイトルの変更確認を行います。
-	/// </summary>
-	private async ValueTask HandleTitleLostFocusAsync()
-	{
-		// 現在入力されているタイトルを取得
-		var currentTitle = this.Title.Value;
-
-		// タイトルが null / 空文字 / 空白のみの場合は何もしない
-		if (string.IsNullOrWhiteSpace(currentTitle))
-		{
-			return;
-		}
-
-		// 編集対象がない場合は何もしない
-		var editingSeries = this.EditingSeries.Value;
-		if (editingSeries == null)
-		{
-			return;
-		}
-
-		// 既存正式作品のみ対象（SeriesId != 0 かつ IsWork == false）
-		if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
-		{
-			return;
-		}
-
-		// 元作品の情報を取得
-		var originalSeries = this.editorStore.OriginalSeries;
-		if (originalSeries == null || string.IsNullOrWhiteSpace(originalSeries.Title))
-		{
-			return;
-		}
-
-		// タイトルを正規化して比較
-		var normalizedOriginal = MangaTitleHelper.NormalizeTitleInternal(originalSeries.Title);
-		var normalizedCurrent = MangaTitleHelper.NormalizeTitleInternal(currentTitle);
-
-		// 正規化結果が一致する場合は何もしない
-		if (normalizedOriginal == normalizedCurrent)
-		{
-			return;
-		}
-
-		// タイトルが変更されたため、ContentDialog を表示
-		var dialog = new ContentDialog
-		{
-			Title = "タイトル不一致",
-			Content = "タイトルが別作品と判定されました。続行しますか？",
-			PrimaryButtonText = "変更する",
-			CloseButtonText = "元に戻す",
-			DefaultButton = ContentDialogButton.Close,
-		};
-
-		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
-
-		if (result == ContentDialogResult.Primary)
-		{
-			// 「変更する」を選択した場合は、現在のタイトルをそのまま維持
-			// 特に処理なし
-		}
-		else
-		{
-			// 「元に戻す」を選択した場合は、タイトルを元の値に戻す
-			this.Title.Value = originalSeries.Title;
-		}
-	}
-
-	/// <summary>
 	/// 編集中の作品を正式な MangaSeries として保存します。
-	/// 保存方式（新規登録・既存作品更新）の判定は MangaSeriesManager の責務です。
+	/// 検証・保存方式（新規登録・既存作品更新）の判定・保存は MangaSeriesManager の責務です。
+	/// ここでは入力値の受け渡し、確認 Dialog、Snackbar、画面遷移だけを行います。
+	/// タイトルの検証は、この登録ボタン押下時にだけ実行されます。
 	/// </summary>
 	private async ValueTask RegisterSeriesAsync()
 	{
 		try
 		{
-			// Scope を生成（確認～保存まで同じ Scope を使用）
+			// Scope を生成（検証～保存まで同じ Scope を使用）
 			using var scope = this.serviceScopeFactory.CreateScope();
-			var seriesManager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
+			var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
 
-			// 入力値の検証
-			var editingSeries = this.EditingSeries.Value;
-			if (editingSeries == null)
+			var editingSeries = this.EditingSeries.Value
+				?? throw new InvalidOperationException("編集中の作品情報がありません。");
+
+			// 入力値の反映と検証
+			var validationError = manager.ValidateForRegister(this.createInputValues());
+			if (validationError != EditorValidationError.None)
 			{
-				this.snackbarService.Show(
-					"エラー",
-					"編集中の作品情報がありません。",
-					ControlAppearance.Caution,
-					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.FromSeconds(3));
+				await this.showRegisterValidationErrorAsync(manager, validationError);
 				return;
 			}
 
-			// UI から編集対象へ最新値を反映
-			this.UpdateEditingSeriesFromUI(editingSeries);
-
-			if (string.IsNullOrWhiteSpace(editingSeries.Title))
+			// 別ドライブへの大量素材移動は確認する
+			if (manager.RequiresDifferentDriveConfirmation())
 			{
+				var differentDriveResult = await this.ShowContentDialogAsync(
+					"別ドライブへの移動",
+					"現在選択されている登録先素材フォルダは\n元の素材フォルダとは別ドライブです。\n\n素材ファイルはコピーではなく移動されます。\n\n続行しますか？",
+					"移動して登録",
+					"登録のキャンセル");
+
+				if (differentDriveResult != ContentDialogResult.Primary)
+				{
+					return;
+				}
+			}
+
+			// 保存処理のメッセージを決定
+			var loadingMessage = editingSeries.SeriesId == 0 || editingSeries.IsWork
+				? "作品を登録しています…"
+				: "作品を更新しています…";
+
+			SeriesSaveResult saveResult;
+			using (this.loadingService.Begin(loadingMessage))
+			{
+				await Task.Yield();
+
+				// 保存実行
+				saveResult = await manager.RegisterSeriesAsync(this.PastedThumbnailBytes);
+			}
+
+			// 保存結果の判定
+			if (saveResult.Series == null)
+			{
+				// 全件失敗：編集状態を保持して EditorPage に留まる
+				this.UpdateSaveWorkSeriesCommandCanExecute();
+
 				this.snackbarService.Show(
-					"エラー",
-					"タイトルを入力してください。",
+					"素材を移動できませんでした",
+					Constants.Messages.MaterialInUse,
 					ControlAppearance.Danger,
-					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
+					new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
 					TimeSpan.MaxValue);
-				// タイトル入力欄へフォーカスを移す
-				this.TitleFocusRequest.Value++;
-				return;
 			}
-
-			// 新規作品・登録待ち作品の場合、同一タイトルの正式作品が存在する場合は Author が必須
-			if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
+			else if (saveResult.FailedItems.Count == 0)
 			{
-				if (string.IsNullOrWhiteSpace(editingSeries.Author))
-				{
-					// 同一タイトルの作品を検索
-					var sameTitleWorks = seriesManager.FindSameTitle(editingSeries.Title);
+				// 全件成功
+				var savedTitle = saveResult.Series.Title;
 
-					// 正式作品のみをフィルタリング（SeriesId != 0 && IsWork == false）
-					var existingSeriesWithSameTitle = sameTitleWorks
-						.Where(series => series.SeriesId != 0 && !series.IsWork)
-						.ToList();
+				this.snackbarService.Show(
+					"成功",
+					$"『{savedTitle}』を保存しました。",
+					ControlAppearance.Success,
+					new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
+					TimeSpan.FromSeconds(3));
 
-					// 同一タイトルの正式作品が存在する場合は Author を要求
-					if (existingSeriesWithSameTitle.Count > 0)
-					{
-						this.snackbarService.Show(
-							"登録できません",
-							"同一タイトルの作品が登録済みのため、作者を入力してください。",
-							ControlAppearance.Danger,
-							new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-							TimeSpan.MaxValue);
-						return;
-					}
-				}
-			}
-
-			// 新規作品・登録待ち作品の場合は重複判定を実行
-			if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
-			{
-				var duplicates = seriesManager.FindDuplicateSeries(editingSeries);
-				if (duplicates.Count > 0)
-				{
-					this.snackbarService.Show(
-						"登録できません",
-						"同一作品が既に登録されています。",
-						ControlAppearance.Danger,
-						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.MaxValue);
-					return;
-				}
-			}
-
-			// 新規作品・登録待ち作品の場合は、素材ファイルと登録先フォルダが必須
-			if (editingSeries.SeriesId == 0 || editingSeries.IsWork)
-			{
-				if (this.editorStore.MaterialFiles.Count == 0)
-				{
-					this.snackbarService.Show(
-						"エラー",
-						"素材ファイルが登録されていません。",
-						ControlAppearance.Danger,
-						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.MaxValue);
-					return;
-				}
-
-				if (this.SelectedMaterialSourceFolder.Value == null)
-				{
-					this.snackbarService.Show(
-						"エラー",
-						"登録先の素材フォルダを選択してください。",
-						ControlAppearance.Danger,
-						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.MaxValue);
-					return;
-				}
+				// 編集状態を破棄して前画面へ戻る
+				this.closeEditSession();
+				this.navigationService.GoBack();
 			}
 			else
 			{
-				// 既存作品の場合、追加素材がある場合のみ登録先フォルダが必須
-				if (this.editorStore.MaterialFiles.Count > 0 && this.SelectedMaterialSourceFolder.Value == null)
-				{
-					this.snackbarService.Show(
-						"エラー",
-						"登録先の素材フォルダを選択してください。",
-						ControlAppearance.Danger,
-						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.MaxValue);
-					return;
-				}
-			}
-
-			// 素材 DTO に変換
-			var materialFileDtos = this.editorStore.MaterialFiles
-				.Select(item => new MaterialFile
-				{
-					FullPath = item.FullPath,
-					Type = item.ItemType,
-					CanRemove = item.CanRemove,
-				})
-				.ToList();
-
-			// ===== 素材フォルダ選択ダイアログを表示 =====
-			var folderSelectionResult = await this.showMaterialFolderSelectionDialogAsync();
-
-			// キャンセルされた場合は登録を中止
-			if (folderSelectionResult.ResultStatus == MaterialFolderSelectionResult.Status.Cancelled)
-			{
-				return;
-			}
-
-			// 登録先素材フォルダを確定
-			// Skipped の場合は、追加素材がないため登録先フォルダは不要（既存作品の作品情報更新のみ）
-			var registrationMaterialSourceFolder = folderSelectionResult.SelectedSourceFolder 
-				?? this.SelectedMaterialSourceFolder.Value;
-
-			// 追加素材がある場合のみ、登録先フォルダの選択を要求
-			if (this.editorStore.MaterialFiles.Count > 0 && registrationMaterialSourceFolder == null)
-			{
+				// 部分成功：正式登録成功だが一部素材移動失敗
 				this.snackbarService.Show(
-					"エラー",
-					"登録先の素材フォルダを選択してください。",
+					"一部の素材を移動できませんでした",
+					"作品の登録は完了しましたが、移動できなかった素材が元の場所に残っています。\n他のアプリで開いている場合は終了して、再度実行してください。",
 					ControlAppearance.Danger,
 					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
 					TimeSpan.MaxValue);
-				return;
+
+				// 編集状態を破棄して前画面へ戻る
+				this.closeEditSession();
+				this.navigationService.GoBack();
 			}
-
-			// ===== 保存前確認フローを実行 =====
-			// 保存先フォルダを EditorStore に設定（確定した登録先を使用）
-			this.editingSession.SelectedMaterialSourceFolder = registrationMaterialSourceFolder;
-
-			// 1. MangaSeriesManager を使用して保存前確認を開始
-			var confirmationResult = await seriesManager.GetSaveSeriesConfirmationAsync(
-				this.editingSession,
-				materialFileDtos);
-
-			// 2. 確認結果に応じて処理分岐
-			while (confirmationResult.ConfirmationType != SaveSeriesConfirmationType.None)
-			{
-				if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.MaterialSource)
-				{
-					// 複数素材ソースの確認ダイアログを表示
-					var materialSources = confirmationResult.GetConfirmationDataAs<List<MangaSource>>();
-					if (materialSources != null)
-					{
-						// TODO: MaterialSource 選択ダイアログを表示
-						// 現在は実装されていない。今回はフローの骨組みのみ
-						this.snackbarService.Show(
-							"情報",
-							"複数の素材ソースが存在します。（詳細実装は次回実施）",
-							ControlAppearance.Secondary,
-							new SymbolIcon { Symbol = SymbolRegular.QuestionCircle24 },
-							TimeSpan.FromSeconds(3));
-						return;
-					}
-				}
-					else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.DifferentDrive)
-					{
-						// 別ドライブ移動の確認ダイアログを表示
-						var differentDriveResult = await this.ShowContentDialogAsync(
-							"別ドライブへの移動",
-							"現在選択されている登録先素材フォルダは\n元の素材フォルダとは別ドライブです。\n\n素材ファイルはコピーではなく移動されます。\n\n続行しますか？",
-							"移動して登録",
-							"登録のキャンセル");
-
-						// ユーザーが「移動して登録」を選択した場合
-						if (differentDriveResult == ContentDialogResult.Primary)
-						{
-							this.editingSession.DifferentDriveConfirmed = true;
-						}
-						else
-						{
-							// 「登録のキャンセル」を選択した場合は保存処理を中止
-							return;
-						}
-					}
-					else if (confirmationResult.ConfirmationType == SaveSeriesConfirmationType.Cancel)
-					{
-						// ユーザーがキャンセル
-						return;
-					}
-
-						// 再度確認を実行
-						confirmationResult = await seriesManager.GetSaveSeriesConfirmationAsync(
-							this.editingSession,
-							materialFileDtos);
-					}
-
-								// 3. 確認完了 → ローディング開始
-								// 保存処理のメッセージを決定
-								var loadingMessage = editingSeries.SeriesId == 0 || editingSeries.IsWork
-									? "作品を登録しています…"
-									: "作品を更新しています…";
-
-								SeriesSaveResult saveResult;
-									using (this.loadingService.Begin(loadingMessage))
-									{
-										await Task.Yield();
-
-										// 保存実行
-										saveResult = await seriesManager.SaveSeriesAsync(
-										this.editingSession,
-										materialFileDtos,
-										this.PastedThumbnailBytes,
-										this.IsBindingQueued.Value);
-								}
-
-								// 保存結果の判定
-								if (saveResult.Series == null)
-								{
-									// 全件失敗：EditorPage に留まる
-									// 素材一覧を保持したまま StatusCommand の有効状態を更新
-									this.UpdateSaveWorkSeriesCommandCanExecute();
-
-									// Danger + TimeSpan.MaxValue の Snackbar を表示
-									this.snackbarService.Show(
-										"素材を移動できませんでした",
-										Constants.Messages.MaterialInUse,
-										ControlAppearance.Danger,
-										new SymbolIcon { Symbol = SymbolRegular.ErrorCircle24 },
-										TimeSpan.MaxValue);
-
-									// EditorPage に留まる（GoBack() を実行しない）
-								}
-								else if (saveResult.FailedItems.Count == 0)
-								{
-									// 全件成功
-									var savedSeries = saveResult.Series;
-
-									// 保存成功
-									this.snackbarService.Show(
-										"成功",
-										$"『{savedSeries.Title}』を保存しました。",
-										ControlAppearance.Success,
-										new SymbolIcon { Symbol = SymbolRegular.CheckmarkCircle24 },
-										TimeSpan.FromSeconds(3));
-
-									// ナビゲーション履歴へ戻る
-									this.navigationService.GoBack();
-								}
-								else
-								{
-									// 部分成功：正式登録成功だが一部素材移動失敗
-									var savedSeries = saveResult.Series;
-
-									// Danger + TimeSpan.MaxValue の Snackbar を表示
-									this.snackbarService.Show(
-										"一部の素材を移動できませんでした",
-										"作品の登録は完了しましたが、移動できなかった素材が元の場所に残っています。\n他のアプリで開いている場合は終了して、再度実行してください。",
-										ControlAppearance.Danger,
-										new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-										TimeSpan.MaxValue);
-
-									// ナビゲーション履歴へ戻る
-									this.navigationService.GoBack();
-								}
-					}
+		}
 		catch (Exception ex)
 		{
-			// 素材フォルダ名検証エラーを判定
-			if (ex.Message.Contains("素材フォルダ名の変更判定でエラーが発生しました"))
+			this.showSaveFailedSnackbar(ex);
+		}
+	}
+
+	/// <summary>
+	/// 登録時の検証エラーを Dialog または Snackbar で通知します。いずれの場合も保存は続行しません。
+	/// </summary>
+	/// <param name="manager">編集処理を担当する Manager。</param>
+	/// <param name="validationError">検証エラーの種類。</param>
+	private async ValueTask showRegisterValidationErrorAsync(MangaSeriesManager manager, EditorValidationError validationError)
+	{
+		switch (validationError)
+		{
+			case EditorValidationError.TitleRequired:
+				this.showErrorSnackbar("エラー", "タイトルを入力してください。");
+
+				// タイトル入力欄へフォーカスを移す
+				this.TitleFocusRequest.Value++;
+				break;
+
+			case EditorValidationError.AuthorRequired:
+				this.showErrorSnackbar("登録できません", "同一タイトルの作品が登録済みのため、作者を入力してください。");
+				break;
+
+			case EditorValidationError.DuplicateSeries:
+				this.showErrorSnackbar("登録できません", "同一作品が既に登録されています。");
+				break;
+
+			case EditorValidationError.MaterialRequired:
+				this.showErrorSnackbar("エラー", "素材ファイルが登録されていません。");
+				break;
+
+			case EditorValidationError.DestinationRequired:
+				this.showErrorSnackbar("エラー", "登録先の素材フォルダを選択してください。");
+				break;
+
+			case EditorValidationError.TitleMismatch:
+				await this.showTitleMismatchDialogAsync(manager);
+				break;
+
+			default:
+				throw new InvalidOperationException($"未対応の検証エラーです: {validationError}");
+		}
+	}
+
+	/// <summary>
+	/// タイトル不一致の ContentDialog を表示します。
+	/// 「登録中止」は入力済みタイトルを保持したまま中止し、「タイトルを元に戻す」は編集用クローンのタイトルを元に戻して中止します。
+	/// </summary>
+	/// <param name="manager">編集処理を担当する Manager。</param>
+	private async ValueTask showTitleMismatchDialogAsync(MangaSeriesManager manager)
+	{
+		var dialog = new ContentDialog
+		{
+			Title = "タイトル不一致",
+			Content = "別作品と判定されたため、登録できません。\n\nタイトルは、同一作品と判定できる範囲でのみ修正できます。\n\n修正できる例\n・全角・半角の統一：１４歳 → 14歳\n・スペースの削除：ドラゴン ボール → ドラゴンボール\n・英字の大小文字：Fate → FATE",
+			PrimaryButtonText = "登録中止",
+			SecondaryButtonText = "タイトルを元に戻す",
+		};
+
+		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+
+		if (result == ContentDialogResult.Secondary)
+		{
+			this.Title.Value = manager.RestoreOriginalTitle();
+		}
+	}
+
+	/// <summary>
+	/// 保存処理で発生した例外を Snackbar で通知します。
+	/// </summary>
+	/// <param name="ex">発生した例外。</param>
+	private void showSaveFailedSnackbar(Exception ex)
+	{
+		// 素材フォルダ名検証エラーを判定
+		if (ex.Message.Contains("素材フォルダ名の変更判定でエラーが発生しました"))
+		{
+			// 結果文字列を解析して適切なメッセージを表示
+			if (ex.Message.Contains(MaterialFolderRenameCheckResult.CurrentFolderNotFound.ToString()))
 			{
-				// 結果文字列を解析して適切なメッセージを表示
-				if (ex.Message.Contains(MaterialFolderRenameCheckResult.CurrentFolderNotFound.ToString()))
-				{
-					this.snackbarService.Show(
-						"エラー",
-						"登録されている素材フォルダが見つからないため、作品を保存できません。\n素材フォルダを確認してください。",
-						ControlAppearance.Danger,
-						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.MaxValue);
-				}
-				else if (ex.Message.Contains(MaterialFolderRenameCheckResult.RenameTargetAlreadyExists.ToString()))
-				{
-					this.snackbarService.Show(
-						"エラー",
-						"変更後の素材フォルダ名と同じフォルダが既に存在するため、作品を保存できません。\n素材フォルダを確認してください。",
-						ControlAppearance.Danger,
-						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.MaxValue);
-				}
-				else if (ex.Message.Contains(MaterialFolderRenameCheckResult.RenameNeeded.ToString()))
-				{
-					this.snackbarService.Show(
-						"エラー",
-						"素材フォルダ名の変更が必要です。\nフォルダRename処理は現在未実装のため、作品を保存できません。",
-						ControlAppearance.Danger,
-						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.MaxValue);
-				}
-				else
-				{
-					this.snackbarService.Show(
-						"エラー",
-						$"保存に失敗しました: {ex.Message}",
-						ControlAppearance.Caution,
-						new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-						TimeSpan.FromSeconds(3));
-				}
+				this.showErrorSnackbar(
+					"エラー",
+					"登録されている素材フォルダが見つからないため、作品を保存できません。\n素材フォルダを確認してください。");
+			}
+			else if (ex.Message.Contains(MaterialFolderRenameCheckResult.RenameTargetAlreadyExists.ToString()))
+			{
+				this.showErrorSnackbar(
+					"エラー",
+					"変更後の素材フォルダ名と同じフォルダが既に存在するため、作品を保存できません。\n素材フォルダを確認してください。");
+			}
+			else if (ex.Message.Contains(MaterialFolderRenameCheckResult.RenameNeeded.ToString()))
+			{
+				this.showErrorSnackbar(
+					"エラー",
+					"素材フォルダ名の変更が必要です。\nフォルダRename処理は現在未実装のため、作品を保存できません。");
 			}
 			else
 			{
-				System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RegisterSeriesAsync] 例外発生: {ex.Message}");
 				this.snackbarService.Show(
 					"エラー",
 					$"保存に失敗しました: {ex.Message}",
-					ControlAppearance.Danger,
+					ControlAppearance.Caution,
 					new SymbolIcon { Symbol = SymbolRegular.Warning24 },
-					TimeSpan.MaxValue);
+					TimeSpan.FromSeconds(3));
 			}
-		}
-	}
 
-	/// <summary>
-	/// MaterialFiles を並び順で並べ替えます。
-	/// フォルダ → ファイル（Archive / Epub）の順で分類し、同じ分類内ではFileNameで昇順にします。
-	/// </summary>
-	private void SortMaterialFilesByOrder()
-	{
-		if (this.editorStore.MaterialFiles.Count == 0)
-		{
 			return;
 		}
 
-		// ソート中の容量再計算を抑止
-		this.suppressMaterialSizeCalculation = true;
-
-		try
-		{
-			// 現在のアイテムをリストに変換してソート
-			var sorted = this.editorStore.MaterialFiles
-				.OrderBy(item =>
-				{
-					// ItemType で第一ソート（Folder=0, ファイル=1）
-					// Archive と Epub は同じグループ（同じ order value）
-					var typeOrder = item.ItemType switch
-					{
-						MaterialItemType.Folder => 0,
-						MaterialItemType.Archive => 1,
-						MaterialItemType.Epub => 1,
-						_ => 2,
-					};
-					return typeOrder;
-				})
-				.ThenBy(item => item.Name, StringComparer.Ordinal)  // 同じ分類内はNameで昇順
-				.ToList();
-
-			// ObservableList の内容を更新
-			this.editorStore.MaterialFiles.Clear();
-			foreach (var item in sorted)
-			{
-				this.editorStore.MaterialFiles.Add(item);
-			}
-		}
-		finally
-		{
-			this.suppressMaterialSizeCalculation = false;
-		}
-	}
-
-	/// <summary>
-	/// 戻るサイドボタンなどからの「戻る」要求を処理します。
-	/// </summary>
-	/// <returns>戻る処理を実行する非同期タスク。</returns>
-	public async ValueTask OnBackRequestedAsync()
-	{
-		await ValueTask.CompletedTask;
-		this.executeGoBack();
+		System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RegisterSeriesAsync] 例外発生: {ex.Message}");
+		this.showErrorSnackbar("エラー", $"保存に失敗しました: {ex.Message}");
 	}
 
 	/// <summary>
@@ -2209,14 +1622,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	{
 		this.Dispose(true);
 		GC.SuppressFinalize(this);
-	}
-
-	/// <summary>
-	/// 前画面へ戻る処理を実行します。
-	/// </summary>
-	private void executeGoBack()
-	{
-		this.navigationService.GoBack();
 	}
 
 	/// <summary>
@@ -2243,75 +1648,13 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 }
 
 /// <summary>
-/// 素材フォルダ選択ダイアログの結果を表します。
-/// </summary>
-internal sealed record MaterialFolderSelectionResult
-{
-	/// <summary>
-	/// ダイアログが表示されず、選択がスキップされた場合。
-	/// </summary>
-	public static MaterialFolderSelectionResult Skipped => new(status: Status.Skipped, selectedSourceFolder: null);
-
-	/// <summary>
-	/// ユーザーが「登録のキャンセル」を選択した場合。
-	/// </summary>
-	public static MaterialFolderSelectionResult Cancelled => new(status: Status.Cancelled, selectedSourceFolder: null);
-
-	/// <summary>
-	/// ユーザーが素材フォルダを選択した場合。
-	/// </summary>
-	public static MaterialFolderSelectionResult Selected(SourceFolder sourceFolder)
-	{
-		ArgumentNullException.ThrowIfNull(sourceFolder);
-		return new(status: Status.Selected, selectedSourceFolder: sourceFolder);
-	}
-
-	/// <summary>
-	/// 結果の状態を取得します。
-	/// </summary>
-	public enum Status
-	{
-		/// <summary>ダイアログが表示されず、選択がスキップされた。</summary>
-		Skipped,
-
-		/// <summary>ユーザーが登録をキャンセルした。</summary>
-		Cancelled,
-
-		/// <summary>ユーザーが素材フォルダを選択した。</summary>
-		Selected,
-	}
-
-	/// <summary>
-	/// 結果の状態を取得します。
-	/// </summary>
-	public Status ResultStatus { get; }
-
-	/// <summary>
-	/// ユーザーが選択した登録先素材フォルダを取得します。
-	/// SkippedまたはCancelledの場合はnull。
-	/// </summary>
-	public SourceFolder? SelectedSourceFolder { get; }
-
-	/// <summary>
-	/// <see cref="MaterialFolderSelectionResult"/> の新しいインスタンスを初期化します。
-	/// </summary>
-	/// <param name="status">結果の状態。</param>
-	/// <param name="selectedSourceFolder">ユーザーが選択した登録先素材フォルダ。</param>
-	private MaterialFolderSelectionResult(Status status, SourceFolder? selectedSourceFolder)
-	{
-		this.ResultStatus = status;
-		this.SelectedSourceFolder = selectedSourceFolder;
-	}
-}
-
-/// <summary>
 /// EditorPageViewModel に関連するメソッド。
 /// </summary>
 public partial class EditorPageViewModel
 {
 	/// <summary>
 	/// 素材一覧から指定された素材を削除します。
-	/// 削除可能（CanRemove == true）な素材のみ削除でき、その他の素材は削除できません。
+	/// 削除可否の判定と削除、所持最大巻数の推定は MangaSeriesManager が行います。
 	/// </summary>
 	/// <param name="targetItem">削除対象の MaterialFileItemViewModel。</param>
 	private void RemoveMaterialFile(MaterialFileItemViewModel? targetItem)
@@ -2322,100 +1665,35 @@ public partial class EditorPageViewModel
 			return;
 		}
 
-		// CanRemove が false の場合は削除不可
-		if (!targetItem.CanRemove)
-		{
-			return;
-		}
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
 
-		// 削除対象を Store の素材一覧から FullPath で特定
-		var storeItem = this.editorStore.MaterialFiles.FirstOrDefault(m => m.FullPath == targetItem.FullPath);
-		if (storeItem == null)
-		{
-			return;
-		}
-
-		// Store の素材一覧から削除
 		// CollectionChanged イベントでコレクション関連の表示は自動更新される
-		this.editorStore.MaterialFiles.Remove(storeItem);
+		var result = manager.RemoveMaterialFile(targetItem.FullPath);
+		if (!result.Removed)
+		{
+			return;
+		}
 
 		// 登録/保存コマンドの有効状態を更新
 		this.UpdateSaveWorkSeriesCommandCanExecute();
 
-		// 巻数推定の再計算
-		this.RecalculateOwnedVolumeEstimateAfterRemoval();
+		// 自動推定された所持最大巻数を入力欄へ反映
+		this.reflectOwnedMaxVolumeIfUpdated(result.OwnedMaxVolumeUpdated);
 	}
 
 	/// <summary>
-	/// 素材削除後の所持推定巻数を再計算します。
-	/// 推定できない場合は編集開始時の値を復元します。
-	/// </summary>
-	private void RecalculateOwnedVolumeEstimateAfterRemoval()
-	{
-		try
-		{
-			// 素材が0件の場合は編集開始時の値に戻す
-			if (this.editorStore.MaterialFiles.Count == 0)
-			{
-				this.VolumeStatus.OwnedMaxVolume.Value = this.editorStore.EditingStartOwnedMaxVolume;
-				return;
-			}
-
-			// 残っている素材から OwnedVolumeEstimator で再推定
-			using var scope = this.serviceScopeFactory.CreateScope();
-			var ownedVolumeEstimator = scope.ServiceProvider.GetRequiredService<OwnedVolumeEstimator>();
-
-			var materials = this.editorStore.MaterialFiles
-				.Select(m => (m.Name, GetVolumeNumberSourceType(m.ItemType)))
-				.ToList();
-			var result = ownedVolumeEstimator.Estimate(materials);
-
-			if (result.OwnedMaxVolume > 0)
-			{
-				// 推定できた場合は新しい推定値を設定
-				this.VolumeStatus.OwnedMaxVolume.Value = result.OwnedMaxVolume;
-			}
-			else
-			{
-				// 推定できない場合は編集開始時の値に戻す
-				this.VolumeStatus.OwnedMaxVolume.Value = this.editorStore.EditingStartOwnedMaxVolume;
-			}
-		}
-		catch (Exception ex)
-		{
-			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.RecalculateOwnedVolumeEstimateAfterRemoval] 例外発生: {ex.Message}");
-			// 例外が発生した場合は編集開始時の値に戻す
-			this.VolumeStatus.OwnedMaxVolume.Value = this.editorStore.EditingStartOwnedMaxVolume;
-		}
-	}
-
-	/// <summary>
-	/// 素材フォルダを開きます。
+	/// 編集対象の素材フォルダを開きます。
+	/// 編集開始時に特定した実在する素材ソース（<see cref="EditorStore.MaterialSource"/>）を使用します。
 	/// </summary>
 	private async Task openMaterialFolderAsync()
 	{
-		// EditingSeries が null の場合は処理しない
-		if (this.EditingSeries.Value?.PrimaryMaterialSource is not { } primarySource)
+		if (this.editorStore.MaterialSource is not { } materialSource)
 			return;
 
 		// MaterialFolderOpener を取得してフォルダを開く
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var opener = scope.ServiceProvider.GetRequiredService<MaterialFolderOpener>();
-		await opener.OpenAsync(primarySource);
-	}
-
-	/// <summary>
-	/// MaterialItemType から VolumeNumberSourceType に変換します。
-	/// </summary>
-	private static VolumeNumberSourceType GetVolumeNumberSourceType(MaterialItemType itemType)
-	{
-		return itemType switch
-		{
-			MaterialItemType.Archive => VolumeNumberSourceType.Archive,
-			MaterialItemType.Folder => VolumeNumberSourceType.Folder,
-			MaterialItemType.Epub => VolumeNumberSourceType.Epub,
-			_ => VolumeNumberSourceType.Archive, // Root などの場合はデフォルト
-		};
+		await opener.OpenAsync(materialSource);
 	}
 }
-

@@ -40,6 +40,9 @@ public class NewSeriesCoordinator
 	/// <summary>アプリケーション設定。</summary>
 	private readonly AppSettings appSettings;
 
+	/// <summary>Snackbar 通知サービス。</summary>
+	private readonly ISnackbarService snackbarService;
+
 	/// <summary>
 	/// <see cref="NewSeriesCoordinator"/>
 	/// </summary>
@@ -47,13 +50,16 @@ public class NewSeriesCoordinator
 	/// <param name="contentDialogService">コンテントダイアログサービス。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
 	/// <param name="appSettings">アプリケーション設定。</param>
+	/// <param name="snackbarService">Snackbar 通知サービス。</param>
 	public NewSeriesCoordinator(
 		INavigationService navigationService,
 		IContentDialogService contentDialogService,
 		IServiceScopeFactory serviceScopeFactory,
-		AppSettings appSettings)
+		AppSettings appSettings,
+		ISnackbarService snackbarService)
 	{
 		this.appSettings = appSettings;
+		this.snackbarService = snackbarService;
 		this.navigationService = navigationService;
 		this.contentDialogService = contentDialogService;
 		this.serviceScopeFactory = serviceScopeFactory;
@@ -246,10 +252,18 @@ public class NewSeriesCoordinator
 			{
 				// 編集対象が確定したため、EditorStore の初期化完了を待つ
 				var editManager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
-				await editManager.PrepareEditAsync(confirmedSeries);
+				var prepareResult = await editManager.PrepareEditAsync(confirmedSeries);
 
-				// EditorPage へ遷移
-				this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
+				if (prepareResult == EditPrepareResult.MultipleMaterialFolders)
+				{
+					// Dialog は閉じ済み。共通 Snackbar を表示して遷移しない
+					EditPrepareNotificationHelper.ShowMultipleMaterialFoldersSnackbar(this.snackbarService);
+				}
+				else
+				{
+					// EditorPage へ遷移
+					this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
+				}
 			}
 		}
 		finally

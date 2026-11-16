@@ -59,12 +59,12 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 	/// 既存作品の更新処理を実行します。
 	/// </summary>
 	/// <param name="editingSeries">編集中の作品。SeriesId != 0 かつ IsWork == false である必要があります。</param>
-	/// <param name="originalSeries">編集開始時の DeepCopy。null の場合は InvalidOperationException をスロー。</param>
+	/// <param name="originalSeries">正本の DeepCopy（変更可能な保存用作業コピー）。Store の正本インスタンスそのものを渡してはいけません。null の場合は InvalidOperationException をスロー。</param>
 	/// <param name="materialFiles">追加された素材ファイル。</param>
 	/// <param name="selectedMaterialSourceFolder">素材の移動先フォルダ。</param>
 	/// <param name="thumbnailBytes">新しいサムネイルのバイト列。</param>
 	/// <returns>保存処理の結果（作品情報と移動失敗素材を含む）。</returns>
-	/// <exception cref="InvalidOperationException">editingSeries.SeriesId == 0 または editingSeries.IsWork == true の場合、またはoriginalSeries が null の場合。</exception>
+	/// <exception cref="InvalidOperationException">editingSeries.SeriesId == 0 または editingSeries.IsWork == true の場合、originalSeries が null または Store の正本インスタンスの場合。</exception>
 	public async ValueTask<SeriesSaveResult> SaveAsync(
 		MangaSeries editingSeries,
 		MangaSeries? originalSeries,
@@ -79,13 +79,22 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 		if (originalSeries == null)
 			throw new InvalidOperationException("編集開始時の DeepCopy が見つかりません。");
 
+		// DB Commit 前に正本が変更されないよう、正本インスタンスが渡されていないことを保証する
+		var storeSeriesBeforeSave = this.mangaSeriesStore.FindNotifierById(originalSeries.SeriesId)?.Series.Value;
+		if (ReferenceEquals(storeSeriesBeforeSave, originalSeries))
+			throw new InvalidOperationException("保存用の作業コピーに Store の正本インスタンスが渡されました。DeepCopy を渡してください。");
+
 		this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] 開始。SeriesId: {editingSeries.SeriesId}, Title: {editingSeries.Title}");
+
+		// 実在する素材ソースを特定する（DB 上に古い Material レコードが残っていても、実在する 1 件を対象にする）
+		var materialSourceId = MaterialSourceAvailabilityHelper.ResolveEditingMaterialSource(originalSeries)?.SourceId;
+		var targetMaterialSourceId = materialSourceId;
 
 		// ===== 編集内容をDeepCopyへ反映 =====
 		this.PrepareEditingSeriesDataForUpdate(editingSeries, originalSeries);
 
 		// ===== ファイルシステム更新 =====
-		this.ExecuteFileSystemUpdatesForUpdate(originalSeries);
+		this.ExecuteFileSystemUpdatesForUpdate(originalSeries, materialSourceId);
 
 		// ===== DB更新 =====
 		using var connection = new SQLiteConnection(this.appSettings.ConnectionString);
@@ -99,7 +108,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 			// === MangaSources更新 ===
 			// Rename後の新しいPathでMangaSourcesテーブルを更新（Material の MangaSource のみ）
-			var renamedMaterialSource = originalSeries.SingleMaterialSource;
+			var renamedMaterialSource = this.findSourceById(originalSeries, materialSourceId);
 			if (renamedMaterialSource != null)
 			{
 				await this.mangaRepository.UpdateMangaSourcePathAsync(
@@ -124,7 +133,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 			if (materialFiles != null && materialFiles.Count > 0 && selectedMaterialSourceFolder != null)
 			{
-				var materialSource = originalSeries.SingleMaterialSource;
+				var materialSource = this.findSourceById(originalSeries, materialSourceId);
 				this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] materialSource: {materialSource?.Path}");
 
 				string materialFolderName;
@@ -233,6 +242,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 							Role = FolderRole.Material,
 						};
 						originalSeries.Sources.Add(newMangaSource);
+						targetMaterialSourceId = sourceId;
 
 						this.logger?.LogInformation($"[ExistingSeriesSaveManager.SaveAsync] DeepCopy の MangaSeries.Sources に新規 MangaSource を追加。SourceId: {sourceId}");
 					}
@@ -296,7 +306,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 		this.CopyEditableFieldsFromToEditableToStore(originalSeries, storeInstance);
 
 		// Rename 後の Material MangaSource を Store 内の正本インスタンスへ反映
-		this.UpdateMaterialMangaSourceInStore(originalSeries, storeInstance);
+		this.UpdateMaterialMangaSourceInStore(originalSeries, storeInstance, targetMaterialSourceId);
 
 		// サムネイル差し替え時の情報反映
 		if (thumbnailBytes != null && thumbnailBytes.Length > 0)
@@ -318,20 +328,19 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 	/// <summary>
 	/// 既存作品更新時に、編集内容をDeepCopyへ反映します。
-	/// OwnedMaxVolume の手修正判定、Description の変更判定と出典設定を含みます。
+	/// OwnedMaxVolume の手動変更フラグの引き継ぎ、Description の変更判定と出典設定を含みます。
 	/// </summary>
 	/// <param name="editingSeries">UI入力後の編集中作品。</param>
-	/// <param name="originalSeries">編集開始時のDeepCopy。編集内容を反映する対象。</param>
+	/// <param name="originalSeries">正本の DeepCopy（保存用作業コピー）。編集内容を反映する対象。</param>
 	private void PrepareEditingSeriesDataForUpdate(MangaSeries editingSeries, MangaSeries originalSeries)
 	{
-		// === OwnedMaxVolume の手修正判定（反映前に実施） ===
-		// DeepCopy（編集開始時）と editingSeries（UI 入力後）の OwnedMaxVolume を比較
-		var isOwnedMaxVolumeChanged = originalSeries.OwnedMaxVolume != editingSeries.OwnedMaxVolume;
-		if (isOwnedMaxVolumeChanged)
+		// === OwnedMaxVolume の手動変更フラグ ===
+		// 自動推定による変更は手動変更扱いにしない。ユーザーの手動変更は編集用クローンのフラグで判定済みのため、
+		// true の場合のみ反映し、既に true の値を false へ戻さない
+		if (editingSeries.IsOwnedMaxVolumeManuallyEdited)
 		{
 			originalSeries.IsOwnedMaxVolumeManuallyEdited = true;
 		}
-		// 変更がない場合は現在値を維持
 
 		// === ManuallyEditedAt の設定 ===
 		// 編集画面から保存される場合、現在日時を設定
@@ -371,12 +380,13 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 	/// 素材フォルダのRename、サムネイルの処理などがここに集約されます。
 	/// </summary>
 	/// <param name="editedSeries">編集内容を反映したDeepCopy。</param>
-	private void ExecuteFileSystemUpdatesForUpdate(MangaSeries editedSeries)
+	/// <param name="materialSourceId">対象の素材ソースの SourceId。素材ソースがない場合は null。</param>
+	private void ExecuteFileSystemUpdatesForUpdate(MangaSeries editedSeries, long? materialSourceId)
 	{
 		// === 素材フォルダ名変更の実行 ===
 		// 必要に応じてRenameを実行し、MangaSource.Path を更新
-		// Rename失敗時は例外をそのまま throw（EditorPageViewModel の catch で処理）
-		this.PerformMaterialFolderRenameIfNeeded(editedSeries, editedSeries);
+		// Rename失敗時は例外をそのまま throw（MangaSeriesManager 経由で EditorPageViewModel の catch で処理）
+		this.PerformMaterialFolderRenameIfNeeded(editedSeries, materialSourceId);
 
 		// TODO: サムネイルRename処理をここに追加予定
 
@@ -406,13 +416,13 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 	/// 編集後の作品情報から生成される期待フォルダ名と、現在登録されている素材フォルダ名を比較し、
 	/// Rename の必要性を判定します。フォルダ存在確認も事前に行い、問題がある場合は適切な状態を返します。
 	/// </summary>
-	/// <param name="editedSeries">編集後の保存用 DeepCopy。期待フォルダ名の生成に使用されます。</param>
-	/// <param name="originalSeries">編集開始時の DeepCopy。現在の素材フォルダ情報を取得するために使用されます。</param>
+	/// <param name="editedSeries">編集後の保存用 DeepCopy。期待フォルダ名の生成と現在の素材フォルダ情報の取得に使用されます。</param>
+	/// <param name="materialSourceId">対象の素材ソースの SourceId。素材ソースがない場合は null。</param>
 	/// <returns>フォルダ名変更判定結果。Ok の場合のみ保存処理を続行してください。</returns>
-	private MaterialFolderRenameCheckResult CheckMaterialFolderRenameStatus(MangaSeries editedSeries, MangaSeries originalSeries)
+	private MaterialFolderRenameCheckResult CheckMaterialFolderRenameStatus(MangaSeries editedSeries, long? materialSourceId)
 	{
 		// 素材フォルダが登録されていない場合は判定不要
-		var originalMaterialSource = originalSeries.Sources.FirstOrDefault(s => s.Role == FolderRole.Material);
+		var originalMaterialSource = this.findSourceById(editedSeries, materialSourceId);
 		if (originalMaterialSource == null)
 		{
 			// 素材フォルダが登録されていない場合は問題なし
@@ -466,12 +476,14 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 	/// Directory.Move() を使用してRenameを実行し、MangaSource.Path を更新します。
 	/// Rename失敗時は例外をそのまま throw します。
 	/// </summary>
-	/// <param name="editedSeries">編集後の保存用 DeepCopy。期待フォルダ名の生成に使用されます。</param>
-	/// <param name="originalSeries">編集開始時の DeepCopy。現在の素材フォルダ情報を取得・更新するために使用されます。</param>
-	private void PerformMaterialFolderRenameIfNeeded(MangaSeries editedSeries, MangaSeries originalSeries)
+	/// <param name="editedSeries">編集後の保存用 DeepCopy。期待フォルダ名の生成と、現在の素材フォルダ情報の取得・更新に使用されます。</param>
+	/// <param name="materialSourceId">対象の素材ソースの SourceId。素材ソースがない場合は null。</param>
+	private void PerformMaterialFolderRenameIfNeeded(MangaSeries editedSeries, long? materialSourceId)
 	{
+		var originalSeries = editedSeries;
+
 		// 素材フォルダ名変更の判定
-		var folderRenameCheckResult = this.CheckMaterialFolderRenameStatus(editedSeries, originalSeries);
+		var folderRenameCheckResult = this.CheckMaterialFolderRenameStatus(editedSeries, materialSourceId);
 
 		// Ok の場合はRenameが不要なため、処理をスキップ
 		if (folderRenameCheckResult == MaterialFolderRenameCheckResult.Ok)
@@ -487,7 +499,7 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 		// === RenameNeeded の場合のみここに到達 ===
 		// 素材フォルダが登録されていることは CheckMaterialFolderRenameStatus() で確認済み
-		var materialSourceIndex = originalSeries.Sources.FindIndex(s => s.Role == FolderRole.Material);
+		var materialSourceIndex = originalSeries.Sources.FindIndex(s => s.SourceId == materialSourceId);
 		if (materialSourceIndex < 0)
 		{
 			// 通常ここには到達しない（CheckMaterialFolderRenameStatus() で確認済み）
@@ -600,60 +612,56 @@ public class ExistingSeriesSaveManager : ISeriesSaveManager
 
 	/// <summary>
 	/// Rename 後の Material フォルダ用 MangaSource を Store 内の正本インスタンスへ反映します。
-	/// DeepCopy 内の Material MangaSource を使用して、Store 内の対応する要素を置き換えます。
+	/// 対象の SourceId で DeepCopy 内の MangaSource を特定し、Store 内の同じ SourceId の要素を置き換えます。
+	/// 同じ作品に別の古い Material レコードが残っていても、それらは更新しません。
 	/// </summary>
 	/// <param name="originalSeries">Rename 後の新しい Path を保持する DeepCopy。</param>
 	/// <param name="storeInstance">Store 内の正本インスタンス。</param>
-	private void UpdateMaterialMangaSourceInStore(MangaSeries originalSeries, MangaSeries storeInstance)
+	/// <param name="materialSourceId">反映対象の素材ソースの SourceId。素材ソースがない場合は null。</param>
+	private void UpdateMaterialMangaSourceInStore(MangaSeries originalSeries, MangaSeries storeInstance, long? materialSourceId)
 	{
-		// Rename 後の Material MangaSource を取得
-		var renamedMaterialSource = originalSeries.SingleMaterialSource;
+		// Rename 後（または新規登録された）Material MangaSource を取得
+		var renamedMaterialSource = this.findSourceById(originalSeries, materialSourceId);
 		if (renamedMaterialSource == null)
 		{
-			// Material MangaSource が存在しない場合は更新不要
+			// 反映対象の Material MangaSource が存在しない場合は更新不要
 			return;
 		}
 
-		// Store 内で既に Material MangaSource が存在するか確認
-		var storeExistingMaterialSource = storeInstance.Sources
-			.FirstOrDefault(s => s.Role == FolderRole.Material);
-
-		if (storeExistingMaterialSource != null)
+		var newMangaSource = new MangaSource
 		{
-			// 既存の Material MangaSource を新しいインスタンスに置き換え
-			var newMangaSource = new MangaSource
-			{
-				SourceId = renamedMaterialSource.SourceId,
-				SeriesId = renamedMaterialSource.SeriesId,
-				Path = renamedMaterialSource.Path,
-				Role = renamedMaterialSource.Role,
-			};
+			SourceId = renamedMaterialSource.SourceId,
+			SeriesId = renamedMaterialSource.SeriesId,
+			Path = renamedMaterialSource.Path,
+			Role = renamedMaterialSource.Role,
+		};
 
-			var index = storeInstance.Sources.IndexOf(storeExistingMaterialSource);
-			if (index >= 0)
-			{
-				storeInstance.Sources[index] = newMangaSource;
-				this.logger?.LogInformation(
-					$"[UpdateMaterialMangaSourceInStore] Store 内の Material MangaSource を更新。SourceId: {renamedMaterialSource.SourceId}, NewPath: {renamedMaterialSource.Path}");
-			}
+		// Store 内の同じ SourceId の要素を置き換え、存在しなければ追加
+		var index = storeInstance.Sources.FindIndex(s => s.SourceId == renamedMaterialSource.SourceId);
+		if (index >= 0)
+		{
+			storeInstance.Sources[index] = newMangaSource;
+			this.logger?.LogInformation(
+				$"[UpdateMaterialMangaSourceInStore] Store 内の Material MangaSource を更新。SourceId: {renamedMaterialSource.SourceId}, NewPath: {renamedMaterialSource.Path}");
 		}
 		else
 		{
-			// Store 内に Material MangaSource が存在しない場合は、originalSeries に存在する場合のみ追加
-			if (originalSeries.Sources.Any(s => s.Role == FolderRole.Material))
-			{
-				var newMangaSource = new MangaSource
-				{
-					SourceId = renamedMaterialSource.SourceId,
-					SeriesId = renamedMaterialSource.SeriesId,
-					Path = renamedMaterialSource.Path,
-					Role = renamedMaterialSource.Role,
-				};
-
-				storeInstance.Sources.Add(newMangaSource);
-				this.logger?.LogInformation(
-					$"[UpdateMaterialMangaSourceInStore] Store 内に Material MangaSource を追加。SourceId: {renamedMaterialSource.SourceId}, Path: {renamedMaterialSource.Path}");
-			}
+			storeInstance.Sources.Add(newMangaSource);
+			this.logger?.LogInformation(
+				$"[UpdateMaterialMangaSourceInStore] Store 内に Material MangaSource を追加。SourceId: {renamedMaterialSource.SourceId}, Path: {renamedMaterialSource.Path}");
 		}
+	}
+
+	/// <summary>
+	/// 指定した SourceId の MangaSource を作品の Sources から取得します。
+	/// </summary>
+	/// <param name="series">対象の作品。</param>
+	/// <param name="sourceId">取得する MangaSource の SourceId。null の場合は取得しません。</param>
+	/// <returns>一致した MangaSource。sourceId が null または見つからない場合は null。</returns>
+	private MangaSource? findSourceById(MangaSeries series, long? sourceId)
+	{
+		return sourceId is null
+			? null
+			: series.Sources.FirstOrDefault(s => s.SourceId == sourceId.Value);
 	}
 }

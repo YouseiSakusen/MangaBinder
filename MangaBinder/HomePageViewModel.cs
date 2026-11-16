@@ -1,5 +1,6 @@
 ﻿using MangaBinder.Bindings;
 using MangaBinder.Controls;
+using MangaBinder.Helpers;
 using MangaBinder.Series;
 using MangaBinder.Settings;
 using Microsoft.Extensions.DependencyInjection;
@@ -304,10 +305,17 @@ public class HomePageViewModel : IDisposable, IDataInitializable, ISavable, INav
     private async ValueTask editSeriesAsync(MangaSeries series)
     {
         // EditorStore の初期化完了を待ってから遷移する
+        EditPrepareResult result;
         using (var scope = this.serviceScopeFactory.CreateScope())
         {
             var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
-            await manager.PrepareEditAsync(series);
+            result = await manager.PrepareEditAsync(series);
+        }
+
+        if (result == EditPrepareResult.MultipleMaterialFolders)
+        {
+            EditPrepareNotificationHelper.ShowMultipleMaterialFoldersSnackbar(this.snackbarService);
+            return;
         }
 
         // NavigationHierarchy

@@ -50,21 +50,6 @@
 	}
 
 	/// <summary>
-	/// 既存作品の編集中タイトルと同一性判定結果を表す列挙型です。
-	/// </summary>
-	public enum ExistingSeriesTitleMatchResult
-	{
-		/// <summary>編集中作品自身と同一タイトルです。</summary>
-		SameAsEditingSeriesSelf,
-
-		/// <summary>同一タイトルの作品が見つかりません。</summary>
-		NoMatchFound,
-
-		/// <summary>別の SeriesId を持つ作品と同一タイトルです。</summary>
-		DifferentSeriesMatched,
-	}
-
-	/// <summary>
 	/// 既存作品保存時の素材フォルダ名変更判定結果を表す列挙型です。
 	/// </summary>
 	public enum MaterialFolderRenameCheckResult
@@ -523,24 +508,6 @@ namespace MangaBinder.Settings
 
 namespace MangaBinder.Series
 {
-	/// <summary>
-	/// 保存前確認の種別を表す列挙型です。
-	/// </summary>
-	public enum SaveSeriesConfirmationType
-	{
-		/// <summary>確認不要。保存処理を実行できます。</summary>
-		None,
-
-		/// <summary>素材ソース選択確認が必要です。</summary>
-		MaterialSource,
-
-		/// <summary>別ドライブ移動確認が必要です。</summary>
-		DifferentDrive,
-
-		/// <summary>ユーザーがキャンセルしました。</summary>
-		Cancel,
-	}
-
 	/// <summary>
 	/// 作品削除方法の種類を表します。
 	/// </summary>

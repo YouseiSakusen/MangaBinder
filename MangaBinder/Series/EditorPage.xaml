@@ -144,7 +144,6 @@
                                 Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                 behaviors:TrimOnPasteBehavior.IsEnabled="True"
-                                behaviors:LostFocusNotificationBehavior.Command="{Binding TitleLostFocusCommand}"
                                 behaviors:FocusAndSelectAllBehavior.Request="{Binding TitleFocusRequest.Value}"
                                 PlaceholderText="作品のタイトルを入力してください" />
 
@@ -899,19 +898,14 @@
             </Grid>
             </controls:PageLayout.RightContent>
 
-			<!-- FooterLeftContent: フッター左側（戻るボタン） -->
-			<controls:PageLayout.FooterLeftContent>
-				<ui:Button
-					Style="{StaticResource FooterButtonStyle}"
-					HorizontalAlignment="Center"
-					Command="{Binding BackCommand}"
-					Content="戻る"
-					Icon="{ui:SymbolIcon ChevronLeft16}" />
-			</controls:PageLayout.FooterLeftContent>
-
-			<!-- FooterContent: フッター中央（保存・登録ボタン） -->
+			<!-- FooterContent: フッター右下（キャンセル・一時保存・登録ボタン） -->
 			<controls:PageLayout.FooterContent>
 				<StackPanel Orientation="Horizontal" HorizontalAlignment="Right"  VerticalAlignment="Center">
+					<ui:Button
+						Style="{StaticResource FooterButtonStyle}"
+						Margin="0,0,8,0"
+						Command="{Binding BackCommand}"
+						Content="キャンセル" />
 					<ui:Button
 						Style="{StaticResource FooterButtonStyle}"
 						Margin="0,0,8,0"

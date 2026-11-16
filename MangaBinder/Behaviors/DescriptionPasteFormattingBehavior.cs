@@ -6,7 +6,7 @@ namespace MangaBinder.Behaviors;
 /// <summary>
 /// TextBoxのあらすじ欄へ文字列を貼り付けた際に、Webサイト等から取得した文章を読みやすく自動整形する添付ビヘイビアです。
 /// 文末記号（。！？!?―）の後で改行を挿入し、各行の先頭・末尾の空白を除去します。
-/// 括弧内（「」『』（）【】《》〈〉）では文末記号による自動改行は行いません。
+/// 括弧内（「」『』（）()【】《》〈〉）では文末記号による自動改行は行いません。
 /// また、U+2015（―）が2文字以上連続する場合は改行対象にしません。
 /// </summary>
 public static class DescriptionPasteFormattingBehavior
@@ -149,7 +149,7 @@ public static class DescriptionPasteFormattingBehavior
 	/// 文末記号の後に改行を挿入します。
 	/// 連続する文末記号は最後の1つの後でのみ改行し、
 	/// 既に改行の場合や閉じ記号直前の場合は改行を挿入しません。
-	/// 括弧内（「」『』（）【】《》〈〉）では文末記号による自動改行は行いません。
+	/// 括弧内（「」『』（）()【】《》〈〉）では文末記号による自動改行は行いません。
 	/// U+2015（―）が2文字以上連続する場合は改行対象にしません。
 	/// </summary>
 	/// <param name="line">処理対象の行。</param>
@@ -159,8 +159,8 @@ public static class DescriptionPasteFormattingBehavior
 	private static string InsertLineBreaksAtEndMarks(string line, string endMarks, string closingMarks)
 	{
 		// 括弧の対応マッピング（開き括弧 -> 閉じ括弧）
-		const string openBrackets = "「『（【《〈";
-		const string closeBrackets = "」』）】》〉";
+		const string openBrackets = "「『（(【《〈";
+		const string closeBrackets = "」』）)】》〉";
 		const char horizontalBar = '―'; // U+2015 HORIZONTAL BAR
 
 		var result = new System.Text.StringBuilder();

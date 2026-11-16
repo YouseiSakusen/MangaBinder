@@ -50,8 +50,11 @@ public sealed class EditorStore : IDisposable
 	/// <summary>編集開始時点の素材合計サイズ（バイト）を取得します。</summary>
 	public long MaterialTotalSizeBytes { get; private set; }
 
-	/// <summary>編集開始時点の所持最大巻を取得します。未設定の場合は null です。</summary>
-	public double? EditingStartOwnedMaxVolume { get; private set; }
+	/// <summary>
+	/// 編集対象として特定した、実在する素材フォルダの <see cref="MangaSource"/> を取得します。
+	/// 素材フォルダを持たない作品の場合は null です。
+	/// </summary>
+	public MangaSource? MaterialSource { get; private set; }
 
 	/// <summary>
 	/// <see cref="EditorStore"/> の新しいインスタンスを初期化します。
@@ -91,7 +94,7 @@ public sealed class EditorStore : IDisposable
 	/// <param name="canSelectMaterialSourceFolder">登録先素材フォルダを変更できるかどうか。</param>
 	/// <param name="isBindingQueued">製本待ち状態。</param>
 	/// <param name="materialTotalSizeBytes">素材合計サイズ（バイト）。</param>
-	/// <param name="editingStartOwnedMaxVolume">編集開始時の所持最大巻。</param>
+	/// <param name="materialSource">編集対象として特定した実在する素材フォルダの MangaSource。</param>
 	/// <exception cref="InvalidOperationException">クローン元とクローンが同一、または Notifier がクローンを保持していない場合。</exception>
 	public void Initialize(
 		MangaSeries originalSeries,
@@ -103,7 +106,7 @@ public sealed class EditorStore : IDisposable
 		bool canSelectMaterialSourceFolder,
 		bool isBindingQueued,
 		long materialTotalSizeBytes,
-		double? editingStartOwnedMaxVolume)
+		MangaSource? materialSource)
 	{
 		ArgumentNullException.ThrowIfNull(originalSeries);
 		ArgumentNullException.ThrowIfNull(editTarget);
@@ -132,7 +135,7 @@ public sealed class EditorStore : IDisposable
 		this.CanSelectMaterialSourceFolder.Value = canSelectMaterialSourceFolder;
 		this.IsBindingQueued.Value = isBindingQueued;
 		this.MaterialTotalSizeBytes = materialTotalSizeBytes;
-		this.EditingStartOwnedMaxVolume = editingStartOwnedMaxVolume;
+		this.MaterialSource = materialSource;
 
 		// 全状態の設定後に EditTarget を設定する
 		this.EditTarget.Value = editTarget;
@@ -151,7 +154,7 @@ public sealed class EditorStore : IDisposable
 		this.CanSelectMaterialSourceFolder.Value = false;
 		this.IsBindingQueued.Value = false;
 		this.MaterialTotalSizeBytes = 0;
-		this.EditingStartOwnedMaxVolume = null;
+		this.MaterialSource = null;
 
 		// 編集用クローン専用の Notifier のみ破棄する（タグマスタの共有 TagNotifier は破棄しない）
 		this.EditTargetNotifier?.Dispose();
