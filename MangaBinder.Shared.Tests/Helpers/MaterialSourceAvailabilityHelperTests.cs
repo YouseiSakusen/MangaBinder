@@ -131,15 +131,48 @@ public sealed class MaterialSourceAvailabilityHelperTests : IDisposable
 	}
 
 	/// <summary>
-	/// 実在 0 件で Material の登録が 1 件だけの場合は、その登録を対象にすることを確認します。
+	/// 実在 0 件の場合は、古い Material レコードが 1 件残っていても物理フォルダとして扱わないことを確認します。
 	/// </summary>
 	[Fact]
-	public void ResolveEditingMaterialSource_NoExistingFolderSingleRecord_ReturnsRecord()
+	public void ResolveEditingMaterialSource_NoExistingFolderSingleStaleRecord_ReturnsNull()
 	{
 		var series = createSeries(source(5, this.missingFolder("missing")));
 
-		var resolved = MaterialSourceAvailabilityHelper.ResolveEditingMaterialSource(series);
+		Assert.Null(MaterialSourceAvailabilityHelper.ResolveEditingMaterialSource(series));
+	}
 
-		Assert.Equal(5, resolved?.SourceId);
+	/// <summary>
+	/// 実在 0 件で古い Material レコードが 1 件の場合は、その SourceId を再利用対象にすることを確認します。
+	/// </summary>
+	[Fact]
+	public void FindReusableStaleMaterialSource_NoExistingFolderSingleStaleRecord_ReturnsRecord()
+	{
+		var series = createSeries(source(5, this.missingFolder("missing")), source(6, this.createFolder("binding"), FolderRole.Binding));
+
+		var reusable = MaterialSourceAvailabilityHelper.FindReusableStaleMaterialSource(series);
+
+		Assert.Equal(5, reusable?.SourceId);
+	}
+
+	/// <summary>
+	/// Material レコードが 1 件もない場合、または実在する素材フォルダがある場合は、再利用対象がないことを確認します。
+	/// </summary>
+	[Fact]
+	public void FindReusableStaleMaterialSource_NoRecordOrExistingFolder_ReturnsNull()
+	{
+		Assert.Null(MaterialSourceAvailabilityHelper.FindReusableStaleMaterialSource(createSeries()));
+		Assert.Null(MaterialSourceAvailabilityHelper.FindReusableStaleMaterialSource(
+			createSeries(source(1, this.missingFolder("stale")), source(2, this.createFolder("alive")))));
+	}
+
+	/// <summary>
+	/// 実在 0 件で古い Material レコードが複数ある場合は、対象を一意に決められず例外になることを確認します。
+	/// </summary>
+	[Fact]
+	public void FindReusableStaleMaterialSource_MultipleStaleRecords_Throws()
+	{
+		var series = createSeries(source(1, this.missingFolder("a")), source(2, this.missingFolder("b")));
+
+		Assert.Throws<InvalidOperationException>(() => MaterialSourceAvailabilityHelper.FindReusableStaleMaterialSource(series));
 	}
 }

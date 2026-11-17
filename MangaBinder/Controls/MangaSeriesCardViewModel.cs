@@ -33,10 +33,11 @@ public class MangaSeriesCardViewModel : IDisposable
 	public BindableReactiveProperty<ImageSource?> ThumbnailSource { get; }
 
 	/// <summary>
-	/// 巻数情報表示用の ViewModel を取得・設定します。
-	/// 既存の SeriesVolumeStatusViewModel をそのまま受け取る接続口です。
+	/// 巻数情報表示用の ViewModel を取得します。
+	/// MangaSeriesCardViewModel が生成・所有する読み取り専用インスタンスで、外部から差し替えられません。
+	/// Series は MangaSeriesCardViewModel.Series と同期されます。
 	/// </summary>
-	public BindableReactiveProperty<SeriesVolumeStatusViewModel?> VolumeStatus { get; }
+	public SeriesVolumeStatusViewModel VolumeStatus { get; }
 
 	/// <summary>子VMへ MangaSeries を中継する内部用 ReactiveProperty。</summary>
 	private readonly BindableReactiveProperty<MangaSeries?> series;
@@ -75,14 +76,6 @@ public class MangaSeriesCardViewModel : IDisposable
 	public SeriesMemoViewModel MemoStatus { get; }
 
 	/// <summary>
-	/// 通常表示用の巻情報表示ViewModel を取得します。
-	/// MangaSeriesCardViewModel が生成・所有する読み取り専用インスタンスです。
-	/// Series は MangaSeriesCardViewModel.Series と同期されます。
-	/// EditorPage は VolumeStatus プロパティへの外部指定により、このインスタンスをオーバーライドできます。
-	/// </summary>
-	private readonly SeriesVolumeStatusViewModel defaultVolumeStatusViewModel;
-
-	/// <summary>
 	/// <see cref="MangaSeriesCardViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	public MangaSeriesCardViewModel()
@@ -106,14 +99,10 @@ public class MangaSeriesCardViewModel : IDisposable
 		this.ThumbnailSource = new BindableReactiveProperty<ImageSource?>(null)
 			.AddTo(ref this.disposableBag);
 
-		// 通常表示用の巻情報表示ViewModel を生成（内部所有）
+		// 巻情報表示 ViewModel を生成（内部所有）
 		var defaultVolumeStatus = new SeriesVolumeStatusViewModel()
 			.AddTo(ref this.disposableBag);
-		this.defaultVolumeStatusViewModel = defaultVolumeStatus;
-
-		// VolumeStatus の初期値に通常表示用のインスタンスを設定
-		this.VolumeStatus = new BindableReactiveProperty<SeriesVolumeStatusViewModel?>(defaultVolumeStatus)
-			.AddTo(ref this.disposableBag);
+		this.VolumeStatus = defaultVolumeStatus;
 
 		this.series = new BindableReactiveProperty<MangaSeries?>(null)
 			.AddTo(ref this.disposableBag);
@@ -158,7 +147,7 @@ public class MangaSeriesCardViewModel : IDisposable
 					memoStatusViewModel.Series.Value = series;
 				}
 
-				// 通常表示用 SeriesVolumeStatusViewModel への伝播
+				// SeriesVolumeStatusViewModel への伝播
 				if (series != null && ReferenceEquals(defaultVolumeStatus.Series.Value, series))
 				{
 					defaultVolumeStatus.Series.ForceNotify();

@@ -22,6 +22,9 @@ public sealed class MaterialFileItemViewModel
 	/// <summary>削除可能かどうかを示します。既存素材フォルダ由来は false、D&D 追加素材は true（将来用）。</summary>
 	public bool CanRemove { get; init; }
 
+	/// <summary>削除操作を実行できるかどうかを示します。サイズ計算が完了するまでは false です。</summary>
+	public bool CanExecuteRemove { get; init; }
+
 	/// <summary>
 	/// MaterialFileItem から MaterialFileItemViewModel を生成します。
 	/// </summary>
@@ -43,6 +46,7 @@ public sealed class MaterialFileItemViewModel
 			ItemType = item.ItemType,
 			FullPath = item.FullPath,
 			CanRemove = item.CanRemove,
+			CanExecuteRemove = !item.IsSizePending,
 		};
 	}
 

@@ -141,7 +141,7 @@
                                 Grid.Column="1"
                                 InputMethod.PreferredImeState="On"
                                 Margin="0,0,0,8"
-                                Text="{Binding Title.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Text="{Binding EditTarget.Value.Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                 behaviors:TrimOnPasteBehavior.IsEnabled="True"
                                 behaviors:FocusAndSelectAllBehavior.Request="{Binding TitleFocusRequest.Value}"
@@ -169,7 +169,7 @@
                                     InputMethod.PreferredImeState="On"
                                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                     behaviors:TrimOnPasteBehavior.IsEnabled="True"
-                                    Text="{Binding Author.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    Text="{Binding EditTarget.Value.Author, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     Margin="0,0,0,0"
                                     PlaceholderText="作者名を入力してください" />
 
@@ -187,7 +187,7 @@
                                     InputMethod.PreferredImeState="On"
                                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                     behaviors:TrimOnPasteBehavior.IsEnabled="True"
-                                    Text="{Binding Publisher.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    Text="{Binding EditTarget.Value.Publisher, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     PlaceholderText="出版社名を入力してください" />
                             </Grid>
 						</Grid>
@@ -272,7 +272,7 @@
                             HorizontalScrollBarVisibility="Disabled"
                             Height="170"
                             Margin="0,0,6,0"
-                            Text="{Binding Description.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            Text="{Binding EditTarget.Value.Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             behaviors:DescriptionPasteFormattingBehavior.IsEnabled="{Binding IsDescriptionPasteFormattingEnabled.Value}"
                             behaviors:ScrollToTopOnChangedBehavior.Request="{Binding EditorPageInitializeRequest.Value}"
                             behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
@@ -282,7 +282,7 @@
                         <Grid
                             Grid.Row="2"
                             Grid.Column="0"
-                            Visibility="{Binding EditingSeries.Value.HasDescriptionSource, Converter={StaticResource BoolToVisibilityConverter}}"
+                            Visibility="{Binding EditTarget.Value.HasDescriptionSource, Converter={StaticResource BoolToVisibilityConverter}}"
                             Margin="0,8,6,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -293,7 +293,7 @@
 
                             <TextBlock
                                 Grid.Column="0"
-                                Text="{Binding EditingSeries.Value.DescriptionSourceName}"
+                                Text="{Binding EditTarget.Value.DescriptionSourceName}"
                                 FontSize="11"
                                 Opacity="0.6"
                                 VerticalAlignment="Center" />
@@ -305,7 +305,7 @@
                                 VerticalAlignment="Center" />
                             <controls:SelectableTextBlock
                                 Grid.Column="2"
-                                Text="{Binding EditingSeries.Value.DescriptionSourceTitle}"
+                                Text="{Binding EditTarget.Value.DescriptionSourceTitle}"
                                 FontSize="11"
                                 Opacity="0.6"
                                 VerticalAlignment="Center" />
@@ -321,7 +321,7 @@
 							VerticalScrollBarVisibility="Auto"
 							MinHeight="160"
 							Margin="6,0,0,0"
-							Text="{Binding Memo.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+							Text="{Binding EditTarget.Value.Memo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 							behaviors:ScrollToTopOnChangedBehavior.Request="{Binding EditorPageInitializeRequest.Value}"
 							PlaceholderText="メモを入力してください" />
 					</Grid>
@@ -385,8 +385,7 @@
 								<!-- Column 1: EndVolumeNumberBox -->
 								<ui:NumberBox
 									Grid.Column="1"
-									Value="{Binding VolumeStatus.EndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-									behaviors:NumberBoxTextChangedBehavior.Command="{Binding VolumeStatus.EndVolumeTextInputCommand}"
+									Value="{Binding EndVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 									behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
 									Width="120"
 									PlaceholderText="0"
@@ -415,7 +414,7 @@
 								<!-- Column 4: StartVolumeNumberBox -->
 								<ui:NumberBox
 									Grid.Column="4"
-									Value="{Binding VolumeStatus.StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+									Value="{Binding StartVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 									behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
 									IsTabStop="False"
 									Width="120"
@@ -519,7 +518,7 @@
 							Padding="12,0"
 							HorizontalAlignment="Right"
 							Command="{Binding OpenMaterialFolderCommand}"
-							IsEnabled="{Binding EditingSeries.Value.HasMaterialSources}"
+							IsEnabled="{Binding EditTarget.Value.HasMaterialSources}"
 							VerticalAlignment="Center"
 							Content="素材フォルダを開く">
 							<ui:Button.Icon>
@@ -582,6 +581,7 @@
 														Command="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Page}}, Path=DataContext.RemoveMaterialFileCommand}"
 														CommandParameter="{Binding}"
 														Visibility="{Binding CanRemove, Converter={StaticResource BoolToVisibilityConverter}}"
+																																				IsEnabled="{Binding CanExecuteRemove}"
 														Appearance="Transparent"
 														Content="削除"
 														Foreground="{DynamicResource SystemFillColorCriticalBrush}"
@@ -670,22 +670,21 @@
 							<!-- 所持推定入力 -->
 							<ui:NumberBox
 								Grid.Column="1"
-								Value="{Binding VolumeStatus.OwnedMaxVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+								Value="{Binding OwnedMaxVolume.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 								behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
 								PlaceholderText="0"
 								Minimum="0"
 								Maximum="999"
 								SpinButtonPlacementMode="Hidden"
-								InputMethod.PreferredImeState="Off"
-								behaviors:NumberBoxTextChangedBehavior.Command="{Binding VolumeStatus.OwnedMaxVolumeTextInputCommand}" />
-						</Grid>
+								InputMethod.PreferredImeState="Off" />
+														</Grid>
 
 						<!-- Column 2: 全巻所持（CheckBox + ラベル） -->
 						<StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
 							<!-- 全巻所持チェック -->
 							<CheckBox
-								IsChecked="{Binding VolumeStatus.IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-								IsEnabled="{Binding VolumeStatus.CanEditOwnedCompleted.Value}"
+								IsChecked="{Binding IsOwnedCompleted.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+								IsEnabled="{Binding CanEditOwnedCompleted.Value}"
 								VerticalAlignment="Center"
 								Margin="0,0,6,0" />
 

@@ -2,6 +2,7 @@ using MangaBinder.Bindings;
 using MangaBinder.Series;
 using MangaBinder.Settings;
 using Microsoft.Extensions.Logging.Abstractions;
+using R3;
 
 namespace MangaBinder.Sandboxes;
 
@@ -79,12 +80,6 @@ public sealed class MangaSeriesManagerEditTest : IDisposable
 	}
 
 	/// <summary>
-	/// 画面入力値を作成します。
-	/// </summary>
-	private static EditorInputValues createInput(string title, double? ownedMaxVolume)
-		=> new() { Title = title, OwnedMaxVolume = ownedMaxVolume, StartVolume = 1 };
-
-	/// <summary>
 	/// 実在する素材フォルダが複数ある作品は編集準備が中止され、EditorStore が初期化されないことを確認します。
 	/// </summary>
 	[Fact]
@@ -145,9 +140,10 @@ public sealed class MangaSeriesManagerEditTest : IDisposable
 	[InlineData("Fate", "FATE")]
 	public void ValidateForRegister_ExistingSeriesNotationFix_ReturnsNone(string originalTitle, string editedTitle)
 	{
-		this.startSession(originalTitle, 0);
+		var (_, clone) = this.startSession(originalTitle, 0);
+		clone.Title = editedTitle;
 
-		var error = this.createManager().ValidateForRegister(createInput(editedTitle, 0));
+		var error = this.createManager().ValidateForRegister();
 
 		Assert.Equal(EditorValidationError.None, error);
 	}
@@ -158,9 +154,10 @@ public sealed class MangaSeriesManagerEditTest : IDisposable
 	[Fact]
 	public void ValidateForRegister_ExistingSeriesDifferentTitle_ReturnsTitleMismatchWithoutChangingOriginal()
 	{
-		var (original, _) = this.startSession("ドラゴンボール", 0);
+		var (original, clone) = this.startSession("ドラゴンボール", 0);
+		clone.Title = "ワンピース";
 
-		var error = this.createManager().ValidateForRegister(createInput("ワンピース", 0));
+		var error = this.createManager().ValidateForRegister();
 
 		Assert.Equal(EditorValidationError.TitleMismatch, error);
 		Assert.Equal("ドラゴンボール", original.Title);
@@ -173,54 +170,85 @@ public sealed class MangaSeriesManagerEditTest : IDisposable
 	public void RestoreOriginalTitle_RestoresCloneTitle()
 	{
 		var (original, clone) = this.startSession("ドラゴンボール", 0);
+		clone.Title = "ワンピース";
 		var manager = this.createManager();
-		manager.ValidateForRegister(createInput("ワンピース", 0));
+		manager.ValidateForRegister();
 
-		var restored = manager.RestoreOriginalTitle();
+		manager.RestoreOriginalTitle();
 
-		Assert.Equal("ドラゴンボール", restored);
 		Assert.Equal("ドラゴンボール", clone.Title);
 		Assert.Equal("ドラゴンボール", original.Title);
 	}
 
 	/// <summary>
-	/// 所持最大巻数が編集用クローンの値と同じ入力では、手動変更フラグが立たないことを確認します。
+	/// ユーザーが所持最大巻数を変更すると、手動変更フラグが立ち、編集用クローンへ反映されることを確認します。
 	/// </summary>
 	[Fact]
-	public void ApplyInput_OwnedMaxVolumeUnchanged_DoesNotSetManualFlag()
+	public void OwnedMaxVolumeInput_ChangedByUser_SetsManualFlag()
 	{
 		var (_, clone) = this.startSession("テスト", 3);
 
-		this.createManager().ApplyInput(createInput("テスト", 3));
-
-		Assert.False(clone.IsOwnedMaxVolumeManuallyEdited);
-	}
-
-	/// <summary>
-	/// ユーザーが所持最大巻数を変更した入力では、手動変更フラグが立つことを確認します。
-	/// </summary>
-	[Fact]
-	public void ApplyInput_OwnedMaxVolumeChangedByUser_SetsManualFlag()
-	{
-		var (_, clone) = this.startSession("テスト", 3);
-
-		this.createManager().ApplyInput(createInput("テスト", 5));
+		this.editorStore.OwnedMaxVolume.Value = 5;
 
 		Assert.True(clone.IsOwnedMaxVolumeManuallyEdited);
 		Assert.Equal(5, clone.OwnedMaxVolume);
 	}
 
 	/// <summary>
-	/// 既に手動変更フラグが立っている場合は、値が同じでも false に戻らないことを確認します。
+	/// 自動推定による所持最大巻数の設定では、入力値と編集用クローンが一致し、手動変更フラグが立たないことを確認します。
 	/// </summary>
 	[Fact]
-	public void ApplyInput_ManualFlagAlreadyTrue_StaysTrue()
+	public void SetEstimatedOwnedMaxVolume_DoesNotSetManualFlagAndSyncsInput()
 	{
-		var (_, clone) = this.startSession("テスト", 3, manuallyEdited: true);
+		var (_, clone) = this.startSession("テスト", 3);
 
-		this.createManager().ApplyInput(createInput("テスト", 3));
+		var updated = this.editorStore.SetEstimatedOwnedMaxVolume(7);
 
-		Assert.True(clone.IsOwnedMaxVolumeManuallyEdited);
+		Assert.True(updated);
+		Assert.Equal(7, clone.OwnedMaxVolume);
+		Assert.Equal(7, this.editorStore.OwnedMaxVolume.Value);
+		Assert.False(clone.IsOwnedMaxVolumeManuallyEdited);
+	}
+
+	/// <summary>
+	/// 完結巻の入力値に応じて、EndVolume・SeriesCompleted・全巻所持の編集可否が更新されることを確認します。
+	/// </summary>
+	[Fact]
+	public void EndVolumeInput_UpdatesCloneAndCanEditOwnedCompleted()
+	{
+		var (_, clone) = this.startSession("テスト", 3);
+
+		this.editorStore.EndVolume.Value = 10;
+
+		Assert.Equal(10, clone.EndVolume);
+		Assert.True(clone.SeriesCompleted);
+		Assert.True(this.editorStore.CanEditOwnedCompleted.Value);
+
+		this.editorStore.IsOwnedCompleted.Value = true;
+		this.editorStore.EndVolume.Value = null;
+
+		Assert.Equal(0, clone.EndVolume);
+		Assert.False(clone.SeriesCompleted);
+		Assert.False(clone.IsOwnedCompleted);
+		Assert.False(this.editorStore.IsOwnedCompleted.Value);
+		Assert.False(this.editorStore.CanEditOwnedCompleted.Value);
+	}
+
+	/// <summary>
+	/// 巻情報の入力変更が、編集用 Notifier の Series 通知として発行されることを確認します。
+	/// </summary>
+	[Fact]
+	public void VolumeInput_NotifiesEditTargetNotifier()
+	{
+		var (_, clone) = this.startSession("テスト", 3);
+		var notifyCount = 0;
+		using var subscription = this.editorStore.EditTargetNotifier!.Series.Subscribe(_ => notifyCount++);
+		var countAfterSubscribe = notifyCount;
+
+		this.editorStore.StartVolume.Value = 2;
+
+		Assert.Equal(2, clone.StartVolume);
+		Assert.True(notifyCount > countAfterSubscribe);
 	}
 
 	/// <summary>
@@ -231,15 +259,17 @@ public sealed class MangaSeriesManagerEditTest : IDisposable
 	public void RemoveMaterialFile_AutoEstimate_UpdatesVolumeWithoutManualFlagAndKeepsValueWhenEmpty()
 	{
 		var (original, clone) = this.startSession("テスト", 9);
-		this.editorStore.MaterialFiles.Add(new MaterialFileItem { Name = "テスト 第1巻.zip", FullPath = @"C:\x\テスト 第1巻.zip", ItemType = MaterialItemType.Archive, CanRemove = true });
-		this.editorStore.MaterialFiles.Add(new MaterialFileItem { Name = "テスト 第2巻.zip", FullPath = @"C:\x\テスト 第2巻.zip", ItemType = MaterialItemType.Archive, CanRemove = true });
-		this.editorStore.MaterialFiles.Add(new MaterialFileItem { Name = "テスト 第3巻.zip", FullPath = @"C:\x\テスト 第3巻.zip", ItemType = MaterialItemType.Archive, CanRemove = true });
+		this.editorStore.MaterialFiles.Add(new MaterialFileItem { Name = "テスト 第1巻.zip", FullPath = @"C:\x\テスト 第1巻.zip", ItemType = MaterialItemType.Archive, CanRemove = true, SizeBytes = 100 });
+		this.editorStore.MaterialFiles.Add(new MaterialFileItem { Name = "テスト 第2巻.zip", FullPath = @"C:\x\テスト 第2巻.zip", ItemType = MaterialItemType.Archive, CanRemove = true, SizeBytes = 100 });
+		this.editorStore.MaterialFiles.Add(new MaterialFileItem { Name = "テスト 第3巻.zip", FullPath = @"C:\x\テスト 第3巻.zip", ItemType = MaterialItemType.Archive, CanRemove = true, SizeBytes = 100 });
+		this.editorStore.MaterialTotalSizeBytes.Value = 300;
 		var manager = this.createManager();
 
 		var removed = manager.RemoveMaterialFile(@"C:\x\テスト 第3巻.zip");
 
 		Assert.True(removed.Removed);
 		Assert.True(removed.OwnedMaxVolumeUpdated);
+		Assert.Equal(200, this.editorStore.MaterialTotalSizeBytes.Value);
 		Assert.Equal(2, clone.OwnedMaxVolume);
 		Assert.False(clone.IsOwnedMaxVolumeManuallyEdited);
 		Assert.Equal(9, original.OwnedMaxVolume);
@@ -254,5 +284,30 @@ public sealed class MangaSeriesManagerEditTest : IDisposable
 		Assert.Equal(valueBeforeLastRemoval, clone.OwnedMaxVolume);
 		Assert.NotEqual(9, clone.OwnedMaxVolume);
 		Assert.False(clone.IsOwnedMaxVolumeManuallyEdited);
+	}
+
+	/// <summary>
+	/// サイズ計算中（未確定）の追加素材は削除できず、計算完了後の結果が現在の編集対象にだけ反映されることを確認します。
+	/// </summary>
+	[Fact]
+	public void ApplyCalculatedMaterialSize_PendingItemIsNotRemovableAndStaleResultIsIgnored()
+	{
+		var (_, clone) = this.startSession("テスト", 0);
+		var path = @"C:\x\テスト 第1巻";
+		this.editorStore.MaterialFiles.Add(new MaterialFileItem { Name = "テスト 第1巻", FullPath = path, ItemType = MaterialItemType.Folder, CanRemove = true });
+		var manager = this.createManager();
+
+		Assert.False(manager.RemoveMaterialFile(path).Removed);
+
+		// 別の編集対象向けの古い計算結果は反映しない
+		this.editorStore.ApplyCalculatedMaterialSize(new MangaSeries(), path, 500);
+		Assert.Equal(0, this.editorStore.MaterialTotalSizeBytes.Value);
+		Assert.True(this.editorStore.MaterialFiles[0].IsSizePending);
+
+		this.editorStore.ApplyCalculatedMaterialSize(clone, path, 500);
+		Assert.Equal(500, this.editorStore.MaterialTotalSizeBytes.Value);
+		Assert.False(this.editorStore.MaterialFiles[0].IsSizePending);
+		Assert.True(manager.RemoveMaterialFile(path).Removed);
+		Assert.Equal(0, this.editorStore.MaterialTotalSizeBytes.Value);
 	}
 }

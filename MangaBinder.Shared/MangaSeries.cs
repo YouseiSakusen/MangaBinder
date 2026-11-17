@@ -256,6 +256,42 @@ public class MangaSeries
     /// 作品の主要な更新元です。
     /// </summary>
     public string? UpdateSource { get; set; }
+
+    /// <summary>
+    /// 編集画面で編集できる作品情報を、指定した作品から自身へ反映します。
+    /// 保存成功後に、正本のインスタンスを維持したまま編集内容を反映するために使用します。
+    /// SeriesId・WorkId・Sources・BindingHistories・サムネイル情報は変更しません。
+    /// タグは共有の <see cref="MangaTag"/> インスタンスをそのまま引き継ぎます。
+    /// </summary>
+    /// <param name="source">反映元の作品。</param>
+    public void UpdateValues(MangaSeries source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        this.Title = source.Title;
+        this.NormalizedTitleInternal = source.NormalizedTitleInternal;
+        this.ShortTitle = source.ShortTitle;
+        this.Author = source.Author;
+        this.Publisher = source.Publisher;
+        this.Description = source.Description;
+        this.DescriptionSource = source.DescriptionSource;
+        this.DescriptionSourceTitle = source.DescriptionSourceTitle;
+        this.Memo = source.Memo;
+        this.StartVolume = source.StartVolume;
+        this.EndVolume = source.EndVolume;
+        this.SeriesCompleted = source.SeriesCompleted;
+        this.IsIncomplete = source.IsIncomplete;
+        this.OwnedMaxVolume = source.OwnedMaxVolume;
+        this.IsOwnedMaxVolumeManuallyEdited = source.IsOwnedMaxVolumeManuallyEdited;
+        this.IsOwnedCompleted = source.IsOwnedCompleted;
+        this.GoogleBooksImportStatus = source.GoogleBooksImportStatus;
+        this.GoogleBooksImportedAt = source.GoogleBooksImportedAt;
+        this.GoogleBooksImportMessage = source.GoogleBooksImportMessage;
+        this.ManuallyEditedAt = source.ManuallyEditedAt;
+
+        this.Tags.Clear();
+        this.Tags.AddRange(source.Tags);
+    }
 }
 
 

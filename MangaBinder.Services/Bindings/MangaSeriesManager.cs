@@ -91,11 +91,12 @@ public sealed class MangaSeriesManager
 	/// 実在する素材フォルダが複数ある場合は編集準備を中止し、<see cref="EditorStore"/> を初期化しません。
 	/// 準備できた場合は、元作品を <see cref="EditorStore.OriginalSeries"/> に保持し、DeepCopy した編集用クローンを
 	/// <see cref="EditorStore.EditTarget"/> に設定します。元作品は変更しません。
+	/// 素材フォルダのサイズ計算は非同期で起動するだけで、完了を待たずに <see cref="EditPrepareResult.Ready"/> を返します。
 	/// 画面遷移は行わないため、<see cref="EditPrepareResult.Ready"/> の場合に呼び出し元が Editor へ遷移してください。
 	/// </summary>
 	/// <param name="series">編集対象の元作品。</param>
 	/// <returns>編集準備の結果。</returns>
-	public async ValueTask<EditPrepareResult> PrepareEditAsync(MangaSeries series)
+	public ValueTask<EditPrepareResult> PrepareEditAsync(MangaSeries series)
 	{
 		ArgumentNullException.ThrowIfNull(series);
 
@@ -106,21 +107,17 @@ public sealed class MangaSeriesManager
 				"実在する素材フォルダが複数あるため、編集を開始できません。SeriesId={SeriesId}, WorkId={WorkId}",
 				series.SeriesId,
 				series.WorkId);
-			return EditPrepareResult.MultipleMaterialFolders;
+			return ValueTask.FromResult(EditPrepareResult.MultipleMaterialFolders);
 		}
 
-		// 編集対象の素材ソース（実在する 1 件、または実在 0 件の場合は登録 1 件）を特定する
+		// 編集対象の素材ソースを特定する（実在する 1 件。実在 0 件の場合は null で、古い DB レコードは物理フォルダとして扱わない）
 		var materialSource = MaterialSourceAvailabilityHelper.ResolveEditingMaterialSource(series);
 
 		var clone = this.copySeries(series);
 
 		// 素材一覧（既存作品のみ）を取得して初期ソートする
-		var materialFiles = this.sortMaterialFiles(this.getMaterialFiles(series, materialSource));
-
-		// 素材合計サイズを計算する
-		var materialTotalSizeBytes = materialFiles.Count == 0
-			? 0L
-			: await StorageSizeHelper.GetTotalAllAsync(materialFiles.Select(m => m.FullPath).ToList());
+		var materialFiles = this.getMaterialFiles(series, materialSource);
+		materialFiles.Sort(MaterialFileItemComparer.Default);
 
 		// 登録先素材フォルダの候補と初期選択を決定する
 		var materialSourceFolders = this.appSettings.SourceFolders
@@ -135,6 +132,9 @@ public sealed class MangaSeriesManager
 		// 編集用クローン専用の Notifier を生成する。タグマスタの TagNotifier は TagStore の共有物を使用する
 		var notifier = new MangaSeriesNotifier(clone, this.tagStore);
 
+		// サイズが確定しているファイルの合計だけを初期値にする。フォルダのサイズは非同期で計算して加算する
+		var knownTotalSizeBytes = materialFiles.Sum(m => m.SizeBytes ?? 0L);
+
 		this.editorStore.Initialize(
 			series,
 			clone,
@@ -144,8 +144,10 @@ public sealed class MangaSeriesManager
 			selectedFolder,
 			canSelectFolder,
 			isBindingQueued,
-			materialTotalSizeBytes,
+			knownTotalSizeBytes,
 			materialSource);
+
+		this.startMaterialSizeCalculation(clone, materialFiles);
 
 		this.logger.LogInformation(
 			"編集準備が完了しました。SeriesId={SeriesId}, WorkId={WorkId}, MaterialFileCount={MaterialFileCount}",
@@ -153,63 +155,27 @@ public sealed class MangaSeriesManager
 			series.WorkId,
 			materialFiles.Count);
 
-		return EditPrepareResult.Ready;
+		return ValueTask.FromResult(EditPrepareResult.Ready);
 	}
 
 	/// <summary>
-	/// 画面で入力された値を編集用クローン（<see cref="EditorStore.EditTarget"/>）へ反映します。
+	/// 編集用クローン（<see cref="EditorStore.EditTarget"/>）へ、画面入力以外で決まる値を反映します。
+	/// 通常の編集項目と巻情報は、画面入力時に編集用クローンへ直接反映済みです。
 	/// Worker（MaterialFolderScanner / GoogleBooksImporter）と同等の品質を目指します。
 	/// 既存作品（SeriesId != 0 かつ IsWork == false）の場合は、共通処理のみを実施します。
-	/// 所持最大巻数が編集用クローンの現在値と異なる場合は、ユーザーが手動変更したものとして
-	/// <see cref="MangaSeries.IsOwnedMaxVolumeManuallyEdited"/> を true にします（自動推定は即時に編集用クローンへ反映済みのため手動変更になりません）。
 	/// </summary>
-	/// <param name="input">画面で入力された値。</param>
-	public void ApplyInput(EditorInputValues input)
+	private void applyDerivedValues()
 	{
-		ArgumentNullException.ThrowIfNull(input);
-
 		var target = this.getEditTarget();
-		var titleInput = input.Title ?? string.Empty;
 
-		// === 所持最大巻数の手動変更判定（自動推定は EditTarget へ反映済みのため、差分は手動変更） ===
-		var inputOwnedMaxVolume = input.OwnedMaxVolume.HasValue ? (int)input.OwnedMaxVolume.Value : 0;
-		if (inputOwnedMaxVolume != target.OwnedMaxVolume)
-		{
-			target.IsOwnedMaxVolumeManuallyEdited = true;
-		}
-
-		// === 【共通処理】基本情報 ===
-		this.applyTitle(target, titleInput);
-		target.Author = input.Author ?? string.Empty;
-		target.Publisher = input.Publisher ?? string.Empty;
-		target.Description = input.Description ?? string.Empty;
-		target.Memo = input.Memo ?? string.Empty;
-		target.IsIncomplete = input.IsIncomplete;
-
-		// === 【共通処理】巻情報 ===
-		target.StartVolume = (int)input.StartVolume;
-
-		// 完結巻の反映：EndVolume が入力されている場合は SeriesCompleted = true
-		if (input.EndVolume.HasValue && input.EndVolume.Value >= 1)
-		{
-			target.EndVolume = (int)input.EndVolume.Value;
-			target.SeriesCompleted = true;
-		}
-		else
-		{
-			target.EndVolume = 0;
-			target.SeriesCompleted = false;
-			target.IsOwnedCompleted = false;
-		}
-
-		target.OwnedMaxVolume = inputOwnedMaxVolume;
-		target.IsOwnedCompleted = input.IsOwnedCompleted;
+		// === 【共通処理】タイトルから派生する値 ===
+		this.applyTitle(target, target.Title);
 
 		// === 【共通処理】Description 出典 ===
 		// 既存正式作品ではここでは変更しない。新規・登録待ち作品のみ、入力があれば Manual、なければ None
 		if (target.SeriesId == 0 || target.IsWork)
 		{
-			target.DescriptionSource = string.IsNullOrEmpty(input.Description)
+			target.DescriptionSource = string.IsNullOrEmpty(target.Description)
 				? DescriptionSource.None
 				: DescriptionSource.Manual;
 			target.DescriptionSourceTitle = string.Empty;
@@ -244,14 +210,13 @@ public sealed class MangaSeriesManager
 	}
 
 	/// <summary>
-	/// 入力値を編集用クローンへ反映したうえで、正式登録の前提条件を検証します。
+	/// 編集用クローンへ派生値を反映したうえで、正式登録の前提条件を検証します。
 	/// 検証はユーザーが登録ボタンを押したときにだけ実行します。
 	/// </summary>
-	/// <param name="input">画面で入力された値。</param>
 	/// <returns>検出したエラーの種類。問題がない場合は <see cref="EditorValidationError.None"/>。</returns>
-	public EditorValidationError ValidateForRegister(EditorInputValues input)
+	public EditorValidationError ValidateForRegister()
 	{
-		this.ApplyInput(input);
+		this.applyDerivedValues();
 
 		var target = this.getEditTarget();
 		var isExistingSeries = target.SeriesId != 0 && !target.IsWork;
@@ -302,13 +267,12 @@ public sealed class MangaSeriesManager
 	}
 
 	/// <summary>
-	/// 入力値を編集用クローンへ反映したうえで、一時保存の前提条件を検証します。
+	/// 編集用クローンへ派生値を反映したうえで、一時保存の前提条件を検証します。
 	/// </summary>
-	/// <param name="input">画面で入力された値。</param>
 	/// <returns>検出したエラーの種類。問題がない場合は <see cref="EditorValidationError.None"/>。</returns>
-	public EditorValidationError ValidateForWorkSave(EditorInputValues input)
+	public EditorValidationError ValidateForWorkSave()
 	{
-		this.ApplyInput(input);
+		this.applyDerivedValues();
 
 		return string.IsNullOrWhiteSpace(this.getEditTarget().Title)
 			? EditorValidationError.TitleRequired
@@ -316,15 +280,13 @@ public sealed class MangaSeriesManager
 	}
 
 	/// <summary>
-	/// 編集用クローンのタイトルを、編集開始時の元のタイトルへ戻します。
+	/// 編集用クローンのタイトルを、編集開始時の元のタイトルへ戻し、画面へ再通知します。
 	/// 正本（<see cref="EditorStore.OriginalSeries"/>）は変更しません。
 	/// </summary>
-	/// <returns>元に戻したタイトル。</returns>
-	public string RestoreOriginalTitle()
+	public void RestoreOriginalTitle()
 	{
-		var original = this.getOriginalSeries();
-		this.applyTitle(this.getEditTarget(), original.Title);
-		return original.Title;
+		this.applyTitle(this.getEditTarget(), this.getOriginalSeries().Title);
+		this.editorStore.EditTarget.ForceNotify();
 	}
 
 	/// <summary>
@@ -333,7 +295,7 @@ public sealed class MangaSeriesManager
 	/// 1. 同一 FullPath が存在する場合は追加せず「既に追加済み」として記録します。
 	/// 2. FullPath は異なるが同名の素材が存在する場合は追加せず「同名ファイル」として記録します。
 	/// 3. 上記以外は追加します。
-	/// 追加後は並び替えと所持最大巻数の推定を行います。
+	/// 追加後は並び替えと所持最大巻数の推定を行い、サイズ未確定の素材は非同期でサイズ計算を起動します。
 	/// </summary>
 	/// <param name="droppedPaths">追加するファイル・フォルダのパス。</param>
 	/// <returns>素材追加の結果。</returns>
@@ -377,8 +339,14 @@ public sealed class MangaSeriesManager
 		var ownedMaxVolumeUpdated = false;
 		if (addedItems.Count > 0)
 		{
-			this.replaceMaterialFiles(this.editorStore.MaterialFiles.Concat(addedItems).ToList());
+			this.editorStore.MaterialFiles.AddRange(addedItems);
+			this.editorStore.MaterialFiles.Sort(MaterialFileItemComparer.Default);
+
+			// サイズが確定している素材は即時に合計へ加算し、フォルダのサイズは計算完了後に加算する
+			this.editorStore.MaterialTotalSizeBytes.Value += addedItems.Sum(m => m.SizeBytes ?? 0L);
+
 			ownedMaxVolumeUpdated = this.recalculateOwnedVolumeEstimate();
+			this.startMaterialSizeCalculation(this.getEditTarget(), addedItems);
 		}
 
 		return new MaterialAddResult(addedItems.Count > 0, ownedMaxVolumeUpdated, alreadyAddedFiles, sameNameFiles);
@@ -386,8 +354,8 @@ public sealed class MangaSeriesManager
 
 	/// <summary>
 	/// 素材一覧から指定された素材を削除します。
-	/// 削除できるのは今回の編集で追加した素材（CanRemove == true）だけです。
-	/// 削除後は所持最大巻数の推定を行います。素材が 0 件になっても編集開始時の値へは戻しません。
+	/// 削除できるのは今回の編集で追加した素材（CanRemove == true）のうち、サイズが確定している素材だけです。
+	/// 削除した素材の保持済みサイズを合計から減算し、所持最大巻数の推定を行います。素材が 0 件になっても編集開始時の値へは戻しません。
 	/// </summary>
 	/// <param name="fullPath">削除対象の素材のフルパス。</param>
 	/// <returns>素材削除の結果。</returns>
@@ -396,50 +364,22 @@ public sealed class MangaSeriesManager
 		ArgumentException.ThrowIfNullOrEmpty(fullPath);
 
 		var item = this.editorStore.MaterialFiles.FirstOrDefault(m => m.FullPath == fullPath);
-		if (item is null || !item.CanRemove)
+		if (item is null || !item.CanRemove || item.IsSizePending)
 		{
 			return new MaterialRemoveResult(false, false);
 		}
 
 		this.editorStore.MaterialFiles.Remove(item);
+		this.editorStore.MaterialTotalSizeBytes.Value -= item.SizeBytes ?? 0L;
 
 		return new MaterialRemoveResult(true, this.recalculateOwnedVolumeEstimate());
-	}
-
-	/// <summary>
-	/// <see cref="EditorStore.MaterialFiles"/> を並び順で並べ替えます。
-	/// フォルダ → ファイル（Archive / Epub）→ その他の順で分類し、同じ分類内では名前の昇順にします。
-	/// </summary>
-	public void SortMaterialFiles()
-	{
-		if (this.editorStore.MaterialFiles.Count == 0)
-		{
-			return;
-		}
-
-		this.replaceMaterialFiles(this.editorStore.MaterialFiles.ToList());
-	}
-
-	/// <summary>
-	/// <see cref="EditorStore.MaterialFiles"/> の素材合計サイズ（バイト）を計算します。
-	/// </summary>
-	/// <param name="cancellationToken">キャンセルトークン。</param>
-	/// <returns>素材合計サイズ（バイト）。素材がない場合は 0。</returns>
-	public async ValueTask<long> CalculateMaterialTotalSizeAsync(CancellationToken cancellationToken = default)
-	{
-		var paths = this.editorStore.MaterialFiles.Select(m => m.FullPath).ToList();
-		if (paths.Count == 0)
-		{
-			return 0L;
-		}
-
-		return await StorageSizeHelper.GetTotalAllAsync(paths, cancellationToken);
 	}
 
 	/// <summary>
 	/// 別ドライブ移動の確認が必要かどうかを判定します。
 	/// 今回追加した素材（CanRemove == true）の合計サイズが 1GiB 以上で、
 	/// 追加素材の中に登録先素材フォルダとは異なるドライブの素材がある場合に true を返します。
+	/// 素材サイズの計算中は登録できないため、サイズはすべて確定済みです。
 	/// </summary>
 	/// <returns>別ドライブ移動の確認が必要な場合は true。</returns>
 	public bool RequiresDifferentDriveConfirmation()
@@ -456,7 +396,7 @@ public sealed class MangaSeriesManager
 			return false;
 		}
 
-		var totalSize = addedMaterials.Sum(m => this.getMaterialSize(m.FullPath));
+		var totalSize = addedMaterials.Sum(m => m.SizeBytes ?? 0L);
 		if (totalSize < differentDriveConfirmationThresholdBytes)
 		{
 			return false;
@@ -481,14 +421,15 @@ public sealed class MangaSeriesManager
 	/// 保存成功後は、製本待ち状態を反映します。編集状態のクリアと画面遷移は呼び出し元が行います。
 	/// </summary>
 	/// <remarks>
-	/// 既存正式作品の保存処理には、正本ではなく正本から DeepCopy した作業用コピーを渡します。
+	/// 既存正式作品の保存処理には、編集用クローンを作業対象として、正本（<see cref="EditorStore.OriginalSeries"/>）を比較用・参照用に渡します。
 	/// 保存処理は DB Commit 後に、正本（<see cref="MangaSeriesStore"/> の共有インスタンス）へ編集内容を反映します。
+	/// サムネイルは <see cref="EditorStore.ThumbnailJpegBytes"/> を使用します。
 	/// </remarks>
-	/// <param name="thumbnailBytes">サムネイル JPEG の byte[]。ない場合は null。</param>
 	/// <returns>保存処理の結果（作品情報と移動失敗素材を含む）。</returns>
-	public async ValueTask<SeriesSaveResult> RegisterSeriesAsync(byte[]? thumbnailBytes)
+	public async ValueTask<SeriesSaveResult> RegisterSeriesAsync()
 	{
 		var target = this.getEditTarget();
+		var thumbnailBytes = this.editorStore.ThumbnailJpegBytes;
 		var materialFiles = this.editorStore.MaterialFiles
 			.Select(item => new MaterialFile
 			{
@@ -508,10 +449,8 @@ public sealed class MangaSeriesManager
 				throw new InvalidOperationException("タイトル重複エラー：同じタイトルと作者の別作品が既に存在します。");
 			}
 
-			// 正本は渡さず、保存処理が変更可能な作業用コピーを渡す
-			var workingCopy = this.copySeries(this.getOriginalSeries());
 			var saveManager = this.serviceProvider.GetRequiredKeyedService<ISeriesSaveManager>(SeriesSaveType.Existing);
-			saveResult = await saveManager.SaveAsync(target, workingCopy, materialFiles, selectedFolder, thumbnailBytes);
+			saveResult = await saveManager.SaveAsync(target, this.getOriginalSeries(), materialFiles, selectedFolder, thumbnailBytes);
 		}
 		else
 		{
@@ -529,16 +468,15 @@ public sealed class MangaSeriesManager
 
 	/// <summary>
 	/// 編集中の作品を登録待ち作品（WorkMangaSeries）として一時保存します。
-	/// 一時保存処理には、編集用クローンから DeepCopy した作業用コピーを渡します。
+	/// 新規の一時保存では保存対象のインスタンスが Store の正本になるため、編集用クローンから DeepCopy した作業用コピーを渡します。
+	/// サムネイルは <see cref="EditorStore.ThumbnailJpegBytes"/> を使用します。
 	/// </summary>
-	/// <param name="thumbnailBytes">サムネイル JPEG の byte[]。ない場合は null。</param>
 	/// <returns>一時保存後の WorkId。</returns>
-	public async ValueTask<int> SaveWorkSeriesAsync(byte[]? thumbnailBytes)
+	public async ValueTask<int> SaveWorkSeriesAsync()
 	{
-		// 新規の一時保存では渡したインスタンスが Store の正本になるため、編集用クローンそのものは渡さない
 		var workingCopy = this.copySeries(this.getEditTarget());
 		var saveManager = this.serviceProvider.GetRequiredKeyedService<ISeriesSaveManager>(SeriesSaveType.Work);
-		var saveResult = await saveManager.SaveAsync(workingCopy, null, [], null, thumbnailBytes);
+		var saveResult = await saveManager.SaveAsync(workingCopy, null, [], null, this.editorStore.ThumbnailJpegBytes);
 
 		var savedSeries = saveResult.Series
 			?? throw new InvalidOperationException("保存結果が不正です：Series が null です。");
@@ -606,20 +544,8 @@ public sealed class MangaSeriesManager
 	}
 
 	/// <summary>
-	/// <see cref="EditorStore.MaterialFiles"/> の内容を、並び替えた指定の一覧へ置き換えます。
-	/// </summary>
-	/// <param name="materialFiles">置き換える素材一覧。</param>
-	private void replaceMaterialFiles(List<MaterialFileItem> materialFiles)
-	{
-		var sorted = this.sortMaterialFiles(materialFiles);
-
-		this.editorStore.MaterialFiles.Clear();
-		this.editorStore.MaterialFiles.AddRange(sorted);
-	}
-
-	/// <summary>
-	/// 現在の素材一覧から所持最大巻数を推定し、推定できた場合のみ編集用クローンの値を更新します。
-	/// 推定できない場合は現在の値を変更しません。手動変更フラグは変更しません。
+	/// 現在の素材一覧から所持最大巻数を推定し、推定できた場合のみ <see cref="EditorStore"/> 経由で値を更新します。
+	/// 推定できない場合は現在の値を変更しません。自動推定のため、手動変更フラグは変更しません。
 	/// </summary>
 	/// <returns>所持最大巻数を更新した場合は true。</returns>
 	private bool recalculateOwnedVolumeEstimate()
@@ -629,13 +555,7 @@ public sealed class MangaSeriesManager
 			.ToList();
 
 		var result = this.ownedVolumeEstimator.Estimate(materials);
-		if (result.OwnedMaxVolume <= 0)
-		{
-			return false;
-		}
-
-		this.getEditTarget().OwnedMaxVolume = result.OwnedMaxVolume;
-		return true;
+		return this.editorStore.SetEstimatedOwnedMaxVolume(result.OwnedMaxVolume);
 	}
 
 	/// <summary>
@@ -652,25 +572,61 @@ public sealed class MangaSeriesManager
 		};
 
 	/// <summary>
-	/// ファイルまたはフォルダの合計サイズをバイト単位で取得します。
+	/// サイズが未確定の素材について、サイズの非同期計算を起動します。完了は待ちません。
+	/// 非同期処理には、計算に必要な値（素材のパス・編集対象・Store・Logger）だけを渡し、Scoped の Manager 自体は保持させません。
+	/// WPF のスレッドから呼び出した場合、計算結果の Store への反映は呼び出し元の同期コンテキスト上で行われます。
 	/// </summary>
-	/// <param name="fullPath">ファイルまたはフォルダの完全パス。</param>
-	/// <returns>合計サイズ（バイト）。存在しない場合は 0。</returns>
-	private long getMaterialSize(string fullPath)
+	/// <param name="editTarget">計算を開始した時点の編集対象。計算完了時に現在の編集対象と参照比較します。</param>
+	/// <param name="materialFiles">計算対象を含む素材一覧。</param>
+	private void startMaterialSizeCalculation(MangaSeries editTarget, IEnumerable<MaterialFileItem> materialFiles)
 	{
-		var fileInfo = new FileInfo(fullPath);
-		if (fileInfo.Exists)
+		var pendingPaths = materialFiles
+			.Where(m => m.IsSizePending)
+			.Select(m => m.FullPath)
+			.ToList();
+
+		if (pendingPaths.Count == 0)
 		{
-			return fileInfo.Length;
+			return;
 		}
 
-		var dirInfo = new DirectoryInfo(fullPath);
-		if (!dirInfo.Exists)
+		_ = calculateMaterialSizesAsync(this.editorStore, editTarget, pendingPaths, this.logger);
+	}
+
+	/// <summary>
+	/// 指定された素材のサイズを並行して計算し、完了した順に Store へ反映します。
+	/// Scoped の Manager に依存しないよう static としています。
+	/// </summary>
+	/// <param name="editorStore">計算結果を反映するストア。</param>
+	/// <param name="editTarget">計算を開始した時点の編集対象。</param>
+	/// <param name="fullPaths">サイズを計算する素材のフルパス。</param>
+	/// <param name="logger">ログ出力用の Logger。</param>
+	private static Task calculateMaterialSizesAsync(EditorStore editorStore, MangaSeries editTarget, IReadOnlyList<string> fullPaths, ILogger logger)
+		=> Task.WhenAll(fullPaths.Select(fullPath => calculateMaterialSizeAsync(editorStore, editTarget, fullPath, logger)));
+
+	/// <summary>
+	/// 1 つの素材のサイズを計算し、Store へ反映します。
+	/// 計算に失敗した場合は、サイズ計算中の状態が残り続けないよう、サイズ 0 として確定します。
+	/// </summary>
+	/// <param name="editorStore">計算結果を反映するストア。</param>
+	/// <param name="editTarget">計算を開始した時点の編集対象。</param>
+	/// <param name="fullPath">サイズを計算する素材のフルパス。</param>
+	/// <param name="logger">ログ出力用の Logger。</param>
+	private static async Task calculateMaterialSizeAsync(EditorStore editorStore, MangaSeries editTarget, string fullPath, ILogger logger)
+	{
+		var sizeBytes = 0L;
+
+		try
 		{
-			return 0;
+			sizeBytes = await Task.Run(() => StorageSizeHelper.GetPathSize(fullPath));
+		}
+		catch (Exception ex)
+		{
+			logger.LogWarning(ex, "素材サイズの計算に失敗しました。サイズ 0 として扱います。Path={Path}", fullPath);
 		}
 
-		return dirInfo.EnumerateFiles("*", SearchOption.AllDirectories).Sum(file => file.Length);
+		// await 後は呼び出し元の同期コンテキストへ戻る。編集対象が変わっている場合は Store 側で破棄する
+		editorStore.ApplyCalculatedMaterialSize(editTarget, fullPath, sizeBytes);
 	}
 
 	/// <summary>
@@ -695,6 +651,7 @@ public sealed class MangaSeriesManager
 	/// <summary>
 	/// 指定された素材フォルダ直下のファイル・フォルダを取得します。
 	/// 新規作品・登録待ち作品（IsWork == true）や、素材フォルダが特定できない・存在しない場合は空リストを返します。
+	/// ファイルのサイズは取得済みの値を使用し、フォルダのサイズは未確定（null）のままにします。
 	/// </summary>
 	/// <param name="series">対象となる作品。</param>
 	/// <param name="materialSource">編集対象として特定した素材ソース。</param>
@@ -736,7 +693,7 @@ public sealed class MangaSeriesManager
 					}
 					catch
 					{
-						// ファイル情報取得失敗時は null のまま
+						// ファイル情報取得失敗時は null のまま（サイズ未確定として非同期で計算する）
 					}
 				}
 
@@ -760,26 +717,6 @@ public sealed class MangaSeriesManager
 		}
 
 		return result;
-	}
-
-	/// <summary>
-	/// 素材一覧を並び順で並べ替えます。
-	/// フォルダ → ファイル（Archive / Epub）→ その他の順で分類し、同じ分類内では名前の昇順にします。
-	/// </summary>
-	/// <param name="materialFiles">並べ替え対象の素材一覧。</param>
-	/// <returns>並べ替え後の素材一覧。</returns>
-	private List<MaterialFileItem> sortMaterialFiles(IEnumerable<MaterialFileItem> materialFiles)
-	{
-		return materialFiles
-			.OrderBy(item => item.ItemType switch
-			{
-				MaterialItemType.Folder => 0,
-				MaterialItemType.Archive => 1,
-				MaterialItemType.Epub => 1,
-				_ => 2,
-			})
-			.ThenBy(item => item.Name, StringComparer.Ordinal)
-			.ToList();
 	}
 
 	/// <summary>
@@ -808,11 +745,11 @@ public sealed class MangaSeriesManager
 	/// <summary>
 	/// 登録先素材フォルダの初期選択と、変更可否を決定します。
 	/// 新規作品・登録待ち作品は先頭の候補を初期選択して変更可能にします。
-	/// 素材ソースを特定できた既存作品は、そのパスを含む登録済み素材フォルダを選択して変更不可にします。
-	/// 素材ソースを持たない既存作品は、未選択で変更可能にします。
+	/// 実在する素材ソースを特定できた既存作品は、そのパスを含む登録済み素材フォルダを選択して変更不可にします。
+	/// 実在する素材フォルダを持たない既存作品は、未選択で変更可能にします。
 	/// </summary>
 	/// <param name="series">編集対象の元作品。</param>
-	/// <param name="materialSource">編集対象として特定した素材ソース。</param>
+	/// <param name="materialSource">編集対象として特定した、実在する素材ソース。</param>
 	/// <param name="materialSourceFolders">登録先素材フォルダの候補。</param>
 	/// <returns>初期選択の素材フォルダ（未選択の場合は null）と、変更可否。</returns>
 	private (SourceFolder? Selected, bool CanSelect) resolveMaterialSourceFolder(

@@ -52,12 +52,12 @@ public static class MaterialSourceAvailabilityHelper
 	}
 
 	/// <summary>
-	/// 編集・保存の対象とする Material ロールの MangaSource を決定します。
+	/// 編集・保存の対象とする、実在する Material ロールの MangaSource を決定します。
 	/// 実在する物理素材フォルダが 1 件ならその MangaSource を返します（古い DB レコードが先頭に残っていても実在する 1 件を返します）。
-	/// 実在 0 件の場合は、Material レコードがちょうど 1 件のときだけそのレコードを返し、それ以外は null を返します。
+	/// 実在 0 件の場合は、DB に古い Material レコードが残っていても物理フォルダとして扱わず null を返します。
 	/// </summary>
 	/// <param name="series">対象の作品。</param>
-	/// <returns>対象の MangaSource。素材ソースがない場合は null。</returns>
+	/// <returns>実在する素材フォルダの MangaSource。実在する素材フォルダがない場合は null。</returns>
 	/// <exception cref="InvalidOperationException">実在する物理素材フォルダが 2 件以上ある場合。</exception>
 	public static MangaSource? ResolveEditingMaterialSource(MangaSeries series)
 	{
@@ -65,9 +65,33 @@ public static class MaterialSourceAvailabilityHelper
 
 		return existingSources.Count switch
 		{
-			0 => series.SingleMaterialSource,
+			0 => null,
 			1 => existingSources[0],
 			_ => throw new InvalidOperationException("実在する素材フォルダが複数存在するため、編集対象の素材ソースを特定できません。"),
+		};
+	}
+
+	/// <summary>
+	/// 実在する素材フォルダがない場合に、保存先の Path 更新で再利用する古い Material レコードを取得します。
+	/// 実在する素材フォルダがあるとき、および Material レコードが 0 件のときは null を返します。
+	/// </summary>
+	/// <param name="series">対象の作品。</param>
+	/// <returns>再利用する古い Material レコード。</returns>
+	/// <exception cref="InvalidOperationException">実在する素材フォルダがなく、古い Material レコードが複数あり対象を一意に決められない場合。</exception>
+	public static MangaSource? FindReusableStaleMaterialSource(MangaSeries series)
+	{
+		if (GetExistingMaterialSources(series).Count > 0)
+		{
+			return null;
+		}
+
+		var staleSources = series.Sources.Where(s => s.Role == FolderRole.Material).ToList();
+
+		return staleSources.Count switch
+		{
+			0 => null,
+			1 => staleSources[0],
+			_ => throw new InvalidOperationException("実在しない素材フォルダの登録が複数あり、更新対象を一意に決められません。"),
 		};
 	}
 

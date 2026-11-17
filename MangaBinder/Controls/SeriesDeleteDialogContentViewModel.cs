@@ -33,6 +33,12 @@ public class SeriesDeleteDialogContentViewModel : IDisposable
 	public BindableReactiveProperty<bool> ShowMaterialsWarning { get; }
 
 	/// <summary>
+	/// 登録待ち作品の情報が削除されることを示すメッセージを表示するかどうかを取得します。
+	/// TargetSeries.IsWork が true（登録待ち作品）の場合のみ true になります。
+	/// </summary>
+	public BindableReactiveProperty<bool> ShowWorkDeleteMessage { get; }
+
+	/// <summary>
 	/// <see cref="SeriesDeleteDialogContentViewModel"/> の新しいインスタンスを初期化します。
 	/// </summary>
 	/// <param name="targetSeries">削除対象作品。</param>
@@ -54,6 +60,10 @@ public class SeriesDeleteDialogContentViewModel : IDisposable
 
 		// 正式作品（IsWork が false）かつ素材が存在する場合のみ、素材警告メッセージを表示
 		this.ShowMaterialsWarning = new BindableReactiveProperty<bool>(!targetSeries.IsWork && hasMaterialFiles)
+			.AddTo(ref this.disposableBag);
+
+		// 登録待ち作品の場合のみ、作品情報が削除されることを示すメッセージを表示
+		this.ShowWorkDeleteMessage = new BindableReactiveProperty<bool>(targetSeries.IsWork)
 			.AddTo(ref this.disposableBag);
 	}
 

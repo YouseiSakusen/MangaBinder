@@ -13,8 +13,8 @@ public interface ISeriesSaveManager
 	/// 新規作品保存と既存作品更新の処理を共通インターフェースで実行するため、
 	/// 実装クラスで <see cref="MangaSeries.SeriesId"/> や <see cref="MangaSeries.IsWork"/> 値から処理内容を判定してください。
 	/// </summary>
-	/// <param name="editingSeries">編集中の作品。</param>
-	/// <param name="originalSeries">編集開始時の DeepCopy。</param>
+	/// <param name="editingSeries">編集中の作品（編集用クローン）。既存正式作品の保存では、このインスタンスを作業対象とします。</param>
+	/// <param name="originalSeries">編集開始時の正本。既存正式作品の保存でのみ、比較用・参照用の読み取り専用として使用します。</param>
 	/// <param name="materialFiles">追加された素材ファイル。</param>
 	/// <param name="selectedMaterialSourceFolder">素材の移動先フォルダ。</param>
 	/// <param name="thumbnailBytes">新しいサムネイルのバイト列。</param>

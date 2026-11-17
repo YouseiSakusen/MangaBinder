@@ -17,9 +17,27 @@ public class MaterialFileItem
 	/// <summary>アイテムの種別を取得します。</summary>
 	public MaterialItemType ItemType { get; init; }
 
-	/// <summary>ファイルの場合はサイズ（バイト）。フォルダの場合は null。</summary>
+	/// <summary>素材のサイズ（バイト）。実フォルダのサイズ計算が完了するまでは null（サイズ未確定）。</summary>
 	public long? SizeBytes { get; init; }
 
-	/// <summary>削除可能かどうかを示します。既存素材フォルダ由来は false、D&D 追加素材は true（将来用）。</summary>
+	/// <summary>サイズが未確定（計算中）かどうかを取得します。</summary>
+	public bool IsSizePending => this.SizeBytes is null;
+
+	/// <summary>今回の編集で追加した素材かどうかを示します。既存素材フォルダ由来は false、追加素材は true（削除可能）です。</summary>
 	public bool CanRemove { get; init; }
+
+	/// <summary>
+	/// サイズを確定した新しいインスタンスを生成します。
+	/// </summary>
+	/// <param name="sizeBytes">確定したサイズ（バイト）。</param>
+	/// <returns>サイズを確定した <see cref="MaterialFileItem"/>。</returns>
+	public MaterialFileItem WithSizeBytes(long sizeBytes)
+		=> new()
+		{
+			Name = this.Name,
+			FullPath = this.FullPath,
+			ItemType = this.ItemType,
+			SizeBytes = sizeBytes,
+			CanRemove = this.CanRemove,
+		};
 }

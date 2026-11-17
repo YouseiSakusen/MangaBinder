@@ -1,4 +1,5 @@
-﻿using HalationGhost.Utilities;
+﻿using System.Data.SQLite;
+using HalationGhost.Utilities;
 using MangaBinder.Bindings;
 using MangaBinder.Helpers;
 using MangaBinder.Series;
@@ -332,6 +333,59 @@ public class MangaBinderManager
 
 		// MangaSeriesStore からも削除
 		this.mangaSeriesStore.Remove(series.SeriesId);
+	}
+
+	/// <summary>
+	/// 登録待ち作品（WorkMangaSeries）を削除します。
+	/// 対象は WorkId で特定します。呼び出し元は、編集用クローンではなく Store の正本を渡してください。
+	/// </summary>
+	/// <remarks>
+	/// 削除処理の流れ：
+	/// 1. DB トランザクション内で WorkMangaSeriesTags、WorkMangaSeries を削除して Commit
+	/// 2. Work サムネイルを削除
+	/// 3. MangaSeriesStore から登録待ち作品を削除
+	/// 登録待ち作品には素材フォルダ（MangaSources）がないため、素材フォルダの削除は行いません。
+	/// </remarks>
+	/// <param name="series">削除対象の登録待ち作品。</param>
+	/// <returns>完了を表す ValueTask。</returns>
+	/// <exception cref="ArgumentException">series が登録待ち作品（WorkId != 0 かつ SeriesId == 0）でない場合にスローされます。</exception>
+	/// <exception cref="ArgumentNullException">series が null の場合にスローされます。</exception>
+	public async ValueTask DeleteWorkSeriesAsync(MangaSeries series)
+	{
+		ArgumentNullException.ThrowIfNull(series);
+
+		if (series.WorkId == 0 || series.SeriesId != 0)
+		{
+			throw new ArgumentException("削除対象は登録待ち作品のみです。正式登録済み作品や新規作品は削除できません。");
+		}
+
+		var workId = series.WorkId;
+		var workThumbnailFileName = $"{series.WorkThumbnailFileNameBase}.jpg";
+
+		using (var connection = new SQLiteConnection(this.appSettings.ConnectionString))
+		{
+			await connection.OpenAsync();
+			using var tx = connection.BeginTransaction();
+
+			try
+			{
+				await this.workMangaSeriesRepository.DeleteWorkSeriesTagsByIdInTransactionAsync(connection, tx, workId);
+				await this.workMangaSeriesRepository.DeleteWorkSeriesByIdInTransactionAsync(connection, tx, workId);
+				tx.Commit();
+			}
+			catch (Exception ex)
+			{
+				this.logger?.LogError(ex, "登録待ち作品の削除に失敗しました。WorkId={WorkId}", workId);
+				tx.Rollback();
+				throw;
+			}
+		}
+
+		// Commit 成功後に Work サムネイルを削除する
+		using var scope = this.serviceScopeFactory.CreateScope();
+		scope.ServiceProvider.GetRequiredService<ThumbnailManager>().DeleteWorkThumbnailIfExists(workThumbnailFileName);
+
+		this.mangaSeriesStore.RemoveWorkSeries(workId);
 	}
 
 	/// <summary>

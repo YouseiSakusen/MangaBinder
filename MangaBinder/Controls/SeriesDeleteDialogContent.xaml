@@ -109,6 +109,16 @@
             LineHeight="18"
             Visibility="{Binding ShowMaterialsWarning.Value, Converter={StaticResource BoolToVisibilityConverter}}" />
 
+        <!-- Row2: 登録待ち作品の削除メッセージ -->
+        <TextBlock
+            Grid.Row="2"
+            Text="登録待ち作品の情報（タイトル・タグ・サムネイルなど）を削除します。&#10;この操作は元に戻せません。"
+            FontSize="12"
+            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+            TextWrapping="Wrap"
+            LineHeight="18"
+            Visibility="{Binding ShowWorkDeleteMessage.Value, Converter={StaticResource BoolToVisibilityConverter}}" />
+
         <!-- Row4: ラジオボタン1（作品情報のみ削除） -->
         <RadioButton
             Grid.Row="4"

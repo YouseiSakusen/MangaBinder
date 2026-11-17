@@ -58,7 +58,7 @@
             <local:SeriesVolumeStatus
                 Grid.Row="2"
                 HorizontalAlignment="Center"
-                DataContext="{Binding VolumeStatus.Value}" />
+                DataContext="{Binding VolumeStatus}" />
 
             <!-- ── Auxiliary Info Row：メモの有無で異なるレイアウト── -->
             <Grid
