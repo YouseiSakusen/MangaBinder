@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using System.Windows.Controls.Primitives;
 
 namespace MangaBinder.Behaviors;
@@ -114,7 +115,7 @@ public static class TreeViewNodeClickToggleCheckBehavior
 			if (current is CheckBox)
 				return true;
 
-			current = VisualTreeHelper.GetParent(current);
+			current = getParent(current);
 		}
 
 		return false;
@@ -133,7 +134,7 @@ public static class TreeViewNodeClickToggleCheckBehavior
 			if (current is ToggleButton && IsDescendantOfTreeViewItem(current))
 				return true;
 
-			current = VisualTreeHelper.GetParent(current);
+			current = getParent(current);
 			// TreeViewItem の親に到達したら止める
 			if (current is TreeViewItem)
 				break;
@@ -147,13 +148,13 @@ public static class TreeViewNodeClickToggleCheckBehavior
 	/// </summary>
 	private static bool IsDescendantOfTreeViewItem(DependencyObject element)
 	{
-		var current = VisualTreeHelper.GetParent(element);
+		var current = getParent(element);
 		while (current != null)
 		{
 			if (current is TreeViewItem)
 				return true;
 
-			current = VisualTreeHelper.GetParent(current);
+			current = getParent(current);
 		}
 
 		return false;
@@ -170,9 +171,20 @@ public static class TreeViewNodeClickToggleCheckBehavior
 			if (current is T result)
 				return result;
 
-			current = VisualTreeHelper.GetParent(current);
+			current = getParent(current);
 		}
 
 		return null;
+	}
+
+	/// <summary>
+	/// 指定された要素の親を取得します。
+	/// Run などの Visual ではない要素は論理ツリーから親を取得します。
+	/// </summary>
+	private static DependencyObject? getParent(DependencyObject element)
+	{
+		return element is Visual or Visual3D
+			? VisualTreeHelper.GetParent(element)
+			: LogicalTreeHelper.GetParent(element);
 	}
 }
