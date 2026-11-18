@@ -23,6 +23,15 @@ public class BindingVolume : IDisposable
 			(x, y) => StringComparer.OrdinalIgnoreCase.Compare(x.FileName, y.FileName));
 
 	/// <summary>
+	/// 連番直前文字の混在判定から除外するファイル名のキーワードです。
+	/// ファイル名解析に失敗した画像のうち、いずれかを含むものが除外対象になります。
+	/// </summary>
+	private static readonly string[] serialNumberCheckExcludeKeywords =
+	[
+		"cover",
+	];
+
+	/// <summary>
 	/// この巻の元となった素材を取得します。
 	/// BindingStore.Materials 内に存在する MaterialItem と同一インスタンスを参照します。
 	/// </summary>
@@ -412,6 +421,12 @@ public class BindingVolume : IDisposable
 		var counts = new Dictionary<string, int>(StringComparer.Ordinal);
 		foreach (var image in this.Images)
 		{
+			if (image.FileNameNormalizationStatus == FileNameNormalizationStatus.ParseFailed &&
+				serialNumberCheckExcludeKeywords.Any(keyword => image.FileName.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+			{
+				continue;
+			}
+
 			var key = image.SerialNumberPrecedingCharacter;
 			counts[key] = counts.GetValueOrDefault(key) + 1;
 		}
