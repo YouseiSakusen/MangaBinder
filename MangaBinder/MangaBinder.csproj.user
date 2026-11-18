@@ -38,9 +38,6 @@
     <Compile Update="Controls\MaterialIcon.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Controls\MaterialsConfirmDialogContent.xaml.cs">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Update="Controls\MemoEditButton.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
