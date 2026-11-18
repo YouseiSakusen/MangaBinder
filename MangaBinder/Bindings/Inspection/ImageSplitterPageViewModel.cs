@@ -53,6 +53,9 @@ public class ImageSplitterPageViewModel : BindingPageViewModelBase, INavigationD
 	/// <summary>分割対象画像数 / 総画像数の表示（例：108 / 108）を取得します。</summary>
 	public BindableReactiveProperty<string> SplitTargetCountText { get; }
 
+	/// <summary>現在編集中の巻フォルダを Explorer で開くコマンドを取得します。</summary>
+	public ReactiveCommand OpenVolumeFolderCommand { get; }
+
 	/// <summary>キャンセルコマンドを取得します。</summary>
 	public ReactiveCommand CancelCommand { get; }
 
@@ -173,6 +176,12 @@ public class ImageSplitterPageViewModel : BindingPageViewModelBase, INavigationD
 			.ToBindableReactiveProperty("0 / 0")
 			.AddTo(ref this.disposableBag);
 
+		this.OpenVolumeFolderCommand = new ReactiveCommand()
+			.AddTo(ref this.disposableBag);
+		this.OpenVolumeFolderCommand
+			.SubscribeAwait(async (_, _) => await this.openVolumeFolderAsync(), AwaitOperation.Drop)
+			.AddTo(ref this.disposableBag);
+
 		this.CancelCommand = new ReactiveCommand()
 			.AddTo(ref this.disposableBag);
 		this.CancelCommand
@@ -184,6 +193,20 @@ public class ImageSplitterPageViewModel : BindingPageViewModelBase, INavigationD
 		this.ExecuteSplitCommand
 			.SubscribeAwait(async (_, _) => await this.executeSplitAsync(), AwaitOperation.Drop)
 			.AddTo(ref this.disposableBag);
+	}
+
+	/// <summary>
+	/// 現在編集中の巻フォルダを Explorer で開きます。
+	/// </summary>
+	private async ValueTask openVolumeFolderAsync()
+	{
+		var volume = this.bindingStore.SplitTargetVolume.Value
+			?? throw new InvalidOperationException("BindingStore.SplitTargetVolume が null です。");
+
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var opener = scope.ServiceProvider.GetRequiredService<BindingFolderOpener>();
+		await opener.OpenAsync(volume.WorkFolderPath
+			?? throw new InvalidOperationException("SplitTargetVolume.WorkFolderPath が null です。"));
 	}
 
 	/// <summary>

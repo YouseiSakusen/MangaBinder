@@ -5,6 +5,7 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:local="clr-namespace:MangaBinder.Bindings.Inspection"
+      xmlns:app="clr-namespace:MangaBinder"
       xmlns:bindings="clr-namespace:MangaBinder.Bindings"
       xmlns:core="clr-namespace:MangaBinder.Bindings;assembly=MangaBinder.Core"
       xmlns:shared="clr-namespace:MangaBinder.Bindings;assembly=MangaBinder.Shared"
@@ -115,6 +116,26 @@
             EyecatchSymbol="BookOpen24"
             EyecatchTitle="分割画像数 / 総画像数"
             EyecatchValueText="{Binding SplitTargetCountText.Value}">
+
+            <bindings:BindingPageLayout.TopContent>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Column 1: 現在編集中の巻フォルダを開く -->
+                    <controls:TopActionButton
+                        Grid.Column="1"
+                        HorizontalAlignment="Center"
+                        PrimaryText="{Binding SplitTargetVolume.Value.VolumeNumber.Value, StringFormat={}{0:0.#}巻フォルダを開く}"
+                        SecondaryLabel="画像枚数"
+                        SecondaryValue="{Binding SplitTargetVolume.Value.ImageFileCount}"
+                        Symbol="{x:Static app:AppSymbols.OpenBindingFolder}"
+                        Command="{Binding OpenVolumeFolderCommand}" />
+                </Grid>
+            </bindings:BindingPageLayout.TopContent>
 
             <!-- ─────────────────────────────────────────────────────────────────── -->
             <!-- MainContent: 中央パネル（見開き分割操作） -->

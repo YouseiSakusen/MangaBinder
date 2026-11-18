@@ -130,6 +130,28 @@
 					</TextBlock.Style>
 					<Run Text="（" /><Run Text="{Binding Material.FileSizeText}" /><Run Text="）" />
 				</TextBlock>
+				<!-- チェック可能な Folder のみ画像枚数表示 -->
+				<TextBlock
+					VerticalAlignment="Center"
+					Margin="6,0,0,0"
+					FontSize="11"
+					Opacity="0.65">
+					<TextBlock.Style>
+						<Style TargetType="TextBlock">
+							<Setter Property="Visibility" Value="Collapsed" />
+							<Style.Triggers>
+								<MultiDataTrigger>
+									<MultiDataTrigger.Conditions>
+										<Condition Binding="{Binding Material.ItemType}" Value="{x:Static shared:MaterialItemType.Folder}" />
+										<Condition Binding="{Binding CanCheck.Value}" Value="True" />
+									</MultiDataTrigger.Conditions>
+									<Setter Property="Visibility" Value="Visible" />
+								</MultiDataTrigger>
+							</Style.Triggers>
+						</Style>
+					</TextBlock.Style>
+					<Run Text="（画像：" /><Run Text="{Binding Material.FileCount, Mode=OneWay}" /><Run Text="枚）" />
+				</TextBlock>
 			</StackPanel>
 		</HierarchicalDataTemplate>
 

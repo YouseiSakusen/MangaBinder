@@ -15,9 +15,10 @@ namespace MangaBinder.Bindings.Inspection;
 /// </remarks>
 public sealed class VolumeFileNameNormalizer
 {
-	// "prefix + 主番号 + (枝番: _nn または -nn)? + 拡張子" を捉えるパターン
+	// "prefix + 主番号 + (枝番: _nn または -nn、もしくは主番号直後の英字)? + 拡張子" を捉えるパターン
+	// 英字と数字枝番の併用（例: 1a_02）は対象外
 	private static readonly Regex fileNamePattern = new(
-		@"^(?<prefix>.*?)(?<main>\d+)(?<suffix>(?:[_\-]\d+)*)(?<ext>\.[^.]+)$",
+		@"^(?<prefix>.*?)(?<main>\d+)(?<suffix>(?:[_\-]\d+)*|[A-Za-z]+)(?<ext>\.[^.]+)$",
 		RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
 	// UTF-8 / Shift_JIS 取り違えで典型的に現れる不自然な日本語文字パターン
