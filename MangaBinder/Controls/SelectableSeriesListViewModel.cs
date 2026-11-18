@@ -45,18 +45,6 @@ public class SelectableSeriesListViewModel : IDisposable
 	public BindableReactiveProperty<int> ItemCount { get; }
 
 	/// <summary>
-	/// 現在 Items.Value が空であるかどうかを示す値。
-	/// ItemCount == 0 に自動追従します。
-	/// </summary>
-	public BindableReactiveProperty<bool> IsEmpty { get; }
-
-	/// <summary>
-	/// 現在 Items.Value に項目があるかどうかを示す値。
-	/// ItemCount > 0 に自動追従します。
-	/// </summary>
-	public BindableReactiveProperty<bool> HasItems { get; }
-
-	/// <summary>
 	/// 現在選択されている MaintenanceSeriesCardViewModel。
 	/// </summary>
 	public BindableReactiveProperty<MaintenanceSeriesCardViewModel?> SelectedItem { get; }
@@ -72,6 +60,12 @@ public class SelectableSeriesListViewModel : IDisposable
 	public BindableReactiveProperty<bool> ShowNavigateButton { get; }
 
 	/// <summary>
+	/// 「削除」リンクを表示することを許可するかどうかを示す値です。
+	/// 実際の表示は、この値と対象作品が登録待ち作品（IsWork）であることの両方を満たす場合に限られます。
+	/// </summary>
+	public BindableReactiveProperty<bool> ShowDeleteButton { get; }
+
+	/// <summary>
 	/// 作品カードの表示サイズ。
 	/// </summary>
 	public BindableReactiveProperty<SeriesCardSize> CardSize { get; }
@@ -81,6 +75,12 @@ public class SelectableSeriesListViewModel : IDisposable
 	/// CommandParameter として対象の MangaSeries が渡されます。
 	/// </summary>
 	public ReactiveCommand<MangaSeries>? NavigateCommand { get; set; }
+
+	/// <summary>
+	/// 「削除」リンク押下時に実行される Command。
+	/// CommandParameter として対象の MangaSeries が渡されます。
+	/// </summary>
+	public ReactiveCommand<MangaSeries>? DeleteCommand { get; set; }
 
 	/// <summary>
 	/// <see cref="SelectableSeriesListViewModel"/> の新しいインスタンスを初期化します。
@@ -99,15 +99,9 @@ public class SelectableSeriesListViewModel : IDisposable
 		this.Items = new BindableReactiveProperty<NotifyCollectionChangedSynchronizedViewList<MaintenanceSeriesCardViewModel>>(this.internalItems)
 			.AddTo(ref this.disposableBag);
 
-		// ItemCount / IsEmpty / HasItems: 初期値は internalItems の現在件数から設定
+		// ItemCount: 初期値は internalItems の現在件数から設定
 		var initialCount = this.internalItems.Count;
 		this.ItemCount = new BindableReactiveProperty<int>(initialCount)
-			.AddTo(ref this.disposableBag);
-
-		this.IsEmpty = new BindableReactiveProperty<bool>(initialCount == 0)
-			.AddTo(ref this.disposableBag);
-
-		this.HasItems = new BindableReactiveProperty<bool>(initialCount > 0)
 			.AddTo(ref this.disposableBag);
 
 		// Items.Value が変わったら、新しい一覧の CollectionChanged を監視開始
@@ -138,6 +132,10 @@ public class SelectableSeriesListViewModel : IDisposable
 		this.ShowNavigateButton = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
+		// ShowDeleteButton: デフォルトは false
+		this.ShowDeleteButton = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+
 		// CardSize: デフォルトは Compact
 		this.CardSize = new BindableReactiveProperty<SeriesCardSize>(SeriesCardSize.Compact)
 			.AddTo(ref this.disposableBag);
@@ -148,7 +146,7 @@ public class SelectableSeriesListViewModel : IDisposable
 
 	/// <summary>
 	/// 指定されたコレクションの CollectionChanged イベントを監視し、
-	/// ItemCount / IsEmpty / HasItems を更新するハンドラーをアタッチします。
+	/// ItemCount を更新するハンドラーをアタッチします。
 	/// 既存の購読があれば解除してからアタッチします。
 	/// </summary>
 	/// <param name="items">監視対象のコレクション。</param>
@@ -177,14 +175,11 @@ public class SelectableSeriesListViewModel : IDisposable
 	}
 
 	/// <summary>
-	/// Items.Value の現在件数から ItemCount / IsEmpty / HasItems を更新します。
+	/// Items.Value の現在件数から ItemCount を更新します。
 	/// </summary>
 	private void updateItemCount()
 	{
-		var count = this.Items.Value.Count;
-		this.ItemCount.Value = count;
-		this.IsEmpty.Value = count == 0;
-		this.HasItems.Value = count > 0;
+		this.ItemCount.Value = this.Items.Value.Count;
 	}
 
 	/// <summary>

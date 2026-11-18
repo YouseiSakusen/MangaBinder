@@ -268,14 +268,22 @@ public sealed class MangaSeriesManager
 
 	/// <summary>
 	/// 編集用クローンへ派生値を反映したうえで、一時保存の前提条件を検証します。
+	/// タイトル必須と、正規化タイトル＋作者が同一の別作品（正式登録済み・登録待ち）が存在しないことを確認します。
 	/// </summary>
 	/// <returns>検出したエラーの種類。問題がない場合は <see cref="EditorValidationError.None"/>。</returns>
 	public EditorValidationError ValidateForWorkSave()
 	{
 		this.applyDerivedValues();
 
-		return string.IsNullOrWhiteSpace(this.getEditTarget().Title)
-			? EditorValidationError.TitleRequired
+		var target = this.getEditTarget();
+
+		if (string.IsNullOrWhiteSpace(target.Title))
+		{
+			return EditorValidationError.TitleRequired;
+		}
+
+		return this.mangaBinderManager.FindDuplicateSeries(target).Count > 0
+			? EditorValidationError.DuplicateSeries
 			: EditorValidationError.None;
 	}
 

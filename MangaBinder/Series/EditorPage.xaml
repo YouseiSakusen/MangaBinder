@@ -169,6 +169,7 @@
                                     InputMethod.PreferredImeState="On"
                                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                     behaviors:TrimOnPasteBehavior.IsEnabled="True"
+                                    behaviors:FocusAndSelectAllBehavior.Request="{Binding AuthorFocusRequest.Value}"
                                     Text="{Binding EditTarget.Value.Author, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     Margin="0,0,0,0"
                                     PlaceholderText="作者名を入力してください" />
@@ -187,6 +188,7 @@
                                     InputMethod.PreferredImeState="On"
                                     behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
                                     behaviors:TrimOnPasteBehavior.IsEnabled="True"
+                                    behaviors:FocusAndSelectAllBehavior.Request="{Binding PublisherFocusRequest.Value}"
                                     Text="{Binding EditTarget.Value.Publisher, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     PlaceholderText="出版社名を入力してください" />
                             </Grid>
@@ -276,6 +278,7 @@
                             behaviors:DescriptionPasteFormattingBehavior.IsEnabled="{Binding IsDescriptionPasteFormattingEnabled.Value}"
                             behaviors:ScrollToTopOnChangedBehavior.Request="{Binding EditorPageInitializeRequest.Value}"
                             behaviors:SelectAllOnFocusBehavior.IsEnabled="True"
+                            behaviors:FocusAndSelectAllBehavior.Request="{Binding DescriptionFocusRequest.Value}"
                             PlaceholderText="作品のあらすじを入力してください" />
 
                         <!-- あらすじ出典 -->

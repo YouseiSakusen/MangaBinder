@@ -85,6 +85,13 @@ public sealed class EditorStore : IDisposable
 	/// <summary>キャンセル操作を実行できるかどうかを取得します。素材サイズ計算中は実行できません。</summary>
 	public BindableReactiveProperty<bool> CancelCommandCanExecute { get; }
 
+	/// <summary>
+	/// 作品の削除操作を表示するかどうかを取得します。
+	/// 編集対象が存在し、SeriesId != 0 または WorkId != 0 の場合に true です。
+	/// 製本待ち登録中などの実際の削除可否は表さず、削除実行時に別途確認します。
+	/// </summary>
+	public BindableReactiveProperty<bool> CanDeleteSeries { get; }
+
 	/// <summary>保存用のサムネイル画像（JPEG）を取得または設定します。サムネイルが指定されていない場合は null です。</summary>
 	public byte[]? ThumbnailJpegBytes { get; set; }
 
@@ -142,6 +149,9 @@ public sealed class EditorStore : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		this.CancelCommandCanExecute = new BindableReactiveProperty<bool>(true)
+			.AddTo(ref this.disposableBag);
+
+		this.CanDeleteSeries = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
 		// EditTarget が null になったら、編集セッション固有の状態を自身でクリアする
@@ -427,12 +437,14 @@ public sealed class EditorStore : IDisposable
 	}
 
 	/// <summary>
-	/// 素材サイズ計算中の状態と、登録・一時保存・キャンセルの有効状態を更新します。
-	/// 素材サイズの計算中は、いずれの操作も無効にします。
+	/// 素材サイズ計算中の状態と、登録・一時保存・キャンセルの有効状態、削除操作の表示状態を更新します。
+	/// 素材サイズの計算中は、登録・一時保存・キャンセルを無効にします。
 	/// </summary>
 	private void updateButtonStates()
 	{
 		var target = this.EditTarget.Value;
+
+		this.CanDeleteSeries.Value = target is not null && (target.SeriesId != 0 || target.WorkId != 0);
 		var isCalculating = target is not null && this.MaterialFiles.Any(static item => item.IsSizePending);
 
 		this.IsMaterialSizeCalculating.Value = isCalculating;

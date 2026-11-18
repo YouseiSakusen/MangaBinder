@@ -29,8 +29,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	private readonly EditorStore editorStore;
 	private readonly IContentDialogService contentDialogService;
 	private readonly INavigationService navigationService;
-	private readonly MangaSeriesStore mangaSeriesStore;
-	private readonly TagStore tagStore;
 	private readonly ISnackbarService snackbarService;
 	private readonly LoadingService loadingService;
 	private readonly ThumbnailImageLoader thumbnailImageLoader;
@@ -62,6 +60,24 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// FocusAndSelectAllBehavior.Request にバインドされ、値が変化するとフォーカスが移ります。
 	/// </summary>
 	public BindableReactiveProperty<int> TitleFocusRequest { get; }
+
+	/// <summary>
+	/// 作者入力欄へのフォーカス要求カウンタを取得します。
+	/// FocusAndSelectAllBehavior.Request にバインドされ、値が変化するとフォーカスが移ります。
+	/// </summary>
+	public BindableReactiveProperty<int> AuthorFocusRequest { get; }
+
+	/// <summary>
+	/// 出版社入力欄へのフォーカス要求カウンタを取得します。
+	/// FocusAndSelectAllBehavior.Request にバインドされ、値が変化するとフォーカスが移ります。
+	/// </summary>
+	public BindableReactiveProperty<int> PublisherFocusRequest { get; }
+
+	/// <summary>
+	/// あらすじ入力欄へのフォーカス要求カウンタを取得します。
+	/// FocusAndSelectAllBehavior.Request にバインドされ、値が変化するとフォーカスが移ります。
+	/// </summary>
+	public BindableReactiveProperty<int> DescriptionFocusRequest { get; }
 
 	/// <summary>開始巻の NumberBox 入力値を取得します。<see cref="EditorStore.StartVolume"/> を共有し、所有・破棄はストアが行います。</summary>
 	public BindableReactiveProperty<double?> StartVolume { get; }
@@ -226,8 +242,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	public ReactiveCommand<Unit> OpenMaterialFolderCommand { get; }
 
 	/// <summary>
-	/// 作品を削除できるかどうかを取得します。
-	/// SeriesId != 0 または WorkId != 0 の場合に true になります。
+	/// 作品の削除操作を表示するかどうかを取得します。<see cref="EditorStore.CanDeleteSeries"/> を共有し、所有・破棄はストアが行います。
 	/// </summary>
 	public BindableReactiveProperty<bool> CanDeleteSeries { get; }
 
@@ -243,8 +258,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 	/// <param name="editorStore">編集セッション状態を保持するストア。</param>
 	/// <param name="contentDialogService">コンテンツダイアログサービス。</param>
 	/// <param name="navigationService">ナビゲーションサービス。</param>
-	/// <param name="mangaSeriesStore">漫画シリーズストア。</param>
-	/// <param name="tagStore">タグマスタの正本を保持するストア。</param>
+	/// <param name="tagStore">タグマスタの正本を保持するストア。タグ選択 Popup 用 ViewModel の生成に使用します。</param>
 	/// <param name="snackbarService">スナックバーサービス。</param>
 	/// <param name="loadingService">ローディングサービス。</param>
 	/// <param name="thumbnailImageLoader">サムネイル画像ローダー。</param>
@@ -253,7 +267,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		EditorStore editorStore,
 		IContentDialogService contentDialogService,
 		INavigationService navigationService,
-		MangaSeriesStore mangaSeriesStore,
 		TagStore tagStore,
 		ISnackbarService snackbarService,
 		LoadingService loadingService,
@@ -263,8 +276,6 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.editorStore = editorStore ?? throw new ArgumentNullException(nameof(editorStore));
 		this.contentDialogService = contentDialogService ?? throw new ArgumentNullException(nameof(contentDialogService));
 		this.navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
-		this.mangaSeriesStore = mangaSeriesStore ?? throw new ArgumentNullException(nameof(mangaSeriesStore));
-		this.tagStore = tagStore ?? throw new ArgumentNullException(nameof(tagStore));
 		this.snackbarService = snackbarService ?? throw new ArgumentNullException(nameof(snackbarService));
 		this.loadingService = loadingService ?? throw new ArgumentNullException(nameof(loadingService));
 		this.thumbnailImageLoader = thumbnailImageLoader ?? throw new ArgumentNullException(nameof(thumbnailImageLoader));
@@ -279,6 +290,7 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 		this.IsIncomplete = this.editorStore.IsIncomplete;
 		this.RegisterSeriesCommandCanExecute = this.editorStore.RegisterSeriesCommandCanExecute;
 		this.SaveWorkSeriesCommandCanExecute = this.editorStore.SaveWorkSeriesCommandCanExecute;
+		this.CanDeleteSeries = this.editorStore.CanDeleteSeries;
 
 		// TagPicker の初期化
 		this.TagPicker = new SeriesTagPickerViewModel(tagStore, serviceScopeFactory)
@@ -288,6 +300,15 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			.AddTo(ref this.disposableBag);
 
 		this.TitleFocusRequest = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
+
+		this.AuthorFocusRequest = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
+
+		this.PublisherFocusRequest = new BindableReactiveProperty<int>(0)
+			.AddTo(ref this.disposableBag);
+
+		this.DescriptionFocusRequest = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
 		this.EditorPageInitializeRequest = new BooleanNotifier(false);
@@ -479,24 +500,10 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			})
 			.AddTo(ref this.disposableBag);
 
-		// CanDeleteSeries: 作品削除ボタンの表示制御
-		this.CanDeleteSeries = new BindableReactiveProperty<bool>(false)
-			.AddTo(ref this.disposableBag);
-
 		// EditTarget が変更された場合、各 ViewModel と UI 状態を更新
 		this.EditTarget
 			.Subscribe(editingSeries =>
 			{
-				if (editingSeries != null)
-				{
-					// SeriesId != 0 または WorkId != 0 の場合に削除可能
-					this.CanDeleteSeries.Value = editingSeries.SeriesId != 0 || editingSeries.WorkId != 0;
-				}
-				else
-				{
-					this.CanDeleteSeries.Value = false;
-				}
-
 				// 素材フォルダ作成日時表示用の通知を流す
 				if (this.MaterialFolderCreatedAtViewModel.Value.Series.Value != editingSeries)
 				{
@@ -805,11 +812,44 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			// 成功時：プレビュー画像を更新し、JPEG byte[] を Store へ保持
 			this.ThumbnailPreviewImageSource.Value = result.PreviewImage;
 			this.editorStore.ThumbnailJpegBytes = result.ThumbnailBytes;
+
+			// 貼り付け成功後、次の未入力欄へフォーカスを移す
+			this.requestFocusToNextEmptyField();
 		}
 		catch (Exception ex)
 		{
 			// 予期しないエラーが発生した場合もログ出力のみ
 			System.Diagnostics.Debug.WriteLine($"[EditorPageViewModel.PasteThumbnailAsync] 例外発生: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// サムネイル貼り付け成功後に、作者・出版社・あらすじの順で最初の未入力欄へフォーカスを要求します。
+	/// すべて入力済みの場合は作者欄へ移します。
+	/// </summary>
+	private void requestFocusToNextEmptyField()
+	{
+		var target = this.editorStore.EditTarget.Value;
+		if (target == null)
+		{
+			return;
+		}
+
+		if (string.IsNullOrWhiteSpace(target.Author))
+		{
+			this.AuthorFocusRequest.Value++;
+		}
+		else if (string.IsNullOrWhiteSpace(target.Publisher))
+		{
+			this.PublisherFocusRequest.Value++;
+		}
+		else if (string.IsNullOrWhiteSpace(target.Description))
+		{
+			this.DescriptionFocusRequest.Value++;
+		}
+		else
+		{
+			this.AuthorFocusRequest.Value++;
 		}
 	}
 
@@ -944,11 +984,23 @@ public partial class EditorPageViewModel : IDataInitializable, INavigationLeavin
 			using var scope = this.serviceScopeFactory.CreateScope();
 			var manager = scope.ServiceProvider.GetRequiredService<MangaSeriesManager>();
 
-			// タイトル必須チェック
-			if (manager.ValidateForWorkSave() != EditorValidationError.None)
+			// 検証（タイトル必須・同一タイトル＋作者の重複）
+			var validationError = manager.ValidateForWorkSave();
+			switch (validationError)
 			{
-				this.showErrorSnackbar("エラー", "タイトルを入力してください。");
-				return;
+				case EditorValidationError.None:
+					break;
+
+				case EditorValidationError.TitleRequired:
+					this.showErrorSnackbar("エラー", "タイトルを入力してください。");
+					return;
+
+				case EditorValidationError.DuplicateSeries:
+					this.showErrorSnackbar("一時保存できません", "同一タイトル・同一作者の作品が既に登録されているため、一時保存できません。");
+					return;
+
+				default:
+					throw new InvalidOperationException($"未対応の検証エラーです: {validationError}");
 			}
 
 			// ローディング開始

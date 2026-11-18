@@ -33,6 +33,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	/// <summary>Snackbar 通知サービス。</summary>
 	private readonly ISnackbarService snackbarService;
 
+	/// <summary>ContentDialog 表示サービス。</summary>
+	private readonly IContentDialogService contentDialogService;
+
 	/// <summary>MangaSeries の正本リストと作品管理画面の検索状態を管理するストア。</summary>
 	public MangaSeriesStore MangaSeriesStore { get; }
 
@@ -54,6 +57,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	/// <summary>既存作品を編集モードで EditorPage を表示するコマンドです。</summary>
 	public ReactiveCommand<MangaSeries> EditSeriesCommand { get; private set; }
 
+	/// <summary>登録待ち作品を削除するコマンドです。確認 Dialog で確定された場合だけ Manager の削除処理を呼び出します。</summary>
+	public ReactiveCommand<MangaSeries> DeleteWorkSeriesCommand { get; private set; }
+
 	/// <summary>作品一覧表示用の共通 UserControl の ViewModel。</summary>
 	public SelectableSeriesListViewModel SelectableSeriesListViewModel { get; }
 
@@ -65,13 +71,15 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 	/// <param name="maintenanceSeriesViewModelStore">作品管理画面の表示用カード VM を管理するストア。</param>
 	/// <param name="serviceScopeFactory">DI スコープを作成するファクトリー。</param>
 	/// <param name="snackbarService">Snackbar 通知サービス。</param>
-	public MaintenancePageViewModel(INavigationService navigationService, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesViewModelStore maintenanceSeriesViewModelStore, IServiceScopeFactory serviceScopeFactory, ISnackbarService snackbarService)
+	/// <param name="contentDialogService">ContentDialog 表示サービス。</param>
+	public MaintenancePageViewModel(INavigationService navigationService, MangaSeriesStore mangaSeriesStore, MaintenanceSeriesViewModelStore maintenanceSeriesViewModelStore, IServiceScopeFactory serviceScopeFactory, ISnackbarService snackbarService, IContentDialogService contentDialogService)
 	{
 		this.navigationService = navigationService;
 		this.MangaSeriesStore = mangaSeriesStore;
 		this.MaintenanceSeriesViewModelStore = maintenanceSeriesViewModelStore;
 		this.serviceScopeFactory = serviceScopeFactory;
 		this.snackbarService = snackbarService;
+		this.contentDialogService = contentDialogService;
 
 		this.infoBarHideTimer.AddTo(ref this.disposableBag);
 
@@ -90,6 +98,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 		this.EditSeriesCommand = new ReactiveCommand<MangaSeries>()
 			.AddTo(ref this.disposableBag);
 
+		this.DeleteWorkSeriesCommand = new ReactiveCommand<MangaSeries>()
+			.AddTo(ref this.disposableBag);
+
 		// SearchCommand: Manager の検索を呼び出す
 		this.SearchCommand
 			.Subscribe(_ => this.callManager(manager => manager.SearchMaintenanceSeries()))
@@ -105,6 +116,9 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 
 		// EditSeriesCommand の実装
 		this.EditSeriesCommand.Subscribe(async series => await this.editSeriesAsync(series));
+
+		// DeleteWorkSeriesCommand の実装
+		this.DeleteWorkSeriesCommand.Subscribe(async series => await this.deleteWorkSeriesAsync(series));
 
 		// Manager が Store へ反映した検索完了通知を起点に InfoBar を制御（検索のたびに発火する）
 		this.MangaSeriesStore.MaintenanceSearchCompleted
@@ -129,6 +143,12 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 
 		// NavigateCommand を EditSeriesCommand に接続
 		this.SelectableSeriesListViewModel.NavigateCommand = this.EditSeriesCommand;
+
+		// ShowDeleteButton を有効化（MaintenancePage では登録待ち作品に「削除」リンクを表示）
+		this.SelectableSeriesListViewModel.ShowDeleteButton.Value = true;
+
+		// DeleteCommand を DeleteWorkSeriesCommand に接続
+		this.SelectableSeriesListViewModel.DeleteCommand = this.DeleteWorkSeriesCommand;
 
 		// Store の単一の表示用カード一覧を一度だけ接続（以降の切り替えは不要）
 		this.SelectableSeriesListViewModel.SetExternalSource(this.MaintenanceSeriesViewModelStore.DisplayCards);
@@ -235,6 +255,39 @@ public class MaintenancePageViewModel : IDisposable, IDataInitializable, INaviga
 
 		// NavigationHierarchy を設定
 		this.navigationService.NavigateWithHierarchy(typeof(EditorPage));
+	}
+
+	/// <summary>
+	/// 登録待ち作品の削除確認 Dialog を表示し、確定された場合だけ Manager 経由で削除します。
+	/// 一覧からの除去は、Manager が更新する Store の通知によって行われます。
+	/// </summary>
+	/// <param name="series">削除対象の登録待ち作品。</param>
+	private async ValueTask deleteWorkSeriesAsync(MangaSeries series)
+	{
+		using var dialogViewModel = new SeriesDeleteDialogContentViewModel(series);
+
+		var content = new SeriesDeleteDialogContent
+		{
+			DataContext = dialogViewModel,
+		};
+
+		var dialog = new ContentDialog
+		{
+			Title = "作品を削除",
+			Content = content,
+			PrimaryButtonText = "削除",
+			CloseButtonText = "キャンセル",
+		};
+
+		var result = await this.contentDialogService.ShowAsync(dialog, CancellationToken.None);
+		if (result != ContentDialogResult.Primary)
+		{
+			return;
+		}
+
+		using var scope = this.serviceScopeFactory.CreateScope();
+		var manager = scope.ServiceProvider.GetRequiredService<MangaBinderManager>();
+		await manager.DeleteWorkSeriesAsync(series);
 	}
 
 	/// <summary>リソースを解放します。</summary>

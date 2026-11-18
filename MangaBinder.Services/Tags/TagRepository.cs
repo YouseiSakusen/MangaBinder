@@ -139,7 +139,7 @@ public sealed class TagRepository
 
 	/// <summary>
 	/// 指定したタグ ID のタグを削除します。
-	/// MangaSeriesTags の関連レコードを先に削除してから MangaTags を削除します。
+	/// MangaSeriesTags、WorkMangaSeriesTags の関連レコードを先に削除してから MangaTags を削除します。
 	/// </summary>
 	/// <param name="tagId">削除するタグの ID。</param>
 	public void Delete(long tagId)
@@ -148,6 +148,11 @@ public sealed class TagRepository
 		deleteSeriesTagsSql.AppendLine(" DELETE FROM MangaSeriesTags ");
 		deleteSeriesTagsSql.AppendLine(" WHERE ");
 		deleteSeriesTagsSql.AppendLine(" 	TagId = :TagId; ");
+
+		var deleteWorkSeriesTagsSql = new StringBuilder();
+		deleteWorkSeriesTagsSql.AppendLine(" DELETE FROM WorkMangaSeriesTags ");
+		deleteWorkSeriesTagsSql.AppendLine(" WHERE ");
+		deleteWorkSeriesTagsSql.AppendLine(" 	TagId = :TagId; ");
 
 		var deleteTagsSql = new StringBuilder();
 		deleteTagsSql.AppendLine(" DELETE FROM MangaTags ");
@@ -163,7 +168,10 @@ public sealed class TagRepository
 			// 1. MangaSeriesTags から関連レコードを削除
 			connection.Execute(deleteSeriesTagsSql.ToString(), new { TagId = tagId }, transaction);
 
-			// 2. MangaTags からタグ定義を削除
+			// 2. WorkMangaSeriesTags から関連レコードを削除
+			connection.Execute(deleteWorkSeriesTagsSql.ToString(), new { TagId = tagId }, transaction);
+
+			// 3. MangaTags からタグ定義を削除
 			connection.Execute(deleteTagsSql.ToString(), new { TagId = tagId }, transaction);
 
 			transaction.Commit();
