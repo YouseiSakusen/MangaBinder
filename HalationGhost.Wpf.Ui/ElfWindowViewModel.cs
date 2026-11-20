@@ -104,6 +104,23 @@ public abstract class ElfWindowViewModel : IDisposable
 	}
 
 	/// <summary>
+	/// <see cref="ElfWindow"/> のロード完了を ViewModel へ通知します。
+	/// </summary>
+	/// <param name="sender">Loaded イベントの送信元。</param>
+	/// <param name="e">Loaded イベントのデータ。</param>
+	internal void NotifyWindowLoaded(object sender, RoutedEventArgs e)
+		=> this.OnWindowLoaded(sender, e);
+
+	/// <summary>
+	/// Windowのロード完了後に呼び出されます。
+	/// </summary>
+	/// <param name="sender">Loaded イベントの送信元。</param>
+	/// <param name="e">Loaded イベントのデータ。</param>
+	protected virtual void OnWindowLoaded(object sender, RoutedEventArgs e)
+	{
+	}
+
+	/// <summary>
 	/// Navigating イベントのハンドラー。
 	/// 遷移元 ViewModel が <see cref="ILeavable"/> を実装している場合、遷移を同期的にキャンセルし、
 	/// 確認結果が true のときに当初要求された遷移を再実行します。

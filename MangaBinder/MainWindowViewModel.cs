@@ -246,16 +246,20 @@ public class MainWindowViewModel : ElfWindowViewModel, IWindowClosingAware
 		.ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
 		.AddTo(ref this.disposableBag);
 
+		this.logger.ZLogInformation($"MainWindowViewModel 初期化完了");
+	}
+
+	/// <inheritdoc/>
+	protected override void OnWindowLoaded(object sender, RoutedEventArgs e)
+	{
 		System.Diagnostics.Debug.WriteLine(">>> MainWindowViewModel Dispatcher.BeginInvoke 開始");
 		Application.Current.Dispatcher.BeginInvoke(() =>
 		{
-			System.Diagnostics.Debug.WriteLine(">>> MainWindowViewModel Dispatcher.BeginInvoke ラムダ実行");
 			System.Diagnostics.Debug.WriteLine(">>> MainWindowViewModel navigationService.Navigate 呼び出し直前");
 			this.NavigationService.Navigate(typeof(HomePage));
 			System.Diagnostics.Debug.WriteLine("<<< MainWindowViewModel navigationService.Navigate 呼び出し直後");
 		});
 		System.Diagnostics.Debug.WriteLine("<<< MainWindowViewModel Dispatcher.BeginInvoke 登録完了");
-		this.logger.ZLogInformation($"MainWindowViewModel 初期化完了");
 	}
 
 	/// <summary>

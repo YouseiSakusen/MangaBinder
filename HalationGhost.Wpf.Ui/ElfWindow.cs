@@ -22,6 +22,7 @@ public class ElfWindow : FluentWindow, INavigationWindow
 	private INavigationView? navigationView;
 	private INavigationViewPageProvider? navigationViewPageProvider;
 	private IServiceProvider? serviceProvider;
+	private bool isWindowLoadedNotified;
 
 	/// <summary>
 	/// IsWindowInteractionEnabled 依存プロパティを識別します。
@@ -89,6 +90,13 @@ public class ElfWindow : FluentWindow, INavigationWindow
 				UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged,
 			};
 			System.Windows.Data.BindingOperations.SetBinding(this, IsWindowInteractionEnabledProperty, binding);
+
+			// NavigationView 等の登録完了後に、Window インスタンスにつき1回だけ ViewModel へロード完了を通知
+			if (!this.isWindowLoadedNotified)
+			{
+				this.isWindowLoadedNotified = true;
+				viewModel.NotifyWindowLoaded(sender!, e);
+			}
 		}
 	}
 
