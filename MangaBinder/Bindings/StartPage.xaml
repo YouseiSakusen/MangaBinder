@@ -44,6 +44,7 @@
 			<Grid>
 				<!-- 作品一覧 -->
 				<ListView ItemsSource="{Binding Series}"
+						  Margin="0 5 0 0"
 						  SelectionMode="Single"
 						  HorizontalAlignment="Stretch"
 						  HorizontalContentAlignment="Stretch"
