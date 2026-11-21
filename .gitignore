@@ -6,6 +6,8 @@
 **/bin/
 **/obj/
 /AppIconImageSources
+/MangaBinder.Sandbox/
+/MangaBinder.Worker.Sandbox/
 /HalationGhost.Utilities/bin/Debug/net10.0
 /HalationGhost.Utilities/obj
 /HalationGhost.Wpf.Ui/bin/Debug/net10.0-windows
