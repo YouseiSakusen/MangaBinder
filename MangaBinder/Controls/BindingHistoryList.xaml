@@ -29,19 +29,19 @@
 				FontWeight="SemiBold"
 				Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 				Margin="0,0,0,8" />
-			<ListView x:Name="HistoryListView"
+			<ui:ListView x:Name="HistoryListView"
 					  ItemsSource="{Binding HistoryView.Value}"
 					  BorderThickness="1"
 					  Background="Transparent"
 					  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
 					  ScrollViewer.HorizontalScrollBarVisibility="Auto"
 					  ScrollViewer.VerticalScrollBarVisibility="Auto">
-				<ListView.ItemContainerStyle>
+				<ui:ListView.ItemContainerStyle>
 					<Style TargetType="ListViewItem">
 						<Setter Property="Focusable" Value="False" />
 					</Style>
-				</ListView.ItemContainerStyle>
-				<ListView.GroupStyle>
+				</ui:ListView.ItemContainerStyle>
+				<ui:ListView.GroupStyle>
 					<GroupStyle>
 						<GroupStyle.HeaderTemplate>
 							<DataTemplate>
@@ -53,9 +53,9 @@
 							</DataTemplate>
 						</GroupStyle.HeaderTemplate>
 					</GroupStyle>
-				</ListView.GroupStyle>
-				<ListView.View>
-					<GridView>
+				</ui:ListView.GroupStyle>
+				<ui:ListView.View>
+					<ui:GridView>
 						<GridViewColumn Header="ファイル名" Width="200">
 							<GridViewColumn.CellTemplate>
 								<DataTemplate>
@@ -76,9 +76,9 @@
 								</DataTemplate>
 							</GridViewColumn.CellTemplate>
 						</GridViewColumn>
-					</GridView>
-				</ListView.View>
-			</ListView>
+					</ui:GridView>
+				</ui:ListView.View>
+			</ui:ListView>
 		</StackPanel>
 	</ui:Card>
 </UserControl>
