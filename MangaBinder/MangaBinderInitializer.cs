@@ -164,7 +164,7 @@ public class MangaBinderInitializer
     /// </summary>
     private void deleteOldLogFiles()
     {
-        var retentionDays = this.config.GetValue<int>("Logging:RetentionDays", 14);
+        var retentionDays = this.config.GetValue<int>("Logging:RetentionDays", Constants.DefaultLogRetentionDays);
         var logsPath = Path.Combine(AppContext.BaseDirectory, "logs");
 
         if (!Directory.Exists(logsPath))

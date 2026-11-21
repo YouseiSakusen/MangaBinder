@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using MangaBinder;
 using MangaBinder.Bindings;
 using MangaBinder.Jobs;
@@ -9,6 +11,7 @@ using MangaBinder.Jobs.GoogleBooks;
 using MangaBinder.Jobs.LargeThumbnails;
 using MangaBinder.Jobs.MaterialArchives;
 using MangaBinder.Settings;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -28,6 +31,9 @@ Console.InputEncoding = Encoding.UTF8;
 #endif
 
 var builder = Host.CreateApplicationBuilder(hostArgs);
+
+// ログ出力の開始前に、保持期間を超えた古い Worker ログを削除する（起動時に 1 回のみ）
+deleteOldLogFiles(builder.Configuration.GetValue<int>("Logging:RetentionDays", Constants.DefaultLogRetentionDays));
 
 builder.Services.AddMangaWorkerContext();
 builder.Services.AddScoped<IFolderScannerRepository, FolderScannerRepository>();
@@ -84,6 +90,33 @@ using (var scope = host.Services.CreateScope())
 }
 
 host.Run();
+
+/// <summary>
+/// 保持期間を超えた古い Worker ログを削除します。
+/// AppContext.BaseDirectory/logs 配下の worker_yyyyMMdd_sequence.log 形式のファイルのみを対象とします。
+/// </summary>
+/// <param name="retentionDays">ログの保持日数。</param>
+static void deleteOldLogFiles(int retentionDays)
+{
+	var logsPath = Path.Combine(AppContext.BaseDirectory, "logs");
+	if (!Directory.Exists(logsPath))
+		return;
+
+	var today = DateTime.Now.Date;
+	foreach (var filePath in Directory.GetFiles(logsPath, "worker_*.log"))
+	{
+		// ファイル名の日付部分（yyyyMMdd）を生成日として扱う
+		var match = Regex.Match(Path.GetFileName(filePath), @"^worker_(\d{8})_\d+\.log$");
+		if (!match.Success)
+			continue;
+
+		if (!DateTime.TryParseExact(match.Groups[1].Value, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var logDate))
+			continue;
+
+		if ((today - logDate).Days > retentionDays)
+			File.Delete(filePath);
+	}
+}
 
 static void configureZLogger(ZLoggerOptions options) =>
     options.UsePlainTextFormatter(formatter =>

@@ -23,6 +23,11 @@ public static class Constants
 	public const string CurrentBindingSettingsVersion = "1.0";
 
 	/// <summary>
+	/// ログファイルの既定の保持日数です。Logging:RetentionDays が未指定の場合に使用します。
+	/// </summary>
+	public const int DefaultLogRetentionDays = 14;
+
+	/// <summary>
 	/// ビュー名に関連する定数群です。
 	/// </summary>
 	public static class ViewNames

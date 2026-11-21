@@ -15,6 +15,7 @@ public static class MangaTitleHelper
     ///   <item>Unicode NFD を NFC に正規化</item>
     ///   <item>全角英数字・記号の半角化</item>
     ///   <item>U+2010 HYPHEN を U+002D HYPHEN-MINUS に統一</item>
+    ///   <item>U+2019 RIGHT SINGLE QUOTATION MARK を U+0027 APOSTROPHE に統一</item>
     ///   <item>合字的記号を標準表記へ統一（U+203C → !! / U+2047 → ?? / U+2048 → ?! / U+2049 → !?）</item>
     ///   <item>タイトル内のすべての空白（char.IsWhiteSpace 判定）を除去</item>
     ///   <item>ASCII英字 A-Z / a-z の大小文字を統一（大文字へ）</item>
@@ -30,7 +31,9 @@ public static class MangaTitleHelper
         var nfc = title.Normalize(NormalizationForm.FormC);
 
         // U+2010 HYPHEN を U+002D HYPHEN-MINUS に統一
-        var hyphenUnified = nfc.Replace('\u2010', '\u002D');
+        var hyphenUnified = nfc.Replace('\u2010', '\u002D')
+            // U+2019 RIGHT SINGLE QUOTATION MARK を U+0027 APOSTROPHE に統一
+            .Replace('\u2019', '\u0027');
 
         // 波ダッシュの統一：ASCII TILDE (U+007E) と FULLWIDTH TILDE (U+FF5E) を WAVE DASH (U+301C) に統一
         // ※全角変換ループより先に処理することで、U+FF5E が半角チルダに変換されるのを防ぐ

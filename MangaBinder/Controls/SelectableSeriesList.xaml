@@ -239,21 +239,17 @@
 									</Style>
 								</Grid.Style>
 
-								<ui:Button
+								<ui:HyperlinkButton
+									Content="削除"
+									FontSize="11"
+									Focusable="False"
 									HorizontalAlignment="Right"
 									VerticalAlignment="Bottom"
-									Appearance="Transparent"
-									Padding="6,2"
+									Padding="0"
 									Margin="8,0,0,0"
 									ToolTip="登録待ち作品を削除"
-									Foreground="{DynamicResource TextFillColorTertiaryBrush}"
 									Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource FindAncestor, AncestorType=UserControl}}"
-									CommandParameter="{Binding Series.Value}">
-									<TextBlock
-										Text="削除"
-										FontSize="11"
-										TextDecorations="Underline" />
-								</ui:Button>
+									CommandParameter="{Binding Series.Value}" />
 							</Grid>
 							</Grid>
 

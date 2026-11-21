@@ -231,6 +231,26 @@ public class MangaTitleHelperTests
 	}
 
 	/// <summary>
+	/// U+2019 RIGHT SINGLE QUOTATION MARK と U+0027 APOSTROPHE が同じ正規化結果になることを確認します。
+	/// </summary>
+	[Fact]
+	public void NormalizeTitleInternal_U2019Apostrophe_UnifiesAsU0027()
+	{
+		// Arrange
+		var title1 = "EXTREME SUMMER SHOOTER\u2019S";  // U+2019
+		var title2 = "EXTREME SUMMER SHOOTER'S";       // U+0027
+
+		// Act
+		var result1 = MangaTitleHelper.NormalizeTitleInternal(title1);
+		var result2 = MangaTitleHelper.NormalizeTitleInternal(title2);
+
+		// Assert
+		Assert.Equal(result2, result1);
+		Assert.Equal("EXTREMESUMMERSHOOTER'S", result1);
+		Assert.DoesNotContain('\u2019', result1);
+	}
+
+	/// <summary>
 	/// G. 合字的記号（U+203C / U+2047 / U+2048 / U+2049）の統一テスト：
 	/// 以下の4種類の合字的記号がそれぞれ標準的な2文字表記に統一されることを確認します。
 	/// - U+203C (‼) → !!

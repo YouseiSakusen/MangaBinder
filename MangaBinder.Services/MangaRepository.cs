@@ -313,6 +313,7 @@ public class MangaRepository
         sql.AppendLine(" UPDATE MangaSeries ");
         sql.AppendLine(" SET ");
         sql.AppendLine(" 	  Title = :Title ");
+        sql.AppendLine(" 	, NormalizedTitleInternal = :NormalizedTitleInternal ");
         sql.AppendLine(" 	, Author = :Author ");
         sql.AppendLine(" 	, Publisher = :Publisher ");
         sql.AppendLine(" 	, Description = :Description ");
@@ -339,6 +340,7 @@ public class MangaRepository
             {
                 SeriesId = series.SeriesId,
                 Title = series.Title,
+                NormalizedTitleInternal = MangaTitleHelper.NormalizeTitleInternal(series.Title),
                 Author = series.Author,
                 Publisher = series.Publisher,
                 Description = series.Description,
