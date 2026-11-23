@@ -163,7 +163,7 @@ public class BindingImage : IDisposable
 	/// 入力元が Work フォルダである場合、または Work 側の実ファイル（FilePath）を既に保持している場合に true を返します。
 	/// 元素材（Folder、Archive、Epub）から新規に展開する画像は FilePath が未設定のため false です。
 	/// </summary>
-	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.OriginalSourceType == MaterialSourceType.WorkFolder
+	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.Type == MaterialSourceType.WorkFolder
 		|| this.FilePath is not null;
 
 	/// <summary>

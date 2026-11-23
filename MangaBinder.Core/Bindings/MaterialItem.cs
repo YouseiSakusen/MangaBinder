@@ -21,9 +21,9 @@ public class MaterialItem : IDisposable
 	/// <summary>
 	/// 元素材の入力元種別を取得します。
 	/// 生成時に確定し、その後は変更されません。
-	/// Archive 配下の Folder でも、OriginalSourceType は Archive です。
+	/// Archive 配下の Folder でも、Type は Archive です。
 	/// </summary>
-	public MaterialSourceType OriginalSourceType { get; init; }
+	public MaterialSourceType Type { get; init; }
 
 	/// <summary>
 	/// ノードの表示名を取得します。
@@ -137,7 +137,7 @@ public class MaterialItem : IDisposable
 		bool canDeleteMaterial = false)
 	{
 		this.ItemType = itemType;
-		this.OriginalSourceType = originalSourceType;
+		this.Type = originalSourceType;
 		this.Name = name;
 		this.FullPath = fullPath;
 		this.FileSizeText = fileSizeText;

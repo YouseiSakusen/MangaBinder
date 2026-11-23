@@ -53,7 +53,7 @@ public class BindingVolume : IDisposable
 	/// Material.OriginalSourceType が WorkFolder の場合は this.WorkFolderPath を返し、
 	/// それ以外の場合は Material.SourcePath を返します。
 	/// </summary>
-	public string EffectiveSourcePath => this.Material.OriginalSourceType == MaterialSourceType.WorkFolder
+	public string EffectiveSourcePath => this.Material.Type == MaterialSourceType.WorkFolder
 		? this.WorkFolderPath!
 		: this.Material.SourcePath;
 
@@ -74,7 +74,7 @@ public class BindingVolume : IDisposable
 	/// 現時点では Images が1件以上存在する展開済みの巻の場合に true になります。
 	/// </summary>
 	public bool RequiresUnselectCleanup => this.Images.Count > 0
-		&& this.Material.OriginalSourceType != MaterialSourceType.WorkFolder;
+		&& this.Material.Type != MaterialSourceType.WorkFolder;
 
 	/// <summary>
 	/// 画像処理後に同一ファイル名になる BindingImage が
@@ -333,7 +333,7 @@ public class BindingVolume : IDisposable
 		{
 			VolumeNumber = this.VolumeNumber.Value,
 			IsBinding = this.IsBinding.Value,
-			OriginalSourceType = this.Material.OriginalSourceType,
+			Type = this.Material.Type,
 			Material = new MaterialItemDto
 			{
 				ItemType = this.Material.ItemType,

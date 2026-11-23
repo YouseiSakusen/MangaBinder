@@ -216,7 +216,7 @@ public class VolumeSelectionManager
 	/// <param name="material">除外対象の MaterialItem。</param>
 	private async ValueTask unselectMaterialForDeletionAsync(MaterialItem material)
 	{
-		if (material.OriginalSourceType == MaterialSourceType.WorkFolder)
+		if (material.Type == MaterialSourceType.WorkFolder)
 		{
 			this.UnselectMaterial(material);
 			return;
@@ -290,7 +290,7 @@ public class VolumeSelectionManager
 			foreach (var volumeDto in settings.Volumes)
 			{
 				var key = createMaterialKey(volumeDto.Material);
-				var sourceMap = volumeDto.OriginalSourceType == MaterialSourceType.WorkFolder ? workVolumeMap : materialMap;
+				var sourceMap = volumeDto.Type == MaterialSourceType.WorkFolder ? workVolumeMap : materialMap;
 				if (!sourceMap.TryGetValue(key, out var material))
 				{
 					this.logger.LogWarning(
@@ -467,7 +467,7 @@ public class VolumeSelectionManager
 			{
 				newVolume.VolumeNumber.Value = parseResult.SingleVolume.Value;
 			}
-			else if (material.OriginalSourceType == MaterialSourceType.Archive
+			else if (material.Type == MaterialSourceType.Archive
 				&& material.ItemType == MaterialItemType.Folder
 				&& !string.IsNullOrEmpty(material.SourcePath))
 			{
@@ -769,7 +769,7 @@ public class VolumeSelectionManager
 		this.bindingStore.BindingVolumes.Remove(volume);
 		volume.Dispose();
 		volume.Material.IsChecked.Value = false;
-		if (volume.Material.OriginalSourceType == MaterialSourceType.WorkFolder
+		if (volume.Material.Type == MaterialSourceType.WorkFolder
 			&& !this.bindingStore.WorkVolumes.Contains(volume.Material))
 		{
 			volume.Material.Dispose();
@@ -787,7 +787,7 @@ public class VolumeSelectionManager
 		}
 
 		var targets = this.bindingStore.BindingVolumes
-			.Where(v => v.Material.OriginalSourceType == MaterialSourceType.WorkFolder
+			.Where(v => v.Material.Type == MaterialSourceType.WorkFolder
 				&& v.VolumeNumber.Value == volumeNumber)
 			.ToList();
 
@@ -888,7 +888,7 @@ public class VolumeSelectionManager
 
 			var reused = this.bindingStore.BindingVolumes
 				.Select(v => v.Material)
-				.FirstOrDefault(m => m.OriginalSourceType == MaterialSourceType.WorkFolder
+				.FirstOrDefault(m => m.Type == MaterialSourceType.WorkFolder
 					&& string.Equals(m.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase));
 			if (reused is not null)
 			{
@@ -924,7 +924,7 @@ public class VolumeSelectionManager
 	public IReadOnlyList<MaterialItem> PrepareExpandedVolumeSelection()
 	{
 		var hasExpandedVolume = this.bindingStore.BindingVolumes
-			.Any(v => v.Material.OriginalSourceType == MaterialSourceType.WorkFolder);
+			.Any(v => v.Material.Type == MaterialSourceType.WorkFolder);
 
 		foreach (var workVolume in this.bindingStore.WorkVolumes)
 		{
@@ -952,7 +952,7 @@ public class VolumeSelectionManager
 
 			var number = getWorkVolumeNumber(workVolume);
 			var replaced = this.bindingStore.BindingVolumes
-				.Where(v => v.Material.OriginalSourceType != MaterialSourceType.WorkFolder
+				.Where(v => v.Material.Type != MaterialSourceType.WorkFolder
 					&& v.VolumeNumber.Value == number)
 				.Select(v => v.Material)
 				.ToList();
@@ -995,7 +995,7 @@ public class VolumeSelectionManager
 
 			var number = getWorkVolumeNumber(workVolume);
 			var originals = this.bindingStore.BindingVolumes
-				.Where(v => v.Material.OriginalSourceType != MaterialSourceType.WorkFolder
+				.Where(v => v.Material.Type != MaterialSourceType.WorkFolder
 					&& v.VolumeNumber.Value == number)
 				.ToList();
 			foreach (var original in originals)

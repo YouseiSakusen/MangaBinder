@@ -116,7 +116,7 @@ public class SeriesInspectionManager
 			}
 
 			// 展開先由来の巻は、スキャン済みの実フォルダをそのまま使用する
-			if (bindingVolume.Material.OriginalSourceType == MaterialSourceType.WorkFolder)
+			if (bindingVolume.Material.Type == MaterialSourceType.WorkFolder)
 			{
 				bindingVolume.WorkFolderPath = bindingVolume.Material.FullPath;
 				continue;
@@ -199,7 +199,7 @@ public class SeriesInspectionManager
 
 		// 展開先由来の巻は、同期の結果画像が0件になった場合に BindingVolumes から論理的に除外する
 		var emptyWorkVolumes = this.bindingStore.BindingVolumes
-			.Where(v => v.Material.OriginalSourceType == MaterialSourceType.WorkFolder && v.Images.Count == 0)
+			.Where(v => v.Material.Type == MaterialSourceType.WorkFolder && v.Images.Count == 0)
 			.ToList();
 
 		foreach (var emptyVolume in emptyWorkVolumes)
@@ -211,7 +211,7 @@ public class SeriesInspectionManager
 		// ⑪ ファイル名正規化処理を実行
 		// EPUB エラー巻
 		var normalizationTargets = this.bindingStore.BindingVolumes
-			.Where(v => !(v.Material.OriginalSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None))
+			.Where(v => !(v.Material.Type == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None))
 			.ToList();
 
 		await this.ExecuteFileNameNormalizationAsync(normalizationTargets, pipelineImages, pipelineCancellationToken)
@@ -219,7 +219,7 @@ public class SeriesInspectionManager
 
 		// ⑫ EPUB エラー巻について、後段処理前に検査を実行
 		var epubErrorVolumes = this.bindingStore.BindingVolumes
-			.Where(v => v.Material.OriginalSourceType == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None)
+			.Where(v => v.Material.Type == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None)
 			.ToList();
 
 		foreach (var volume in epubErrorVolumes)
@@ -390,7 +390,7 @@ public class SeriesInspectionManager
 				{
 					// グループ内の最初のボリュームから入力元種別を取得
 					var firstVolume = group.First();
-					var sourceType = firstVolume.Material.OriginalSourceType;
+					var sourceType = firstVolume.Material.Type;
 
 					// DI Scope を作成し、入力元種別に対応する IMaterialExtractor を解決
 					using (var scope = this.serviceScopeFactory.CreateScope())
@@ -444,7 +444,7 @@ public class SeriesInspectionManager
 							ct.ThrowIfCancellationRequested();
 
 							// EPUB エラー巻は後段処理をスキップ
-							var isEpubError = volume.Material.OriginalSourceType == MaterialSourceType.Epub
+							var isEpubError = volume.Material.Type == MaterialSourceType.Epub
 								&& volume.EpubExtractionError != EpubExtractionError.None;
 
 							if (isEpubError)
@@ -684,7 +684,7 @@ public class SeriesInspectionManager
 			// EPUB として処理され、かつエラーなく完了した BindingVolume を対象
 			var epubVolumesToCleanup = this.bindingStore.BindingVolumes
 				.Where(v =>
-					v.Material.OriginalSourceType == MaterialSourceType.Epub &&
+					v.Material.Type == MaterialSourceType.Epub &&
 					v.EpubExtractionError == EpubExtractionError.None)
 				.ToList();
 

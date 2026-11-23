@@ -199,7 +199,7 @@ public class BindingManager
 		if (!bindingVolumesOnly)
 		{
 			var missingWorkVolumes = targetVolumes
-				.Where(volume => volume.Material.OriginalSourceType == MaterialSourceType.WorkFolder
+				.Where(volume => volume.Material.Type == MaterialSourceType.WorkFolder
 					&& !Directory.Exists(volume.Material.FullPath))
 				.ToList();
 

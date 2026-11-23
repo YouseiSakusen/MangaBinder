@@ -679,7 +679,7 @@ public class BindingStore : IDisposable
 	private List<MaterialItem> collectDetachedWorkMaterials()
 		=> this.BindingVolumes
 			.Select(volume => volume.Material)
-			.Where(material => material.OriginalSourceType == MaterialSourceType.WorkFolder
+			.Where(material => material.Type == MaterialSourceType.WorkFolder
 				&& !this.WorkVolumes.Contains(material))
 			.Distinct()
 			.ToList();

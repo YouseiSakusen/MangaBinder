@@ -10,7 +10,7 @@ public class BindingVolumeDto
 	public decimal? VolumeNumber { get; set; }
 
 	/// <summary>この巻の素材の由来種別を取得または設定します。JSON に存在しない場合は null です。</summary>
-	public MaterialSourceType? OriginalSourceType { get; set; }
+	public MaterialSourceType? Type { get; set; }
 
 	/// <summary>今回の製本でこの巻を使用するかを取得または設定します。JSON に存在しない場合は true です。</summary>
 	public bool IsBinding { get; set; } = true;
