@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MangaBinder.Services.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\MangaBinder.Core\MangaBinder.Core.csproj" />
     <ProjectReference Include="..\MangaBinder.Shared\MangaBinder.Shared.csproj" />
     <ProjectReference Include="..\MangaBinder.Shared.Services\MangaBinder.Shared.Services.csproj" />

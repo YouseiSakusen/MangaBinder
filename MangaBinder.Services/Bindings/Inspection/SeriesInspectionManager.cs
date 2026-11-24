@@ -93,9 +93,11 @@ public class SeriesInspectionManager
 		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
 
 		// ⑦ 作品Workフォルダが存在しない場合のみ作成する（既存の作品Workフォルダは削除しない）
+		// ExecuteAsync は UI スレッドから呼ばれ、以降で Store・Reactive 通知を伴う状態を更新するため、
+		// この経路の await は呼び出し元の SynchronizationContext へ復帰させる（ConfigureAwait(false) を使用しない）
 		await Task.Run(
 			() => Directory.CreateDirectory(seriesFolderPath),
-			cancellationToken).ConfigureAwait(false);
+			cancellationToken);
 
 		// ⑧ BindingStore.BindingVolumes の全件を順番に処理して WorkFolderPath を設定する
 		// 素材由来で画像情報を持たない巻のみ該当巻フォルダを削除・再作成する
@@ -128,9 +130,13 @@ public class SeriesInspectionManager
 			// 展開先由来の巻は、スキャン済みの実フォルダを再利用する（桁数変更時のみフォルダ名を引き継ぐ）
 			if (bindingVolume.Material.Type == MaterialSourceType.WorkFolder)
 			{
-				await Task.Run(
-					() => this.prepareExpandedVolumeFolder(bindingVolume, targetFolderPath),
-					cancellationToken).ConfigureAwait(false);
+				// 物理フォルダの操作のみバックグラウンドで行い、モデル状態の確定は UI コンテキストで行う
+				var currentFolderPath = bindingVolume.Material.FullPath;
+				var isRenamed = await Task.Run(
+					() => this.moveExpandedVolumeFolder(currentFolderPath, targetFolderPath),
+					cancellationToken);
+
+				this.applyExpandedVolumeFolder(bindingVolume, currentFolderPath, targetFolderPath, isRenamed);
 				continue;
 			}
 
@@ -138,7 +144,7 @@ public class SeriesInspectionManager
 
 			await Task.Run(
 				() => this.prepareMaterialVolumeFolder(bindingVolume, targetFolderPath),
-				cancellationToken).ConfigureAwait(false);
+				cancellationToken);
 		}
 
 		// ⑪ 全 BindingVolume を EffectiveSourcePath でGroupBy する
@@ -185,7 +191,7 @@ public class SeriesInspectionManager
 
 		try
 		{
-			await Task.WhenAll(allTasks).ConfigureAwait(false);
+			await Task.WhenAll(allTasks);
 		}
 		finally
 		{
@@ -211,8 +217,7 @@ public class SeriesInspectionManager
 
 		foreach (var emptyVolume in emptyWorkVolumes)
 		{
-			await this.bindingManager.UnselectMaterialAsync(emptyVolume.Material, invalidateCompletedState: false)
-				.ConfigureAwait(false);
+			await this.bindingManager.UnselectMaterialAsync(emptyVolume.Material, invalidateCompletedState: false);
 		}
 
 		// ⑪ ファイル名正規化処理を実行
@@ -221,8 +226,7 @@ public class SeriesInspectionManager
 			.Where(v => !(v.Material.Type == MaterialSourceType.Epub && v.EpubExtractionError != EpubExtractionError.None))
 			.ToList();
 
-		await this.ExecuteFileNameNormalizationAsync(normalizationTargets, pipelineImages, pipelineCancellationToken)
-			.ConfigureAwait(false);
+		await this.ExecuteFileNameNormalizationAsync(normalizationTargets, pipelineImages, pipelineCancellationToken);
 
 		// ⑫ EPUB エラー巻について、後段処理前に検査を実行
 		var epubErrorVolumes = this.bindingStore.BindingVolumes
@@ -240,7 +244,7 @@ public class SeriesInspectionManager
 		// 展開・画像処理・検査がすべて完了した後に、入力素材を展開済み巻へ切り替える
 		foreach (var volume in volumesToSwitch)
 		{
-			this.switchToExpandedVolume(volume);
+			await this.switchToExpandedVolumeAsync(volume);
 		}
 
 		// 画像処理パイプライン完了後、TemporaryImageStream 由来の一時 Managed オブジェクトの
@@ -256,23 +260,20 @@ public class SeriesInspectionManager
 	}
 
 	/// <summary>
-	/// 展開済み巻由来の BindingVolume の WorkFolderPath を設定します。
-	/// 巻フォルダ名の桁数変更などで今回の命名と異なる場合は、巻番号を維持したまま実フォルダをリネームし、
-	/// ExpandedVolume・MaterialItem・BindingVolume・BindingImage のパスを一貫して更新します。
+	/// 展開済み巻の実フォルダを、今回の命名へリネームします。物理フォルダの操作のみを行い、モデル状態は変更しません。
+	/// バックグラウンドスレッドから呼び出せます。
+	/// 現在のフォルダと今回の命名が同一、または現在のフォルダが存在しない場合は何もしません。
 	/// </summary>
-	/// <param name="volume">対象の展開済み巻由来の BindingVolume。</param>
+	/// <param name="currentFolderPath">現在の展開済み巻フォルダのフルパス。</param>
 	/// <param name="targetFolderPath">今回の巻番号・桁数に対応する Work 巻フォルダのフルパス。</param>
+	/// <returns>リネームした場合は true。</returns>
 	/// <exception cref="InvalidOperationException">リネーム先に別のフォルダが既に存在する場合。</exception>
-	private void prepareExpandedVolumeFolder(BindingVolume volume, string targetFolderPath)
+	private bool moveExpandedVolumeFolder(string currentFolderPath, string targetFolderPath)
 	{
-		var material = volume.Material;
-		var currentFolderPath = material.FullPath;
-
 		if (string.Equals(currentFolderPath, targetFolderPath, StringComparison.Ordinal)
 			|| !Directory.Exists(currentFolderPath))
 		{
-			volume.WorkFolderPath = currentFolderPath;
-			return;
+			return false;
 		}
 
 		if (Directory.Exists(targetFolderPath)
@@ -283,10 +284,29 @@ public class SeriesInspectionManager
 		}
 
 		Directory.Move(currentFolderPath, targetFolderPath);
+		return true;
+	}
+
+	/// <summary>
+	/// 展開済み巻由来の BindingVolume の WorkFolderPath を設定し、フォルダをリネームした場合は
+	/// ExpandedVolume・MaterialItem・BindingVolume・BindingImage のパスを一貫して更新してから Material の変更を通知します。
+	/// UI に接続された状態を更新するため、UI コンテキスト上で呼び出してください。
+	/// </summary>
+	/// <param name="volume">対象の展開済み巻由来の BindingVolume。</param>
+	/// <param name="currentFolderPath">リネーム前の展開済み巻フォルダのフルパス。</param>
+	/// <param name="targetFolderPath">今回の巻番号・桁数に対応する Work 巻フォルダのフルパス。</param>
+	/// <param name="isRenamed"><see cref="moveExpandedVolumeFolder"/> が実フォルダをリネームした場合は true。</param>
+	private void applyExpandedVolumeFolder(BindingVolume volume, string currentFolderPath, string targetFolderPath, bool isRenamed)
+	{
+		if (!isRenamed)
+		{
+			volume.WorkFolderPath = currentFolderPath;
+			return;
+		}
 
 		var targetFolderName = Path.GetFileName(targetFolderPath);
 		this.bindingStore.FindExpandedVolumeByPath(currentFolderPath)?.UpdateFolderLocation(targetFolderName, targetFolderPath);
-		material.UpdateFolderLocation(targetFolderName, targetFolderPath);
+		volume.Material.UpdateFolderLocation(targetFolderName, targetFolderPath);
 
 		foreach (var image in volume.Images)
 		{
@@ -302,11 +322,11 @@ public class SeriesInspectionManager
 
 	/// <summary>
 	/// 展開が完了した BindingVolume の入力素材を、展開先の ExpandedVolume 由来の MaterialItem へ切り替えます。
-	/// 展開先フォルダを再走査して ExpandedVolumes へ登録（または更新）し、Source に展開元の元素材を設定します。
+	/// 展開先フォルダの走査のみバックグラウンドで行い、ExpandedVolumes への登録（または更新）と Source の設定、Material の切り替えは UI コンテキストで行います。
 	/// 展開先フォルダが存在しない、または画像がない場合は切り替えません。
 	/// </summary>
 	/// <param name="volume">切り替え対象の BindingVolume。</param>
-	private void switchToExpandedVolume(BindingVolume volume)
+	private async ValueTask switchToExpandedVolumeAsync(BindingVolume volume)
 	{
 		if (!this.bindingStore.BindingVolumes.Contains(volume)
 			|| volume.Material.Type == MaterialSourceType.WorkFolder
@@ -316,7 +336,8 @@ public class SeriesInspectionManager
 			return;
 		}
 
-		var scanned = ExpandedVolumeFolderScanner.ScanFolder(volume.WorkFolderPath);
+		var workFolderPath = volume.WorkFolderPath;
+		var scanned = await Task.Run(() => ExpandedVolumeFolderScanner.ScanFolder(workFolderPath));
 		if (scanned is null)
 		{
 			return;
@@ -393,6 +414,7 @@ public class SeriesInspectionManager
 	/// <summary>
 	/// 複数 BindingVolume のファイル名正規化を最大4巻並列で実行します。
 	/// 各巻の処理単位でスコープを作成し、Scoped なサービスのライフサイクルを管理します。
+	/// 並列処理の完了後に、呼び出し元の SynchronizationContext 上で各巻の Inspect() 実行と完了通知を行います。
 	/// </summary>
 	/// <param name="volumes">正規化対象の BindingVolume リスト。</param>
 	/// <param name="pipelineImages">今回の画像処理パイプラインへ投入された画像。</param>
@@ -439,14 +461,18 @@ public class SeriesInspectionManager
 					image.RecordWorkFileState(new FileInfo(image.FilePath));
 				}
 
-				// 記録後、巻の検査を実行して集計結果を保持
-				volume.Inspect();
-
-				// Inspect() が完了したことを通知
-				this.VolumeInspected?.Invoke(volume);
-
 				// スコープはusingで自動破棄
-			}).ConfigureAwait(false);
+			});
+
+		// 並列処理の完了後、呼び出し元（UI）の SynchronizationContext 上で各巻の検査を実行して集計結果を保持する
+		// Inspect() は ImageTotalBytes や Images の並べ替えを Store・View へ通知するため、並列 Worker 上では実行しない
+		foreach (var volume in volumes)
+		{
+			volume.Inspect();
+
+			// Inspect() が完了したことを通知
+			this.VolumeInspected?.Invoke(volume);
+		}
 	}
 
 	/// <summary>
@@ -614,15 +640,26 @@ public class SeriesInspectionManager
 
 	/// <summary>
 	/// Work 巻フォルダの実ファイルと既存 BindingImage を1ファイルずつ照合し、処理対象を返します。
+	/// 既存 BindingImage は開始時に FilePath（OrdinalIgnoreCase）で Dictionary 化し、1ファイルあたり平均 O(1) で照合します。
 	/// 今回存在を確認できた BindingImage（未変更を含む）以外は BindingVolume 側で削除・Dispose されます。
 	/// </summary>
 	/// <param name="volume">対象の BindingVolume。</param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <returns>新規または変更された、画像処理対象の BindingImage。</returns>
-	private static List<BindingImage> ReconcileWorkFolderImages(BindingVolume volume, CancellationToken cancellationToken)
+	internal static List<BindingImage> ReconcileWorkFolderImages(BindingVolume volume, CancellationToken cancellationToken)
 	{
 		var confirmedImages = new List<BindingImage>();
 		var imagesToProcess = new List<BindingImage>();
+
+		// FilePath が重複する場合は、先頭から線形検索した場合と同じく最初の BindingImage を採用する
+		var imagesByFilePath = new Dictionary<string, BindingImage>(StringComparer.OrdinalIgnoreCase);
+		foreach (var existingImage in volume.Images)
+		{
+			if (existingImage.FilePath is not null)
+			{
+				imagesByFilePath.TryAdd(existingImage.FilePath, existingImage);
+			}
+		}
 
 		var workFiles = new DirectoryInfo(volume.WorkFolderPath!)
 			.EnumerateFiles("*", SearchOption.TopDirectoryOnly)
@@ -633,11 +670,11 @@ public class SeriesInspectionManager
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			var image = volume.FindImageByFilePath(workFile.FullName);
-			if (image is null)
+			if (!imagesByFilePath.TryGetValue(workFile.FullName, out var image))
 			{
 				image = volume.AddImage(workFile.FullName, workFile.Name);
 				image.FilePath = workFile.FullName;
+				imagesByFilePath.TryAdd(workFile.FullName, image);
 				imagesToProcess.Add(image);
 			}
 			else if (image.IsChanged(workFile))

@@ -984,6 +984,7 @@ public class VolumeSelectionManager
 			var newVolume = new BindingVolume(material);
 			try
 			{
+				material.IsChecked.Value = true;
 				newVolume.VolumeNumber.Value = number;
 				this.bindingStore.InsertBindingVolumeInOrder(newVolume);
 			}

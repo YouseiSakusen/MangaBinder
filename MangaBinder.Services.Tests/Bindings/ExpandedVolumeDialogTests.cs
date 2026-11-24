@@ -103,6 +103,43 @@ public class ExpandedVolumeDialogTests : IDisposable
 	}
 
 	[Fact]
+	public async Task 追加_生成MaterialItemとExpandedVolumeがともにチェック済みになり二重追加されない()
+	{
+		this.createVolume("Title 01");
+		await this.manager.SyncWorkVolumesAsync();
+		var expanded = this.store.ExpandedVolumes.Single();
+		expanded.IsChecked.Value = true;
+
+		this.manager.ApplyExpandedVolumeSelection();
+		var volume = Assert.Single(this.store.BindingVolumes);
+		var material = volume.Material;
+		this.manager.ApplyExpandedVolumeSelection();
+
+		Assert.True(material.IsChecked.Value);
+		Assert.True(expanded.IsChecked.Value);
+		Assert.Same(volume, Assert.Single(this.store.BindingVolumes));
+		Assert.Same(material, volume.Material);
+	}
+
+	[Fact]
+	public async Task 置換_追加された展開済み巻のMaterialItemはチェック済みで元素材のチェックは外れる()
+	{
+		this.createVolume("Title 01");
+		await this.manager.SyncWorkVolumesAsync();
+		var original = this.addSourceVolume(1m);
+		var originalMaterial = original.Material;
+		var expanded = this.store.ExpandedVolumes.Single();
+		expanded.IsChecked.Value = true;
+
+		this.manager.ApplyExpandedVolumeSelection();
+
+		var volume = Assert.Single(this.store.BindingVolumes);
+		Assert.True(volume.Material.IsChecked.Value);
+		Assert.True(expanded.IsChecked.Value);
+		Assert.False(originalMaterial.IsChecked.Value);
+	}
+
+	[Fact]
 	public async Task 置換_同じ巻番号の元素材は確認対象となり適用後に除外されSourceは設定されない()
 	{
 		this.createVolume("Title 01");
@@ -157,10 +194,13 @@ public class ExpandedVolumeDialogTests : IDisposable
 		expanded.IsChecked.Value = true;
 		this.manager.ApplyExpandedVolumeSelection();
 		var generated = this.store.BindingVolumes.Single().Material;
+		Assert.True(generated.IsChecked.Value);
 
 		expanded.IsChecked.Value = false;
 		this.manager.ApplyExpandedVolumeSelection();
 
+		Assert.False(generated.IsChecked.Value);
+		Assert.False(expanded.IsChecked.Value);
 		Assert.Empty(this.store.BindingVolumes);
 		Assert.True(Directory.Exists(path));
 		Assert.Same(expanded, Assert.Single(this.store.ExpandedVolumes));

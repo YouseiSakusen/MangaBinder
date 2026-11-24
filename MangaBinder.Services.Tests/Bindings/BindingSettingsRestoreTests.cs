@@ -163,6 +163,7 @@ public class BindingSettingsRestoreTests : IDisposable
 		Assert.Same(source, expanded.Source);
 		Assert.Same(source, volume.Material.Source);
 		Assert.True(expanded.IsChecked.Value);
+		Assert.True(volume.Material.IsChecked.Value);
 		Assert.False(source.IsChecked.Value);
 		var image = Assert.Single(volume.Images);
 		Assert.Equal("001.jpg", image.FileName);
