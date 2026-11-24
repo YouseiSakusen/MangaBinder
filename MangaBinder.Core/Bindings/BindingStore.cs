@@ -111,6 +111,13 @@ public class BindingStore : IDisposable
 	public ObservableList<MaterialItem> WorkVolumes { get; }
 
 	/// <summary>
+	/// 作品別の展開先フォルダ直下に存在する展開済み巻フォルダ一覧を、巻番号順で取得します。
+	/// BindingStore が所有し、除外時・製本セッション終了時・Dispose 時に各 <see cref="ExpandedVolume"/> を破棄します。
+	/// <see cref="WorkVolumes"/> から段階的に移行するための新モデルで、BindingVolumes は参照しません。
+	/// </summary>
+	public ObservableList<ExpandedVolume> ExpandedVolumes { get; }
+
+	/// <summary>
 	/// 巻選択工程で選択された巻一覧の正本を取得します。
 	/// BindingVolumes 内の各 BindingVolume は、Materials 内の MaterialItem と同一インスタンスを参照します。
 	/// </summary>
@@ -294,6 +301,7 @@ public class BindingStore : IDisposable
 
 		this.Materials = new ObservableList<MaterialItem>();
 		this.WorkVolumes = new ObservableList<MaterialItem>();
+		this.ExpandedVolumes = new ObservableList<ExpandedVolume>();
 		this.BindingVolumes = new ObservableList<BindingVolume>();
 		this.SplitVolumes = new ObservableList<BindingVolume>();
 		this.volumeUpdated.AddTo(ref this.disposableBag);
@@ -702,6 +710,19 @@ public class BindingStore : IDisposable
 	}
 
 	/// <summary>
+	/// ExpandedVolumes の各 ExpandedVolume を破棄し、一覧を空にします。
+	/// ExpandedVolume.Source が参照する元素材は破棄しません。
+	/// </summary>
+	private void disposeExpandedVolumes()
+	{
+		foreach (var expandedVolume in this.ExpandedVolumes)
+		{
+			expandedVolume.Dispose();
+		}
+		this.ExpandedVolumes.Clear();
+	}
+
+	/// <summary>
 	/// BindingVolumes の CollectionChanged イベントハンドラ。CanGoNext を更新します。
 	/// </summary>
 	private void onBindingVolumesCollectionChangedForCanGoNext(in NotifyCollectionChangedEventArgs<BindingVolume> e)
@@ -791,6 +812,7 @@ public class BindingStore : IDisposable
 		}
 		this.Materials.Clear();
 		this.disposeWorkMaterials(detachedWorkMaterials);
+		this.disposeExpandedVolumes();
 
 		// セッション固有の mutable 状態をリセット
 		this.WorkSeriesFolderPath.Value = string.Empty;
@@ -845,6 +867,7 @@ public class BindingStore : IDisposable
 		}
 		this.Materials.Clear();
 		this.disposeWorkMaterials(detachedWorkMaterials);
+		this.disposeExpandedVolumes();
 
 		// 最後に
 		this.disposableBag.Dispose();

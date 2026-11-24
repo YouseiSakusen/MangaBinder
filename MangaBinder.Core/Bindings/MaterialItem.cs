@@ -94,6 +94,14 @@ public class MaterialItem : IDisposable
 	public bool CanDeleteMaterial { get; init; }
 
 	/// <summary>
+	/// この素材の生成元となった元素材への参照を取得します。
+	/// 元素材から生成された通常の素材では null です。
+	/// <see cref="ExpandedVolume.CreateMaterial"/> で生成された場合は、その <see cref="ExpandedVolume.Source"/> が設定されます。
+	/// 参照のみを保持し、所有権は持たないため <see cref="Dispose"/> では破棄しません。
+	/// </summary>
+	public MaterialItem? Source { get; init; }
+
+	/// <summary>
 	/// この素材が製本対象として選択されているかを取得または設定します。
 	/// </summary>
 	public BindableReactiveProperty<bool> IsChecked { get; }

@@ -808,6 +808,7 @@ public class VolumeSelectionManager
 	/// <summary>
 	/// 展開先作品フォルダ直下の巻フォルダを走査し、WorkVolumes を差分更新します。
 	/// 既存の MaterialItem は同一インスタンスを保持し、全巻の画像数・サイズを最新値へ更新します。
+	/// 同じ走査結果を使用して ExpandedVolumes も差分更新します（二重走査はしません）。
 	/// 初期化時と展開済み巻追加Dialog表示前の両方から呼び出されます。
 	/// </summary>
 	public async ValueTask SyncWorkVolumesAsync(CancellationToken cancellationToken = default)
@@ -817,7 +818,7 @@ public class VolumeSelectionManager
 		var (currentPaths, scannedFolders) = await Task.Run(() =>
 		{
 			var current = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-			var added = new List<(string Path, string Name, int FileCount, long TotalBytes)>();
+			var added = new List<(string Path, string Name, int FileCount, long TotalBytes, decimal VolumeNumber)>();
 
 			if (!Directory.Exists(seriesFolderPath))
 			{
@@ -853,7 +854,7 @@ public class VolumeSelectionManager
 				}
 
 				current.Add(folderPath);
-				added.Add((folderPath, name, fileCount, totalBytes));
+				added.Add((folderPath, name, fileCount, totalBytes, parseResult.SingleVolume.Value));
 			}
 
 			return (current, added);
@@ -915,6 +916,53 @@ public class VolumeSelectionManager
 			}
 
 			this.bindingStore.WorkVolumes.Insert(index, material);
+		}
+
+		this.syncExpandedVolumes(currentPaths, scannedFolders);
+	}
+
+	/// <summary>
+	/// SyncWorkVolumesAsync の走査結果を使用して、ExpandedVolumes を巻番号順に差分更新します。
+	/// 同一パスの既存 ExpandedVolume は再利用し、画像数とサイズのみ更新します（IsChecked と Source は維持）。
+	/// 存在しなくなった、または画像が0件になった巻は ExpandedVolumes から除外して Dispose します。
+	/// </summary>
+	/// <param name="currentPaths">走査で見つかった巻フォルダのパス一覧。</param>
+	/// <param name="scannedFolders">走査で見つかった巻フォルダの情報。</param>
+	private void syncExpandedVolumes(
+		HashSet<string> currentPaths,
+		List<(string Path, string Name, int FileCount, long TotalBytes, decimal VolumeNumber)> scannedFolders)
+	{
+		foreach (var expandedVolume in this.bindingStore.ExpandedVolumes.ToList())
+		{
+			if (currentPaths.Contains(expandedVolume.FullPath))
+			{
+				continue;
+			}
+
+			this.bindingStore.ExpandedVolumes.Remove(expandedVolume);
+			expandedVolume.Dispose();
+		}
+
+		foreach (var folder in scannedFolders)
+		{
+			var registered = this.bindingStore.ExpandedVolumes
+				.FirstOrDefault(v => string.Equals(v.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase));
+			if (registered is not null)
+			{
+				registered.UpdateFolderState(folder.FileCount, folder.TotalBytes);
+				continue;
+			}
+
+			var index = 0;
+			while (index < this.bindingStore.ExpandedVolumes.Count
+				&& this.bindingStore.ExpandedVolumes[index].VolumeNumber <= folder.VolumeNumber)
+			{
+				index++;
+			}
+
+			this.bindingStore.ExpandedVolumes.Insert(
+				index,
+				new ExpandedVolume(folder.Name, folder.Path, folder.VolumeNumber, folder.FileCount, folder.TotalBytes));
 		}
 	}
 
