@@ -492,6 +492,7 @@
 											Width="42"
 											HorizontalAlignment="Right"
 											Text="{Binding VolumeNumber.Value, TargetNullValue='?', StringFormat={}{0:0.#}, UpdateSourceTrigger=LostFocus}"
+											IsReadOnly="{Binding IsExpandedVolume.Value, Mode=OneWay}"
 											BorderThickness="0"
 											Background="Transparent"
 											TextAlignment="Right"
@@ -504,15 +505,15 @@
 										<!-- Column 1: 種別アイコン -->
 										<controls:MaterialIcon
 											Grid.Column="1"
-											ItemType="{Binding DisplayItemType}"
-											IsWorkFolder="{Binding IsWorkVolume, Mode=OneWay}"
+											ItemType="{Binding DisplayItemType.Value, Mode=OneWay}"
+											IsWorkFolder="{Binding IsExpandedVolume.Value, Mode=OneWay}"
 											HorizontalAlignment="Center"
 											VerticalAlignment="Center" />
 
 										<!-- Column 2: ファイル数 -->
 										<TextBlock
 											Grid.Column="2"
-											Text="{Binding FileCountText}"
+											Text="{Binding FileCountText.Value, Mode=OneWay}"
 											FontSize="12"
 											HorizontalAlignment="Right"
 											Padding="0,0,4,0"
@@ -521,12 +522,12 @@
 										<!-- Column 3: 名前 -->
 										<TextBlock
 											Grid.Column="3"
-											Text="{Binding Name}"
+											Text="{Binding Name.Value, Mode=OneWay}"
 											FontSize="12"
 											Padding="4,0,0,0"
 											TextTrimming="CharacterEllipsis"
 											VerticalAlignment="Center"
-											ToolTip="{Binding Name}" />
+											ToolTip="{Binding Name.Value, Mode=OneWay}" />
 									</Grid>
 								</DataTemplate>
 							</ListView.ItemTemplate>

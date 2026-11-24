@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace MangaBinder.Services.Tests.Bindings;
 
 /// <summary>
-/// <see cref="VolumeSelectionManager.SyncWorkVolumesAsync"/> による ExpandedVolumes / WorkVolumes 同期のテストです。
+/// <see cref="VolumeSelectionManager.SyncWorkVolumesAsync"/> による ExpandedVolumes 同期のテストです。
 /// </summary>
 public class ExpandedVolumeSyncTests : IDisposable
 {
@@ -71,7 +71,6 @@ public class ExpandedVolumeSyncTests : IDisposable
 		Assert.Equal(30L, first.TotalImageBytes);
 		Assert.False(first.IsChecked.Value);
 		Assert.Null(first.Source);
-		Assert.Equal(2, this.store.WorkVolumes.Count);
 	}
 
 	[Fact]
@@ -80,7 +79,6 @@ public class ExpandedVolumeSyncTests : IDisposable
 		var path = this.createVolume("Title 01", ("1.jpg", 10));
 		await this.manager.SyncWorkVolumesAsync();
 		var volume = this.store.ExpandedVolumes.Single();
-		var workVolume = this.store.WorkVolumes.Single();
 		using var source = new MaterialItem(MaterialItemType.Folder, MaterialSourceType.Folder, "src", @"C:\src");
 		volume.Source = source;
 		volume.IsChecked.Value = true;
@@ -93,8 +91,6 @@ public class ExpandedVolumeSyncTests : IDisposable
 		Assert.Equal(50L, volume.TotalImageBytes);
 		Assert.True(volume.IsChecked.Value);
 		Assert.Same(source, volume.Source);
-		Assert.Same(workVolume, this.store.WorkVolumes.Single());
-		Assert.Equal(2, workVolume.FileCount);
 	}
 
 	[Fact]

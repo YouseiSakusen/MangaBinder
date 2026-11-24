@@ -14,6 +14,15 @@ public class BindingStore : IDisposable
 	/// <summary>BindingVolumes に含まれる各 BindingVolume の VolumeNumber 購読。</summary>
 	private readonly Dictionary<BindingVolume, IDisposable> volumeNumberSubscriptions = new();
 
+	/// <summary>BindingVolumes に含まれる各 BindingVolume の Material 変更購読（合計画像サイズの再計算用）。</summary>
+	private readonly Dictionary<BindingVolume, IDisposable> materialSubscriptions = new();
+
+	/// <summary>
+	/// <see cref="ExpandedVolume.CreateMaterial"/> で生成した、展開済み巻用 MaterialItem の所有リスト。
+	/// 生成した MaterialItem の破棄責務はこの Store に集約します。
+	/// </summary>
+	private readonly List<MaterialItem> ownedExpandedMaterials = new();
+
 	/// <summary>現在 Children.CollectionChanged を購読している Root の集合。</summary>
 	private readonly HashSet<MaterialItem> subscribedRoots = new();
 
@@ -105,15 +114,9 @@ public class BindingStore : IDisposable
 	public ObservableList<MaterialItem> Materials { get; }
 
 	/// <summary>
-	/// 作品別の展開先フォルダ直下にある展開済み巻フォルダ一覧の正本を取得します。
-	/// BindingVolumes 内の展開先由来の BindingVolume は、この一覧内の MaterialItem と同一インスタンスを参照します。
-	/// </summary>
-	public ObservableList<MaterialItem> WorkVolumes { get; }
-
-	/// <summary>
 	/// 作品別の展開先フォルダ直下に存在する展開済み巻フォルダ一覧を、巻番号順で取得します。
 	/// BindingStore が所有し、除外時・製本セッション終了時・Dispose 時に各 <see cref="ExpandedVolume"/> を破棄します。
-	/// <see cref="WorkVolumes"/> から段階的に移行するための新モデルで、BindingVolumes は参照しません。
+	/// 元素材を表す <see cref="Materials"/> とは別の概念で、BindingVolumes は参照しません。
 	/// </summary>
 	public ObservableList<ExpandedVolume> ExpandedVolumes { get; }
 
@@ -300,7 +303,6 @@ public class BindingStore : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		this.Materials = new ObservableList<MaterialItem>();
-		this.WorkVolumes = new ObservableList<MaterialItem>();
 		this.ExpandedVolumes = new ObservableList<ExpandedVolume>();
 		this.BindingVolumes = new ObservableList<BindingVolume>();
 		this.SplitVolumes = new ObservableList<BindingVolume>();
@@ -535,13 +537,97 @@ public class BindingStore : IDisposable
 	}
 
 	/// <summary>
-	/// BindingVolumes の CollectionChanged イベントハンドラ。選択済み巻の合計画像サイズを更新します。
+	/// BindingVolumes の CollectionChanged イベントハンドラ。
+	/// 各 BindingVolume の Material 変更購読を追加・削除に同期し、選択済み巻の合計画像サイズを更新します。
 	/// </summary>
 	private void onBindingVolumesCollectionChangedForSize(in NotifyCollectionChangedEventArgs<BindingVolume> e)
+	{
+		switch (e.Action)
+		{
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
+				foreach (BindingVolume added in e.IsSingleItem ? new[] { e.NewItem } : e.NewItems.ToArray())
+				{
+					this.subscribeMaterial(added);
+				}
+				break;
+
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+				foreach (BindingVolume removed in e.IsSingleItem ? new[] { e.OldItem } : e.OldItems.ToArray())
+				{
+					this.unsubscribeMaterial(removed);
+				}
+				break;
+
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Replace:
+				foreach (BindingVolume removed in e.IsSingleItem ? new[] { e.OldItem } : e.OldItems.ToArray())
+				{
+					this.unsubscribeMaterial(removed);
+				}
+				foreach (BindingVolume added in e.IsSingleItem ? new[] { e.NewItem } : e.NewItems.ToArray())
+				{
+					this.subscribeMaterial(added);
+				}
+				break;
+
+			case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+				this.disposeAllMaterialSubscriptions();
+				foreach (var volume in this.BindingVolumes)
+				{
+					this.subscribeMaterial(volume);
+				}
+				break;
+		}
+
+		this.recalculateSelectedVolumeTotalImageBytes();
+	}
+
+	/// <summary>
+	/// 選択済み巻の合計画像サイズを、各 BindingVolume の現在の Material から再計算します。
+	/// </summary>
+	private void recalculateSelectedVolumeTotalImageBytes()
 	{
 		var totalBytes = this.BindingVolumes
 			.Sum(volume => volume.Material.TotalImageBytes);
 		this.selectedVolumeTotalImageBytes.Value = totalBytes;
+	}
+
+	/// <summary>
+	/// BindingVolume の Material 変更を購読します。購読開始時の現在値通知は無視します。
+	/// </summary>
+	private void subscribeMaterial(BindingVolume volume)
+	{
+		if (this.materialSubscriptions.ContainsKey(volume))
+		{
+			return;
+		}
+
+		this.materialSubscriptions[volume] = volume.CurrentMaterial
+			.AsObservable()
+			.Skip(1)
+			.Subscribe(_ => this.recalculateSelectedVolumeTotalImageBytes());
+	}
+
+	/// <summary>
+	/// BindingVolume の Material 変更購読を解除します。
+	/// </summary>
+	private void unsubscribeMaterial(BindingVolume volume)
+	{
+		if (this.materialSubscriptions.Remove(volume, out var subscription))
+		{
+			subscription.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// 全 BindingVolume の Material 変更購読を解除します。
+	/// </summary>
+	private void disposeAllMaterialSubscriptions()
+	{
+		foreach (var subscription in this.materialSubscriptions.Values)
+		{
+			subscription.Dispose();
+		}
+		this.materialSubscriptions.Clear();
 	}
 
 	/// <summary>
@@ -682,31 +768,204 @@ public class BindingStore : IDisposable
 	}
 
 	/// <summary>
-	/// WorkVolumes から外れたが BindingVolumes から参照されている展開先由来の MaterialItem を取得します。
+	/// 展開済み巻を製本入力として使用するための MaterialItem を、<see cref="ExpandedVolume.CreateMaterial"/> で生成して所有します。
+	/// 生成した MaterialItem はこの Store が保持し、<see cref="ReleaseExpandedMaterial"/>、製本セッション終了時、Dispose 時に破棄します。
 	/// </summary>
-	private List<MaterialItem> collectDetachedWorkMaterials()
-		=> this.BindingVolumes
-			.Select(volume => volume.Material)
-			.Where(material => material.Type == MaterialSourceType.WorkFolder
-				&& !this.WorkVolumes.Contains(material))
-			.Distinct()
-			.ToList();
+	/// <param name="expandedVolume">生成元の展開済み巻。</param>
+	/// <returns>生成された新しい MaterialItem。</returns>
+	public MaterialItem CreateExpandedMaterial(ExpandedVolume expandedVolume)
+	{
+		ArgumentNullException.ThrowIfNull(expandedVolume);
+
+		var material = expandedVolume.CreateMaterial();
+		lock (this.ownedExpandedMaterials)
+		{
+			this.ownedExpandedMaterials.Add(material);
+		}
+
+		return material;
+	}
 
 	/// <summary>
-	/// WorkVolumes と、そこから外れた展開先由来の MaterialItem を破棄します。
+	/// <see cref="CreateExpandedMaterial"/> で生成した MaterialItem を、所有リストから外して破棄します。
+	/// Store が所有していない MaterialItem（元素材を含む）や、現在 BindingVolumes が参照している MaterialItem は破棄しません。
+	/// 参照元の BindingVolume を BindingVolumes から除外した後に呼び出してください。
 	/// </summary>
-	private void disposeWorkMaterials(List<MaterialItem> detachedWorkMaterials)
+	/// <param name="material">破棄対象の MaterialItem。</param>
+	/// <returns>破棄した場合は true。</returns>
+	public bool ReleaseExpandedMaterial(MaterialItem material)
 	{
-		foreach (var material in detachedWorkMaterials)
+		ArgumentNullException.ThrowIfNull(material);
+
+		if (this.BindingVolumes.Any(volume => ReferenceEquals(volume.Material, material)))
 		{
+			return false;
+		}
+
+		bool removed;
+		lock (this.ownedExpandedMaterials)
+		{
+			removed = this.ownedExpandedMaterials.Remove(material);
+		}
+
+		if (removed)
+		{
+			var expandedVolume = this.FindExpandedVolumeByPath(material.FullPath);
+			if (expandedVolume is not null)
+			{
+				expandedVolume.IsChecked.Value = false;
+			}
+
 			material.Dispose();
 		}
 
-		foreach (var material in this.WorkVolumes)
+		return removed;
+	}
+
+	/// <summary>
+	/// 削除される元素材（子孫を含む）を参照している <see cref="ExpandedVolume.Source"/> と、生成済み展開済み巻用 MaterialItem の
+	/// <see cref="MaterialItem.Source"/> を null へ戻します。元素材を Dispose する前に呼び出してください。
+	/// 参照を解除するだけで、元素材は破棄しません。
+	/// </summary>
+	/// <param name="deletedMaterial">削除される元素材。</param>
+	public void ClearSourceReferences(MaterialItem deletedMaterial)
+	{
+		ArgumentNullException.ThrowIfNull(deletedMaterial);
+
+		foreach (var expandedVolume in this.ExpandedVolumes)
+		{
+			if (expandedVolume.Source is not null && isSameOrDescendant(deletedMaterial, expandedVolume.Source))
+			{
+				expandedVolume.Source = null;
+			}
+		}
+
+		MaterialItem[] materials;
+		lock (this.ownedExpandedMaterials)
+		{
+			materials = this.ownedExpandedMaterials.ToArray();
+		}
+
+		foreach (var material in materials)
+		{
+			if (material.Source is not null && isSameOrDescendant(deletedMaterial, material.Source))
+			{
+				material.Source = null;
+			}
+		}
+	}
+
+	/// <summary>
+	/// <paramref name="target"/> が <paramref name="root"/> 自身、またはその子孫であるかを参照比較で判定します。
+	/// </summary>
+	private static bool isSameOrDescendant(MaterialItem root, MaterialItem target)
+		=> ReferenceEquals(root, target)
+			|| root.Children.Any(child => isSameOrDescendant(child, target));
+
+	/// <summary>
+	/// 元素材由来の BindingVolume の入力を、展開完了後の展開済み巻へ切り替えます。
+	/// BindingVolume・BindingImage のインスタンスは維持し、元素材は破棄しません。
+	/// <list type="number">
+	/// <item>切り替え前の元素材を <see cref="ExpandedVolume.Source"/> へ設定する</item>
+	/// <item>展開済み巻から MaterialItem を生成して BindingVolume.Material へ設定する</item>
+	/// <item>元素材の IsChecked を false、展開済み側の選択状態を true にする</item>
+	/// </list>
+	/// </summary>
+	/// <param name="bindingVolume">切り替え対象の BindingVolume。BindingVolumes に含まれている必要があります。</param>
+	/// <param name="expandedVolume">切り替え先の展開済み巻。ExpandedVolumes に登録済みである必要があります。</param>
+	/// <exception cref="InvalidOperationException">対象が未登録、または既に展開済み巻由来の場合。</exception>
+	public void SwitchToExpandedVolume(BindingVolume bindingVolume, ExpandedVolume expandedVolume)
+	{
+		ArgumentNullException.ThrowIfNull(bindingVolume);
+		ArgumentNullException.ThrowIfNull(expandedVolume);
+
+		if (!this.BindingVolumes.Contains(bindingVolume))
+		{
+			throw new InvalidOperationException("切り替え対象の BindingVolume が BindingVolumes に存在しません。");
+		}
+
+		if (!this.ExpandedVolumes.Contains(expandedVolume))
+		{
+			throw new InvalidOperationException("切り替え先の ExpandedVolume が ExpandedVolumes に登録されていません。");
+		}
+
+		var sourceMaterial = bindingVolume.Material;
+		if (sourceMaterial.Type == MaterialSourceType.WorkFolder)
+		{
+			throw new InvalidOperationException("既に展開済み巻由来の BindingVolume は切り替えできません。");
+		}
+
+		expandedVolume.Source = sourceMaterial;
+		var expandedMaterial = this.CreateExpandedMaterial(expandedVolume);
+		expandedMaterial.IsChecked.Value = true;
+		expandedVolume.IsChecked.Value = true;
+
+		bindingVolume.SetMaterial(expandedMaterial);
+		sourceMaterial.IsChecked.Value = false;
+	}
+
+	/// <summary>
+	/// ExpandedVolumes に、すでに同じフルパスの展開済み巻があればフォルダ状態を更新して再利用し、なければ巻番号順の位置へ登録します。
+	/// パスの比較は OrdinalIgnoreCase で行います。
+	/// </summary>
+	/// <param name="name">展開先巻フォルダ名。</param>
+	/// <param name="fullPath">実フォルダのフルパス。</param>
+	/// <param name="volumeNumber">フォルダ名から取得した巻番号。</param>
+	/// <param name="fileCount">対応画像ファイル数。</param>
+	/// <param name="totalImageBytes">対応画像の合計サイズ（バイト）。</param>
+	/// <returns>登録されている ExpandedVolume。</returns>
+	public ExpandedVolume AddOrUpdateExpandedVolume(
+		string name,
+		string fullPath,
+		decimal volumeNumber,
+		int fileCount,
+		long totalImageBytes)
+	{
+		var registered = this.FindExpandedVolumeByPath(fullPath);
+		if (registered is not null)
+		{
+			registered.UpdateFolderState(fileCount, totalImageBytes);
+			return registered;
+		}
+
+		var index = 0;
+		while (index < this.ExpandedVolumes.Count
+			&& this.ExpandedVolumes[index].VolumeNumber <= volumeNumber)
+		{
+			index++;
+		}
+
+		var added = new ExpandedVolume(name, fullPath, volumeNumber, fileCount, totalImageBytes);
+		this.ExpandedVolumes.Insert(index, added);
+		return added;
+	}
+
+	/// <summary>
+	/// フルパスを OrdinalIgnoreCase で比較して、ExpandedVolumes から展開済み巻を検索します。
+	/// </summary>
+	/// <param name="fullPath">検索する実フォルダのフルパス。</param>
+	/// <returns>見つかった ExpandedVolume、見つからない場合は null。</returns>
+	public ExpandedVolume? FindExpandedVolumeByPath(string fullPath)
+		=> this.ExpandedVolumes
+			.FirstOrDefault(v => string.Equals(v.FullPath, fullPath, StringComparison.OrdinalIgnoreCase));
+
+	/// <summary>
+	/// 生成済みの展開済み巻用 MaterialItem をすべて破棄し、所有リストを空にします。
+	/// ExpandedVolume.Source や MaterialItem.Source が参照する元素材は破棄しません。
+	/// </summary>
+	private void disposeOwnedExpandedMaterials()
+	{
+		MaterialItem[] materials;
+		lock (this.ownedExpandedMaterials)
+		{
+			materials = this.ownedExpandedMaterials.ToArray();
+			this.ownedExpandedMaterials.Clear();
+		}
+
+		foreach (var material in materials)
 		{
 			material.Dispose();
 		}
-		this.WorkVolumes.Clear();
 	}
 
 	/// <summary>
@@ -796,22 +1055,20 @@ public class BindingStore : IDisposable
 		// 編集用 Clone の終了（SplitVolumes は購読により破棄される）
 		this.SplitTargetVolume.Value = null;
 
-		var detachedWorkMaterials = this.collectDetachedWorkMaterials();
-
-		// BindingVolumes が Materials / WorkVolumes を参照しているため、先に BindingVolumes を破棄
+		// BindingVolumes が Materials と生成済み展開済み巻用 MaterialItem を参照しているため、先に BindingVolumes を破棄
 		foreach (var volume in this.BindingVolumes)
 		{
 			volume.Dispose();
 		}
 		this.BindingVolumes.Clear();
 
-		// 次に Materials と WorkVolumes を破棄
+		// 次に Materials（元素材）、生成済み展開済み巻用 MaterialItem、ExpandedVolumes の順で破棄
 		foreach (var material in this.Materials)
 		{
 			material.Dispose();
 		}
 		this.Materials.Clear();
-		this.disposeWorkMaterials(detachedWorkMaterials);
+		this.disposeOwnedExpandedMaterials();
 		this.disposeExpandedVolumes();
 
 		// セッション固有の mutable 状態をリセット
@@ -846,27 +1103,26 @@ public class BindingStore : IDisposable
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForCountText;
 		this.BindingVolumes.CollectionChanged -= this.onBindingVolumesCollectionChangedForVolumeNumber;
 		this.disposeAllVolumeNumberSubscriptions();
+		this.disposeAllMaterialSubscriptions();
 
 		// 所有関係に従って破棄する
 		// 編集用 Clone は Material を参照するだけなので、先に破棄
 		this.disposeSplitVolumes();
 
-		var detachedWorkMaterials = this.collectDetachedWorkMaterials();
-
-		// BindingVolumes が Materials / WorkVolumes を参照しているため、先に BindingVolumes を破棄
+		// BindingVolumes が Materials と生成済み展開済み巻用 MaterialItem を参照しているため、先に BindingVolumes を破棄
 		foreach (var volume in this.BindingVolumes)
 		{
 			volume.Dispose();
 		}
 		this.BindingVolumes.Clear();
 
-		// 次に Materials と WorkVolumes を破棄
+		// 次に Materials（元素材）、生成済み展開済み巻用 MaterialItem、ExpandedVolumes の順で破棄
 		foreach (var material in this.Materials)
 		{
 			material.Dispose();
 		}
 		this.Materials.Clear();
-		this.disposeWorkMaterials(detachedWorkMaterials);
+		this.disposeOwnedExpandedMaterials();
 		this.disposeExpandedVolumes();
 
 		// 最後に

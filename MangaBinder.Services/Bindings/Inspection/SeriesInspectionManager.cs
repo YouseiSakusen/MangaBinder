@@ -102,6 +102,9 @@ public class SeriesInspectionManager
 		// 画像情報を持つ巻は既存の Work 巻フォルダを新しい巻フォルダ名へ引き継ぐ
 		// BindingVolumes に存在しない巻フォルダには触れない
 		var volumeFolderDigits = this.bindingStore.VolumeFolderDigits.Value;
+
+		// 今回の処理で元素材から展開する巻。展開・画像処理・検査が正常完了した後に、展開済み巻へ入力を切り替える
+		var volumesToSwitch = new List<BindingVolume>();
 		foreach (var bindingVolume in this.bindingStore.BindingVolumes.ToArray())
 		{
 			cancellationToken.ThrowIfCancellationRequested();
@@ -115,19 +118,23 @@ public class SeriesInspectionManager
 					"巻選択工程を通過した状態として不正です。");
 			}
 
-			// 展開先由来の巻は、スキャン済みの実フォルダをそのまま使用する
-			if (bindingVolume.Material.Type == MaterialSourceType.WorkFolder)
-			{
-				bindingVolume.WorkFolderPath = bindingVolume.Material.FullPath;
-				continue;
-			}
-
 			// 巻フォルダ名を生成
 			var volumeFolderName = this.appSettings.CreateWorkVolumeFolderName(
 				volumeNumber.Value,
 				volumeFolderDigits);
 
 			var targetFolderPath = Path.Combine(seriesFolderPath, volumeFolderName);
+
+			// 展開先由来の巻は、スキャン済みの実フォルダを再利用する（桁数変更時のみフォルダ名を引き継ぐ）
+			if (bindingVolume.Material.Type == MaterialSourceType.WorkFolder)
+			{
+				await Task.Run(
+					() => this.prepareExpandedVolumeFolder(bindingVolume, targetFolderPath),
+					cancellationToken).ConfigureAwait(false);
+				continue;
+			}
+
+			volumesToSwitch.Add(bindingVolume);
 
 			await Task.Run(
 				() => this.prepareMaterialVolumeFolder(bindingVolume, targetFolderPath),
@@ -230,6 +237,12 @@ public class SeriesInspectionManager
 			this.VolumeInspected?.Invoke(volume);
 		}
 
+		// 展開・画像処理・検査がすべて完了した後に、入力素材を展開済み巻へ切り替える
+		foreach (var volume in volumesToSwitch)
+		{
+			this.switchToExpandedVolume(volume);
+		}
+
 		// 画像処理パイプライン完了後、TemporaryImageStream 由来の一時 Managed オブジェクトの
 		// 回収を促すため、GC を1回だけ明示実行
 		GC.Collect(
@@ -240,6 +253,83 @@ public class SeriesInspectionManager
 
 		// ⑬ 展開先作品フォルダ直下の巻フォルダ数を1回だけ取得し、Store へ保持
 		this.bindingStore.WorkVolumeFolderCount.Value = Directory.GetDirectories(this.bindingStore.WorkSeriesFolderPath.Value).Length;
+	}
+
+	/// <summary>
+	/// 展開済み巻由来の BindingVolume の WorkFolderPath を設定します。
+	/// 巻フォルダ名の桁数変更などで今回の命名と異なる場合は、巻番号を維持したまま実フォルダをリネームし、
+	/// ExpandedVolume・MaterialItem・BindingVolume・BindingImage のパスを一貫して更新します。
+	/// </summary>
+	/// <param name="volume">対象の展開済み巻由来の BindingVolume。</param>
+	/// <param name="targetFolderPath">今回の巻番号・桁数に対応する Work 巻フォルダのフルパス。</param>
+	/// <exception cref="InvalidOperationException">リネーム先に別のフォルダが既に存在する場合。</exception>
+	private void prepareExpandedVolumeFolder(BindingVolume volume, string targetFolderPath)
+	{
+		var material = volume.Material;
+		var currentFolderPath = material.FullPath;
+
+		if (string.Equals(currentFolderPath, targetFolderPath, StringComparison.Ordinal)
+			|| !Directory.Exists(currentFolderPath))
+		{
+			volume.WorkFolderPath = currentFolderPath;
+			return;
+		}
+
+		if (Directory.Exists(targetFolderPath)
+			&& !string.Equals(currentFolderPath, targetFolderPath, StringComparison.OrdinalIgnoreCase))
+		{
+			throw new InvalidOperationException(
+				$"巻フォルダ名の変更先が既に存在するため、展開済み巻のフォルダをリネームできません。Current={currentFolderPath}, Target={targetFolderPath}");
+		}
+
+		Directory.Move(currentFolderPath, targetFolderPath);
+
+		var targetFolderName = Path.GetFileName(targetFolderPath);
+		this.bindingStore.FindExpandedVolumeByPath(currentFolderPath)?.UpdateFolderLocation(targetFolderName, targetFolderPath);
+		material.UpdateFolderLocation(targetFolderName, targetFolderPath);
+
+		foreach (var image in volume.Images)
+		{
+			if (image.FilePath is not null)
+			{
+				image.FilePath = Path.Combine(targetFolderPath, Path.GetFileName(image.FilePath));
+			}
+		}
+
+		volume.WorkFolderPath = targetFolderPath;
+		volume.NotifyMaterialChanged();
+	}
+
+	/// <summary>
+	/// 展開が完了した BindingVolume の入力素材を、展開先の ExpandedVolume 由来の MaterialItem へ切り替えます。
+	/// 展開先フォルダを再走査して ExpandedVolumes へ登録（または更新）し、Source に展開元の元素材を設定します。
+	/// 展開先フォルダが存在しない、または画像がない場合は切り替えません。
+	/// </summary>
+	/// <param name="volume">切り替え対象の BindingVolume。</param>
+	private void switchToExpandedVolume(BindingVolume volume)
+	{
+		if (!this.bindingStore.BindingVolumes.Contains(volume)
+			|| volume.Material.Type == MaterialSourceType.WorkFolder
+			|| string.IsNullOrEmpty(volume.WorkFolderPath)
+			|| (volume.Material.Type == MaterialSourceType.Epub && volume.EpubExtractionError != EpubExtractionError.None))
+		{
+			return;
+		}
+
+		var scanned = ExpandedVolumeFolderScanner.ScanFolder(volume.WorkFolderPath);
+		if (scanned is null)
+		{
+			return;
+		}
+
+		var expandedVolume = this.bindingStore.AddOrUpdateExpandedVolume(
+			scanned.Name,
+			scanned.Path,
+			scanned.VolumeNumber,
+			scanned.FileCount,
+			scanned.TotalBytes);
+
+		this.bindingStore.SwitchToExpandedVolume(volume, expandedVolume);
 	}
 
 	/// <summary>

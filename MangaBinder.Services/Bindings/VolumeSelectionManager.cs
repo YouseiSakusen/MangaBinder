@@ -65,7 +65,7 @@ public class VolumeSelectionManager
 				"巻選択の初期化には BindingStore.BindingTarget が設定されている必要があります。");
 		}
 
-		// ② 初期化済みの場合は素材ツリーと WorkVolumes を再走査せず、既存の状態を維持する
+		// ② 初期化済みの場合は素材ツリーと ExpandedVolumes を再走査せず、既存の状態を維持する
 		if (this.bindingStore.VolumeSelectionInitialized.Value)
 		{
 			// 既存の素材は保持したまま、成功結果を返す
@@ -204,6 +204,7 @@ public class VolumeSelectionManager
 		{
 			this.removeBindingVolumeLogically(volume);
 			this.invalidateCompletedState();
+			return;
 		}
 
 		material.IsChecked.Value = false;
@@ -278,27 +279,36 @@ public class VolumeSelectionManager
 			this.collectMaterials(root, materialMap);
 		}
 
-		var workVolumeMap = new Dictionary<(MaterialItemType, string, string, string), MaterialItem>();
-		foreach (var workVolume in this.bindingStore.WorkVolumes)
-		{
-			this.collectMaterials(workVolume, workVolumeMap);
-		}
-
 		var restoredVolumes = new List<BindingVolume>();
+		var restoredExpandedPairs = new List<(ExpandedVolume ExpandedVolume, MaterialItem Material)>();
 		try
 		{
 			foreach (var volumeDto in settings.Volumes)
 			{
-				var key = createMaterialKey(volumeDto.Material);
-				var sourceMap = volumeDto.Type == MaterialSourceType.WorkFolder ? workVolumeMap : materialMap;
-				if (!sourceMap.TryGetValue(key, out var material))
+				MaterialItem? material;
+				if (volumeDto.Type == MaterialSourceType.WorkFolder)
 				{
-					this.logger.LogWarning(
-						"保存済みの素材が現在の素材ツリーに存在しないため復元しませんでした。ItemType={ItemType}, FullPath={FullPath}, SourcePath={SourcePath}, ArchiveEntryPrefix={ArchiveEntryPrefix}",
-						volumeDto.Material.ItemType,
-						volumeDto.Material.FullPath,
-						volumeDto.Material.SourcePath,
-						volumeDto.Material.ArchiveEntryPrefix);
+					// 展開済み由来：保存された FullPath を基準に ExpandedVolumes から検索し、実フォルダが存在する場合のみ復元する
+					var expandedVolume = this.bindingStore.FindExpandedVolumeByPath(volumeDto.Material.FullPath);
+					if (expandedVolume is null)
+					{
+						this.logWarningForUnrestoredMaterial(volumeDto);
+						continue;
+					}
+
+					// Source が見つからない場合も、実フォルダがある展開済み巻は復元する（Source は null のまま）
+					if (volumeDto.SourceMaterial is not null
+						&& materialMap.TryGetValue(createMaterialKey(volumeDto.SourceMaterial), out var sourceMaterial))
+					{
+						expandedVolume.Source = sourceMaterial;
+					}
+
+					material = this.bindingStore.CreateExpandedMaterial(expandedVolume);
+					restoredExpandedPairs.Add((expandedVolume, material));
+				}
+				else if (!materialMap.TryGetValue(createMaterialKey(volumeDto.Material), out material))
+				{
+					this.logWarningForUnrestoredMaterial(volumeDto);
 					continue;
 				}
 
@@ -312,6 +322,11 @@ public class VolumeSelectionManager
 				volume.Dispose();
 			}
 
+			foreach (var pair in restoredExpandedPairs)
+			{
+				this.bindingStore.ReleaseExpandedMaterial(pair.Material);
+			}
+
 			throw;
 		}
 
@@ -322,7 +337,26 @@ public class VolumeSelectionManager
 			this.bindingStore.BindingVolumes.Add(volume);
 		}
 
+		foreach (var pair in restoredExpandedPairs)
+		{
+			pair.ExpandedVolume.IsChecked.Value = true;
+		}
+
 		return null;
+	}
+
+	/// <summary>
+	/// 保存済みの素材を現在の素材ツリー・展開済み巻一覧から特定できなかったことを警告します。
+	/// </summary>
+	/// <param name="volumeDto">復元できなかった巻の DTO。</param>
+	private void logWarningForUnrestoredMaterial(BindingVolumeDto volumeDto)
+	{
+		this.logger.LogWarning(
+			"保存済みの素材が現在の素材ツリーまたは展開済み巻に存在しないため復元しませんでした。ItemType={ItemType}, FullPath={FullPath}, SourcePath={SourcePath}, ArchiveEntryPrefix={ArchiveEntryPrefix}",
+			volumeDto.Material.ItemType,
+			volumeDto.Material.FullPath,
+			volumeDto.Material.SourcePath,
+			volumeDto.Material.ArchiveEntryPrefix);
 	}
 
 	private static (MaterialItemType, string, string, string) createMaterialKey(MaterialItemDto dto)
@@ -724,7 +758,8 @@ public class VolumeSelectionManager
 		// 1. 素材ツリーから除去
 		parentRoot.Children.RemoveAt(materialIndexInRoot);
 
-		// 2. Material を Dispose（子ノードを所有している場合も含め）
+		// 2. この素材を参照する Source を解除し、Material を Dispose（子ノードを所有している場合も含め）
+		this.bindingStore.ClearSourceReferences(material);
 		material.Dispose();
 
 		// 3. 成功を返す
@@ -762,18 +797,16 @@ public class VolumeSelectionManager
 
 	/// <summary>
 	/// BindingVolume を BindingVolumes から論理的に除去し、Dispose と Material.IsChecked の解除を行います。
-	/// 物理フォルダは削除しません。
+	/// 展開済み巻用に生成された MaterialItem は BindingStore へ解放を依頼し、対応する ExpandedVolume の選択状態も解除されます。
+	/// 物理フォルダ・ExpandedVolumes・元素材（Source）は変更・破棄しません。
 	/// </summary>
 	private void removeBindingVolumeLogically(BindingVolume volume)
 	{
+		var material = volume.Material;
 		this.bindingStore.BindingVolumes.Remove(volume);
 		volume.Dispose();
-		volume.Material.IsChecked.Value = false;
-		if (volume.Material.Type == MaterialSourceType.WorkFolder
-			&& !this.bindingStore.WorkVolumes.Contains(volume.Material))
-		{
-			volume.Material.Dispose();
-		}
+		material.IsChecked.Value = false;
+		this.bindingStore.ReleaseExpandedMaterial(material);
 	}
 
 	/// <summary>
@@ -797,141 +830,34 @@ public class VolumeSelectionManager
 		}
 	}
 
-	/// <summary>展開済み巻フォルダ名から巻番号を取得します。</summary>
-	private static decimal getWorkVolumeNumber(MaterialItem workVolume)
-	{
-		var parseResult = VolumeNumberHelper.Parse(workVolume.Name, VolumeNumberSourceType.Folder);
-		return parseResult.SingleVolume
-			?? throw new InvalidOperationException($"展開済み巻フォルダの巻番号を取得できません。Name={workVolume.Name}");
-	}
-
 	/// <summary>
-	/// 展開先作品フォルダ直下の巻フォルダを走査し、WorkVolumes を差分更新します。
-	/// 既存の MaterialItem は同一インスタンスを保持し、全巻の画像数・サイズを最新値へ更新します。
-	/// 同じ走査結果を使用して ExpandedVolumes も差分更新します（二重走査はしません）。
+	/// 展開先作品フォルダ直下の巻フォルダを走査し、ExpandedVolumes を差分更新します。
+	/// 既存の ExpandedVolume は同一インスタンスを保持し、全巻の画像数・サイズを最新値へ更新します。
 	/// 初期化時と展開済み巻追加Dialog表示前の両方から呼び出されます。
 	/// </summary>
 	public async ValueTask SyncWorkVolumesAsync(CancellationToken cancellationToken = default)
 	{
 		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
 
-		var (currentPaths, scannedFolders) = await Task.Run(() =>
-		{
-			var current = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-			var added = new List<(string Path, string Name, int FileCount, long TotalBytes, decimal VolumeNumber)>();
+		var scannedFolders = await Task.Run(
+			() => ExpandedVolumeFolderScanner.ScanSeriesFolder(seriesFolderPath, cancellationToken),
+			cancellationToken);
 
-			if (!Directory.Exists(seriesFolderPath))
-			{
-				return (current, added);
-			}
-
-			foreach (var folderPath in Directory.GetDirectories(seriesFolderPath))
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-
-				var name = Path.GetFileName(folderPath);
-				var parseResult = VolumeNumberHelper.Parse(name, VolumeNumberSourceType.Folder);
-				if (parseResult.Kind != VolumeNumberParseKind.Single || !parseResult.SingleVolume.HasValue)
-				{
-					continue;
-				}
-
-				var fileCount = 0;
-				var totalBytes = 0L;
-				foreach (var file in new DirectoryInfo(folderPath).EnumerateFiles("*", SearchOption.TopDirectoryOnly))
-				{
-					if (SupportedExtensionHelper.IsImage(file.Extension))
-					{
-						fileCount++;
-						totalBytes += file.Length;
-					}
-				}
-
-				// 画像数が0件の巻フォルダは WorkVolumes に登録しない
-				if (fileCount == 0)
-				{
-					continue;
-				}
-
-				current.Add(folderPath);
-				added.Add((folderPath, name, fileCount, totalBytes, parseResult.SingleVolume.Value));
-			}
-
-			return (current, added);
-		}, cancellationToken);
-
-		// 存在しなくなった、または画像が0件になった巻を WorkVolumes から除外する（BindingVolumes からは削除しない）
-		foreach (var material in this.bindingStore.WorkVolumes.ToList())
-		{
-			if (currentPaths.Contains(material.FullPath))
-			{
-				continue;
-			}
-
-			this.bindingStore.WorkVolumes.Remove(material);
-			if (this.FindBindingVolumeByMaterial(material) is null)
-			{
-				material.Dispose();
-			}
-		}
-
-		// 既存巻は最新値へ更新し、新しく見つかった巻だけ追加する。既に BindingVolumes が参照している同一パスの MaterialItem は再利用する
-		foreach (var folder in scannedFolders)
-		{
-			var registered = this.bindingStore.WorkVolumes
-				.FirstOrDefault(m => string.Equals(m.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase));
-			if (registered is not null)
-			{
-				registered.FileCount = folder.FileCount;
-				registered.TotalImageBytes = folder.TotalBytes;
-				continue;
-			}
-
-			var reused = this.bindingStore.BindingVolumes
-				.Select(v => v.Material)
-				.FirstOrDefault(m => m.Type == MaterialSourceType.WorkFolder
-					&& string.Equals(m.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase));
-			if (reused is not null)
-			{
-				reused.FileCount = folder.FileCount;
-				reused.TotalImageBytes = folder.TotalBytes;
-			}
-
-			var material = reused
-				?? new MaterialItem(
-					itemType: MaterialItemType.Folder,
-					originalSourceType: MaterialSourceType.WorkFolder,
-					name: folder.Name,
-					fullPath: folder.Path,
-					fileCount: folder.FileCount,
-					totalImageBytes: folder.TotalBytes,
-					sourcePath: folder.Path);
-
-			var number = getWorkVolumeNumber(material);
-			var index = 0;
-			while (index < this.bindingStore.WorkVolumes.Count
-				&& getWorkVolumeNumber(this.bindingStore.WorkVolumes[index]) <= number)
-			{
-				index++;
-			}
-
-			this.bindingStore.WorkVolumes.Insert(index, material);
-		}
-
-		this.syncExpandedVolumes(currentPaths, scannedFolders);
+		this.syncExpandedVolumes(scannedFolders);
 	}
 
 	/// <summary>
-	/// SyncWorkVolumesAsync の走査結果を使用して、ExpandedVolumes を巻番号順に差分更新します。
+	/// フォルダ走査の結果を使用して、ExpandedVolumes を巻番号順に差分更新します。
 	/// 同一パスの既存 ExpandedVolume は再利用し、画像数とサイズのみ更新します（IsChecked と Source は維持）。
 	/// 存在しなくなった、または画像が0件になった巻は ExpandedVolumes から除外して Dispose します。
 	/// </summary>
-	/// <param name="currentPaths">走査で見つかった巻フォルダのパス一覧。</param>
 	/// <param name="scannedFolders">走査で見つかった巻フォルダの情報。</param>
-	private void syncExpandedVolumes(
-		HashSet<string> currentPaths,
-		List<(string Path, string Name, int FileCount, long TotalBytes, decimal VolumeNumber)> scannedFolders)
+	private void syncExpandedVolumes(List<ScannedExpandedFolder> scannedFolders)
 	{
+		var currentPaths = new HashSet<string>(
+			scannedFolders.Select(folder => folder.Path),
+			StringComparer.OrdinalIgnoreCase);
+
 		foreach (var expandedVolume in this.bindingStore.ExpandedVolumes.ToList())
 		{
 			if (currentPaths.Contains(expandedVolume.FullPath))
@@ -945,42 +871,44 @@ public class VolumeSelectionManager
 
 		foreach (var folder in scannedFolders)
 		{
-			var registered = this.bindingStore.ExpandedVolumes
-				.FirstOrDefault(v => string.Equals(v.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase));
-			if (registered is not null)
-			{
-				registered.UpdateFolderState(folder.FileCount, folder.TotalBytes);
-				continue;
-			}
+			this.bindingStore.AddOrUpdateExpandedVolume(
+				folder.Name,
+				folder.Path,
+				folder.VolumeNumber,
+				folder.FileCount,
+				folder.TotalBytes);
 
-			var index = 0;
-			while (index < this.bindingStore.ExpandedVolumes.Count
-				&& this.bindingStore.ExpandedVolumes[index].VolumeNumber <= folder.VolumeNumber)
+			// 製本対象として使用中の展開済み巻用 MaterialItem も、再走査した最新の画像数・サイズへ合わせる
+			foreach (var volume in this.bindingStore.BindingVolumes)
 			{
-				index++;
+				var material = volume.Material;
+				if (material.Type == MaterialSourceType.WorkFolder
+					&& string.Equals(material.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase))
+				{
+					material.FileCount = folder.FileCount;
+					material.TotalImageBytes = folder.TotalBytes;
+					volume.NotifyMaterialChanged();
+				}
 			}
-
-			this.bindingStore.ExpandedVolumes.Insert(
-				index,
-				new ExpandedVolume(folder.Name, folder.Path, folder.VolumeNumber, folder.FileCount, folder.TotalBytes));
 		}
 	}
 
 	/// <summary>
-	/// 展開済み巻選択Dialogの表示用に、WorkVolumes のチェック状態を BindingVolumes に同期し、巻番号昇順の一覧を返します。
+	/// 展開済み巻選択Dialogの表示用に、ExpandedVolumes のチェック状態を BindingVolumes の選択状態へ同期し、巻番号昇順の一覧を返します。
+	/// 展開済み巻が1件も選択されていない場合はすべてチェックし、選択済みがある場合はその巻のみチェックします。
 	/// </summary>
-	public IReadOnlyList<MaterialItem> PrepareExpandedVolumeSelection()
+	public IReadOnlyList<ExpandedVolume> PrepareExpandedVolumeSelection()
 	{
 		var hasExpandedVolume = this.bindingStore.BindingVolumes
 			.Any(v => v.Material.Type == MaterialSourceType.WorkFolder);
 
-		foreach (var workVolume in this.bindingStore.WorkVolumes)
+		foreach (var expandedVolume in this.bindingStore.ExpandedVolumes)
 		{
-			workVolume.IsChecked.Value = !hasExpandedVolume
-				|| this.FindBindingVolumeByMaterial(workVolume) is not null;
+			expandedVolume.IsChecked.Value = !hasExpandedVolume
+				|| this.findBindingVolumeByExpandedVolume(expandedVolume) is not null;
 		}
 
-		return this.bindingStore.WorkVolumes.ToList();
+		return this.bindingStore.ExpandedVolumes.ToList();
 	}
 
 	/// <summary>
@@ -991,14 +919,14 @@ public class VolumeSelectionManager
 	{
 		var replacements = new List<ExpandedVolumeReplacement>();
 
-		foreach (var workVolume in this.bindingStore.WorkVolumes)
+		foreach (var expandedVolume in this.bindingStore.ExpandedVolumes)
 		{
-			if (!workVolume.IsChecked.Value || this.FindBindingVolumeByMaterial(workVolume) is not null)
+			if (!expandedVolume.IsChecked.Value || this.findBindingVolumeByExpandedVolume(expandedVolume) is not null)
 			{
 				continue;
 			}
 
-			var number = getWorkVolumeNumber(workVolume);
+			var number = expandedVolume.VolumeNumber;
 			var replaced = this.bindingStore.BindingVolumes
 				.Where(v => v.Material.Type != MaterialSourceType.WorkFolder
 					&& v.VolumeNumber.Value == number)
@@ -1007,7 +935,7 @@ public class VolumeSelectionManager
 
 			if (replaced.Count > 0)
 			{
-				replacements.Add(new ExpandedVolumeReplacement(workVolume, replaced));
+				replacements.Add(new ExpandedVolumeReplacement(expandedVolume, replaced));
 			}
 		}
 
@@ -1015,17 +943,18 @@ public class VolumeSelectionManager
 	}
 
 	/// <summary>
-	/// WorkVolumes のチェック状態を BindingVolumes へ反映します。
-	/// チェックされた巻は追加し、同じ巻番号の元素材由来の巻はすべて置換します。
-	/// チェックが外された展開先由来の巻は論理的に除去します。物理フォルダは削除しません。
+	/// ExpandedVolumes のチェック状態を BindingVolumes へ反映します。
+	/// チェックされた巻は ExpandedVolume.CreateMaterial() で生成した MaterialItem で追加し、同じ巻番号の元素材由来の巻はすべて置換します。
+	/// チェックが外された展開済み巻由来の巻は論理的に除去します。物理フォルダ・ExpandedVolumes・Source は変更しません。
+	/// Source が null の場合も巻番号を理由に元素材を Source へ設定しません。
 	/// </summary>
 	public void ApplyExpandedVolumeSelection()
 	{
-		foreach (var workVolume in this.bindingStore.WorkVolumes.ToList())
+		foreach (var expandedVolume in this.bindingStore.ExpandedVolumes.ToList())
 		{
-			var existing = this.FindBindingVolumeByMaterial(workVolume);
+			var existing = this.findBindingVolumeByExpandedVolume(expandedVolume);
 
-			if (!workVolume.IsChecked.Value)
+			if (!expandedVolume.IsChecked.Value)
 			{
 				if (existing is not null)
 				{
@@ -1041,7 +970,7 @@ public class VolumeSelectionManager
 				continue;
 			}
 
-			var number = getWorkVolumeNumber(workVolume);
+			var number = expandedVolume.VolumeNumber;
 			var originals = this.bindingStore.BindingVolumes
 				.Where(v => v.Material.Type != MaterialSourceType.WorkFolder
 					&& v.VolumeNumber.Value == number)
@@ -1051,7 +980,8 @@ public class VolumeSelectionManager
 				this.removeBindingVolumeLogically(original);
 			}
 
-			var newVolume = new BindingVolume(workVolume);
+			var material = this.bindingStore.CreateExpandedMaterial(expandedVolume);
+			var newVolume = new BindingVolume(material);
 			try
 			{
 				newVolume.VolumeNumber.Value = number;
@@ -1060,11 +990,33 @@ public class VolumeSelectionManager
 			catch
 			{
 				newVolume.Dispose();
+				this.bindingStore.ReleaseExpandedMaterial(material);
 				throw;
 			}
 
 			this.invalidateCompletedState();
 		}
+	}
+
+	/// <summary>
+	/// 指定した ExpandedVolume を現在の入力素材とする BindingVolume を検索します。
+	/// ExpandedVolume と MaterialItem は別の型のため、FullPath を OrdinalIgnoreCase で比較します。
+	/// </summary>
+	/// <param name="expandedVolume">検索対象の ExpandedVolume。</param>
+	/// <returns>見つかった BindingVolume、見つからない場合は null。</returns>
+	private BindingVolume? findBindingVolumeByExpandedVolume(ExpandedVolume expandedVolume)
+	{
+		foreach (var volume in this.bindingStore.BindingVolumes)
+		{
+			var material = volume.Material;
+			if (material.Type == MaterialSourceType.WorkFolder
+				&& string.Equals(material.FullPath, expandedVolume.FullPath, StringComparison.OrdinalIgnoreCase))
+			{
+				return volume;
+			}
+		}
+
+		return null;
 	}
 
 	/// <summary>

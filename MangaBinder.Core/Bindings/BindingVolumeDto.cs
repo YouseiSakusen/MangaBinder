@@ -18,6 +18,12 @@ public class BindingVolumeDto
 	/// <summary>この巻に紐づく素材の情報を取得または設定します。</summary>
 	public MaterialItemDto Material { get; set; } = new();
 
+	/// <summary>
+	/// 展開済み由来の巻について、展開元となった元素材を識別するための情報を取得または設定します。
+	/// 子素材は含みません。元素材由来の巻、展開元が不明な巻、およびこの項目を持たない旧形式の JSON では null です。
+	/// </summary>
+	public MaterialItemDto? SourceMaterial { get; set; }
+
 	/// <summary>画像処理後に同一ファイル名になる画像が存在するかを取得または設定します。</summary>
 	public bool HasImageFileNameConflict { get; set; }
 

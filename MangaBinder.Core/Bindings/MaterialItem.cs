@@ -27,13 +27,15 @@ public class MaterialItem : IDisposable
 
 	/// <summary>
 	/// ノードの表示名を取得します。
+	/// 展開済み巻用の素材のみ <see cref="UpdateFolderLocation"/> で更新されます。
 	/// </summary>
-	public string Name { get; init; } = string.Empty;
+	public string Name { get; private set; } = string.Empty;
 
 	/// <summary>
 	/// ノードのフルパスを取得します。
+	/// 展開済み巻用の素材のみ <see cref="UpdateFolderLocation"/> で更新されます。
 	/// </summary>
-	public string FullPath { get; init; } = string.Empty;
+	public string FullPath { get; private set; } = string.Empty;
 
 	/// <summary>
 	/// Archive ノードのファイルサイズ表示用テキストを取得します（例：「1.2 GB」）。
@@ -61,8 +63,9 @@ public class MaterialItem : IDisposable
 	/// <summary>
 	/// 解凍元の実パスを取得します。
 	/// 実フォルダの場合はフォルダパス、Archive 内部フォルダの場合は Archive ファイルパス、Epub の場合は Epub ファイルパス。
+	/// 展開済み巻用の素材のみ <see cref="UpdateFolderLocation"/> で更新されます。
 	/// </summary>
-	public string SourcePath { get; init; } = string.Empty;
+	public string SourcePath { get; private set; } = string.Empty;
 
 	/// <summary>
 	/// Archive 内部フォルダの場合のエントリ接頭辞を取得します。
@@ -98,8 +101,9 @@ public class MaterialItem : IDisposable
 	/// 元素材から生成された通常の素材では null です。
 	/// <see cref="ExpandedVolume.CreateMaterial"/> で生成された場合は、その <see cref="ExpandedVolume.Source"/> が設定されます。
 	/// 参照のみを保持し、所有権は持たないため <see cref="Dispose"/> では破棄しません。
+	/// 参照先の元素材が削除された場合に、呼び出し側が null へ戻すために設定可能です。
 	/// </summary>
-	public MaterialItem? Source { get; init; }
+	public MaterialItem? Source { get; set; }
 
 	/// <summary>
 	/// この素材が製本対象として選択されているかを取得または設定します。
@@ -162,6 +166,28 @@ public class MaterialItem : IDisposable
 		this.IsChecked = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 		this.Children = new ObservableList<MaterialItem>();
+	}
+
+	/// <summary>
+	/// 展開済み巻フォルダの移動（リネーム）後に、名前・フルパス・解凍元パスを新しい場所へ更新します。
+	/// 物理フォルダの移動が成功した後にのみ呼び出してください。
+	/// </summary>
+	/// <param name="name">新しいフォルダ名。</param>
+	/// <param name="fullPath">新しいフォルダのフルパス。</param>
+	/// <exception cref="InvalidOperationException">展開済み巻フォルダ用の素材（<see cref="MaterialSourceType.WorkFolder"/>）でない場合。</exception>
+	public void UpdateFolderLocation(string name, string fullPath)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+		ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
+
+		if (this.Type != MaterialSourceType.WorkFolder)
+		{
+			throw new InvalidOperationException("展開済み巻フォルダ用の素材以外はフォルダ位置を更新できません。");
+		}
+
+		this.Name = name;
+		this.FullPath = fullPath;
+		this.SourcePath = fullPath;
 	}
 
 	/// <inheritdoc/>

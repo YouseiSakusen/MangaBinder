@@ -31,11 +31,21 @@ public class BindingVolume : IDisposable
 		"cover",
 	];
 
+	/// <summary>この巻の現在の入力素材を保持する Reactive 状態（内部状態）。</summary>
+	private readonly BindableReactiveProperty<MaterialItem> material;
+
 	/// <summary>
-	/// この巻の元となった素材を取得します。
-	/// BindingStore.Materials 内に存在する MaterialItem と同一インスタンスを参照します。
+	/// この巻の現在の入力素材を取得します。
+	/// 元素材由来の場合は BindingStore.Materials 内の MaterialItem と同一インスタンス、
+	/// 展開済み由来の場合は BindingStore が所有する展開済み巻用 MaterialItem を参照します。
 	/// </summary>
-	public MaterialItem Material { get; init; }
+	public MaterialItem Material => this.material.Value;
+
+	/// <summary>
+	/// <see cref="Material"/> と同一状態を読み取り専用で公開します。
+	/// <see cref="SetMaterial"/> や <see cref="NotifyMaterialChanged"/> により変更が通知されます。
+	/// </summary>
+	public IReadOnlyBindableReactiveProperty<MaterialItem> CurrentMaterial { get; }
 
 	/// <summary>
 	/// この巻に割り当てられた巻番号を取得または設定します。
@@ -173,7 +183,11 @@ public class BindingVolume : IDisposable
 	/// <param name="splitSettings">この巻が所有する見開き分割設定。</param>
 	private BindingVolume(MaterialItem material, SplitSettings splitSettings)
 	{
-		this.Material = material ?? throw new ArgumentNullException(nameof(material));
+		ArgumentNullException.ThrowIfNull(material);
+
+		this.material = new BindableReactiveProperty<MaterialItem>(material)
+			.AddTo(ref this.disposableBag);
+		this.CurrentMaterial = this.material;
 		this.VolumeNumber = new BindableReactiveProperty<decimal?>(null)
 			.AddTo(ref this.disposableBag);
 		this.IsBinding = new BindableReactiveProperty<bool>(true)
@@ -193,6 +207,33 @@ public class BindingVolume : IDisposable
 		this.EpubExtractionErrorMessage = null;
 		this.SplitSettings = splitSettings
 			.AddTo(ref this.disposableBag);
+	}
+
+	/// <summary>
+	/// この巻の入力素材を切り替えます。BindingVolume・BindingImage のインスタンスは維持されます。
+	/// 同一インスタンスを指定した場合は何もせず、通知も発生しません。
+	/// 指定した素材の所有権は取得しません。
+	/// </summary>
+	/// <param name="newMaterial">新しい入力素材。</param>
+	/// <exception cref="ArgumentNullException"><paramref name="newMaterial"/> が null の場合。</exception>
+	public void SetMaterial(MaterialItem newMaterial)
+	{
+		ArgumentNullException.ThrowIfNull(newMaterial);
+
+		if (ReferenceEquals(this.material.Value, newMaterial))
+		{
+			return;
+		}
+
+		this.material.Value = newMaterial;
+	}
+
+	/// <summary>
+	/// 現在の素材インスタンスはそのままに、素材の内容（名前・パス・ファイル数等）が変更されたことを通知します。
+	/// </summary>
+	public void NotifyMaterialChanged()
+	{
+		this.material.ForceNotify();
 	}
 
 	/// <summary>
@@ -334,20 +375,10 @@ public class BindingVolume : IDisposable
 			VolumeNumber = this.VolumeNumber.Value,
 			IsBinding = this.IsBinding.Value,
 			Type = this.Material.Type,
-			Material = new MaterialItemDto
-			{
-				ItemType = this.Material.ItemType,
-				Name = this.Material.Name,
-				FullPath = this.Material.FullPath,
-				FileSizeText = this.Material.FileSizeText,
-				FileSizeBytes = this.Material.FileSizeBytes,
-				FileCount = this.Material.FileCount,
-				TotalImageBytes = this.Material.TotalImageBytes,
-				SourcePath = this.Material.SourcePath,
-				ArchiveEntryPrefix = this.Material.ArchiveEntryPrefix,
-				IsSelectableByDefault = this.Material.IsSelectableByDefault,
-				SelectionDisabledReason = this.Material.SelectionDisabledReason,
-			},
+			Material = createMaterialDto(this.Material),
+				SourceMaterial = this.Material.Type == MaterialSourceType.WorkFolder && this.Material.Source is not null
+					? createMaterialDto(this.Material.Source)
+					: null,
 			HasImageFileNameConflict = this.HasImageFileNameConflict,
 			HasImageProcessingError = this.HasImageProcessingError,
 			HasMixedSerialNumberPrecedingCharacters = this.HasMixedSerialNumberPrecedingCharacters,
@@ -362,6 +393,27 @@ public class BindingVolume : IDisposable
 		};
 	}
 
+	/// <summary>
+	/// 素材の識別・表示に必要な情報のみを DTO へコピーします。子素材は含みません。
+	/// </summary>
+	/// <param name="item">対象の素材。</param>
+	/// <returns>子素材を含まない素材 DTO。</returns>
+	private static MaterialItemDto createMaterialDto(MaterialItem item)
+		=> new()
+		{
+			ItemType = item.ItemType,
+			Name = item.Name,
+			FullPath = item.FullPath,
+			FileSizeText = item.FileSizeText,
+			FileSizeBytes = item.FileSizeBytes,
+			FileCount = item.FileCount,
+			TotalImageBytes = item.TotalImageBytes,
+			SourcePath = item.SourcePath,
+			ArchiveEntryPrefix = item.ArchiveEntryPrefix,
+			IsSelectableByDefault = item.IsSelectableByDefault,
+			SelectionDisabledReason = item.SelectionDisabledReason,
+		};
+
 	/// <inheritdoc/>
 	public void Dispose()
 	{
@@ -372,8 +424,8 @@ public class BindingVolume : IDisposable
 		}
 		this.Images.Clear();
 
-		// VolumeNumber の ReactiveProperty を破棄する
-		// Material は BindingStore.Materials が所有しているため Dispose しない
+		// VolumeNumber・Material の ReactiveProperty を破棄する
+		// Material が指す MaterialItem は BindingStore が所有しているため Dispose しない
 		this.disposableBag.Dispose();
 	}
 

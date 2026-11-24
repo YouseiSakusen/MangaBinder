@@ -192,7 +192,7 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
             .AddTo(ref this.disposableBag);
 
         this.AddExpandedVolumeCommand = new ReactiveCommand<Unit>(
-                this.bindingStore.WorkVolumes
+                this.bindingStore.ExpandedVolumes
                     .ObserveCountChanged(notifyCurrentCount: true)
                     .Select(count => count > 0),
                 initialCanExecute: false)
@@ -235,13 +235,16 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
         // Reactive側の新選択巻一覧を初期化
         // BindingStore.BindingVolumes から BindingVolumeViewModel へ変換
         var bindingVolumesView = this.bindingStore.BindingVolumes
-            .CreateView(bindingVolume => new BindingVolumeViewModel(bindingVolume, this.bindingStore.WorkVolumes));
+            .CreateView(bindingVolume => new BindingVolumeViewModel(bindingVolume));
 
         this.bindingVolumesView = bindingVolumesView;
 
         this.BindingVolumes = bindingVolumesView
             .ToNotifyCollectionChanged(SynchronizationContextCollectionEventDispatcher.Current)
             .AddTo(ref this.disposableBag);
+
+        // ViewChanged イベントで除外・置換時に BindingVolumeViewModel の購読を Dispose
+        bindingVolumesView.ViewChanged += this.onBindingVolumesViewChanged;
 
         // Reactive側の新しいD&D Handlerを初期化
         this.BindingVolumeDropHandler = new BindingVolumeDropHandler(
@@ -278,8 +281,17 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
 		this.materialItemsView = null;
 
 		// BindingVolumesView の参照をクリア
-		// BindingVolumeViewModel は BindingVolume を所有しないため、
-		// ここでは参照をクリアするだけで十分
+		// BindingVolumeViewModel は BindingVolume を所有しないが、BindingVolume.CurrentMaterial への購読を保持するため
+		// ViewChanged の購読を解除したうえで、残っている ViewModel の購読を Dispose する
+		if (this.bindingVolumesView is not null)
+		{
+			this.bindingVolumesView.ViewChanged -= this.onBindingVolumesViewChanged;
+			foreach (var viewModel in this.BindingVolumes.ToArray())
+			{
+				viewModel?.Dispose();
+			}
+		}
+
 		this.bindingVolumesView = null;
 
 		this.disposableBag.Dispose();
@@ -555,6 +567,42 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
                     }
                 }
                 // Sort / Reverse の場合は現在有効な MaterialItemViewModel を Dispose しない
+                break;
+        }
+    }
+
+    /// <summary>
+    /// BindingVolumes の ViewChanged イベント ハンドラ。
+    /// 除外・置換・クリア時に、取り除かれた BindingVolumeViewModel の Reactive 購読を Dispose する。
+    /// Sort / Reverse では現在有効な BindingVolumeViewModel を Dispose しない。
+    /// </summary>
+    private void onBindingVolumesViewChanged(in SynchronizedViewChangedEventArgs<BindingVolume, BindingVolumeViewModel> e)
+    {
+        switch (e.Action)
+        {
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Replace:
+                if (e.IsSingleItem)
+                {
+                    e.OldItem.View?.Dispose();
+                }
+                else
+                {
+                    foreach (var viewModel in e.OldViews)
+                    {
+                        viewModel?.Dispose();
+                    }
+                }
+                break;
+
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+                if (e.SortOperation.IsClear)
+                {
+                    foreach (var viewModel in e.OldViews)
+                    {
+                        viewModel?.Dispose();
+                    }
+                }
                 break;
         }
     }

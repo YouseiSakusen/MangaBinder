@@ -124,6 +124,12 @@ public class BindingManager
 
 		// IsChecked を false に設定（Store内の不整合を残さない）
 		material.IsChecked.Value = false;
+
+		// 展開済み巻用に生成された MaterialItem は、BindingStore の所有管理に従って解放する
+		if (volume is not null)
+		{
+			this.bindingStore.ReleaseExpandedMaterial(material);
+		}
 	}
 
 	/// <summary>

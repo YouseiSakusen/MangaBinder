@@ -11,11 +11,11 @@ public class ExpandedVolume : IDisposable
 {
 	private DisposableBag disposableBag;
 
-	/// <summary>展開先巻フォルダ名を取得します。生成時に決定し、変更されません。</summary>
-	public string Name { get; }
+	/// <summary>展開先巻フォルダ名を取得します。フォルダ移動時のみ <see cref="UpdateFolderLocation"/> で更新されます。</summary>
+	public string Name { get; private set; }
 
-	/// <summary>実フォルダのフルパスを取得します。生成時に決定し、変更されません。</summary>
-	public string FullPath { get; }
+	/// <summary>実フォルダのフルパスを取得します。フォルダ移動時のみ <see cref="UpdateFolderLocation"/> で更新されます。</summary>
+	public string FullPath { get; private set; }
 
 	/// <summary>フォルダ名から取得した巻番号を取得します。生成時に決定し、変更されません。</summary>
 	public decimal VolumeNumber { get; }
@@ -72,6 +72,21 @@ public class ExpandedVolume : IDisposable
 	{
 		this.FileCount = fileCount;
 		this.TotalImageBytes = totalImageBytes;
+	}
+
+	/// <summary>
+	/// 物理フォルダの移動（リネーム）が成功した後に、フォルダ名とフルパスを更新します。
+	/// 巻番号・<see cref="IsChecked"/>・<see cref="Source"/> は変更しません。
+	/// </summary>
+	/// <param name="name">移動後のフォルダ名。</param>
+	/// <param name="fullPath">移動後のフォルダのフルパス。</param>
+	public void UpdateFolderLocation(string name, string fullPath)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+		ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
+
+		this.Name = name;
+		this.FullPath = fullPath;
 	}
 
 	/// <summary>
