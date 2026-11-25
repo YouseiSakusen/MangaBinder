@@ -90,7 +90,7 @@ public class SeriesInspectionManager
 		this.bindingManager.InitializeZipOutputFileName();
 
 		// ⑥ BindingStore.WorkSeriesFolderPath から対象作品の作品Workフォルダパスを取得する
-		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
+		var seriesFolderPath = this.bindingStore.ExpandedSeriesFolderPath.Value;
 
 		// ⑦ 作品Workフォルダが存在しない場合のみ作成する（既存の作品Workフォルダは削除しない）
 		// ExecuteAsync は UI スレッドから呼ばれ、以降で Store・Reactive 通知を伴う状態を更新するため、
@@ -121,14 +121,14 @@ public class SeriesInspectionManager
 			}
 
 			// 巻フォルダ名を生成
-			var volumeFolderName = this.appSettings.CreateWorkVolumeFolderName(
+			var volumeFolderName = this.appSettings.CreateExpandedVolumeFolderName(
 				volumeNumber.Value,
 				volumeFolderDigits);
 
 			var targetFolderPath = Path.Combine(seriesFolderPath, volumeFolderName);
 
 			// 展開先由来の巻は、スキャン済みの実フォルダを再利用する（桁数変更時のみフォルダ名を引き継ぐ）
-			if (bindingVolume.Material.Type == MaterialSourceType.WorkFolder)
+			if (bindingVolume.Material.Type == MaterialSourceType.ExpandedFolder)
 			{
 				// 物理フォルダの操作のみバックグラウンドで行い、モデル状態の確定は UI コンテキストで行う
 				var currentFolderPath = bindingVolume.Material.FullPath;
@@ -212,7 +212,7 @@ public class SeriesInspectionManager
 
 		// 展開先由来の巻は、同期の結果画像が0件になった場合に BindingVolumes から論理的に除外する
 		var emptyWorkVolumes = this.bindingStore.BindingVolumes
-			.Where(v => v.Material.Type == MaterialSourceType.WorkFolder && v.Images.Count == 0)
+			.Where(v => v.Material.Type == MaterialSourceType.ExpandedFolder && v.Images.Count == 0)
 			.ToList();
 
 		foreach (var emptyVolume in emptyWorkVolumes)
@@ -256,7 +256,7 @@ public class SeriesInspectionManager
 			compacting: false);
 
 		// ⑬ 展開先作品フォルダ直下の巻フォルダ数を1回だけ取得し、Store へ保持
-		this.bindingStore.WorkVolumeFolderCount.Value = Directory.GetDirectories(this.bindingStore.WorkSeriesFolderPath.Value).Length;
+		this.bindingStore.ExpandedVolumeFolderCount.Value = Directory.GetDirectories(this.bindingStore.ExpandedSeriesFolderPath.Value).Length;
 	}
 
 	/// <summary>
@@ -300,7 +300,7 @@ public class SeriesInspectionManager
 	{
 		if (!isRenamed)
 		{
-			volume.WorkFolderPath = currentFolderPath;
+			volume.ExpandedVolumeFolderPath = currentFolderPath;
 			return;
 		}
 
@@ -316,7 +316,7 @@ public class SeriesInspectionManager
 			}
 		}
 
-		volume.WorkFolderPath = targetFolderPath;
+		volume.ExpandedVolumeFolderPath = targetFolderPath;
 		volume.NotifyMaterialChanged();
 	}
 
@@ -329,14 +329,14 @@ public class SeriesInspectionManager
 	private async ValueTask switchToExpandedVolumeAsync(BindingVolume volume)
 	{
 		if (!this.bindingStore.BindingVolumes.Contains(volume)
-			|| volume.Material.Type == MaterialSourceType.WorkFolder
-			|| string.IsNullOrEmpty(volume.WorkFolderPath)
+			|| volume.Material.Type == MaterialSourceType.ExpandedFolder
+			|| string.IsNullOrEmpty(volume.ExpandedVolumeFolderPath)
 			|| (volume.Material.Type == MaterialSourceType.Epub && volume.EpubExtractionError != EpubExtractionError.None))
 		{
 			return;
 		}
 
-		var workFolderPath = volume.WorkFolderPath;
+		var workFolderPath = volume.ExpandedVolumeFolderPath;
 		var scanned = await Task.Run(() => ExpandedVolumeFolderScanner.ScanFolder(workFolderPath));
 		if (scanned is null)
 		{
@@ -365,7 +365,7 @@ public class SeriesInspectionManager
 	{
 		if (volume.Images.Count == 0)
 		{
-			volume.WorkFolderPath = targetFolderPath;
+			volume.ExpandedVolumeFolderPath = targetFolderPath;
 
 			if (Directory.Exists(targetFolderPath))
 			{
@@ -377,7 +377,7 @@ public class SeriesInspectionManager
 		}
 
 		// 製本設定から復元した直後は WorkFolderPath が未設定のため、保存済みの画像パスから現在の巻フォルダを特定する
-		var currentFolderPath = volume.WorkFolderPath
+		var currentFolderPath = volume.ExpandedVolumeFolderPath
 			?? volume.Images
 				.Where(image => image.FilePath is not null)
 				.Select(image => Path.GetDirectoryName(image.FilePath!))
@@ -407,7 +407,7 @@ public class SeriesInspectionManager
 			}
 		}
 
-		volume.WorkFolderPath = targetFolderPath;
+		volume.ExpandedVolumeFolderPath = targetFolderPath;
 		Directory.CreateDirectory(targetFolderPath);
 	}
 
@@ -458,7 +458,7 @@ public class SeriesInspectionManager
 						continue;
 					}
 
-					image.RecordWorkFileState(new FileInfo(image.FilePath));
+					image.RecordExpandedFileState(new FileInfo(image.FilePath));
 				}
 
 				// スコープはusingで自動破棄
@@ -522,15 +522,15 @@ public class SeriesInspectionManager
 						{
 							ct.ThrowIfCancellationRequested();
 
-							if (sourceType != MaterialSourceType.WorkFolder && volume.Images.Count == 0)
+							if (sourceType != MaterialSourceType.ExpandedFolder && volume.Images.Count == 0)
 							{
 								extractTargets.Add(volume);
 								continue;
 							}
 
-							imagesToProcess[volume] = ReconcileWorkFolderImages(volume, ct);
+							imagesToProcess[volume] = ReconcileExpandedVolumeImages(volume, ct);
 
-							if (sourceType != MaterialSourceType.WorkFolder && volume.Images.Count == 0)
+							if (sourceType != MaterialSourceType.ExpandedFolder && volume.Images.Count == 0)
 							{
 								imagesToProcess.Remove(volume);
 								extractTargets.Add(volume);
@@ -646,7 +646,7 @@ public class SeriesInspectionManager
 	/// <param name="volume">対象の BindingVolume。</param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>
 	/// <returns>新規または変更された、画像処理対象の BindingImage。</returns>
-	internal static List<BindingImage> ReconcileWorkFolderImages(BindingVolume volume, CancellationToken cancellationToken)
+	internal static List<BindingImage> ReconcileExpandedVolumeImages(BindingVolume volume, CancellationToken cancellationToken)
 	{
 		var confirmedImages = new List<BindingImage>();
 		var imagesToProcess = new List<BindingImage>();
@@ -661,7 +661,7 @@ public class SeriesInspectionManager
 			}
 		}
 
-		var workFiles = new DirectoryInfo(volume.WorkFolderPath!)
+		var workFiles = new DirectoryInfo(volume.ExpandedVolumeFolderPath!)
 			.EnumerateFiles("*", SearchOption.TopDirectoryOnly)
 			.Where(file => SupportedExtensionHelper.IsImage(file.Extension))
 			.OrderBy(file => file.FullName, StringComparer.OrdinalIgnoreCase);
@@ -823,12 +823,12 @@ public class SeriesInspectionManager
 			// CancellationToken に依存しない cleanup を実行（既にキャンセル状態でも実行）
 			foreach (var volume in epubVolumesToCleanup)
 			{
-				if (string.IsNullOrEmpty(volume.WorkFolderPath))
+				if (string.IsNullOrEmpty(volume.ExpandedVolumeFolderPath))
 				{
 					continue;
 				}
 
-				var epubTempDir = Path.Combine(volume.WorkFolderPath, ".epub");
+				var epubTempDir = Path.Combine(volume.ExpandedVolumeFolderPath, ".epub");
 
 				try
 				{
@@ -846,7 +846,7 @@ public class SeriesInspectionManager
 					this.logger.LogWarning(
 						ex,
 						"EPUB の一時展開フォルダ削除に失敗しました。WorkFolderPath：{WorkFolder}",
-						volume.WorkFolderPath);
+						volume.ExpandedVolumeFolderPath);
 				}
 			}
 		}

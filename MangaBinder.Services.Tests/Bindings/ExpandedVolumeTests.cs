@@ -30,7 +30,7 @@ public class ExpandedVolumeTests
 		using var material = volume.CreateMaterial();
 
 		Assert.Equal(MaterialItemType.Folder, material.ItemType);
-		Assert.Equal(MaterialSourceType.WorkFolder, material.Type);
+		Assert.Equal(MaterialSourceType.ExpandedFolder, material.Type);
 		Assert.Equal("Vol_01", material.Name);
 		Assert.Equal(@"C:\work\Vol_01", material.FullPath);
 		Assert.Equal(@"C:\work\Vol_01", material.SourcePath);

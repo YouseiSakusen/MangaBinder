@@ -75,7 +75,7 @@ public class SeriesInspectionPageViewModel : BindingPageViewModelBase, IDataInit
 	public ReactiveCommand OpenBindingFolderCommand { get; }
 
 	/// <summary>展開先作品フォルダ直下の巻フォルダ数を取得します。</summary>
-	public BindableReactiveProperty<int> WorkVolumeFolderCount => this.bindingStore.WorkVolumeFolderCount;
+	public BindableReactiveProperty<int> ExpandedVolumeFolderCount => this.bindingStore.ExpandedVolumeFolderCount;
 
 	/// <summary>製本をキャンセルするコマンドを取得します。</summary>
 	public ReactiveCommand CancelCommand { get; }
@@ -188,7 +188,7 @@ public class SeriesInspectionPageViewModel : BindingPageViewModelBase, IDataInit
 	{
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var opener = scope.ServiceProvider.GetRequiredService<BindingFolderOpener>();
-		await opener.OpenAsync(this.bindingStore.WorkSeriesFolderPath.Value);
+		await opener.OpenAsync(this.bindingStore.ExpandedSeriesFolderPath.Value);
 	}
 
 	/// <summary>

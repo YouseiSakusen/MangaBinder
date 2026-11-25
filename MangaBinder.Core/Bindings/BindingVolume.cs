@@ -60,11 +60,11 @@ public class BindingVolume : IDisposable
 
 	/// <summary>
 	/// 今回の製本で実際に使用する入力元パスを取得します。
-	/// Material.OriginalSourceType が WorkFolder の場合は this.WorkFolderPath を返し、
+	/// Material.OriginalSourceType が ExpandedFolder の場合は this.WorkFolderPath を返し、
 	/// それ以外の場合は Material.SourcePath を返します。
 	/// </summary>
-	public string EffectiveSourcePath => this.Material.Type == MaterialSourceType.WorkFolder
-		? this.WorkFolderPath!
+	public string EffectiveSourcePath => this.Material.Type == MaterialSourceType.ExpandedFolder
+		? this.ExpandedVolumeFolderPath!
 		: this.Material.SourcePath;
 
 	/// <summary>
@@ -72,7 +72,7 @@ public class BindingVolume : IDisposable
 	/// SeriesInspectionManager が製本前確認処理で確定した値を設定します。
 	/// DB へ永続化される情報ではなく、現在のセッション中の一時的な管理情報です。
 	/// </summary>
-	public string? WorkFolderPath { get; set; }
+	public string? ExpandedVolumeFolderPath { get; set; }
 
 	/// <summary>
 	/// この巻の製本処理で使用するWork上の画像一覧を取得します。
@@ -84,7 +84,7 @@ public class BindingVolume : IDisposable
 	/// 現時点では Images が1件以上存在する展開済みの巻の場合に true になります。
 	/// </summary>
 	public bool RequiresUnselectCleanup => this.Images.Count > 0
-		&& this.Material.Type != MaterialSourceType.WorkFolder;
+		&& this.Material.Type != MaterialSourceType.ExpandedFolder;
 
 	/// <summary>
 	/// 画像処理後に同一ファイル名になる BindingImage が
@@ -192,7 +192,7 @@ public class BindingVolume : IDisposable
 			.AddTo(ref this.disposableBag);
 		this.IsBinding = new BindableReactiveProperty<bool>(true)
 			.AddTo(ref this.disposableBag);
-		this.WorkFolderPath = null;
+		this.ExpandedVolumeFolderPath = null;
 		this.Images = new ObservableList<BindingImage>();
 		this.HasImageFileNameConflict = false;
 		this.HasImageProcessingError = false;
@@ -246,7 +246,7 @@ public class BindingVolume : IDisposable
 		var clone = new BindingVolume(this.Material, this.SplitSettings.CloneForImageSplitter());
 		clone.VolumeNumber.Value = this.VolumeNumber.Value;
 		clone.IsBinding.Value = this.IsBinding.Value;
-		clone.WorkFolderPath = this.WorkFolderPath;
+		clone.ExpandedVolumeFolderPath = this.ExpandedVolumeFolderPath;
 		clone.HasImageFileNameConflict = this.HasImageFileNameConflict;
 		clone.HasImageProcessingError = this.HasImageProcessingError;
 		clone.HasMixedSerialNumberPrecedingCharacters = this.HasMixedSerialNumberPrecedingCharacters;
@@ -376,7 +376,7 @@ public class BindingVolume : IDisposable
 			IsBinding = this.IsBinding.Value,
 			Type = this.Material.Type,
 			Material = createMaterialDto(this.Material),
-				SourceMaterial = this.Material.Type == MaterialSourceType.WorkFolder && this.Material.Source is not null
+				SourceMaterial = this.Material.Type == MaterialSourceType.ExpandedFolder && this.Material.Source is not null
 					? createMaterialDto(this.Material.Source)
 					: null,
 			HasImageFileNameConflict = this.HasImageFileNameConflict,
@@ -461,7 +461,7 @@ public class BindingVolume : IDisposable
 			.Count(img => img.IsLandscape);
 
 		this.imageTotalBytes.Value =
-			this.Images.Sum(image => image.WorkFileSize ?? 0L);
+			this.Images.Sum(image => image.ExpandedFileSize ?? 0L);
 
 		// ④ HasImageProcessingError: エラー状態の画像が存在するか判定
 		this.HasImageProcessingError = this.Images.Any(img =>

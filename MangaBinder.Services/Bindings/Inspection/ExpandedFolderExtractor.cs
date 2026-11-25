@@ -7,12 +7,12 @@ namespace MangaBinder.Bindings.Inspection;
 /// Work フォルダ直下に存在する対応画像ファイルを列挙し、
 /// group 内の各 BindingVolume に BindingImage を生成します。
 /// </summary>
-public class WorkFolderExtractor : IMaterialExtractor
+public class ExpandedFolderExtractor : IMaterialExtractor
 {
 	/// <summary>
-	/// <see cref="WorkFolderExtractor"/> の新しいインスタンスを初期化します。
+	/// <see cref="ExpandedFolderExtractor"/> の新しいインスタンスを初期化します。
 	/// </summary>
-	public WorkFolderExtractor()
+	public ExpandedFolderExtractor()
 	{
 	}
 
@@ -66,7 +66,7 @@ public class WorkFolderExtractor : IMaterialExtractor
 
 	/// <summary>
 	/// 1つの BindingImage を準備します。
-	/// WorkFolder 素材の場合は no-op です。CancellationToken の確認のみを行います。
+	/// ExpandedFolder 素材の場合は no-op です。CancellationToken の確認のみを行います。
 	/// </summary>
 	/// <param name="image">準備対象の BindingImage。</param>
 	/// <param name="cancellationToken">キャンセルトークン。</param>

@@ -33,7 +33,7 @@ public class BindingSettingsRestoreTests : IDisposable
 		this.seriesFolder = Path.Combine(root, "series");
 		this.dbPath = Path.Combine(root, "test.db");
 		Directory.CreateDirectory(this.seriesFolder);
-		this.store.WorkSeriesFolderPath.Value = this.seriesFolder;
+		this.store.ExpandedSeriesFolderPath.Value = this.seriesFolder;
 
 		var settings = new AppSettings { ConnectionString = $"Data Source={this.dbPath}" };
 		using (var connection = new SQLiteConnection(settings.ConnectionString))
@@ -91,7 +91,7 @@ public class BindingSettingsRestoreTests : IDisposable
 		volume.VolumeNumber.Value = number;
 		var image = volume.AddImage("1.jpg", "1.jpg");
 		image.FilePath = Path.Combine(material.FullPath, "1.jpg");
-		image.WorkFileSize = 10;
+		image.ExpandedFileSize = 10;
 		image.FileName = "001.jpg";
 		var dto = volume.CreateDto();
 		if (source is not null && dto.SourceMaterial is null)
@@ -149,7 +149,7 @@ public class BindingSettingsRestoreTests : IDisposable
 	public async Task Source付き展開済み巻は元素材の同一参照をSourceとして復元されBindingImageが維持される()
 	{
 		this.createVolumeFolder("Title 01");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var expanded = this.store.ExpandedVolumes.Single();
 		var source = this.addSource("a");
 		using var temp = expanded.CreateMaterial();
@@ -159,7 +159,7 @@ public class BindingSettingsRestoreTests : IDisposable
 		await this.restoreAsync(dto);
 
 		var volume = Assert.Single(this.store.BindingVolumes);
-		Assert.Equal(MaterialSourceType.WorkFolder, volume.Material.Type);
+		Assert.Equal(MaterialSourceType.ExpandedFolder, volume.Material.Type);
 		Assert.Same(source, expanded.Source);
 		Assert.Same(source, volume.Material.Source);
 		Assert.True(expanded.IsChecked.Value);
@@ -167,7 +167,7 @@ public class BindingSettingsRestoreTests : IDisposable
 		Assert.False(source.IsChecked.Value);
 		var image = Assert.Single(volume.Images);
 		Assert.Equal("001.jpg", image.FileName);
-		Assert.Equal(10, image.WorkFileSize);
+		Assert.Equal(10, image.ExpandedFileSize);
 		Assert.Equal(Path.Combine(expanded.FullPath, "1.jpg"), image.FilePath);
 	}
 
@@ -175,7 +175,7 @@ public class BindingSettingsRestoreTests : IDisposable
 	public async Task Sourceなし展開済み巻はSourceがnullのまま復元される()
 	{
 		this.createVolumeFolder("Title 01");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var expanded = this.store.ExpandedVolumes.Single();
 		using var temp = expanded.CreateMaterial();
 		var dto = createDto(temp, 1m);
@@ -191,7 +191,7 @@ public class BindingSettingsRestoreTests : IDisposable
 	public async Task Sourceが見つからなくても展開済み巻は復元されSourceはnullになる()
 	{
 		this.createVolumeFolder("Title 01");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var expanded = this.store.ExpandedVolumes.Single();
 		using var temp = expanded.CreateMaterial();
 		using var missingSource = new MaterialItem(MaterialItemType.Folder, MaterialSourceType.Folder, "gone", @"C:\gone", sourcePath: @"C:\gone");
@@ -211,7 +211,7 @@ public class BindingSettingsRestoreTests : IDisposable
 		var source = this.addSource("a");
 		using var gone = new MaterialItem(
 			MaterialItemType.Folder,
-			MaterialSourceType.WorkFolder,
+			MaterialSourceType.ExpandedFolder,
 			"Title 01",
 			Path.Combine(this.seriesFolder, "Title 01"),
 			sourcePath: Path.Combine(this.seriesFolder, "Title 01"));
@@ -219,7 +219,7 @@ public class BindingSettingsRestoreTests : IDisposable
 		var goneDto = createDto(gone, 1m, source);
 		var other = this.addSource("b");
 		var otherDto = createDto(other, 2m);
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 
 		await this.restoreAsync(goneDto, otherDto);
 
@@ -233,7 +233,7 @@ public class BindingSettingsRestoreTests : IDisposable
 	public async Task SourceMaterial項目がない旧1_0のJSONでも展開済み巻を復元できる()
 	{
 		this.createVolumeFolder("Title 01");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var expanded = this.store.ExpandedVolumes.Single();
 		using var temp = expanded.CreateMaterial();
 		var dto = createDto(temp, 1m);
@@ -246,7 +246,7 @@ public class BindingSettingsRestoreTests : IDisposable
 
 		Assert.Null(version);
 		var volume = Assert.Single(this.store.BindingVolumes);
-		Assert.Equal(MaterialSourceType.WorkFolder, volume.Material.Type);
+		Assert.Equal(MaterialSourceType.ExpandedFolder, volume.Material.Type);
 		Assert.Null(volume.Material.Source);
 	}
 

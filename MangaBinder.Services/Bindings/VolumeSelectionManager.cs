@@ -80,7 +80,7 @@ public class VolumeSelectionManager
 		}
 
 		// ③ 未初期化の場合のみ、保存済み設定の復元より前に展開先の巻フォルダ一覧を同期する
-		await this.SyncWorkVolumesAsync(cancellationToken);
+		await this.SyncExpandedVolumesAsync(cancellationToken);
 
 		// 未初期化の場合のみ、巻フォルダ桁数を初期化する
 		this.initializeVolumeFolderDigits(bindingTarget.Series);
@@ -217,7 +217,7 @@ public class VolumeSelectionManager
 	/// <param name="material">除外対象の MaterialItem。</param>
 	private async ValueTask unselectMaterialForDeletionAsync(MaterialItem material)
 	{
-		if (material.Type == MaterialSourceType.WorkFolder)
+		if (material.Type == MaterialSourceType.ExpandedFolder)
 		{
 			this.UnselectMaterial(material);
 			return;
@@ -286,7 +286,7 @@ public class VolumeSelectionManager
 			foreach (var volumeDto in settings.Volumes)
 			{
 				MaterialItem? material;
-				if (volumeDto.Type == MaterialSourceType.WorkFolder)
+				if (volumeDto.Type == MaterialSourceType.ExpandedFolder)
 				{
 					// 展開済み由来：保存された FullPath を基準に ExpandedVolumes から検索し、実フォルダが存在する場合のみ復元する
 					var expandedVolume = this.bindingStore.FindExpandedVolumeByPath(volumeDto.Material.FullPath);
@@ -409,8 +409,8 @@ public class VolumeSelectionManager
 				image.SerialNumberPrecedingCharacter = imageDto.SerialNumberPrecedingCharacter;
 				image.SplitSide = imageDto.SplitSide;
 				image.FilePath = imageDto.FilePath;
-				image.WorkFileSize = imageDto.WorkFileSize;
-				image.WorkFileLastWriteTimeUtc = imageDto.WorkFileLastWriteTimeUtc;
+				image.ExpandedFileSize = imageDto.ExpandedFileSize;
+				image.ExpandedFileLastWriteTimeUtc = imageDto.ExpandedFileLastWriteTimeUtc;
 
 				if (imageDto.SplitSettings is not null)
 				{
@@ -530,7 +530,7 @@ public class VolumeSelectionManager
 		}
 
 		// 同じ巻番号の展開先由来の巻が存在する場合は、元素材へ切り替えるため論理的に除去する
-		this.removeWorkVolumesByVolumeNumber(newVolume.VolumeNumber.Value);
+		this.removeExpandedBindingVolumesByVolumeNumber(newVolume.VolumeNumber.Value);
 
 		// BindingVolumes へ挿入
 		try
@@ -812,7 +812,7 @@ public class VolumeSelectionManager
 	/// <summary>
 	/// 指定した巻番号の展開先由来の BindingVolume をすべて論理的に除去します。
 	/// </summary>
-	private void removeWorkVolumesByVolumeNumber(decimal? volumeNumber)
+	private void removeExpandedBindingVolumesByVolumeNumber(decimal? volumeNumber)
 	{
 		if (volumeNumber is null)
 		{
@@ -820,7 +820,7 @@ public class VolumeSelectionManager
 		}
 
 		var targets = this.bindingStore.BindingVolumes
-			.Where(v => v.Material.Type == MaterialSourceType.WorkFolder
+			.Where(v => v.Material.Type == MaterialSourceType.ExpandedFolder
 				&& v.VolumeNumber.Value == volumeNumber)
 			.ToList();
 
@@ -835,9 +835,9 @@ public class VolumeSelectionManager
 	/// 既存の ExpandedVolume は同一インスタンスを保持し、全巻の画像数・サイズを最新値へ更新します。
 	/// 初期化時と展開済み巻追加Dialog表示前の両方から呼び出されます。
 	/// </summary>
-	public async ValueTask SyncWorkVolumesAsync(CancellationToken cancellationToken = default)
+	public async ValueTask SyncExpandedVolumesAsync(CancellationToken cancellationToken = default)
 	{
-		var seriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
+		var seriesFolderPath = this.bindingStore.ExpandedSeriesFolderPath.Value;
 
 		var scannedFolders = await Task.Run(
 			() => ExpandedVolumeFolderScanner.ScanSeriesFolder(seriesFolderPath, cancellationToken),
@@ -882,7 +882,7 @@ public class VolumeSelectionManager
 			foreach (var volume in this.bindingStore.BindingVolumes)
 			{
 				var material = volume.Material;
-				if (material.Type == MaterialSourceType.WorkFolder
+				if (material.Type == MaterialSourceType.ExpandedFolder
 					&& string.Equals(material.FullPath, folder.Path, StringComparison.OrdinalIgnoreCase))
 				{
 					material.FileCount = folder.FileCount;
@@ -900,7 +900,7 @@ public class VolumeSelectionManager
 	public IReadOnlyList<ExpandedVolume> PrepareExpandedVolumeSelection()
 	{
 		var hasExpandedVolume = this.bindingStore.BindingVolumes
-			.Any(v => v.Material.Type == MaterialSourceType.WorkFolder);
+			.Any(v => v.Material.Type == MaterialSourceType.ExpandedFolder);
 
 		foreach (var expandedVolume in this.bindingStore.ExpandedVolumes)
 		{
@@ -928,7 +928,7 @@ public class VolumeSelectionManager
 
 			var number = expandedVolume.VolumeNumber;
 			var replaced = this.bindingStore.BindingVolumes
-				.Where(v => v.Material.Type != MaterialSourceType.WorkFolder
+				.Where(v => v.Material.Type != MaterialSourceType.ExpandedFolder
 					&& v.VolumeNumber.Value == number)
 				.Select(v => v.Material)
 				.ToList();
@@ -972,7 +972,7 @@ public class VolumeSelectionManager
 
 			var number = expandedVolume.VolumeNumber;
 			var originals = this.bindingStore.BindingVolumes
-				.Where(v => v.Material.Type != MaterialSourceType.WorkFolder
+				.Where(v => v.Material.Type != MaterialSourceType.ExpandedFolder
 					&& v.VolumeNumber.Value == number)
 				.ToList();
 			foreach (var original in originals)
@@ -1010,7 +1010,7 @@ public class VolumeSelectionManager
 		foreach (var volume in this.bindingStore.BindingVolumes)
 		{
 			var material = volume.Material;
-			if (material.Type == MaterialSourceType.WorkFolder
+			if (material.Type == MaterialSourceType.ExpandedFolder
 				&& string.Equals(material.FullPath, expandedVolume.FullPath, StringComparison.OrdinalIgnoreCase))
 			{
 				return volume;
@@ -1198,9 +1198,9 @@ public class VolumeSelectionManager
 		var result = bindingManager.ValidateVolumeSelection(bindingVolumesOnly: false);
 
 		// 展開先に実在しない展開先由来の巻は、すべて論理的に除外する
-		if (result.Error == VolumeSelectionValidationError.WorkVolumeFolderMissing)
+		if (result.Error == VolumeSelectionValidationError.ExpandedVolumeFolderMissing)
 		{
-			foreach (var volume in result.MissingWorkVolumes)
+			foreach (var volume in result.MissingExpandedBindingVolumes)
 			{
 				this.removeBindingVolumeLogically(volume);
 			}

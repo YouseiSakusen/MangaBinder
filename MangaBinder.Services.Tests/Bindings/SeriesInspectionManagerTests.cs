@@ -32,13 +32,13 @@ public class SeriesInspectionManagerTests : IDisposable
 		this.seriesFolder = Path.Combine(Path.GetTempPath(), "MangaBinderTests_" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(this.seriesFolder);
 
-		this.appSettings.WorkVolumeFolderNamePrefix.Value = "Title ";
-		this.appSettings.WorkVolumeFolderNameSuffix.Value = string.Empty;
+		this.appSettings.ExpandedVolumeFolderNamePrefix.Value = "Title ";
+		this.appSettings.ExpandedVolumeFolderNameSuffix.Value = string.Empty;
 
 		var services = new ServiceCollection();
 		services.AddSingleton(this.appSettings);
-		services.AddKeyedScoped<IMaterialExtractor, WorkFolderExtractor>(MaterialSourceType.WorkFolder);
-		services.AddKeyedScoped<IMaterialExtractor, WorkFolderExtractor>(MaterialSourceType.Folder);
+		services.AddKeyedScoped<IMaterialExtractor, ExpandedFolderExtractor>(MaterialSourceType.ExpandedFolder);
+		services.AddKeyedScoped<IMaterialExtractor, ExpandedFolderExtractor>(MaterialSourceType.Folder);
 		services.AddScoped<BindingImageProcessor>();
 		services.AddScoped<VolumeFileNameNormalizer>();
 		this.serviceProvider = services.BuildServiceProvider();
@@ -61,7 +61,7 @@ public class SeriesInspectionManagerTests : IDisposable
 		{
 			SeriesNotifier = new MangaSeriesNotifier(new MangaSeries(), this.tagStore),
 		};
-		this.store.WorkSeriesFolderPath.Value = this.seriesFolder;
+		this.store.ExpandedSeriesFolderPath.Value = this.seriesFolder;
 		this.store.ZipOutputFileName.Value = "test.zip";
 		this.store.VolumeFolderDigits.Value = 2;
 	}
@@ -85,7 +85,7 @@ public class SeriesInspectionManagerTests : IDisposable
 	{
 		var image = volume.AddImage(filePath, Path.GetFileName(filePath));
 		image.FilePath = filePath;
-		image.RecordWorkFileState(new FileInfo(filePath));
+		image.RecordExpandedFileState(new FileInfo(filePath));
 		return image;
 	}
 
@@ -101,7 +101,7 @@ public class SeriesInspectionManagerTests : IDisposable
 
 		var volume = new BindingVolume(material);
 		volume.VolumeNumber.Value = number;
-		volume.WorkFolderPath = folderPath;
+		volume.ExpandedVolumeFolderPath = folderPath;
 		this.store.InsertBindingVolumeInOrder(volume);
 
 		return (volume, expanded, addTrackedImage(volume, filePath));
@@ -137,7 +137,7 @@ public class SeriesInspectionManagerTests : IDisposable
 		var expanded = this.store.AddOrUpdateExpandedVolume(folderName, folderPath, 1m, 0, 0L);
 		var volume = new BindingVolume(this.store.CreateExpandedMaterial(expanded))
 		{
-			WorkFolderPath = folderPath,
+			ExpandedVolumeFolderPath = folderPath,
 		};
 		return volume;
 	}
@@ -163,7 +163,7 @@ public class SeriesInspectionManagerTests : IDisposable
 
 		Assert.Same(volume, Assert.Single(this.store.BindingVolumes));
 		Assert.Same(image, Assert.Single(volume.Images));
-		Assert.Equal(MaterialSourceType.WorkFolder, volume.Material.Type);
+		Assert.Equal(MaterialSourceType.ExpandedFolder, volume.Material.Type);
 		Assert.Same(source, volume.Material.Source);
 		Assert.True(volume.Material.IsChecked.Value);
 		Assert.False(source.IsChecked.Value);
@@ -193,7 +193,7 @@ public class SeriesInspectionManagerTests : IDisposable
 			.Subscribe(_ => snapshots.Enqueue((
 				Environment.CurrentManagedThreadId,
 				volume.Material.FullPath,
-				volume.WorkFolderPath,
+				volume.ExpandedVolumeFolderPath,
 				image.FilePath,
 				expanded.FullPath)));
 
@@ -213,7 +213,7 @@ public class SeriesInspectionManagerTests : IDisposable
 		Assert.Same(image, Assert.Single(volume.Images));
 		Assert.Equal("Title 001", expanded.Name);
 		Assert.Equal("Title 001", volume.Material.Name);
-		Assert.Equal(newPath, volume.WorkFolderPath);
+		Assert.Equal(newPath, volume.ExpandedVolumeFolderPath);
 	}
 
 	[Fact]
@@ -260,7 +260,7 @@ public class SeriesInspectionManagerTests : IDisposable
 	public async Task ExecuteAsync_新規画像は並列画像処理パイプラインで処理される()
 	{
 		var (volume, _, _) = this.createWorkVolume("Title 01", 1m);
-		var newFilePath = Path.Combine(volume.WorkFolderPath!, "2.jpg");
+		var newFilePath = Path.Combine(volume.ExpandedVolumeFolderPath!, "2.jpg");
 		using (var created = NetVips.Image.Black(8, 8))
 		{
 			created.WriteToFile(newFilePath);
@@ -281,12 +281,12 @@ public class SeriesInspectionManagerTests : IDisposable
 	public void ReconcileWorkFolderImages_既存画像は同一インスタンスで再利用され未変更なら処理対象にならない()
 	{
 		using var volume = this.createReconcileVolume("Title 01");
-		var first = addTrackedImage(volume, this.createImageFile(volume.WorkFolderPath!, "1.jpg"));
-		var second = addTrackedImage(volume, this.createImageFile(volume.WorkFolderPath!, "2.jpg"));
+		var first = addTrackedImage(volume, this.createImageFile(volume.ExpandedVolumeFolderPath!, "1.jpg"));
+		var second = addTrackedImage(volume, this.createImageFile(volume.ExpandedVolumeFolderPath!, "2.jpg"));
 		var splitSettings = new SplitSettings();
 		first.SplitSettings = splitSettings;
 
-		var toProcess = SeriesInspectionManager.ReconcileWorkFolderImages(volume, CancellationToken.None);
+		var toProcess = SeriesInspectionManager.ReconcileExpandedVolumeImages(volume, CancellationToken.None);
 
 		Assert.Empty(toProcess);
 		Assert.Equal(new[] { first, second }, volume.Images);
@@ -298,13 +298,13 @@ public class SeriesInspectionManagerTests : IDisposable
 	public void ReconcileWorkFolderImages_ファイルサイズが変わった画像は再処理対象になる()
 	{
 		using var volume = this.createReconcileVolume("Title 01");
-		var path = this.createImageFile(volume.WorkFolderPath!, "1.jpg");
+		var path = this.createImageFile(volume.ExpandedVolumeFolderPath!, "1.jpg");
 		var image = addTrackedImage(volume, path);
 		var lastWriteTime = File.GetLastWriteTimeUtc(path);
 		File.WriteAllBytes(path, new byte[25]);
 		File.SetLastWriteTimeUtc(path, lastWriteTime);
 
-		var toProcess = SeriesInspectionManager.ReconcileWorkFolderImages(volume, CancellationToken.None);
+		var toProcess = SeriesInspectionManager.ReconcileExpandedVolumeImages(volume, CancellationToken.None);
 
 		Assert.Same(image, Assert.Single(toProcess));
 		Assert.Same(image, Assert.Single(volume.Images));
@@ -314,11 +314,11 @@ public class SeriesInspectionManagerTests : IDisposable
 	public void ReconcileWorkFolderImages_最終更新日時が変わった画像は再処理対象になる()
 	{
 		using var volume = this.createReconcileVolume("Title 01");
-		var path = this.createImageFile(volume.WorkFolderPath!, "1.jpg");
+		var path = this.createImageFile(volume.ExpandedVolumeFolderPath!, "1.jpg");
 		var image = addTrackedImage(volume, path);
 		File.SetLastWriteTimeUtc(path, File.GetLastWriteTimeUtc(path).AddMinutes(5));
 
-		var toProcess = SeriesInspectionManager.ReconcileWorkFolderImages(volume, CancellationToken.None);
+		var toProcess = SeriesInspectionManager.ReconcileExpandedVolumeImages(volume, CancellationToken.None);
 
 		Assert.Same(image, Assert.Single(toProcess));
 	}
@@ -327,11 +327,11 @@ public class SeriesInspectionManagerTests : IDisposable
 	public void ReconcileWorkFolderImages_新規ファイルは列挙順にBindingImageとして追加される()
 	{
 		using var volume = this.createReconcileVolume("Title 01");
-		var existing = addTrackedImage(volume, this.createImageFile(volume.WorkFolderPath!, "2.jpg"));
-		var path3 = this.createImageFile(volume.WorkFolderPath!, "3.jpg");
-		var path1 = this.createImageFile(volume.WorkFolderPath!, "1.jpg");
+		var existing = addTrackedImage(volume, this.createImageFile(volume.ExpandedVolumeFolderPath!, "2.jpg"));
+		var path3 = this.createImageFile(volume.ExpandedVolumeFolderPath!, "3.jpg");
+		var path1 = this.createImageFile(volume.ExpandedVolumeFolderPath!, "1.jpg");
 
-		var toProcess = SeriesInspectionManager.ReconcileWorkFolderImages(volume, CancellationToken.None);
+		var toProcess = SeriesInspectionManager.ReconcileExpandedVolumeImages(volume, CancellationToken.None);
 
 		Assert.Equal(new[] { path1, path3 }, toProcess.Select(image => image.FilePath));
 		Assert.Equal(new[] { "1.jpg", "3.jpg" }, toProcess.Select(image => image.FileName));
@@ -344,12 +344,12 @@ public class SeriesInspectionManagerTests : IDisposable
 	public void ReconcileWorkFolderImages_消失した画像は削除されDisposeされる()
 	{
 		using var volume = this.createReconcileVolume("Title 01");
-		var kept = addTrackedImage(volume, this.createImageFile(volume.WorkFolderPath!, "1.jpg"));
-		var lostPath = this.createImageFile(volume.WorkFolderPath!, "2.jpg");
+		var kept = addTrackedImage(volume, this.createImageFile(volume.ExpandedVolumeFolderPath!, "1.jpg"));
+		var lostPath = this.createImageFile(volume.ExpandedVolumeFolderPath!, "2.jpg");
 		var lost = addTrackedImage(volume, lostPath);
 		File.Delete(lostPath);
 
-		var toProcess = SeriesInspectionManager.ReconcileWorkFolderImages(volume, CancellationToken.None);
+		var toProcess = SeriesInspectionManager.ReconcileExpandedVolumeImages(volume, CancellationToken.None);
 
 		Assert.Empty(toProcess);
 		Assert.Same(kept, Assert.Single(volume.Images));
@@ -361,10 +361,10 @@ public class SeriesInspectionManagerTests : IDisposable
 	public void ReconcileWorkFolderImages_FilePathがnullの画像は照合されず削除されDisposeされ実ファイルは新規扱いになる()
 	{
 		using var volume = this.createReconcileVolume("Title 01");
-		var path = this.createImageFile(volume.WorkFolderPath!, "1.jpg");
+		var path = this.createImageFile(volume.ExpandedVolumeFolderPath!, "1.jpg");
 		var noPath = volume.AddImage("1.jpg", "1.jpg");
 
-		var toProcess = SeriesInspectionManager.ReconcileWorkFolderImages(volume, CancellationToken.None);
+		var toProcess = SeriesInspectionManager.ReconcileExpandedVolumeImages(volume, CancellationToken.None);
 
 		var added = Assert.Single(toProcess);
 		Assert.NotSame(noPath, added);
@@ -377,11 +377,11 @@ public class SeriesInspectionManagerTests : IDisposable
 	public void ReconcileWorkFolderImages_パス比較は大文字小文字を区別しない()
 	{
 		using var volume = this.createReconcileVolume("Title 01");
-		var path = this.createImageFile(volume.WorkFolderPath!, "a.jpg");
+		var path = this.createImageFile(volume.ExpandedVolumeFolderPath!, "a.jpg");
 		var image = addTrackedImage(volume, path);
 		image.FilePath = path.ToUpperInvariant();
 
-		var toProcess = SeriesInspectionManager.ReconcileWorkFolderImages(volume, CancellationToken.None);
+		var toProcess = SeriesInspectionManager.ReconcileExpandedVolumeImages(volume, CancellationToken.None);
 
 		Assert.Empty(toProcess);
 		Assert.Same(image, Assert.Single(volume.Images));
@@ -392,11 +392,11 @@ public class SeriesInspectionManagerTests : IDisposable
 	public void ReconcileWorkFolderImages_FilePathが重複する場合は最初のBindingImageを採用し残りは削除される()
 	{
 		using var volume = this.createReconcileVolume("Title 01");
-		var path = this.createImageFile(volume.WorkFolderPath!, "1.jpg");
+		var path = this.createImageFile(volume.ExpandedVolumeFolderPath!, "1.jpg");
 		var first = addTrackedImage(volume, path);
 		var duplicate = addTrackedImage(volume, path);
 
-		var toProcess = SeriesInspectionManager.ReconcileWorkFolderImages(volume, CancellationToken.None);
+		var toProcess = SeriesInspectionManager.ReconcileExpandedVolumeImages(volume, CancellationToken.None);
 
 		Assert.Empty(toProcess);
 		Assert.Same(first, Assert.Single(volume.Images));
@@ -407,11 +407,11 @@ public class SeriesInspectionManagerTests : IDisposable
 	public void FindImageByFilePath_既存の検索仕様が維持される()
 	{
 		using var volume = this.createReconcileVolume("Title 01");
-		var path = this.createImageFile(volume.WorkFolderPath!, "a.jpg");
+		var path = this.createImageFile(volume.ExpandedVolumeFolderPath!, "a.jpg");
 		var image = addTrackedImage(volume, path);
 
 		Assert.Same(image, volume.FindImageByFilePath(path.ToUpperInvariant()));
-		Assert.Null(volume.FindImageByFilePath(Path.Combine(volume.WorkFolderPath!, "b.jpg")));
+		Assert.Null(volume.FindImageByFilePath(Path.Combine(volume.ExpandedVolumeFolderPath!, "b.jpg")));
 	}
 
 	/// <summary>

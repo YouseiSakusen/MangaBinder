@@ -2,8 +2,6 @@
 using MangaBinder.Jobs;
 using R3;
 using System.Data.SQLite;
-using System.IO;
-using System.Linq;
 
 namespace MangaBinder.Settings;
 
@@ -24,7 +22,7 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	public static string DefaultBindingPath => Path.Combine(AppContext.BaseDirectory, "Binding");
 
 	/// <summary>展開先フォルダの既定パス（exe 配置フォルダ直下の Work）を取得します。</summary>
-	public static string DefaultWorkPath => Path.Combine(AppContext.BaseDirectory, "Work");
+	public static string DefaultExpandedPath => Path.Combine(AppContext.BaseDirectory, "Work");
 
 	/// <summary>ワークサムネイルフォルダ名の定数です。</summary>
 	public const string WorkThumbnailFolderName = "wk";
@@ -39,7 +37,7 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	public ApplicationStatus AppStatus { get; } = new();
 
 	/// <summary>作業用一時フォルダのパスを取得します。</summary>
-	public BindableReactiveProperty<string> WorkFolderPath { get; }
+	public BindableReactiveProperty<string> ExpandedFolderPath { get; }
 
 	/// <summary>サムネイル画像の保存先フォルダパスを取得します。</summary>
 	public BindableReactiveProperty<string> ThumbnailFolderPath { get; }
@@ -70,10 +68,10 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	public BindableReactiveProperty<bool> BindingConvertImagesToDefaultFormat { get; }
 
 	/// <summary>ワークフォルダ内に作成する巻フォルダ名の接頭辞を取得します。</summary>
-	public BindableReactiveProperty<string> WorkVolumeFolderNamePrefix { get; }
+	public BindableReactiveProperty<string> ExpandedVolumeFolderNamePrefix { get; }
 
 	/// <summary>ワークフォルダ内に作成する巻フォルダ名の接尾辞を取得します。</summary>
-	public BindableReactiveProperty<string> WorkVolumeFolderNameSuffix { get; }
+	public BindableReactiveProperty<string> ExpandedVolumeFolderNameSuffix { get; }
 
 	/// <summary>作品一覧のスクロール位置を取得します。</summary>
 	public BindableReactiveProperty<double> SeriesListVerticalOffset { get; }
@@ -175,7 +173,7 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// </summary>
 	public AppSettings()
 	{
-		this.WorkFolderPath = new BindableReactiveProperty<string>(string.Empty)
+		this.ExpandedFolderPath = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
 		this.ThumbnailFolderPath = new BindableReactiveProperty<string>(string.Empty)
@@ -202,10 +200,10 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 		this.BindingConvertImagesToDefaultFormat = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
-		this.WorkVolumeFolderNamePrefix = new BindableReactiveProperty<string>(string.Empty)
+		this.ExpandedVolumeFolderNamePrefix = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
-		this.WorkVolumeFolderNameSuffix = new BindableReactiveProperty<string>("巻")
+		this.ExpandedVolumeFolderNameSuffix = new BindableReactiveProperty<string>("巻")
 			.AddTo(ref this.disposableBag);
 
 		this.SeriesListVerticalOffset = new BindableReactiveProperty<double>(0.0)
@@ -289,17 +287,17 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <summary>
 	/// ワークフォルダが有効（設定済み・存在する）かどうかを取得します。
 	/// </summary>
-	public bool HasValidWorkFolder =>
-		!string.IsNullOrWhiteSpace(this.WorkFolderPath.Value)
-		&& Directory.Exists(this.WorkFolderPath.Value);
+	public bool HasValidExpandedFolder =>
+		!string.IsNullOrWhiteSpace(this.ExpandedFolderPath.Value)
+		&& Directory.Exists(this.ExpandedFolderPath.Value);
 
 	/// <summary>
 	/// 指定した作品タイトルの中間フォルダパスを生成します。
 	/// </summary>
 	/// <param name="seriesTitle">作品タイトル。</param>
 	/// <returns>WorkFolderPath 直下に作品タイトル名のフォルダパス。</returns>
-	public string CreateWorkSeriesFolderPath(string seriesTitle)
-		=> Path.Combine(this.WorkFolderPath.Value, seriesTitle);
+	public string CreateExpandedSeriesFolderPath(string seriesTitle)
+		=> Path.Combine(this.ExpandedFolderPath.Value, seriesTitle);
 
 	/// <summary>
 	/// 巻番号からワークフォルダ内の巻フォルダ名を生成します。
@@ -307,10 +305,10 @@ public class AppSettings : IDisposable, IMangaBinderConfig
 	/// <param name="volumeNumber">巻番号。</param>
 	/// <param name="digits">ゼロ埋め桁数。</param>
 	/// <returns>生成されたフォルダ名。</returns>
-	public string CreateWorkVolumeFolderName(decimal volumeNumber, int digits)
+	public string CreateExpandedVolumeFolderName(decimal volumeNumber, int digits)
 	{
-		var prefix = this.WorkVolumeFolderNamePrefix.Value;
-		var suffix = this.WorkVolumeFolderNameSuffix.Value;
+		var prefix = this.ExpandedVolumeFolderNamePrefix.Value;
+		var suffix = this.ExpandedVolumeFolderNameSuffix.Value;
 
 		// 整数かどうかで書式を切り替える
 		var numberPart = volumeNumber == Math.Floor(volumeNumber)

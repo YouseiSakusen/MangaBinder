@@ -100,7 +100,7 @@ public class BindingImageProcessor
 				"BindingImage.SimulatedFileName が設定されていません。Simulation を先に実行してください。");
 		}
 
-		if (string.IsNullOrEmpty(image.BindingVolume.WorkFolderPath))
+		if (string.IsNullOrEmpty(image.BindingVolume.ExpandedVolumeFolderPath))
 		{
 			throw new InvalidOperationException(
 				"BindingVolume.WorkFolderPath が設定されていません。SeriesInspectionManager で Work フォルダを準備してください。");
@@ -186,7 +186,7 @@ public class BindingImageProcessor
 			cancellationToken.ThrowIfCancellationRequested();
 
 			// 出力先パスを確定
-			var outputFilePath = Path.Combine(image.BindingVolume.WorkFolderPath, image.SimulatedFileName);
+			var outputFilePath = Path.Combine(image.BindingVolume.ExpandedVolumeFolderPath, image.SimulatedFileName);
 
 			// Work 入力の場合：出力先 == 入力元パスかどうかを判定（大文字小文字区別なし）
 			var sourceAndOutputAreSame = !string.IsNullOrEmpty(sourceImagePath) 

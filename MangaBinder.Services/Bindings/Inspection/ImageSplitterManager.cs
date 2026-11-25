@@ -43,7 +43,7 @@ public class ImageSplitterManager
 
 		var sourceVolume = this.bindingStore.BindingVolumes.Single(v => ReferenceEquals(v.Material, cloneVolume.Material));
 
-		var volumeFolder = sourceVolume.WorkFolderPath;
+		var volumeFolder = sourceVolume.ExpandedVolumeFolderPath;
 		if (string.IsNullOrEmpty(volumeFolder))
 		{
 			throw new InvalidOperationException("BindingVolume.WorkFolderPath が設定されていません。");
@@ -147,7 +147,7 @@ public class ImageSplitterManager
 					image.FilePath = finalPath;
 				}
 
-				image.RecordWorkFileState(new FileInfo(finalPath));
+				image.RecordExpandedFileState(new FileInfo(finalPath));
 			}
 
 			keepStaging = false;

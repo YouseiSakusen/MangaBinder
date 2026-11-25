@@ -65,8 +65,8 @@ public class BindingImageDto
 	public string? FilePath { get; set; }
 
 	/// <summary>前回正常に確認・処理した Work 実ファイルのサイズ（バイト）を取得または設定します。</summary>
-	public long? WorkFileSize { get; set; }
+	public long? ExpandedFileSize { get; set; }
 
 	/// <summary>前回正常に確認・処理した Work 実ファイルの最終更新日時（UTC）を取得または設定します。</summary>
-	public DateTime? WorkFileLastWriteTimeUtc { get; set; }
+	public DateTime? ExpandedFileLastWriteTimeUtc { get; set; }
 }

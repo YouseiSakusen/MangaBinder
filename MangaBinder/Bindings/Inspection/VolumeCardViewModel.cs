@@ -98,9 +98,9 @@ public class VolumeCardViewModel : IDisposable
 
 		// VolumeFolderName：WorkFolderPath からフォルダ名を抽出
 		this.VolumeFolderName = this.Volume
-			.Select(v => string.IsNullOrWhiteSpace(v.WorkFolderPath)
+			.Select(v => string.IsNullOrWhiteSpace(v.ExpandedVolumeFolderPath)
 				? string.Empty
-				: Path.GetFileName(v.WorkFolderPath) ?? string.Empty)
+				: Path.GetFileName(v.ExpandedVolumeFolderPath) ?? string.Empty)
 			.ToReadOnlyBindableReactiveProperty(string.Empty)
 			.AddTo(ref this.disposableBag);
 

@@ -111,7 +111,7 @@ public class SettingsRepository
 
 		var param = new
 		{
-			WorkFolderPath = this.appSettings.WorkFolderPath.Value,
+			WorkFolderPath = this.appSettings.ExpandedFolderPath.Value,
 			ThumbnailFolderPath = this.appSettings.ThumbnailFolderPath.Value,
 			ThumbnailWidth = this.appSettings.ThumbnailWidth.Value,
 			ThumbnailHeight = this.appSettings.ThumbnailHeight.Value,
@@ -120,8 +120,8 @@ public class SettingsRepository
 			BindingDefaultImageExtension = this.appSettings.BindingDefaultImageExtension.Value,
 			BindingDefaultArchiveExtension = this.appSettings.BindingDefaultArchiveExtension.Value,
 			BindingConvertImagesToDefaultFormat = this.appSettings.BindingConvertImagesToDefaultFormat.Value ? 1 : 0,
-			WorkVolumeFolderNamePrefix = this.appSettings.WorkVolumeFolderNamePrefix.Value,
-			WorkVolumeFolderNameSuffix = this.appSettings.WorkVolumeFolderNameSuffix.Value,
+			WorkVolumeFolderNamePrefix = this.appSettings.ExpandedVolumeFolderNamePrefix.Value,
+			WorkVolumeFolderNameSuffix = this.appSettings.ExpandedVolumeFolderNameSuffix.Value,
 			SeriesListVerticalOffset = this.appSettings.SeriesListVerticalOffset.Value,
 			BindingZipAuthorLeftBracket = this.appSettings.BindingZipAuthorLeftBracket.Value,
 			BindingZipAuthorRightBracket = this.appSettings.BindingZipAuthorRightBracket.Value,
@@ -241,7 +241,7 @@ public class SettingsRepository
 
 		if (await reader.ReadAsync())
 		{
-			this.appSettings.WorkFolderPath.Value = reader.GetString(0);
+			this.appSettings.ExpandedFolderPath.Value = reader.GetString(0);
 			this.appSettings.ThumbnailFolderPath.Value = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
 			this.appSettings.ThumbnailWidth.Value = reader.IsDBNull(2) ? 160 : reader.GetInt32(2);
 			this.appSettings.ThumbnailHeight.Value = reader.IsDBNull(3) ? 224 : reader.GetInt32(3);
@@ -250,8 +250,8 @@ public class SettingsRepository
 			this.appSettings.BindingDefaultImageExtension.Value = reader.IsDBNull(6) ? ".jpg" : reader.GetString(6);
 			this.appSettings.BindingDefaultArchiveExtension.Value = reader.IsDBNull(7) ? ".zip" : reader.GetString(7);
 			this.appSettings.BindingConvertImagesToDefaultFormat.Value = !reader.IsDBNull(8) && reader.GetInt32(8) != 0;
-			this.appSettings.WorkVolumeFolderNamePrefix.Value = reader.IsDBNull(9) ? string.Empty : reader.GetString(9);
-			this.appSettings.WorkVolumeFolderNameSuffix.Value = reader.IsDBNull(10) ? "巻" : reader.GetString(10);
+			this.appSettings.ExpandedVolumeFolderNamePrefix.Value = reader.IsDBNull(9) ? string.Empty : reader.GetString(9);
+			this.appSettings.ExpandedVolumeFolderNameSuffix.Value = reader.IsDBNull(10) ? "巻" : reader.GetString(10);
 			this.appSettings.SeriesListVerticalOffset.Value = reader.IsDBNull(11) ? 0.0 : reader.GetDouble(11);
 			this.appSettings.BindingZipAuthorLeftBracket.Value = reader.IsDBNull(12) ? "[" : reader.GetString(12);
 			this.appSettings.BindingZipAuthorRightBracket.Value = reader.IsDBNull(13) ? "]" : reader.GetString(13);

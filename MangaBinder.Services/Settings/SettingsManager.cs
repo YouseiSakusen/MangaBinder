@@ -91,8 +91,8 @@ public class SettingsManager
 	{
 		this.logger.LogInformation("設定画面の保存を開始します。");
 
-		if (string.IsNullOrWhiteSpace(this.appSettings.WorkFolderPath.Value))
-			this.appSettings.WorkFolderPath.Value = AppSettings.DefaultWorkPath;
+		if (string.IsNullOrWhiteSpace(this.appSettings.ExpandedFolderPath.Value))
+			this.appSettings.ExpandedFolderPath.Value = AppSettings.DefaultExpandedPath;
 
 		var jobTypes = this.appSettings.GetRequiredScanJobTypes();
 		var completeInitialSetup = !this.appSettings.AppStatus.IsInitialFolderSetupCompleted.Value
@@ -117,10 +117,10 @@ public class SettingsManager
 		if (!this.appSettings.HasBindingFolder.Value)
 			this.addDefaultFolder("製本済み", AppSettings.DefaultBindingPath, FolderRole.DefaultBinding);
 
-		if (string.IsNullOrWhiteSpace(this.appSettings.WorkFolderPath.Value))
+		if (string.IsNullOrWhiteSpace(this.appSettings.ExpandedFolderPath.Value))
 		{
-			Directory.CreateDirectory(AppSettings.DefaultWorkPath);
-			this.appSettings.WorkFolderPath.Value = AppSettings.DefaultWorkPath;
+			Directory.CreateDirectory(AppSettings.DefaultExpandedPath);
+			this.appSettings.ExpandedFolderPath.Value = AppSettings.DefaultExpandedPath;
 		}
 	}
 

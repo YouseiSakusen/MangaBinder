@@ -23,7 +23,7 @@ public class VolumeSelectionValidationResult
 	/// <summary>
 	/// 展開先に実在しない展開先由来の BindingVolume の一覧を取得します。
 	/// </summary>
-	public IReadOnlyList<BindingVolume> MissingWorkVolumes { get; }
+	public IReadOnlyList<BindingVolume> MissingExpandedBindingVolumes { get; }
 
 	/// <summary>
 	/// エラーが存在するかどうかを取得します。
@@ -51,6 +51,6 @@ public class VolumeSelectionValidationResult
 		this.Error = error;
 		this.Warning = warning;
 		this.DuplicateVolumeNumbers = duplicateVolumeNumbers ?? Array.Empty<decimal>();
-		this.MissingWorkVolumes = missingWorkVolumes ?? Array.Empty<BindingVolume>();
+		this.MissingExpandedBindingVolumes = missingWorkVolumes ?? Array.Empty<BindingVolume>();
 	}
 }

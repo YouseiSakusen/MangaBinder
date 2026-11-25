@@ -68,7 +68,7 @@ public class BindingManager
 		// WorkSeriesFolderPath には現在のパスが設定される
 
 		// 1. 作品Workフォルダパスを生成
-		var workSeriesFolderPath = this.appSettings.CreateWorkSeriesFolderPath(bindingSeries.Series.Title);
+		var workSeriesFolderPath = this.appSettings.CreateExpandedSeriesFolderPath(bindingSeries.Series.Title);
 
 		// 2. 対応する Store 所有の共有 MangaSeriesNotifier を取得（同一インスタンスであることが必須）
 		var sharedViewModel = this.mangaSeriesStore.FindNotifierById(bindingSeries.Series.SeriesId)
@@ -83,7 +83,7 @@ public class BindingManager
 		this.bindingStore.BindingTargetViewModel.Value = sharedViewModel;
 
 		// 4. WorkSeriesFolderPath を設定
-		this.bindingStore.WorkSeriesFolderPath.Value = workSeriesFolderPath;
+		this.bindingStore.ExpandedSeriesFolderPath.Value = workSeriesFolderPath;
 
 		return availabilityResult;
 	}
@@ -110,7 +110,7 @@ public class BindingManager
 			// 展開済みの場合は、論理状態の変更前に Work 巻フォルダを削除する（失敗時は例外で論理状態を維持）
 			if (volume.RequiresUnselectCleanup)
 			{
-				await this.deleteWorkVolumeFolderAsync(volume);
+				await this.deleteExpandedVolumeFolderAsync(volume);
 			}
 
 			this.bindingStore.BindingVolumes.Remove(volume);
@@ -137,21 +137,21 @@ public class BindingManager
 	/// フォルダが既に存在しない場合は削除済みとして扱います。
 	/// </summary>
 	/// <param name="volume">対象の BindingVolume。</param>
-	/// <exception cref="InvalidOperationException">WorkFolderPath が未設定の場合。</exception>
-	private async ValueTask deleteWorkVolumeFolderAsync(BindingVolume volume)
+	/// <exception cref="InvalidOperationException">ExpandedVolumeFolderPath が未設定の場合。</exception>
+	private async ValueTask deleteExpandedVolumeFolderAsync(BindingVolume volume)
 	{
-		if (string.IsNullOrWhiteSpace(volume.WorkFolderPath))
+		if (string.IsNullOrWhiteSpace(volume.ExpandedVolumeFolderPath))
 		{
 			throw new InvalidOperationException(
-				"展開済みの BindingVolume に WorkFolderPath が設定されていないため、削除対象の Work 巻フォルダを特定できません。");
+				"展開済みの BindingVolume に ExpandedVolumeFolderPath が設定されていないため、削除対象の Expanded 巻フォルダを特定できません。");
 		}
 
-		var workFolderPath = volume.WorkFolderPath;
+		var expandedFolderPath = volume.ExpandedVolumeFolderPath;
 		await Task.Run(() =>
 		{
-			if (Directory.Exists(workFolderPath))
+			if (Directory.Exists(expandedFolderPath))
 			{
-				Directory.Delete(workFolderPath, recursive: true);
+				Directory.Delete(expandedFolderPath, recursive: true);
 			}
 		});
 	}
@@ -164,10 +164,10 @@ public class BindingManager
 	public VolumeSelectionValidationResult ValidateVolumeSelection(bool bindingVolumesOnly)
 	{
 		// ① Work フォルダ設定の確認
-		if (!this.appSettings.HasValidWorkFolder)
+		if (!this.appSettings.HasValidExpandedFolder)
 		{
 			return new VolumeSelectionValidationResult(
-				error: VolumeSelectionValidationError.WorkFolderUnavailable);
+				error: VolumeSelectionValidationError.ExpandedFolderUnavailable);
 		}
 
 		var targetVolumes = this.getTargetVolumes(bindingVolumesOnly);
@@ -205,14 +205,14 @@ public class BindingManager
 		if (!bindingVolumesOnly)
 		{
 			var missingWorkVolumes = targetVolumes
-				.Where(volume => volume.Material.Type == MaterialSourceType.WorkFolder
+				.Where(volume => volume.Material.Type == MaterialSourceType.ExpandedFolder
 					&& !Directory.Exists(volume.Material.FullPath))
 				.ToList();
 
 			if (missingWorkVolumes.Count > 0)
 			{
 				return new VolumeSelectionValidationResult(
-					error: VolumeSelectionValidationError.WorkVolumeFolderMissing,
+					error: VolumeSelectionValidationError.ExpandedVolumeFolderMissing,
 					missingWorkVolumes: missingWorkVolumes.AsReadOnly());
 			}
 		}
@@ -487,7 +487,7 @@ public class BindingManager
 			// deleteWorkFolder が true の場合のみ、Work 作品フォルダを削除対象とする
 			if (deleteWorkFolder)
 			{
-				var workSeriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
+				var workSeriesFolderPath = this.bindingStore.ExpandedSeriesFolderPath.Value;
 
 				// 削除条件：WorkSeriesFolderPath が空ではなく、フォルダが存在する場合のみ
 				if (!string.IsNullOrEmpty(workSeriesFolderPath) && Directory.Exists(workSeriesFolderPath))
@@ -632,7 +632,7 @@ public class BindingManager
 		{
 			// CreateZip == false: ZIP を作成しない
 			// OpenFolderPath は BindingStore.WorkSeriesFolderPath から取得した Work 作品フォルダ
-			openFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
+			openFolderPath = this.bindingStore.ExpandedSeriesFolderPath.Value;
 			boundAt = DateTime.Now;
 		}
 
@@ -747,12 +747,12 @@ public class BindingManager
 		foreach (var volume in volumes)
 		{
 			// WorkFolderPath が null の場合はスキップ
-			if (string.IsNullOrEmpty(volume.WorkFolderPath))
+			if (string.IsNullOrEmpty(volume.ExpandedVolumeFolderPath))
 			{
 				continue;
 			}
 
-			var workFolderInfo = new DirectoryInfo(volume.WorkFolderPath);
+			var workFolderInfo = new DirectoryInfo(volume.ExpandedVolumeFolderPath);
 			if (!workFolderInfo.Exists)
 			{
 				continue;

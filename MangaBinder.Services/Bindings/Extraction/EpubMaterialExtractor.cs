@@ -95,13 +95,13 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 		volume.EpubExtractionWarnings = EpubExtractionWarning.None;
 		volume.EpubExtractionErrorMessage = null;
 
-		if (string.IsNullOrEmpty(volume.WorkFolderPath))
+		if (string.IsNullOrEmpty(volume.ExpandedVolumeFolderPath))
 		{
 			// WorkFolderPath が未設定は状態不整合
 			throw new InvalidOperationException("BindingVolume.WorkFolderPath が設定されていません。");
 		}
 
-		var epubTempDir = Path.Combine(volume.WorkFolderPath, ".epub");
+		var epubTempDir = Path.Combine(volume.ExpandedVolumeFolderPath, ".epub");
 
 		try
 		{
@@ -129,7 +129,7 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 			// 既知 EPUB エラー (ContainerFileNotFound, RootFileNotFound, OpfFileNotFound, SpineEmpty)
 			volume.EpubExtractionError = ex.Error;
 			// EpubExtractionErrorMessage は null のままにしておく（既知エラー）
-			this.logger.LogDebug("EPUB 既知エラーが発生しました。エラー：{Error} ファイル：{EpubPath} WorkFolder：{WorkFolder}", ex.Error, epubFilePath, volume.WorkFolderPath);
+			this.logger.LogDebug("EPUB 既知エラーが発生しました。エラー：{Error} ファイル：{EpubPath} WorkFolder：{WorkFolder}", ex.Error, epubFilePath, volume.ExpandedVolumeFolderPath);
 			volume.Images.Clear();
 			await this.DeleteEpubTempFolderAsync(epubTempDir);
 		}
@@ -137,7 +137,7 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 		{
 			// 不正な ZIP / アーカイブ
 			volume.EpubExtractionError = EpubExtractionError.InvalidArchive;
-			this.logger.LogError(ex, "EPUB を ZIP として展開できません。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.WorkFolderPath);
+			this.logger.LogError(ex, "EPUB を ZIP として展開できません。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.ExpandedVolumeFolderPath);
 			volume.Images.Clear();
 			await this.DeleteEpubTempFolderAsync(epubTempDir);
 		}
@@ -145,7 +145,7 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 		{
 			// XML 不正
 			volume.EpubExtractionError = EpubExtractionError.InvalidXml;
-			this.logger.LogError(ex, "EPUB 内の XML が不正です。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.WorkFolderPath);
+			this.logger.LogError(ex, "EPUB 内の XML が不正です。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.ExpandedVolumeFolderPath);
 			volume.Images.Clear();
 			await this.DeleteEpubTempFolderAsync(epubTempDir);
 		}
@@ -153,7 +153,7 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 		{
 			// I/O エラー
 			volume.EpubExtractionError = EpubExtractionError.IoError;
-			this.logger.LogError(ex, "EPUB 処理中に I/O エラーが発生しました。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.WorkFolderPath);
+			this.logger.LogError(ex, "EPUB 処理中に I/O エラーが発生しました。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.ExpandedVolumeFolderPath);
 			volume.Images.Clear();
 			await this.DeleteEpubTempFolderAsync(epubTempDir);
 		}
@@ -161,7 +161,7 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 		{
 			// アクセス拒否
 			volume.EpubExtractionError = EpubExtractionError.AccessDenied;
-			this.logger.LogError(ex, "EPUB ファイルへのアクセスが拒否されました。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.WorkFolderPath);
+			this.logger.LogError(ex, "EPUB ファイルへのアクセスが拒否されました。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.ExpandedVolumeFolderPath);
 			volume.Images.Clear();
 			await this.DeleteEpubTempFolderAsync(epubTempDir);
 		}
@@ -170,7 +170,7 @@ public partial class EpubMaterialExtractor : IMaterialExtractor
 			// 分類不能な予期しないエラー
 			volume.EpubExtractionError = EpubExtractionError.UnexpectedError;
 			volume.EpubExtractionErrorMessage = ex.Message;
-			this.logger.LogError(ex, "EPUB 展開中に予期しないエラーが発生しました。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.WorkFolderPath);
+			this.logger.LogError(ex, "EPUB 展開中に予期しないエラーが発生しました。ファイル：{EpubPath} WorkFolder：{WorkFolder}", epubFilePath, volume.ExpandedVolumeFolderPath);
 			volume.Images.Clear();
 			await this.DeleteEpubTempFolderAsync(epubTempDir);
 		}

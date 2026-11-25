@@ -46,13 +46,13 @@ public class BindingImage : IDisposable
 	/// 前回正常に確認・処理したWork側の実ファイルのファイルサイズ（バイト）を取得します。
 	/// 未確認の場合は null です。元素材のファイル情報ではありません。
 	/// </summary>
-	public long? WorkFileSize { get; set; }
+	public long? ExpandedFileSize { get; set; }
 
 	/// <summary>
 	/// 前回正常に確認・処理したWork側の実ファイルの最終更新日時（UTC）を取得します。
 	/// 未確認の場合は null です。元素材のファイル情報ではありません。
 	/// </summary>
-	public DateTime? WorkFileLastWriteTimeUtc { get; set; }
+	public DateTime? ExpandedFileLastWriteTimeUtc { get; set; }
 
 	/// <summary>
 	/// 画像の幅（ピクセル）を取得または設定します。
@@ -163,7 +163,7 @@ public class BindingImage : IDisposable
 	/// 入力元が Work フォルダである場合、または Work 側の実ファイル（FilePath）を既に保持している場合に true を返します。
 	/// 元素材（Folder、Archive、Epub）から新規に展開する画像は FilePath が未設定のため false です。
 	/// </summary>
-	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.Type == MaterialSourceType.WorkFolder
+	public bool ShouldDeleteSourceFile => this.BindingVolume.Material.Type == MaterialSourceType.ExpandedFolder
 		|| this.FilePath is not null;
 
 	/// <summary>
@@ -215,22 +215,22 @@ public class BindingImage : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(workFile);
 
-		return this.WorkFileSize is null
-			|| this.WorkFileLastWriteTimeUtc is null
-			|| workFile.Length != this.WorkFileSize.Value
-			|| workFile.LastWriteTimeUtc != this.WorkFileLastWriteTimeUtc.Value;
+		return this.ExpandedFileSize is null
+			|| this.ExpandedFileLastWriteTimeUtc is null
+			|| workFile.Length != this.ExpandedFileSize.Value
+			|| workFile.LastWriteTimeUtc != this.ExpandedFileLastWriteTimeUtc.Value;
 	}
 
 	/// <summary>
 	/// 最終状態が確定したWork実ファイルのサイズと最終更新日時（UTC）を、次回の比較用に記録します。
 	/// </summary>
 	/// <param name="workFile">確定したWork側の実ファイル。</param>
-	public void RecordWorkFileState(FileInfo workFile)
+	public void RecordExpandedFileState(FileInfo workFile)
 	{
 		ArgumentNullException.ThrowIfNull(workFile);
 
-		this.WorkFileSize = workFile.Length;
-		this.WorkFileLastWriteTimeUtc = workFile.LastWriteTimeUtc;
+		this.ExpandedFileSize = workFile.Length;
+		this.ExpandedFileLastWriteTimeUtc = workFile.LastWriteTimeUtc;
 	}
 
 	/// <summary>
@@ -285,8 +285,8 @@ public class BindingImage : IDisposable
 		var clone = new BindingImage(cloneVolume, this.MaterialImage);
 		clone.FileName = this.FileName;
 		clone.FilePath = this.FilePath;
-		clone.WorkFileSize = this.WorkFileSize;
-		clone.WorkFileLastWriteTimeUtc = this.WorkFileLastWriteTimeUtc;
+		clone.ExpandedFileSize = this.ExpandedFileSize;
+		clone.ExpandedFileLastWriteTimeUtc = this.ExpandedFileLastWriteTimeUtc;
 		clone.Width = this.Width;
 		clone.Height = this.Height;
 		clone.TemporaryImageStream = null;
@@ -335,8 +335,8 @@ public class BindingImage : IDisposable
 			SplitSide = this.SplitSide,
 			SplitSettings = hasIndividualSplitSettings ? this.SplitSettings!.CreateDto() : null,
 			FilePath = this.FilePath,
-			WorkFileSize = this.WorkFileSize,
-			WorkFileLastWriteTimeUtc = this.WorkFileLastWriteTimeUtc,
+			ExpandedFileSize = this.ExpandedFileSize,
+			ExpandedFileLastWriteTimeUtc = this.ExpandedFileLastWriteTimeUtc,
 		};
 	}
 

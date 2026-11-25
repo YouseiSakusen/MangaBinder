@@ -83,15 +83,15 @@ public class MaterialSwitchTests : IDisposable
 		var (volume, source, expanded) = this.createSelectedSourceVolume();
 		var image = volume.AddImage("a.jpg", "a.jpg");
 		image.FilePath = @"C:\work\Vol_01\a.jpg";
-		image.WorkFileSize = 1234;
+		image.ExpandedFileSize = 1234;
 
 		this.store.SwitchToExpandedVolume(volume, expanded);
 
 		Assert.Same(volume, Assert.Single(this.store.BindingVolumes));
 		Assert.Same(image, Assert.Single(volume.Images));
 		Assert.Equal(@"C:\work\Vol_01\a.jpg", image.FilePath);
-		Assert.Equal(1234, image.WorkFileSize);
-		Assert.Equal(MaterialSourceType.WorkFolder, volume.Material.Type);
+		Assert.Equal(1234, image.ExpandedFileSize);
+		Assert.Equal(MaterialSourceType.ExpandedFolder, volume.Material.Type);
 		Assert.Equal(@"C:\work\Vol_01", volume.Material.FullPath);
 		Assert.Same(source, volume.Material.Source);
 		Assert.Same(source, expanded.Source);

@@ -123,7 +123,7 @@ public static class ServiceCollectionExtensions
 		services.AddKeyedScoped<IMaterialExtractor, ArchiveMaterialExtractor>(MaterialSourceType.Archive);
 		services.AddKeyedScoped<IMaterialExtractor, FolderMaterialExtractor>(MaterialSourceType.Folder);
 		services.AddKeyedScoped<IMaterialExtractor, EpubMaterialExtractor>(MaterialSourceType.Epub);
-		services.AddKeyedScoped<IMaterialExtractor, WorkFolderExtractor>(MaterialSourceType.WorkFolder);
+		services.AddKeyedScoped<IMaterialExtractor, ExpandedFolderExtractor>(MaterialSourceType.ExpandedFolder);
 		services.AddScoped<BindingImageProcessor>();
 		services.AddScoped<BindingArchiver>();
 		services.AddScoped<MaterialFolderOpener>();

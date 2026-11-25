@@ -205,7 +205,7 @@ public class ImageSplitterPageViewModel : BindingPageViewModelBase, INavigationD
 
 		using var scope = this.serviceScopeFactory.CreateScope();
 		var opener = scope.ServiceProvider.GetRequiredService<BindingFolderOpener>();
-		await opener.OpenAsync(volume.WorkFolderPath
+		await opener.OpenAsync(volume.ExpandedVolumeFolderPath
 			?? throw new InvalidOperationException("SplitTargetVolume.WorkFolderPath が null です。"));
 	}
 

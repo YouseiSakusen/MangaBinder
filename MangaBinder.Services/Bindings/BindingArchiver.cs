@@ -54,7 +54,7 @@ public class BindingArchiver
 		var workFolderPaths = new List<string>(volumes.Count);
 		foreach (var volume in volumes)
 		{
-			var workFolderPath = volume.WorkFolderPath;
+			var workFolderPath = volume.ExpandedVolumeFolderPath;
 
 			if (string.IsNullOrEmpty(workFolderPath))
 			{

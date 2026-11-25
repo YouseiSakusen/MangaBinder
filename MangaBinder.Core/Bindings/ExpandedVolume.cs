@@ -98,7 +98,7 @@ public class ExpandedVolume : IDisposable
 	public MaterialItem CreateMaterial()
 		=> new MaterialItem(
 			itemType: MaterialItemType.Folder,
-			originalSourceType: MaterialSourceType.WorkFolder,
+			originalSourceType: MaterialSourceType.ExpandedFolder,
 			name: this.Name,
 			fullPath: this.FullPath,
 			fileCount: this.FileCount,

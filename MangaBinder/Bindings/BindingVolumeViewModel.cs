@@ -53,7 +53,7 @@ public class BindingVolumeViewModel : IDisposable
 	public IReadOnlyBindableReactiveProperty<MaterialItemType> DisplayItemType { get; }
 
 	/// <summary>
-	/// 現在の Material が展開済み巻由来（MaterialSourceType.WorkFolder）かどうかを取得します。
+	/// 現在の Material が展開済み巻由来（MaterialSourceType.ExpandedFolder）かどうかを取得します。
 	/// アイコン表示と、巻番号の編集可否の判定に使用します。
 	/// </summary>
 	public IReadOnlyBindableReactiveProperty<bool> IsExpandedVolume { get; }
@@ -95,14 +95,14 @@ public class BindingVolumeViewModel : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		this.IsExpandedVolume = currentMaterial
-			.Select(material => material.Type == MaterialSourceType.WorkFolder)
-			.ToReadOnlyBindableReactiveProperty(initial.Type == MaterialSourceType.WorkFolder)
+			.Select(material => material.Type == MaterialSourceType.ExpandedFolder)
+			.ToReadOnlyBindableReactiveProperty(initial.Type == MaterialSourceType.ExpandedFolder)
 			.AddTo(ref this.disposableBag);
 
 		this.IsVolumeNumberEditable = this.IsExpandedVolume
 			.AsObservable()
 			.Select(isExpanded => !isExpanded)
-			.ToReadOnlyBindableReactiveProperty(initial.Type != MaterialSourceType.WorkFolder)
+			.ToReadOnlyBindableReactiveProperty(initial.Type != MaterialSourceType.ExpandedFolder)
 			.AddTo(ref this.disposableBag);
 	}
 

@@ -293,7 +293,7 @@ public sealed class VolumeFileNameNormalizer
 	private void CheckConflicts(BindingVolume volume, List<FileAnalysis> successAnalyses)
 	{
 		// Work フォルダ内の既存ファイル一覧（正規化対象外）
-		var workFolderPath = volume.WorkFolderPath;
+		var workFolderPath = volume.ExpandedVolumeFolderPath;
 		var existingFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		if (Directory.Exists(workFolderPath))

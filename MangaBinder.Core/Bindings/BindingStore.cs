@@ -222,12 +222,12 @@ public class BindingStore : IDisposable
 	/// 現在のBindingTargetに対応する、作品単位のWorkフォルダパスを取得または設定します。
 	/// 製本セッション中の正本として機能し、初期値は string.Empty です。
 	/// </summary>
-	public BindableReactiveProperty<string> WorkSeriesFolderPath { get; }
+	public BindableReactiveProperty<string> ExpandedSeriesFolderPath { get; }
 
 	/// <summary>
 	/// 製本前確認画面で表示する、作品単位の展開先フォルダ直下の巻フォルダ数を取得または設定します。
 	/// </summary>
-	public BindableReactiveProperty<int> WorkVolumeFolderCount { get; }
+	public BindableReactiveProperty<int> ExpandedVolumeFolderCount { get; }
 
 	/// <summary>
 	/// 巻フォルダ名の桁数選択肢一覧を取得します。
@@ -412,10 +412,10 @@ public class BindingStore : IDisposable
 		// BindingVolumes の Count 変化で SelectedVolumeCountText を自動更新
 		this.BindingVolumes.CollectionChanged += this.onBindingVolumesCollectionChangedForCountText;
 
-		this.WorkSeriesFolderPath = new BindableReactiveProperty<string>(string.Empty)
+		this.ExpandedSeriesFolderPath = new BindableReactiveProperty<string>(string.Empty)
 			.AddTo(ref this.disposableBag);
 
-		this.WorkVolumeFolderCount = new BindableReactiveProperty<int>(0)
+		this.ExpandedVolumeFolderCount = new BindableReactiveProperty<int>(0)
 			.AddTo(ref this.disposableBag);
 
 		this.VolumeFolderDigitOptions = new[]
@@ -890,7 +890,7 @@ public class BindingStore : IDisposable
 		}
 
 		var sourceMaterial = bindingVolume.Material;
-		if (sourceMaterial.Type == MaterialSourceType.WorkFolder)
+		if (sourceMaterial.Type == MaterialSourceType.ExpandedFolder)
 		{
 			throw new InvalidOperationException("既に展開済み巻由来の BindingVolume は切り替えできません。");
 		}
@@ -1072,8 +1072,8 @@ public class BindingStore : IDisposable
 		this.disposeExpandedVolumes();
 
 		// セッション固有の mutable 状態をリセット
-		this.WorkSeriesFolderPath.Value = string.Empty;
-		this.WorkVolumeFolderCount.Value = 0;
+		this.ExpandedSeriesFolderPath.Value = string.Empty;
+		this.ExpandedVolumeFolderCount.Value = 0;
 		this.VolumeFolderDigits.Value = 2;
 		this.ZipOutputFileName.Value = string.Empty;
 		this.CreateZip.Value = true;

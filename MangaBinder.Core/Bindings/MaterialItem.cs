@@ -174,13 +174,13 @@ public class MaterialItem : IDisposable
 	/// </summary>
 	/// <param name="name">新しいフォルダ名。</param>
 	/// <param name="fullPath">新しいフォルダのフルパス。</param>
-	/// <exception cref="InvalidOperationException">展開済み巻フォルダ用の素材（<see cref="MaterialSourceType.WorkFolder"/>）でない場合。</exception>
+	/// <exception cref="InvalidOperationException">展開済み巻フォルダ用の素材（<see cref="MaterialSourceType.ExpandedFolder"/>）でない場合。</exception>
 	public void UpdateFolderLocation(string name, string fullPath)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
 
-		if (this.Type != MaterialSourceType.WorkFolder)
+		if (this.Type != MaterialSourceType.ExpandedFolder)
 		{
 			throw new InvalidOperationException("展開済み巻フォルダ用の素材以外はフォルダ位置を更新できません。");
 		}

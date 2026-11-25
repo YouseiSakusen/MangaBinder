@@ -25,7 +25,7 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable, IDataInit
 	private bool isSavedOnLeave;
 
 	/// <summary>作業用一時フォルダのパスを取得します。</summary>
-	public BindableReactiveProperty<string> WorkFolderPath => this.appSettings.WorkFolderPath;
+	public BindableReactiveProperty<string> ExpandedFolderPath => this.appSettings.ExpandedFolderPath;
 
 	/// <summary>製本後ファイル名の著者名左括弧を取得します。</summary>
 	public BindableReactiveProperty<string> BindingZipAuthorLeftBracket => this.appSettings.BindingZipAuthorLeftBracket;
@@ -95,7 +95,7 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable, IDataInit
 	public ReactiveCommand<SourceFolder> DeleteFolderCommand { get; }
 
 	/// <summary>作業用フォルダのパスを参照するコマンドです。</summary>
-	public ReactiveCommand<Unit> BrowseWorkFolderCommand { get; }
+	public ReactiveCommand<Unit> BrowseExpandedFolderCommand { get; }
 
 	/// <summary>
 	/// <see cref="SettingsPageViewModel"/> の新しいインスタンスを初期化します。
@@ -138,7 +138,7 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable, IDataInit
 			.SubscribeAwait(async (folder, cancellationToken) => await this.deleteFolderAsync(folder), AwaitOperation.Drop)
 			.AddTo(ref this.disposableBag);
 
-		this.BrowseWorkFolderCommand = new ReactiveCommand<Unit>(_ => this.browseWorkFolder())
+		this.BrowseExpandedFolderCommand = new ReactiveCommand<Unit>(_ => this.browseExpandedFolder())
 			.AddTo(ref this.disposableBag);
 	}
 
@@ -212,11 +212,11 @@ public class SettingsPageViewModel : IDisposable, ISavable, ILeavable, IDataInit
 	}
 
 	/// <summary>フォルダ選択ダイアログを表示して作業用フォルダパスを設定します。</summary>
-	private void browseWorkFolder()
+	private void browseExpandedFolder()
 	{
 		var dialog = new OpenFolderDialog { Title = "作業用フォルダを選択してください" };
 		if (dialog.ShowDialog() == true)
-			this.WorkFolderPath.Value = dialog.FolderName;
+			this.ExpandedFolderPath.Value = dialog.FolderName;
 	}
 
 	/// <summary>

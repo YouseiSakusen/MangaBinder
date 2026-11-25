@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace MangaBinder.Services.Tests.Bindings;
 
 /// <summary>
-/// <see cref="VolumeSelectionManager.SyncWorkVolumesAsync"/> による ExpandedVolumes 同期のテストです。
+/// <see cref="VolumeSelectionManager.SyncExpandedVolumesAsync"/> による ExpandedVolumes 同期のテストです。
 /// </summary>
 public class ExpandedVolumeSyncTests : IDisposable
 {
@@ -25,7 +25,7 @@ public class ExpandedVolumeSyncTests : IDisposable
 
 		this.seriesFolder = Path.Combine(Path.GetTempPath(), "MangaBinderTests_" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(this.seriesFolder);
-		this.store.WorkSeriesFolderPath.Value = this.seriesFolder;
+		this.store.ExpandedSeriesFolderPath.Value = this.seriesFolder;
 
 		var repository = new MaterialArchiveRepository(":memory:");
 		this.manager = new VolumeSelectionManager(
@@ -62,7 +62,7 @@ public class ExpandedVolumeSyncTests : IDisposable
 		this.createVolume("Title 03");
 		this.createVolume("Title 04", ("memo.txt", 5));
 
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 
 		Assert.Equal(new[] { 1m, 2m }, this.store.ExpandedVolumes.Select(v => v.VolumeNumber));
 		var first = this.store.ExpandedVolumes[0];
@@ -77,14 +77,14 @@ public class ExpandedVolumeSyncTests : IDisposable
 	public async Task 再スキャン_同一パスはインスタンスを維持し画像数とサイズを更新しIsCheckedとSourceを保持する()
 	{
 		var path = this.createVolume("Title 01", ("1.jpg", 10));
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var volume = this.store.ExpandedVolumes.Single();
 		using var source = new MaterialItem(MaterialItemType.Folder, MaterialSourceType.Folder, "src", @"C:\src");
 		volume.Source = source;
 		volume.IsChecked.Value = true;
 
 		File.WriteAllBytes(Path.Combine(path, "2.jpg"), new byte[40]);
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 
 		Assert.Same(volume, this.store.ExpandedVolumes.Single());
 		Assert.Equal(2, volume.FileCount);
@@ -98,11 +98,11 @@ public class ExpandedVolumeSyncTests : IDisposable
 	{
 		this.createVolume("Title 01", ("1.jpg", 10));
 		this.createVolume("Title 03", ("1.jpg", 10));
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var vol1 = this.store.ExpandedVolumes[0];
 
 		this.createVolume("Title 02", ("1.jpg", 10));
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 
 		Assert.Equal(new[] { 1m, 2m, 3m }, this.store.ExpandedVolumes.Select(v => v.VolumeNumber));
 		Assert.Same(vol1, this.store.ExpandedVolumes[0]);
@@ -114,7 +114,7 @@ public class ExpandedVolumeSyncTests : IDisposable
 		var path1 = this.createVolume("Title 01", ("1.jpg", 10));
 		var path2 = this.createVolume("Title 02", ("1.jpg", 10));
 		this.createVolume("Title 03", ("1.jpg", 10));
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var removedByDelete = this.store.ExpandedVolumes[0];
 		var removedByEmpty = this.store.ExpandedVolumes[1];
 		using var source = new MaterialItem(MaterialItemType.Folder, MaterialSourceType.Folder, "src", @"C:\src");
@@ -122,7 +122,7 @@ public class ExpandedVolumeSyncTests : IDisposable
 
 		Directory.Delete(path1, recursive: true);
 		File.Delete(Path.Combine(path2, "1.jpg"));
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 
 		Assert.Equal(3m, this.store.ExpandedVolumes.Single().VolumeNumber);
 		Assert.True(removedByDelete.IsChecked.IsDisposed);
@@ -134,7 +134,7 @@ public class ExpandedVolumeSyncTests : IDisposable
 	public async Task BindingStoreDispose_ExpandedVolumesを破棄しSourceは破棄しない()
 	{
 		this.createVolume("Title 01", ("1.jpg", 10));
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var volume = this.store.ExpandedVolumes.Single();
 		using var source = new MaterialItem(MaterialItemType.Folder, MaterialSourceType.Folder, "src", @"C:\src");
 		volume.Source = source;

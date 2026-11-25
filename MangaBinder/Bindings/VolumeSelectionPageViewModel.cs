@@ -362,7 +362,7 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
 				// 次の Warning 判定へ進む
 				break;
 
-			case VolumeSelectionValidationError.WorkFolderUnavailable:
+			case VolumeSelectionValidationError.ExpandedFolderUnavailable:
 				await ContentDialogHelper.ShowErrorAsync(
 					this.contentDialogService,
 					"ワークフォルダが設定されていないか、存在しません。\n設定画面で確認してください。");
@@ -395,7 +395,7 @@ public class VolumeSelectionPageViewModel : BindingPageViewModelBase, IDataIniti
 					return;
 				}
 
-			case VolumeSelectionValidationError.WorkVolumeFolderMissing:
+			case VolumeSelectionValidationError.ExpandedVolumeFolderMissing:
 				this.snackbarService.Show(
 					"展開先に存在しない巻フォルダを除外しました",
 					"展開先由来の巻フォルダが見つからないため、製本対象巻一覧から除外しました。",

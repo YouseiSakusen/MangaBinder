@@ -145,7 +145,7 @@ namespace MangaBinder.Bindings
 		Epub = 2,
 
 		/// <summary>既存の Work フォルダから画像を取得します。</summary>
-		WorkFolder = 3,
+		ExpandedFolder = 3,
 	}
 
 	/// <summary>
@@ -366,8 +366,8 @@ namespace MangaBinder.Bindings
 		/// <summary>エラーがありません。</summary>
 		None = 0,
 
-		/// <summary>ワークフォルダが設定されていないか、存在しません。</summary>
-		WorkFolderUnavailable = 1,
+		/// <summary>展開先フォルダが設定されていないか、存在しません。</summary>
+		ExpandedFolderUnavailable = 1,
 
 		/// <summary>製本対象の巻が選択されていません。</summary>
 		NoVolumes = 2,
@@ -379,7 +379,7 @@ namespace MangaBinder.Bindings
 		DuplicateVolumeNumbers = 4,
 
 		/// <summary>展開先由来の巻フォルダが実在しません。</summary>
-		WorkVolumeFolderMissing = 5,
+		ExpandedVolumeFolderMissing = 5,
 	}
 
 	/// <summary>

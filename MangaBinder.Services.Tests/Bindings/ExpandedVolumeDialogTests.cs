@@ -25,7 +25,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 
 		this.seriesFolder = Path.Combine(Path.GetTempPath(), "MangaBinderTests_" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(this.seriesFolder);
-		this.store.WorkSeriesFolderPath.Value = this.seriesFolder;
+		this.store.ExpandedSeriesFolderPath.Value = this.seriesFolder;
 
 		var repository = new MaterialArchiveRepository(":memory:");
 		this.manager = new VolumeSelectionManager(
@@ -74,7 +74,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 	{
 		this.createVolume("Title 01");
 		this.createVolume("Title 02");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 
 		var list = this.manager.PrepareExpandedVolumeSelection();
 
@@ -87,7 +87,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 	public async Task 追加_生成Materialを入力としSourceはnullのままで物理フォルダは維持される()
 	{
 		var path = this.createVolume("Title 01");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var expanded = this.store.ExpandedVolumes.Single();
 		expanded.IsChecked.Value = true;
 
@@ -96,7 +96,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 
 		var volume = Assert.Single(this.store.BindingVolumes);
 		Assert.Equal(1m, volume.VolumeNumber.Value);
-		Assert.Equal(MaterialSourceType.WorkFolder, volume.Material.Type);
+		Assert.Equal(MaterialSourceType.ExpandedFolder, volume.Material.Type);
 		Assert.Equal(path, volume.Material.FullPath, ignoreCase: true);
 		Assert.Null(volume.Material.Source);
 		Assert.Null(expanded.Source);
@@ -106,7 +106,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 	public async Task 追加_生成MaterialItemとExpandedVolumeがともにチェック済みになり二重追加されない()
 	{
 		this.createVolume("Title 01");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var expanded = this.store.ExpandedVolumes.Single();
 		expanded.IsChecked.Value = true;
 
@@ -125,7 +125,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 	public async Task 置換_追加された展開済み巻のMaterialItemはチェック済みで元素材のチェックは外れる()
 	{
 		this.createVolume("Title 01");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var original = this.addSourceVolume(1m);
 		var originalMaterial = original.Material;
 		var expanded = this.store.ExpandedVolumes.Single();
@@ -143,7 +143,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 	public async Task 置換_同じ巻番号の元素材は確認対象となり適用後に除外されSourceは設定されない()
 	{
 		this.createVolume("Title 01");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var original = this.addSourceVolume(1m);
 		var expanded = this.store.ExpandedVolumes.Single();
 		expanded.IsChecked.Value = true;
@@ -159,7 +159,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 
 		var volume = Assert.Single(this.store.BindingVolumes);
 		Assert.NotSame(original, volume);
-		Assert.Equal(MaterialSourceType.WorkFolder, volume.Material.Type);
+		Assert.Equal(MaterialSourceType.ExpandedFolder, volume.Material.Type);
 		Assert.Null(volume.Material.Source);
 		Assert.Null(expanded.Source);
 		Assert.Single(this.store.Materials);
@@ -170,7 +170,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 	{
 		this.createVolume("Title 01");
 		this.createVolume("Title 02");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		this.store.ExpandedVolumes[0].IsChecked.Value = true;
 		this.store.ExpandedVolumes[1].IsChecked.Value = false;
 		this.manager.ApplyExpandedVolumeSelection();
@@ -186,7 +186,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 	public async Task 解除_論理的に除外されフォルダとExpandedVolumeとSourceは維持される()
 	{
 		var path = this.createVolume("Title 01");
-		await this.manager.SyncWorkVolumesAsync();
+		await this.manager.SyncExpandedVolumesAsync();
 		var expanded = this.store.ExpandedVolumes.Single();
 		var source = new MaterialItem(MaterialItemType.Folder, MaterialSourceType.Folder, "s", @"C:\s");
 		this.store.Materials.Add(source);
@@ -219,7 +219,7 @@ public class ExpandedVolumeDialogTests : IDisposable
 		this.store.SwitchToExpandedVolume(sourceVolume, expanded);
 		var withSource = sourceVolume.CreateDto();
 
-		Assert.Equal(MaterialSourceType.WorkFolder, withSource.Type);
+		Assert.Equal(MaterialSourceType.ExpandedFolder, withSource.Type);
 		Assert.Equal(@"C:\work\Vol_01", withSource.Material.FullPath);
 		Assert.NotNull(withSource.SourceMaterial);
 		Assert.Equal(@"C:\src\1", withSource.SourceMaterial!.FullPath);

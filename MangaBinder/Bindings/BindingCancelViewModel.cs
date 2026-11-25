@@ -44,21 +44,21 @@ public class BindingCancelViewModel : IDisposable
 	/// 初期値は false です。
 	/// XAML の DeleteWorkFolder.Value へ Binding されます。
 	/// </summary>
-	public BindableReactiveProperty<bool> DeleteWorkFolder { get; }
+	public BindableReactiveProperty<bool> DeleteExpandedSeriesFolder { get; }
 
 	/// <summary>
 	/// Work 作品フォルダのパスを取得します。
 	/// BindingStore.WorkSeriesFolderPath を参照します。
 	/// XAML の WorkSeriesFolderPath.Value へ Binding されます。
 	/// </summary>
-	public IReadOnlyBindableReactiveProperty<string> WorkSeriesFolderPath { get; }
+	public IReadOnlyBindableReactiveProperty<string> ExpandedSeriesFolderPath { get; }
 
 	/// <summary>
 	/// Work 作品フォルダが削除可能かどうかを取得します。
 	/// Dialog 表示時に Directory.Exists() で設定されます。
 	/// XAML の CanDeleteWorkFolder.Value へ Binding されます。
 	/// </summary>
-	public BindableReactiveProperty<bool> CanDeleteWorkFolder { get; }
+	public BindableReactiveProperty<bool> CanDeleteExpandedSeriesFolder { get; }
 
 	/// <summary>
 	/// <see cref="BindingCancelViewModel"/> の新しいインスタンスを初期化します。
@@ -93,15 +93,15 @@ public class BindingCancelViewModel : IDisposable
 			.AddTo(ref this.disposableBag);
 
 		// DeleteWorkFolder: 初期値 false
-		this.DeleteWorkFolder = new BindableReactiveProperty<bool>(false)
+		this.DeleteExpandedSeriesFolder = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 
 		// WorkSeriesFolderPath: BindingStore.WorkSeriesFolderPath を直接参照
 		// BindingStore 所有のため Dispose 対象外
-		this.WorkSeriesFolderPath = this.bindingStore.WorkSeriesFolderPath;
+		this.ExpandedSeriesFolderPath = this.bindingStore.ExpandedSeriesFolderPath;
 
 		// CanDeleteWorkFolder: 初期値 false
-		this.CanDeleteWorkFolder = new BindableReactiveProperty<bool>(false)
+		this.CanDeleteExpandedSeriesFolder = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 	}
 
@@ -112,11 +112,11 @@ public class BindingCancelViewModel : IDisposable
 	public async ValueTask ShowAsync()
 	{
 		// Dialog 表示時の初期化：DeleteWorkFolder を false にリセット
-		this.DeleteWorkFolder.Value = false;
+		this.DeleteExpandedSeriesFolder.Value = false;
 
 		// CanDeleteWorkFolder を設定：WorkSeriesFolderPath が存在するかを確認
-		var workSeriesFolderPath = this.bindingStore.WorkSeriesFolderPath.Value;
-		this.CanDeleteWorkFolder.Value = !string.IsNullOrEmpty(workSeriesFolderPath) && Directory.Exists(workSeriesFolderPath);
+		var workSeriesFolderPath = this.bindingStore.ExpandedSeriesFolderPath.Value;
+		this.CanDeleteExpandedSeriesFolder.Value = !string.IsNullOrEmpty(workSeriesFolderPath) && Directory.Exists(workSeriesFolderPath);
 
 		// BindingCancelDialogContent を DataContext として ContentDialog を構築
 		var dialog = new ContentDialog
@@ -147,7 +147,7 @@ public class BindingCancelViewModel : IDisposable
 
 				// BindingManager.CancelAsync() を呼び出し
 				await this.bindingManager.CancelAsync(
-					this.DeleteWorkFolder.Value,
+					this.DeleteExpandedSeriesFolder.Value,
 					CancellationToken.None);
 			}
 		}
