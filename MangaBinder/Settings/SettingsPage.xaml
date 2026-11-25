@@ -358,13 +358,13 @@
 										Margin="0,8,8,0"
 										VerticalAlignment="Center"
 										PlaceholderText="製本する画像の展開先フォルダを指定してください。"
-										Text="{Binding WorkFolderPath.Value, UpdateSourceTrigger=PropertyChanged}" />
+										Text="{Binding ExpandedFolderPath.Value, UpdateSourceTrigger=PropertyChanged}" />
 									<ui:Button
 										Grid.Row="2" Grid.Column="1"
 										Margin="0,8,0,0"
 										Content="参照"
 										Icon="{ui:SymbolIcon FolderOpen24}"
-										Command="{Binding BrowseWorkFolderCommand}" />
+										Command="{Binding BrowseExpandedFolderCommand}" />
 								</Grid>
 							</ui:Card>
 						</Grid>

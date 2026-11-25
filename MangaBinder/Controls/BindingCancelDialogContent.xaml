@@ -43,7 +43,7 @@
             LineHeight="18" />
 
         <!-- Row4: Workフォルダ削除設定Card -->
-        <ui:Card Grid.Row="4" Padding="12,8" IsEnabled="{Binding CanDeleteWorkFolder.Value}">
+		<ui:Card Grid.Row="4" Padding="12,8" IsEnabled="{Binding CanDeleteExpandedSeriesFolder.Value}">
             <Grid>
                 <Grid.RowDefinitions>
                     <!-- Row0: CheckBox -->
@@ -57,13 +57,13 @@
                     Grid.Row="0"
                     Content="ワークフォルダを削除する"
                     FontSize="12"
-                    IsChecked="{Binding DeleteWorkFolder.Value, Mode=TwoWay}"
+                    IsChecked="{Binding DeleteExpandedSeriesFolder.Value, Mode=TwoWay}"
                     VerticalAlignment="Center" />
 
                 <!-- Row1: Workフォルダパス -->
                 <TextBlock
                     Grid.Row="1"
-                    Text="{Binding WorkSeriesFolderPath.Value, Mode=OneWay}"
+                    Text="{Binding ExpandedSeriesFolderPath.Value, Mode=OneWay}"
                     FontSize="11"
                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                     TextWrapping="Wrap"

@@ -233,7 +233,7 @@
 						HorizontalAlignment="Center"
 						PrimaryText="展開先フォルダを開く"
 						SecondaryLabel="巻フォルダ数"
-						SecondaryValue="{Binding WorkVolumeFolderCount.Value, StringFormat={}{0:N0}}"
+						SecondaryValue="{Binding ExpandedVolumeFolderCount.Value, StringFormat={}{0:N0}}"
 						Symbol="{x:Static app:AppSymbols.OpenBindingFolder}"
 						Command="{Binding OpenBindingFolderCommand}" />
 				</Grid>
