@@ -84,11 +84,35 @@
 					</ContextMenu>
 				</StackPanel.ContextMenu>
 				<!-- アイコン -->
-				<controls:MaterialIcon
-					ItemType="{Binding Material.ItemType}"
-					Filled="{Binding Material, Converter={StaticResource NodeTypeToFilledConverter}}"
+				<Grid
 					VerticalAlignment="Center"
-					Margin="0,0,5,0" />
+					Margin="0,0,5,0">
+					<controls:MaterialIcon
+						ItemType="{Binding Material.ItemType}"
+						Filled="{Binding Material, Converter={StaticResource NodeTypeToFilledConverter}}"
+						VerticalAlignment="Center" />
+					<!-- 展開に使用した素材のオーバーレイ（素材アイコンの右下） -->
+					<ui:SymbolIcon
+						Symbol="LinkSquare12"
+						Filled="True"
+						FontSize="10"
+						Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+						ToolTip="展開元の素材"
+						HorizontalAlignment="Right"
+						VerticalAlignment="Bottom"
+						Margin="0,0,-2,-2">
+						<ui:SymbolIcon.Style>
+							<Style TargetType="ui:SymbolIcon">
+								<Setter Property="Visibility" Value="Collapsed" />
+								<Style.Triggers>
+									<DataTrigger Binding="{Binding Material.HasBeenUsedForExpansion.Value, Mode=OneWay}" Value="True">
+										<Setter Property="Visibility" Value="Visible" />
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</ui:SymbolIcon.Style>
+					</ui:SymbolIcon>
+				</Grid>
 				<!-- チェックボックス (Archive / 選択不可ノードは非表示) -->
 				<CheckBox
 					IsChecked="{Binding Material.IsChecked.Value, Mode=OneWay}"

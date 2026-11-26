@@ -167,6 +167,7 @@ public class SeriesInspectionManagerTests : IDisposable
 		Assert.Same(source, volume.Material.Source);
 		Assert.True(volume.Material.IsChecked.Value);
 		Assert.False(source.IsChecked.Value);
+		Assert.True(source.HasBeenUsedForExpansion.Value);
 		var expanded = Assert.Single(this.store.ExpandedVolumes);
 		Assert.True(expanded.IsChecked.Value);
 		Assert.Same(source, expanded.Source);
@@ -238,6 +239,7 @@ public class SeriesInspectionManagerTests : IDisposable
 		Assert.Same(source, sourceVolume.Material);
 		Assert.Equal(MaterialSourceType.Folder, sourceVolume.Material.Type);
 		Assert.True(source.IsChecked.Value);
+		Assert.False(source.HasBeenUsedForExpansion.Value);
 	}
 
 	[Fact]
@@ -253,7 +255,38 @@ public class SeriesInspectionManagerTests : IDisposable
 
 		Assert.Same(source, sourceVolume.Material);
 		Assert.True(source.IsChecked.Value);
+		Assert.False(source.HasBeenUsedForExpansion.Value);
 		Assert.Empty(this.store.ExpandedVolumes);
+	}
+
+	[Fact]
+	public async Task ExecuteAsync_展開または検査が例外で失敗した場合は元素材をマークしない()
+	{
+		var (volume, source, image) = this.createSourceVolumeWithWorkImage("Title 01", 1m);
+		File.Delete(image.FilePath!);
+		using var context = new SingleThreadSynchronizationContext();
+
+		await Assert.ThrowsAnyAsync<IOException>(
+			() => context.RunAsync(() => this.manager.ExecuteAsync()));
+
+		Assert.Same(source, volume.Material);
+		Assert.True(source.IsChecked.Value);
+		Assert.False(source.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public async Task ExecuteAsync_元素材のマークはUIコンテキストで通知される()
+	{
+		var (_, source, _) = this.createSourceVolumeWithWorkImage("Title 01", 1m);
+		using var context = new SingleThreadSynchronizationContext();
+		var threads = new ConcurrentQueue<int>();
+		using var subscription = source.HasBeenUsedForExpansion.AsObservable().Skip(1)
+			.Subscribe(_ => threads.Enqueue(Environment.CurrentManagedThreadId));
+
+		await context.RunAsync(() => this.manager.ExecuteAsync());
+
+		Assert.True(source.HasBeenUsedForExpansion.Value);
+		Assert.Equal(context.ThreadId, Assert.Single(threads));
 	}
 
 	[Fact]

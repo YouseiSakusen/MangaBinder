@@ -230,6 +230,90 @@ public class BindingSettingsRestoreTests : IDisposable
 	}
 
 	[Fact]
+	public async Task Source付き展開済み巻の復元が確定すると元素材がHasBeenUsedForExpansionになる()
+	{
+		this.createVolumeFolder("Title 01");
+		await this.manager.SyncExpandedVolumesAsync();
+		var expanded = this.store.ExpandedVolumes.Single();
+		var source = this.addSource("a");
+		var unrelated = this.addSource("b");
+		using var temp = expanded.CreateMaterial();
+		temp.Source = source;
+		var dto = createDto(temp, 1m, source);
+		Assert.False(source.HasBeenUsedForExpansion.Value);
+
+		await this.restoreAsync(dto);
+
+		Assert.True(source.HasBeenUsedForExpansion.Value);
+		Assert.False(unrelated.HasBeenUsedForExpansion.Value);
+		Assert.False(source.IsChecked.Value);
+	}
+
+	[Fact]
+	public async Task SourceMaterialがnullの展開済み巻の復元では元素材はマークされない()
+	{
+		this.createVolumeFolder("Title 01");
+		await this.manager.SyncExpandedVolumesAsync();
+		var expanded = this.store.ExpandedVolumes.Single();
+		var source = this.addSource("a");
+		using var temp = expanded.CreateMaterial();
+		var dto = createDto(temp, 1m);
+
+		await this.restoreAsync(dto);
+
+		Assert.False(source.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public async Task Sourceが見つからない展開済み巻の復元ではマークされない()
+	{
+		this.createVolumeFolder("Title 01");
+		await this.manager.SyncExpandedVolumesAsync();
+		var expanded = this.store.ExpandedVolumes.Single();
+		var present = this.addSource("a");
+		using var temp = expanded.CreateMaterial();
+		using var missingSource = new MaterialItem(MaterialItemType.Folder, MaterialSourceType.Folder, "gone", @"C:\gone", sourcePath: @"C:\gone");
+		temp.Source = missingSource;
+		var dto = createDto(temp, 1m, missingSource);
+
+		await this.restoreAsync(dto);
+
+		Assert.False(present.HasBeenUsedForExpansion.Value);
+		Assert.False(missingSource.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public async Task 展開済み巻が復元されなかった場合はSourceMaterialがあってもマークされない()
+	{
+		var source = this.addSource("a");
+		using var gone = new MaterialItem(
+			MaterialItemType.Folder,
+			MaterialSourceType.ExpandedFolder,
+			"Title 01",
+			Path.Combine(this.seriesFolder, "Title 01"),
+			sourcePath: Path.Combine(this.seriesFolder, "Title 01"));
+		gone.Source = source;
+		var goneDto = createDto(gone, 1m, source);
+
+		await this.restoreAsync(goneDto);
+
+		Assert.Empty(this.store.BindingVolumes);
+		Assert.False(source.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public async Task 元素材由来の巻の復元ではマークされない()
+	{
+		var source = this.addSource("a");
+		var dto = createDto(source, 1m);
+
+		await this.restoreAsync(dto);
+
+		Assert.True(source.IsChecked.Value);
+		Assert.False(source.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
 	public async Task SourceMaterial項目がない旧1_0のJSONでも展開済み巻を復元できる()
 	{
 		this.createVolumeFolder("Title 01");

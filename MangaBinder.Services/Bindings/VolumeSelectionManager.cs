@@ -281,6 +281,7 @@ public class VolumeSelectionManager
 
 		var restoredVolumes = new List<BindingVolume>();
 		var restoredExpandedPairs = new List<(ExpandedVolume ExpandedVolume, MaterialItem Material)>();
+		var restoredSourceMaterials = new List<MaterialItem>();
 		try
 		{
 			foreach (var volumeDto in settings.Volumes)
@@ -301,6 +302,7 @@ public class VolumeSelectionManager
 						&& materialMap.TryGetValue(createMaterialKey(volumeDto.SourceMaterial), out var sourceMaterial))
 					{
 						expandedVolume.Source = sourceMaterial;
+						restoredSourceMaterials.Add(sourceMaterial);
 					}
 
 					material = this.bindingStore.CreateExpandedMaterial(expandedVolume);
@@ -340,6 +342,12 @@ public class VolumeSelectionManager
 		foreach (var pair in restoredExpandedPairs)
 		{
 			pair.ExpandedVolume.IsChecked.Value = true;
+		}
+
+		// 復元が確定した後に、元素材を展開に使用した素材としてマークする
+		foreach (var restoredSource in restoredSourceMaterials)
+		{
+			restoredSource.HasBeenUsedForExpansion.Value = true;
 		}
 
 		return null;

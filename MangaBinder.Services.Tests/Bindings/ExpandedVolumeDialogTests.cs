@@ -210,6 +210,26 @@ public class ExpandedVolumeDialogTests : IDisposable
 	}
 
 	[Fact]
+	public void HasBeenUsedForExpansion_元素材の再選択と展開済み巻の選択解除でもマークが残る()
+	{
+		var volume = this.addSourceVolume(1m);
+		var source = volume.Material;
+		var expanded = this.store.AddOrUpdateExpandedVolume("Title 01", Path.Combine(this.seriesFolder, "Title 01"), 1m, 1, 10L);
+		this.store.SwitchToExpandedVolume(volume, expanded);
+		Assert.True(source.HasBeenUsedForExpansion.Value);
+
+		this.manager.UnselectMaterial(volume.Material);
+
+		Assert.Empty(this.store.BindingVolumes);
+		Assert.True(source.HasBeenUsedForExpansion.Value);
+
+		this.manager.SelectMaterial(source);
+
+		Assert.True(source.IsChecked.Value);
+		Assert.True(source.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
 	public void CreateDto_元素材由来と展開済みSourceなしではSourceMaterialがnullで展開済みSourceありでは識別情報が入る()
 	{
 		var sourceVolume = this.addSourceVolume(1m);

@@ -869,6 +869,7 @@ public class BindingStore : IDisposable
 	/// <item>切り替え前の元素材を <see cref="ExpandedVolume.Source"/> へ設定する</item>
 	/// <item>展開済み巻から MaterialItem を生成して BindingVolume.Material へ設定する</item>
 	/// <item>元素材の IsChecked を false、展開済み側の選択状態を true にする</item>
+	/// <item>切り替えが完了した元素材の HasBeenUsedForExpansion を true にする（以後 false へは戻さない）</item>
 	/// </list>
 	/// </summary>
 	/// <param name="bindingVolume">切り替え対象の BindingVolume。BindingVolumes に含まれている必要があります。</param>
@@ -902,6 +903,7 @@ public class BindingStore : IDisposable
 
 		bindingVolume.SetMaterial(expandedMaterial);
 		sourceMaterial.IsChecked.Value = false;
+		sourceMaterial.HasBeenUsedForExpansion.Value = true;
 	}
 
 	/// <summary>

@@ -111,6 +111,14 @@ public class MaterialItem : IDisposable
 	public BindableReactiveProperty<bool> IsChecked { get; }
 
 	/// <summary>
+	/// 現在の製本セッション中に、この素材を展開に使用したことがあるかを取得します。
+	/// 現在選択している巻の展開元ではなく、展開・Material 切替が正常完了した素材を示す累積状態です。
+	/// 一度 true になった後は、選択状態の変更や巻の選択解除では false へ戻しません。
+	/// 初期値は false で、製本設定へは保存されません。
+	/// </summary>
+	public BindableReactiveProperty<bool> HasBeenUsedForExpansion { get; }
+
+	/// <summary>
 	/// 子素材一覧を取得します。
 	/// </summary>
 	public ObservableList<MaterialItem> Children { get; }
@@ -164,6 +172,8 @@ public class MaterialItem : IDisposable
 		this.CanDeleteMaterial = canDeleteMaterial;
 
 		this.IsChecked = new BindableReactiveProperty<bool>(false)
+			.AddTo(ref this.disposableBag);
+		this.HasBeenUsedForExpansion = new BindableReactiveProperty<bool>(false)
 			.AddTo(ref this.disposableBag);
 		this.Children = new ObservableList<MaterialItem>();
 	}

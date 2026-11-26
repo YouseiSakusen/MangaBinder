@@ -228,6 +228,117 @@ public class MaterialSwitchTests : IDisposable
 	}
 
 	[Fact]
+	public void HasBeenUsedForExpansion_新しいMaterialItemの初期値はfalse()
+	{
+		using var material = createSourceMaterial();
+
+		Assert.False(material.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public void HasBeenUsedForExpansion_Material切替成功後に元素材がtrueになりチェックはfalseのまま()
+	{
+		var (volume, source, expanded) = this.createSelectedSourceVolume();
+		Assert.False(source.HasBeenUsedForExpansion.Value);
+
+		this.store.SwitchToExpandedVolume(volume, expanded);
+
+		Assert.True(source.HasBeenUsedForExpansion.Value);
+		Assert.False(source.IsChecked.Value);
+		Assert.False(volume.Material.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public void HasBeenUsedForExpansion_切替の通知は一度だけ流れる()
+	{
+		var (volume, source, expanded) = this.createSelectedSourceVolume();
+		var notified = new List<bool>();
+		using var subscription = source.HasBeenUsedForExpansion.AsObservable().Skip(1).Subscribe(notified.Add);
+
+		this.store.SwitchToExpandedVolume(volume, expanded);
+
+		Assert.True(Assert.Single(notified));
+	}
+
+	[Fact]
+	public void HasBeenUsedForExpansion_切替が成立しない場合はマークされない()
+	{
+		var (volume, source, expanded) = this.createSelectedSourceVolume();
+		using var stranger = new BindingVolume(createSourceMaterial("x"));
+		var strangerMaterial = stranger.Material;
+
+		Assert.Throws<InvalidOperationException>(() => this.store.SwitchToExpandedVolume(stranger, expanded));
+
+		Assert.False(strangerMaterial.HasBeenUsedForExpansion.Value);
+		Assert.False(source.HasBeenUsedForExpansion.Value);
+
+		this.store.SwitchToExpandedVolume(volume, expanded);
+		var generated = volume.Material;
+		Assert.Throws<InvalidOperationException>(() => this.store.SwitchToExpandedVolume(volume, expanded));
+		Assert.False(generated.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public void HasBeenUsedForExpansion_別素材へ再展開しても先に使用した素材のマークが残る()
+	{
+		var (volumeA, sourceA, expanded) = this.createSelectedSourceVolume();
+		this.store.SwitchToExpandedVolume(volumeA, expanded);
+
+		this.store.BindingVolumes.Remove(volumeA);
+		volumeA.Dispose();
+		var sourceB = createSourceMaterial("b");
+		this.store.Materials.Add(sourceB);
+		sourceB.IsChecked.Value = true;
+		var volumeB = new BindingVolume(sourceB);
+		volumeB.VolumeNumber.Value = 1m;
+		this.store.InsertBindingVolumeInOrder(volumeB);
+
+		this.store.SwitchToExpandedVolume(volumeB, expanded);
+
+		Assert.Same(sourceB, expanded.Source);
+		Assert.True(sourceA.HasBeenUsedForExpansion.Value);
+		Assert.True(sourceB.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public void HasBeenUsedForExpansion_チェックの切替や展開済み巻の論理除外では戻らない()
+	{
+		var (volume, source, expanded) = this.createSelectedSourceVolume();
+		this.store.SwitchToExpandedVolume(volume, expanded);
+
+		source.IsChecked.Value = true;
+		source.IsChecked.Value = false;
+		this.store.BindingVolumes.Remove(volume);
+		expanded.IsChecked.Value = false;
+
+		Assert.True(source.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public void HasBeenUsedForExpansion_新しいBindingStoreのMaterialItemには過去セッションのマークが残らない()
+	{
+		var (volume, source, expanded) = this.createSelectedSourceVolume();
+		this.store.SwitchToExpandedVolume(volume, expanded);
+		Assert.True(source.HasBeenUsedForExpansion.Value);
+
+		using var nextStore = new BindingStore();
+		var nextSource = createSourceMaterial();
+		nextStore.Materials.Add(nextSource);
+
+		Assert.False(nextSource.HasBeenUsedForExpansion.Value);
+	}
+
+	[Fact]
+	public void HasBeenUsedForExpansion_MaterialItemのDisposeで破棄される()
+	{
+		var material = createSourceMaterial();
+
+		material.Dispose();
+
+		Assert.True(material.HasBeenUsedForExpansion.IsDisposed);
+	}
+
+	[Fact]
 	public void AddOrUpdateExpandedVolume_同一パスは大文字小文字を区別せず再利用する()
 	{
 		var first = this.store.AddOrUpdateExpandedVolume("Vol_01", @"C:\work\Vol_01", 1m, 2, 20L);
